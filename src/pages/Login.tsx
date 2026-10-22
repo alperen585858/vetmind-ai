@@ -45,7 +45,9 @@ export default function Login() {
 
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-10 lg:flex-row lg:items-center lg:gap-16">
         <div className="flex-1">
-          <Logo dark size="lg" />
+          <Link to="/" className="inline-block transition opacity-90 hover:opacity-100">
+            <Logo dark size="lg" />
+          </Link>
           <p className="mt-10 text-sm font-semibold uppercase tracking-wider text-teal-400">VetMind AI · Bitirme Projesi</p>
           <h1 className="mt-3 max-w-xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
             Giriş yapın,

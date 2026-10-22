@@ -7,6 +7,7 @@ import { Toasts } from './components/Toasts'
 import { Card } from './components/Card'
 import { EmptyState } from './components/EmptyState'
 import type { Role } from './types'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -39,9 +40,10 @@ export default function App() {
     <>
       {!role ? (
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route path="/giris" element={<Login />} />
           <Route path="/kayit" element={<Register />} />
-          <Route path="*" element={<Navigate to="/giris" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
         <Routes>

@@ -22,6 +22,61 @@ body {
   @apply whitespace-nowrap px-4 py-3 text-sm text-navy-800;
 }
 
+/* Landing page motion */
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes landing-hero-pan {
+  from {
+    transform: scale(1.06) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1) translate3d(-1.5%, 0, 0);
+  }
+}
+@keyframes landing-cta-pulse {
+  0%,
+  100% {
+    box-shadow: 0 12px 40px rgba(14, 165, 233, 0.45);
+  }
+  50% {
+    box-shadow: 0 16px 48px rgba(14, 165, 233, 0.65);
+  }
+}
+.landing-reveal {
+  animation: landing-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.landing-reveal-delay-1 {
+  animation-delay: 0.12s;
+}
+.landing-reveal-delay-2 {
+  animation-delay: 0.24s;
+}
+.landing-reveal-delay-3 {
+  animation-delay: 0.36s;
+}
+.landing-hero-pan {
+  animation: landing-hero-pan 18s ease-out both;
+}
+.landing-cta {
+  animation: landing-cta-pulse 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal,
+  .landing-hero-pan,
+  .landing-cta {
+    animation: none !important;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;
