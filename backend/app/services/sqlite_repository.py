@@ -13,6 +13,7 @@ from typing import Optional
 
 from app.schemas.case import CaseRecord
 from app.schemas.dicom import DicomIngestionRecord
+from app.schemas.documents import DocumentIngestionRecord
 from app.schemas.jobs import AnalysisJob
 
 
@@ -40,6 +41,11 @@ class SqliteCaseRepository:
                 payload TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS ingestions (
+                ingest_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS document_ingestions (
                 ingest_id TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
                 payload TEXT NOT NULL
@@ -132,3 +138,28 @@ class SqliteCaseRepository:
         if row is None:
             return None
         return DicomIngestionRecord.model_validate_json(row["payload"])
+
+    def save_document_ingestion(self, record: DocumentIngestionRecord) -> DocumentIngestionRecord:
+        payload = record.model_dump_json()
+        created = record.created_at.isoformat()
+        self._conn.execute(
+            """
+            INSERT INTO document_ingestions (ingest_id, created_at, payload)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ingest_id) DO UPDATE SET
+                created_at = excluded.created_at,
+                payload = excluded.payload
+            """,
+            (record.ingest_id, created, payload),
+        )
+        self._conn.commit()
+        return record
+
+    def get_document_ingestion(self, ingest_id: str) -> Optional[DocumentIngestionRecord]:
+        row = self._conn.execute(
+            "SELECT payload FROM document_ingestions WHERE ingest_id = ?",
+            (ingest_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return DocumentIngestionRecord.model_validate_json(row["payload"])

@@ -21,12 +21,9 @@ class ModelCapability:
 
 
 def default_capabilities() -> list[ModelCapability]:
-    """Production-default capability table for Phase 2A mock adapters.
-
-    Secondary conflict-demo adapters are registered in the model registry but are
-    not enabled here; ScenarioRoutingPolicy may add them for synthetic demos only.
-    """
+    """Production-default capability table for mock adapters (MRI / CT / XR / multimodal)."""
     canine_feline = frozenset({Species.CANINE, Species.FELINE})
+    neuro = frozenset({AnatomicalRegion.BRAIN, AnatomicalRegion.CERVICAL})
     return [
         ModelCapability(
             model_id="mock-brain-mri-v1",
@@ -43,5 +40,29 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=10,
             description="Mock Cervical MRI (canine/feline)",
+        ),
+        ModelCapability(
+            model_id="mock-ct-3d-v1",
+            modalities=frozenset({Modality.CT}),
+            regions=neuro,
+            species=canine_feline,
+            priority=20,
+            description="Mock CT 3D volume stub (brain/cervical)",
+        ),
+        ModelCapability(
+            model_id="mock-xr-vision-v1",
+            modalities=frozenset({Modality.XR}),
+            regions=frozenset({AnatomicalRegion.THORAX}),
+            species=canine_feline,
+            priority=20,
+            description="Mock X-Ray vision stub (thorax)",
+        ),
+        ModelCapability(
+            model_id="mock-multimodal-vlm-v1",
+            modalities=frozenset({Modality.OTHER}),
+            regions=frozenset({AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}),
+            species=canine_feline,
+            priority=50,
+            description="Mock multimodal VLM stub (document + text context)",
         ),
     ]

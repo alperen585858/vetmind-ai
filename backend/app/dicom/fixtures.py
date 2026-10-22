@@ -6,6 +6,7 @@ from io import BytesIO
 
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import (
+    CTImageStorage,
     ExplicitVRLittleEndian,
     MRImageStorage,
     SecondaryCaptureImageStorage,
@@ -129,6 +130,44 @@ def cervical_mri_study_files(instance_count: int = 2) -> list[tuple[str, bytes]]
             instance_number=i,
         )
         files.append((f"cervical_mr_{i}.dcm", data))
+    return files
+
+
+def brain_ct_study_files(instance_count: int = 2) -> list[tuple[str, bytes]]:
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    files: list[tuple[str, bytes]] = []
+    for i in range(1, instance_count + 1):
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=series_uid,
+            modality="CT",
+            study_description="SYNTHETIC CANINE BRAIN CT",
+            series_description="SYNTHETIC AXIAL CT BRAIN",
+            body_part="BRAIN",
+            instance_number=i,
+            sop_class_uid=CTImageStorage,
+        )
+        files.append((f"brain_ct_{i}.dcm", data))
+    return files
+
+
+def thorax_xr_study_files(instance_count: int = 1) -> list[tuple[str, bytes]]:
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    files: list[tuple[str, bytes]] = []
+    for i in range(1, instance_count + 1):
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=series_uid,
+            modality="DX",
+            study_description="SYNTHETIC CANINE THORAX RADIOGRAPH",
+            series_description="SYNTHETIC RIGHT LATERAL CHEST",
+            body_part="THORAX",
+            instance_number=i,
+            sop_class_uid=SecondaryCaptureImageStorage,
+        )
+        files.append((f"thorax_xr_{i}.dcm", data))
     return files
 
 

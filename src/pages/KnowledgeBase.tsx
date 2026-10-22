@@ -5,17 +5,19 @@ import { Card, CardHeader } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
+import { BackendUnavailableError, searchRag } from '../lib/backend'
 import { fmtDate, today } from '../lib/format'
 import type { KbSource } from '../types'
 
 interface Hit {
   source: KbSource
   score: number
+  backend?: boolean
 }
 
 const SUGGESTIONS = ['Dachshund akut disk ekstrüzyonu', 'FKE ağrısız mı', 'kedide nöbet idiyopatik epilepsi', 'derin ağrı prognoz']
 
-function search(q: string, sources: KbSource[]): Hit[] {
+function localSearch(q: string, sources: KbSource[]): Hit[] {
   const tokens = q.toLocaleLowerCase('tr').split(/[\s,.;:?!]+/).filter((t) => t.length >= 2)
   return sources
     .filter((s) => !s.indexing)
@@ -43,10 +45,35 @@ export default function KnowledgeBase() {
     setQ(query)
     setLoading(true)
     setHits(null)
-    setTimeout(() => {
-      setHits(search(query, kbSources))
-      setLoading(false)
-    }, 800)
+    void (async () => {
+      try {
+        const res = await searchRag(query, 5)
+        setHits(
+          res.hits.map((h, i) => ({
+            source: {
+              id: 10_000 + i,
+              title: h.title,
+              type: 'Bilimsel yayın',
+              license: 'İzinli',
+              section: h.section,
+              passage: h.passage,
+              chunks: 1,
+              indexedAt: today(),
+              keywords: [],
+            },
+            score: h.score,
+            backend: true,
+          })),
+        )
+      } catch (err) {
+        setHits(localSearch(query, kbSources))
+        if (!(err instanceof BackendUnavailableError)) {
+          pushToast({ tone: 'warning', title: 'Backend RAG yok', body: 'Yerel demo arama kullanıldı.' })
+        }
+      } finally {
+        setLoading(false)
+      }
+    })()
   }
 
   const add = () => {
@@ -65,12 +92,12 @@ export default function KnowledgeBase() {
     <>
       <PageHeader
         title="Bilgi Tabanı — Nöroloji"
-        subtitle={`${kbSources.length} kaynak · ${kbSources.reduce((s, k) => s + k.chunks, 0).toLocaleString('tr-TR')} parça · embedding: vetmind-embed-tr-v1`}
+        subtitle={`${kbSources.length} UI kaynak · backend lexical RAG (/api/v1/rag/search) · embedding/Qdrant yok`}
         actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>Kaynak Ekle</Button>}
       />
 
       <Card className="mb-6">
-        <CardHeader title="Anlamsal arama (RAG önizleme)" subtitle="Sorgu vektörleştirilir, bilgi tabanında en yakın parçalar benzerlik skoruyla getirilir" icon={<Sparkles className="h-5 w-5" />} />
+        <CardHeader title="Lexical RAG arama" subtitle="Backend token-overlap retrieval (demo). Klinik kanıt değildir." icon={<Sparkles className="h-5 w-5" />} />
         <div className="p-5">
           <form
             onSubmit={(e) => {

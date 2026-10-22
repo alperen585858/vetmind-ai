@@ -4,17 +4,38 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import Response
 
 from app.api.deps import get_dicom_service
-from app.dicom.fixtures import brain_mri_study_files, cervical_mri_study_files
+from app.auth.deps import require_auth, require_capability
+from app.auth.rbac import CAP_DICOM
+from app.dicom.fixtures import (
+    brain_ct_study_files,
+    brain_mri_study_files,
+    cervical_mri_study_files,
+    thorax_xr_study_files,
+)
 from app.schemas.case import CaseRecord
 from app.schemas.dicom import ConfirmClassificationRequest, DicomIngestionRecord, DicomUploadResponse
 from app.schemas.enums import Species
 from app.services.dicom_service import DicomService
 
-router = APIRouter(prefix="/api/v1/dicom", tags=["dicom"])
+router = APIRouter(
+    prefix="/api/v1/dicom",
+    tags=["dicom"],
+    dependencies=[Depends(require_auth), Depends(require_capability(CAP_DICOM))],
+)
 
 _MAX_FILES = 200
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
-DemoFixtureKind = Literal["brain_mri", "cervical_mri"]
+DemoFixtureKind = Literal["brain_mri", "cervical_mri", "brain_ct", "thorax_xr"]
+
+
+def _demo_files(kind: DemoFixtureKind) -> list[tuple[str, bytes]]:
+    if kind == "brain_mri":
+        return brain_mri_study_files(2)
+    if kind == "cervical_mri":
+        return cervical_mri_study_files(2)
+    if kind == "brain_ct":
+        return brain_ct_study_files(2)
+    return thorax_xr_study_files(1)
 
 
 @router.post("/upload", response_model=DicomUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -74,7 +95,7 @@ def upload_demo_fixture(
     service: DicomService = Depends(get_dicom_service),
 ) -> DicomUploadResponse:
     """Ingest synthetic DICOM fixtures (no real PHI). Same response shape as /upload."""
-    files = brain_mri_study_files(2) if kind == "brain_mri" else cervical_mri_study_files(2)
+    files = _demo_files(kind)
     return service.upload(
         files=files,
         patient_name=patient_name,
@@ -89,7 +110,7 @@ def upload_demo_fixture(
 @router.get("/fixtures/{kind}/{index}")
 def download_demo_fixture(kind: DemoFixtureKind, index: int) -> Response:
     """Download a synthetic DICOM instance for client-side viewing (not diagnosis)."""
-    files = brain_mri_study_files(2) if kind == "brain_mri" else cervical_mri_study_files(2)
+    files = _demo_files(kind)
     if index < 0 or index >= len(files):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture index out of range.")
     name, data = files[index]

@@ -42,9 +42,9 @@ function backendMockSteps(c: VetCase): MockStep[] {
       key: 'route',
       name: 'Model Router (kural tabanlı)',
       logs: [
-        'Senkron FastAPI isteği içinde çalıştı (arka plan kuyruğu yok).',
+        'Async analyze: demo thread worker + job poll (üretim kuyruğu değil).',
         `Yönlendirme sonucu: outcome=${outcome}`,
-        c.backendJobId ? `run_id / job_id: ${c.backendJobId}` : 'job_id yok',
+        c.backendJobId ? `job_id: ${c.backendJobId}` : 'job_id yok',
       ],
     },
     {
@@ -64,6 +64,16 @@ function backendMockSteps(c: VetCase): MockStep[] {
         `bulgu sayısı=${c.backendFindings?.findings.length ?? 0}`,
         'Eksik bulgu hastalık yokluğu sayılmaz.',
       ],
+    },
+    {
+      key: 'rag',
+      name: 'Optional RAG (embedding / lexical)',
+      logs: unsupported || failed
+        ? ['RAG atlandı (unsupported/failed).']
+        : [
+            `Demo RAG citations: ${c.backendDraft?.rag_citations?.length ?? 0} pasaj`,
+            c.backendDraft?.rag_note ?? 'Hash-embedding cosine (varsayılan) veya lexical — klinik kanıt sayılmaz.',
+          ],
     },
     {
       key: 'llm',
@@ -136,8 +146,8 @@ export default function Processing() {
       />
       {isBackend ? (
         <p className="mb-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm text-teal-900">
-          FastAPI mock pipeline (senkron). run_id: <span className="font-mono">{c.backendJobId}</span> · outcome=
-          {c.backendOutcome ?? 'pending'} · case={c.backendCaseId}. Gerçek RAG, Qdrant, vLLM veya GPU kullanılmaz.
+          FastAPI mock pipeline (async job + poll). job_id: <span className="font-mono">{c.backendJobId}</span> · outcome=
+          {c.backendOutcome ?? 'pending'} · case={c.backendCaseId}. Gerçek Qdrant / vLLM / GPU kullanılmaz.
         </p>
       ) : (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
@@ -152,8 +162,8 @@ export default function Processing() {
               <span className="font-medium text-navy-800">
                 {isBackend
                   ? done
-                    ? 'Mock pipeline adımları (senkron sonuç alındı)'
-                    : 'UI animasyonu… (backend analizi zaten senkron tamamlandı)'
+                    ? 'Mock pipeline adımları (async sonuç alındı)'
+                    : 'UI animasyonu… (backend async analyze + poll tamamlandı)'
                   : done
                     ? 'Simüle işlem hattı tamamlandı'
                     : 'Simüle işlem hattı çalışıyor…'}

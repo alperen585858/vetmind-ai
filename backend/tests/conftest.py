@@ -12,11 +12,16 @@ from app.settings import Settings
 
 
 @pytest.fixture
-def container() -> AppContainer:
+def container(tmp_path: Path) -> AppContainer:
     # Tests always use in-memory storage for isolation and speed.
     return AppContainer(
         repo=InMemoryCaseRepository(),
-        settings=Settings(storage_backend="memory", sqlite_path=Path("unused-memory.sqlite3")),
+        settings=Settings(
+            storage_backend="memory",
+            sqlite_path=Path("unused-memory.sqlite3"),
+            quarantine_root=tmp_path / "quarantine",
+            async_analyze_delay_ms=50,
+        ),
     )
 
 

@@ -29,10 +29,18 @@ def test_routes_cervical_mr_to_mock_cervical() -> None:
     assert decision.model_ids == ["mock-cervical-mri-v1"]
 
 
-def test_unsupported_ct_goes_to_manual_review() -> None:
+def test_ct_brain_routes_to_mock_ct() -> None:
     decision = ModelRouter().route(_case(modality=Modality.CT, anatomical_region=AnatomicalRegion.BRAIN))
-    assert decision.supported is False
-    assert decision.model_ids == ["manual-review"]
+    assert decision.supported is True
+    assert decision.model_ids == ["mock-ct-3d-v1"]
+
+
+def test_xr_thorax_routes_to_mock_xr() -> None:
+    decision = ModelRouter().route(
+        _case(modality=Modality.XR, anatomical_region=AnatomicalRegion.THORAX)
+    )
+    assert decision.supported is True
+    assert decision.model_ids == ["mock-xr-vision-v1"]
 
 
 def test_router_ignores_mock_scenario() -> None:

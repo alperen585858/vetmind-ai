@@ -10,12 +10,14 @@ class Species(str, Enum):
 class Modality(str, Enum):
     MR = "MR"
     CT = "CT"
+    XR = "XR"
     OTHER = "OTHER"
 
 
 class AnatomicalRegion(str, Enum):
     BRAIN = "BRAIN"
     CERVICAL = "CERVICAL"
+    THORAX = "THORAX"
     OTHER = "OTHER"
     UNKNOWN = "UNKNOWN"
 
@@ -85,6 +87,9 @@ class MockScenario(str, Enum):
 
     BRAIN_MRI_SUSPECTED = "brain_mri_suspected"
     CERVICAL_MRI_SUSPECTED = "cervical_mri_suspected"
+    CT_BRAIN_SUSPECTED = "ct_brain_suspected"
+    XR_THORAX_SUSPECTED = "xr_thorax_suspected"
+    DOCUMENT_CONTEXT = "document_context"
     NO_FINDINGS = "no_findings"
     UNSUPPORTED = "unsupported"
     MODEL_FAILURE = "model_failure"
@@ -119,6 +124,15 @@ class DicomValidationCode(str, Enum):
     MIXED_MODALITY = "mixed_modality"
     EMPTY_UPLOAD = "empty_upload"
     PIXEL_DATA_PRESENT_IGNORED = "pixel_data_present_ignored"
+
+
+class FileContentKind(str, Enum):
+    DICOM = "dicom"
+    PDF = "pdf"
+    JPEG = "jpeg"
+    PNG = "png"
+    TEXT = "text"
+    UNKNOWN = "unknown"
 
 
 class ClassificationConfidence(str, Enum):

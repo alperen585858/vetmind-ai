@@ -44,6 +44,8 @@ def map_modality(raw: Optional[str]) -> Optional[Modality]:
         return Modality.MR
     if value == "CT":
         return Modality.CT
+    if value in {"XR", "DX", "CR", "DR", "RG"}:
+        return Modality.XR
     if value:
         return Modality.OTHER
     return None

@@ -4,7 +4,8 @@ import { ArrowRight, UserPlus } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
-import { postLoginPath, register } from '../lib/auth'
+import { postLoginPath, register, setBackendAccessToken } from '../lib/auth'
+import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
 import type { Role } from '../types'
 
@@ -20,12 +21,19 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     setBusy(true)
     try {
       const session = register({ name, email, password, role })
+      try {
+        const tokenRes = await backendLogin(email, password)
+        setBackendAccessToken(tokenRes.access_token)
+      } catch {
+        // Seed demo emails match backend; custom emails may only get UI session.
+        setBackendAccessToken(null)
+      }
       signIn(session)
       pushToast({
         tone: 'success',
@@ -50,7 +58,9 @@ export default function Register() {
             <UserPlus className="h-5 w-5" />
             <h1 className="text-lg font-semibold text-white">Hesap oluştur</h1>
           </div>
-          <p className="text-sm text-navy-300">Demo kayıt localStorage&apos;a yazılır. Gerçek kimlik doğrulama değildir.</p>
+          <p className="text-sm text-navy-300">
+            Demo kayıt localStorage&apos;a yazılır. Backend açıksa seed hesaplarla JWT de alınır; özel e-postalar yalnızca UI oturumu alır.
+          </p>
 
           <label className="mt-5 block text-xs font-medium text-navy-300">
             Ad soyad

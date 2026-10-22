@@ -61,7 +61,9 @@ def test_conflicting_outputs_are_preserved() -> None:
     assert "MOCK-BRAIN-NO-MASS-EFFECT" in codes
 
 
-def test_ct_brain_is_unsupported_without_registry_entry() -> None:
-    result, case = _run(MockScenario.BRAIN_MRI_SUSPECTED, modality=Modality.CT)
-    assert result.outcome == PipelineOutcome.UNSUPPORTED
-    assert case.status == CaseLifecycleStatus.MANUAL_REVIEW
+def test_ct_brain_routes_to_mock_ct_adapter() -> None:
+    result, case = _run(MockScenario.CT_BRAIN_SUSPECTED, modality=Modality.CT)
+    assert result.outcome == PipelineOutcome.SUCCESS
+    assert result.findings is not None
+    assert result.findings.source_model_id == "mock-ct-3d-v1"
+    assert case.status == CaseLifecycleStatus.AWAITING_REVIEW

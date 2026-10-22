@@ -1,0 +1,29 @@
+"""Optional RAG contracts — lexical demo retrieval, not clinical evidence."""
+
+from pydantic import BaseModel, ConfigDict, Field
+
+RAG_SCHEMA_VERSION = "1.0.0"
+
+
+class RagPassage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str
+    title: str
+    section: str
+    passage: str
+    score: float = Field(ge=0.0, le=1.0)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class RagSearchResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = RAG_SCHEMA_VERSION
+    query: str
+    hits: list[RagPassage]
+    method: str = "lexical_token_overlap"
+    note: str = (
+        "Demo RAG: keyword overlap over a seeded veterinary neurology corpus. "
+        "Not embeddings, not Qdrant, not clinically validated evidence."
+    )

@@ -1,0 +1,20 @@
+# Optional local infra for Postgres + Redis (RQ jobs)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vetmind
+      POSTGRES_PASSWORD: vetmind
+      POSTGRES_DB: vetmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - vetmind_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  vetmind_pg:

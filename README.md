@@ -12,18 +12,26 @@ Acıbadem Üniversitesi CSE 401/402 bitirme projesi · VRM Teknoloji iş birliğ
 
 | Katman | Durum |
 |--------|--------|
-| Frontend (React + Vite + TS) | Giriş / kayıt (demo), DICOM sürükle-bırak + tarayıcı önizleme, vaka senkronu, uzman inceleme UI |
-| Backend (FastAPI) | Case / Job / Findings / Report / Review API |
-| DICOM | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma + onay |
-| AI | Deterministik mock Vision + mock LLM; `ImagingModel` + `ImagingModelInput` girdi paketi / LLM Gateway |
+| Frontend (React + Vite + TS) | Giriş / kayıt (demo), DICOM sürükle-bırak + tarayıcı önizleme, CT/XR demo, vaka senkronu, uzman inceleme UI |
+| Backend (FastAPI) | Case / Job / Findings / Report / Review / DICOM / Documents API |
+| Quarantine | Yüklenen byte’lar `backend/data/quarantine/{ingest_id}/` altında tutulur |
+| DICOM | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma + onay (MR/CT/XR) |
+| Doküman | PDF/JPG/PNG/text sniff → quarantine → metin çıkarma → multimodal stub |
+| RAG | Hash-embedding cosine (varsayılan) veya lexical → `rag_citations` |
+| Async analyze | `POST .../analyze/async` + job poll (demo thread) |
+| Vision | Mock adapters + opsiyonel HTTP remote Vision iskeleti |
+| Auth | Opsiyonel JWT / API key + RBAC (`VETMIND_AUTH_ENABLED`) |
+| Jobs | Thread (varsayılan) veya RQ+Redis |
+| Vision demo | `python scripts/mock_vision_server.py` → remote adapter |
+| AI | Deterministik mock Vision (MRI/CT/XR/VLM) + mock LLM |
 | DICOM viewer | W/L, dilim kaydırma, zoom/pan (görüntüleme; klinik PACS değil) |
 | Router | Capability tabanlı (modality, bölge, tür) |
-| Kalıcılık | SQLite JSON (`CaseRepository`); testlerde memory |
-| Analiz | **Senkron** HTTP isteği içinde (`job_id` = koşu kimliği, kuyruk yok) |
+| Kalıcılık | memory / SQLite / PostgreSQL (`CaseRepository`) |
+| Analiz | Sync veya async (thread worker) |
 
 ### Henüz yok
 
-PostgreSQL prod, async worker, gerçek model/GPU, ücretli LLM, PACS, şirket yazılımı entegrasyonu.
+Gerçek GPU Vision, sentence-transformers/Qdrant, ücretli LLM, OAuth/SSO, Celery, PACS.
 
 ---
 
@@ -50,14 +58,15 @@ npm run dev
 
 Kalıcılık: varsayılan SQLite → `backend/data/vetmind.sqlite3`. Geçici: `VETMIND_STORAGE=memory`.
 
-Backend ayrıntıları: [backend/README.md](backend/README.md).
+Mimari ve tüm detaylar: [ARCHITECTURE.md](ARCHITECTURE.md).  
+Backend özeti: [backend/README.md](backend/README.md).
 
 ---
 
 ## Önerilen demo akışı
 
 1. **Giriş:** `vet@demo.local` / `demo1234` (veya kayıt ol).
-2. Veteriner otomatik **DICOM Yükle** ekranına düşer → **Demo · Brain MRI** (veya `.dcm` sürükle) → sınıflandırmayı onayla → mock analiz.
+2. Veteriner otomatik **DICOM Yükle** ekranına düşer → **Demo · Brain MRI / CT / Thorax XR** (veya `.dcm` sürükle) → sınıflandırmayı onayla → mock analiz.
 3. **Vakalar** sayfasında **Backend’den yenile** ile SQLite’taki vakalar listelenir (restart sonrası da kalır).
 4. İşleme ekranı → rol değiştir **Uzman Hekim** → taslağı incele / onayla.
 4. İsteğe bağlı: **Yeni Vaka** ile eski yerel prototip veya sentetik mock senaryolar.
@@ -66,17 +75,13 @@ Diğer demo hesaplar (şifre `demo1234`): `expert@demo.local`, `owner@demo.local
 
 ---
 
-## Mimari (hedef veri akışı)
+## Mimari (özet)
 
-```text
-DICOM upload → metadata doğrulama / sınıflandırma (onay)
-  → Model Router → Vision/VLM adapter(ler) [şimdi: mock]
-  → Normalizer / Evidence Fusion → Structured Findings
-  → LLM Gateway [şimdi: mock] → Draft Report → Validator
-  → Radyolog inceleme → onay / ret / revizyon
-```
+Hedef akış: Upload → Quarantine → Classify → Router (XR/CT/MRI/VLM) → Findings → LLM+RAG → Validation → Radyolog → Onaylı rapor.
 
-Gerçek modeller adapter olarak eklenir; orchestrator yeniden yazılmaz.
+Tam diyagram, API, paketler, env, RBAC ve test haritası: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+Analyze: sync `POST /analyze` veya async `POST /analyze/async` + `GET /jobs/{id}`. Gerçek modeller adapter olarak eklenir.
 
 ---
 

@@ -126,10 +126,15 @@ export interface TimelineEvent {
 export type BackendScenario =
   | 'brain_mri_suspected'
   | 'cervical_mri_suspected'
+  | 'ct_brain_suspected'
+  | 'xr_thorax_suspected'
+  | 'document_context'
   | 'no_findings'
   | 'unsupported'
   | 'model_failure'
   | 'conflicting'
+
+export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'brain_ct' | 'thorax_xr'
 
 export type BackendSpecies = 'canine' | 'feline' | 'other'
 
@@ -166,6 +171,15 @@ export interface BackendFindings {
   }[]
 }
 
+export interface BackendRagCitation {
+  source_id: string
+  title: string
+  section: string
+  passage: string
+  score: number
+  keywords?: string[]
+}
+
 export interface BackendDraftReport {
   report_id: string
   case_id: string
@@ -178,6 +192,8 @@ export interface BackendDraftReport {
   impression: { text: string; cited_finding_ids: string[] }
   recommendations: { text: string; cited_finding_ids: string[] }
   validation_warnings: string[]
+  rag_citations?: BackendRagCitation[]
+  rag_note?: string
 }
 
 export interface BackendPipelineResult {
@@ -188,8 +204,8 @@ export interface BackendPipelineResult {
   messages: string[]
 }
 
-export type BackendModality = 'MR' | 'CT' | 'OTHER'
-export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'OTHER' | 'UNKNOWN'
+export type BackendModality = 'MR' | 'CT' | 'XR' | 'OTHER'
+export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'THORAX' | 'OTHER' | 'UNKNOWN'
 export type ClassificationConfidence = 'high' | 'medium' | 'low' | 'unknown'
 
 export interface DicomValidationIssue {
@@ -231,6 +247,8 @@ export interface DicomUploadResponse {
   issues: DicomValidationIssue[]
   study: DicomStudyMeta | null
   classification: ClassificationSuggestion | null
+  quarantine_dir?: string | null
+  quarantined_file_count?: number
   note: string
 }
 

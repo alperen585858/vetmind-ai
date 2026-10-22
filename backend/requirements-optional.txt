@@ -1,0 +1,3 @@
+# Optional extras — not required for default demo (thread jobs + hash RAG).
+redis>=5.0.0
+rq>=1.16.0

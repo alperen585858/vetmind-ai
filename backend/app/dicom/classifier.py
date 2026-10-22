@@ -29,6 +29,18 @@ _CERVICAL_TOKENS = (
     "C6",
     "C7",
 )
+_THORAX_TOKENS = (
+    "THORAX",
+    "THORACIC",
+    "CHEST",
+    "LUNG",
+    "PULMON",
+    "THORAX",
+    "CARDIAC",
+    "HEART",
+)
+
+_SUPPORTED_MODALITIES = frozenset({Modality.MR, Modality.CT, Modality.XR})
 
 
 def _haystack(study: DicomStudyMeta) -> tuple[str, dict[str, str | None]]:
@@ -66,8 +78,7 @@ def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
         rationale.append("No Modality tag found on series; defaulting to OTHER.")
         modality_confidence = ClassificationConfidence.UNKNOWN
     else:
-        # Prefer MR/CT majority; fall back to first.
-        supported = [m for m in modalities if m in {Modality.MR, Modality.CT}]
+        supported = [m for m in modalities if m in _SUPPORTED_MODALITIES]
         if supported:
             suggested_modality = max(set(supported), key=supported.count)
             rationale.append(f"Modality derived from DICOM Modality tag(s): {suggested_modality.value}.")
@@ -83,37 +94,43 @@ def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
 
     brain_hits = _contains_any(text, _BRAIN_TOKENS)
     cervical_hits = _contains_any(text, _CERVICAL_TOKENS)
+    thorax_hits = _contains_any(text, _THORAX_TOKENS)
 
-    if brain_hits and not cervical_hits:
-        region = AnatomicalRegion.BRAIN
+    hit_groups = [
+        (brain_hits, AnatomicalRegion.BRAIN, ("BRAIN", "CRANIAL", "INTRACRANIAL")),
+        (cervical_hits, AnatomicalRegion.CERVICAL, ("CERVICAL", "C-SPINE", "CSPINE")),
+        (thorax_hits, AnatomicalRegion.THORAX, ("THORAX", "THORACIC", "CHEST", "LUNG")),
+    ]
+    non_empty = [(hits, region, strong) for hits, region, strong in hit_groups if hits]
+
+    if len(non_empty) == 1:
+        hits, region, strong = non_empty[0]
         region_confidence = (
             ClassificationConfidence.HIGH
-            if any(t in {"BRAIN", "CRANIAL", "INTRACRANIAL"} for t in brain_hits)
+            if any(t in strong for t in hits)
             else ClassificationConfidence.MEDIUM
         )
-        rationale.append(f"Anatomical region tokens suggesting BRAIN: {', '.join(brain_hits)}.")
-    elif cervical_hits and not brain_hits:
-        region = AnatomicalRegion.CERVICAL
-        region_confidence = (
-            ClassificationConfidence.HIGH
-            if any(t in {"CERVICAL", "C-SPINE", "CSPINE"} for t in cervical_hits)
-            else ClassificationConfidence.MEDIUM
-        )
-        rationale.append(f"Anatomical region tokens suggesting CERVICAL: {', '.join(cervical_hits)}.")
-    elif brain_hits and cervical_hits:
+        rationale.append(f"Anatomical region tokens suggesting {region.value}: {', '.join(hits)}.")
+    elif len(non_empty) > 1:
         region = AnatomicalRegion.UNKNOWN
         region_confidence = ClassificationConfidence.LOW
-        rationale.append(
-            f"Ambiguous region tokens (brain={brain_hits}, cervical={cervical_hits}); requires confirmation."
-        )
+        detail = ", ".join(f"{region.value}={hits}" for hits, region, _ in non_empty)
+        rationale.append(f"Ambiguous region tokens ({detail}); requires confirmation.")
     elif text.strip():
         region = AnatomicalRegion.OTHER
         region_confidence = ClassificationConfidence.LOW
-        rationale.append("Descriptive tags present but no brain/cervical tokens matched.")
+        rationale.append("Descriptive tags present but no brain/cervical/thorax tokens matched.")
     else:
         region = AnatomicalRegion.UNKNOWN
         region_confidence = ClassificationConfidence.UNKNOWN
         rationale.append("No StudyDescription / SeriesDescription / BodyPartExamined text available.")
+
+    # XR studies default toward THORAX when region unknown but modality is clear.
+    if suggested_modality == Modality.XR and region in {AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}:
+        if not thorax_hits and not brain_hits and not cervical_hits:
+            region = AnatomicalRegion.THORAX
+            region_confidence = ClassificationConfidence.LOW
+            rationale.append("XR modality without strong region tokens; defaulting to THORAX (needs confirmation).")
 
     # Overall confidence is the weaker of modality vs region signals.
     order = [

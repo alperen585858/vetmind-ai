@@ -20,6 +20,7 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
     ]
     series_refs: list[ModelInputSeriesRef] = []
     total = 0
+    quarantined = 0
 
     if case.dicom_study is not None:
         for series in case.dicom_study.series:
@@ -31,10 +32,12 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
                     filename=inst.filename,
                     has_pixel_data=inst.has_pixel_data,
                     pixel_tensor_ready=False,
+                    quarantine_relative_path=inst.quarantine_relative_path,
                 )
                 for inst in series.instances
             ]
             total += len(frames)
+            quarantined += sum(1 for f in frames if f.quarantine_relative_path)
             series_refs.append(
                 ModelInputSeriesRef(
                     series_instance_uid=series.series_instance_uid,
@@ -48,7 +51,15 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
     else:
         warnings.append(
             "No dicom_study on case; model input is modality/region routing stub only "
-            "(synthetic CaseCreate path)."
+            "(synthetic CaseCreate or document path)."
+        )
+
+    if case.quarantine_dir:
+        warnings.append(f"Quarantine directory attached: {case.quarantine_dir}")
+    if case.document_context is not None:
+        warnings.append(
+            f"Document context attached ({len(case.document_context.documents)} file(s)); "
+            "multimodal stub may use extracted text only."
         )
 
     # Which mock/real models are plausible for this package (capability match).
@@ -85,6 +96,8 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
         total_instances=total,
         metadata_only=True,
         pixel_analysis_authorized=False,
+        quarantine_dir=case.quarantine_dir,
+        quarantined_instance_count=quarantined,
         prepared_for_models=prepared,
         warnings=warnings,
     )

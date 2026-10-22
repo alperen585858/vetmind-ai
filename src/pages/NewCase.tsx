@@ -17,8 +17,10 @@ import {
   createAndAnalyzeCase,
   draftToSections,
   pipelineToAssessment,
+  confirmDocumentAndAnalyze,
   uploadDicomDemo,
   uploadDicomFiles,
+  uploadDocuments,
 } from '../lib/backend'
 import { caseStatusFromBackendOutcome } from '../lib/caseStatusMap'
 import type {
@@ -26,6 +28,7 @@ import type {
   BackendModality,
   BackendScenario,
   ClinicalInfo,
+  DicomDemoKind,
   DicomUploadResponse,
   DocType,
   NeuroExam,
@@ -50,6 +53,9 @@ const PIPELINE_OPTIONS: { id: PipelineMode; label: string }[] = [
   { id: 'dicom_metadata', label: 'Backend · DICOM metadata' },
   { id: 'brain_mri_suspected', label: 'Backend MOCK · Brain MRI (sentetik JSON)' },
   { id: 'cervical_mri_suspected', label: 'Backend MOCK · Cervical MRI (sentetik JSON)' },
+  { id: 'ct_brain_suspected', label: 'Backend MOCK · Brain CT' },
+  { id: 'xr_thorax_suspected', label: 'Backend MOCK · Thorax XR' },
+  { id: 'document_context', label: 'Backend MOCK · Doküman / multimodal' },
   { id: 'no_findings', label: 'Backend MOCK · Bulgu yok' },
   { id: 'unsupported', label: 'Backend MOCK · Desteklenmeyen' },
   { id: 'model_failure', label: 'Backend MOCK · Model hatası' },
@@ -85,6 +91,8 @@ interface UploadFile {
   name: string
   type: DocType
   size: string
+  /** Browser File blob when user selected a real document (for backend document ingest). */
+  file?: File
 }
 
 function guessType(name: string): DocType {
@@ -156,7 +164,7 @@ export default function NewCase() {
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('documents')
   const [dicomFiles, setDicomFiles] = useState<File[]>([])
   const [dicomPreview, setDicomPreview] = useState<DicomUploadResponse | null>(null)
-  const [pendingDemoKind, setPendingDemoKind] = useState<'brain_mri' | 'cervical_mri' | null>(null)
+  const [pendingDemoKind, setPendingDemoKind] = useState<DicomDemoKind | null>(null)
   const [acceptSuggestion, setAcceptSuggestion] = useState(true)
   const [overrideModality, setOverrideModality] = useState<BackendModality>('MR')
   const [overrideRegion, setOverrideRegion] = useState<BackendAnatomicalRegion>('BRAIN')
@@ -208,25 +216,44 @@ export default function NewCase() {
     pushToast({ tone: 'info', title: 'Sentetik Cervical MRI vakası', body: 'Gönderince FastAPI mock pipeline çalışır. Klinik yorum değildir.' })
   }
 
-  const fillDicomDemo = (kind: 'brain_mri' | 'cervical_mri') => {
+  const fillDicomDemo = (kind: DicomDemoKind) => {
     setPipeline('dicom_metadata')
     setIntakeMode('dicom')
     setDicomFiles([])
     setDicomPreview(null)
     setPendingDemoKind(kind)
-    if (kind === 'brain_mri') {
-      setPatient(BRAIN_BACKEND_FORM.patient)
-      setClinical(BRAIN_BACKEND_FORM.clinical)
-      setNeuro(BRAIN_BACKEND_FORM.neuro)
-    } else {
+    if (kind === 'cervical_mri') {
       setPatient(CERVICAL_BACKEND_FORM.patient)
       setClinical(CERVICAL_BACKEND_FORM.clinical)
       setNeuro(CERVICAL_BACKEND_FORM.neuro)
+    } else {
+      setPatient(BRAIN_BACKEND_FORM.patient)
+      setClinical(BRAIN_BACKEND_FORM.clinical)
+      setNeuro(BRAIN_BACKEND_FORM.neuro)
+      if (kind === 'thorax_xr') {
+        setClinical({
+          ...BRAIN_BACKEND_FORM.clinical,
+          complaint: 'Sentetik demo: toraks radyografi şüphesi.',
+          history: 'Thorax XR mock bağdaştırıcısı için sentetik kayıt.',
+        })
+      } else if (kind === 'brain_ct') {
+        setClinical({
+          ...BRAIN_BACKEND_FORM.clinical,
+          complaint: 'Sentetik demo: beyin BT şüphesi.',
+          history: 'Brain CT mock bağdaştırıcısı için sentetik kayıt.',
+        })
+      }
     }
     setFiles([])
+    const titles: Record<DicomDemoKind, string> = {
+      brain_mri: 'DICOM demo · Brain MRI',
+      cervical_mri: 'DICOM demo · Cervical MRI',
+      brain_ct: 'DICOM demo · Brain CT',
+      thorax_xr: 'DICOM demo · Thorax XR',
+    }
     pushToast({
       tone: 'info',
-      title: kind === 'brain_mri' ? 'DICOM demo · Brain MRI' : 'DICOM demo · Cervical MRI',
+      title: titles[kind],
       body: 'Özet adımında “Onayla ve Mock Analiz” ile sunucu sentetik .dcm üretir. Piksel tanısı yoktur.',
     })
     setStep(4)
@@ -239,6 +266,7 @@ export default function NewCase() {
       name: f.name,
       type: guessType(f.name),
       size: f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(f.size / 1024))} KB`,
+      file: f,
     }))
     setFiles((fs) => [...fs, ...added])
   }
@@ -252,12 +280,15 @@ export default function NewCase() {
   const applyClassificationDefaults = (upload: DicomUploadResponse) => {
     if (!upload.classification) return
     setAcceptSuggestion(true)
-    setOverrideModality(upload.classification.suggested_modality === 'CT' ? 'CT' : 'MR')
+    const mod = upload.classification.suggested_modality
+    setOverrideModality(mod === 'CT' || mod === 'XR' || mod === 'MR' ? mod : 'MR')
     const region = upload.classification.suggested_anatomical_region
-    setOverrideRegion(region === 'CERVICAL' ? 'CERVICAL' : 'BRAIN')
+    setOverrideRegion(
+      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' ? region : 'BRAIN',
+    )
   }
 
-  const previewDicomMetadata = async (kind?: 'brain_mri' | 'cervical_mri') => {
+  const previewDicomMetadata = async (kind?: DicomDemoKind) => {
     if (!patient.name.trim()) {
       pushToast({ tone: 'warning', title: 'Hasta adı gerekli', body: 'DICOM yüklemeden önce hasta adını girin.' })
       return
@@ -362,6 +393,33 @@ export default function NewCase() {
             patientName: patient.name,
             clinicalHistory: history,
           })
+        } else if (pipeline === 'document_context') {
+          const blobs = files.map((f) => f.file).filter((f): f is File => Boolean(f))
+          const payloadFiles =
+            blobs.length > 0
+              ? blobs
+              : [
+                  new File(
+                    [
+                      `SYNTHETIC CLINICAL NOTE\nPatient: ${patient.name}\nSpecies: ${patient.species}\n\n${history}\n\nNot a real clinical document.`,
+                    ],
+                    'clinical_note.txt',
+                    { type: 'text/plain' },
+                  ),
+                ]
+          const upload = await uploadDocuments({
+            files: payloadFiles,
+            patientName: patient.name,
+            species: patient.species,
+            breed: patient.breed,
+            clinicalHistory: history,
+          })
+          if (upload.blocked) {
+            setSubmitting(false)
+            pushToast({ tone: 'error', title: 'Doküman ingest engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
+            return
+          }
+          result = await confirmDocumentAndAnalyze(upload.ingest_id)
         } else {
           result = await createAndAnalyzeCase({
             patientName: patient.name,
@@ -509,7 +567,7 @@ export default function NewCase() {
         statusNote: statusNote ?? c.statusNote,
         timeline: [
           ...c.timeline,
-          { date: done, label: pipeline === 'local' ? 'Belgeler işlendi' : 'Mock orchestrator senkron tamamlandı', by: 'Sistem' },
+          { date: done, label: pipeline === 'local' ? 'Belgeler işlendi' : 'Mock orchestrator (async job poll) tamamlandı', by: 'Sistem' },
           { date: done, label: timelineLabel, by: pipeline === 'local' ? 'vetmind-neuro-v0.1' : 'mock-pipeline' },
         ],
       }))
@@ -538,6 +596,8 @@ export default function NewCase() {
             <Button variant="secondary" onClick={fillCervicalBackend}>Sentetik Cervical MRI</Button>
             <Button variant="secondary" onClick={() => fillDicomDemo('brain_mri')}>DICOM demo · Brain</Button>
             <Button variant="secondary" onClick={() => fillDicomDemo('cervical_mri')}>DICOM demo · Cervical</Button>
+            <Button variant="secondary" onClick={() => fillDicomDemo('brain_ct')}>DICOM demo · CT</Button>
+            <Button variant="secondary" onClick={() => fillDicomDemo('thorax_xr')}>DICOM demo · XR</Button>
           </div>
         }
       />
@@ -671,7 +731,9 @@ export default function NewCase() {
                 >
                   <UploadCloud className="h-10 w-10 text-teal-600" />
                   <p className="mt-3 font-medium text-navy-900">Dosyaları buraya sürükleyin veya seçmek için tıklayın</p>
-                  <p className="mt-1 text-xs text-slate-500">PDF, JPG, PNG · en fazla 25 MB · bu demoda belgeler işlenmez</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    PDF, JPG, PNG, TXT · backend quarantine + metin çıkarma · tanı değil (pipeline: Doküman / multimodal)
+                  </p>
                   <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
                 </div>
                 {files.length > 0 && (
@@ -738,6 +800,12 @@ export default function NewCase() {
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('cervical_mri')}>
                     Sunucu demo · Cervical MRI
+                  </Button>
+                  <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_ct')}>
+                    Sunucu demo · Brain CT
+                  </Button>
+                  <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thorax_xr')}>
+                    Sunucu demo · Thorax XR
                   </Button>
                 </div>
                 {dicomFiles.length > 0 && (
@@ -850,7 +918,7 @@ export default function NewCase() {
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="mb-2 text-sm font-semibold text-navy-900">Analiz kanalı</p>
               <p className="mb-3 text-xs text-slate-500">
-                Yerel prototip tarayıcıdaki eski şablonları kullanır. Backend seçenekleri FastAPI mock Vision + mock LLM boru hattını <strong>senkron</strong> çalıştırır (kuyruk yok). DICOM kanalı metadata sınıflandırması + onay sonrası aynı mock pipeline&apos;a bağlanır; klinik yorum değildir.
+                Yerel prototip tarayıcıdaki eski şablonları kullanır. Backend seçenekleri FastAPI mock Vision + mock LLM boru hattını <strong>async job + poll</strong> ile çalıştırır (thread/RQ). DICOM kanalı metadata sınıflandırması + onay sonrası aynı pipeline&apos;a bağlanır; klinik yorum değildir.
               </p>
               <div className="flex flex-wrap gap-2">
                 {PIPELINE_OPTIONS.map((opt) => (
@@ -885,6 +953,12 @@ export default function NewCase() {
                     <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('cervical_mri')}>
                       Demo Cervical MRI
                     </Button>
+                    <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_ct')}>
+                      Demo Brain CT
+                    </Button>
+                    <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thorax_xr')}>
+                      Demo Thorax XR
+                    </Button>
                   </div>
                 )}
                 {dicomPreview?.classification && !dicomPreview.blocked && (
@@ -899,12 +973,14 @@ export default function NewCase() {
                           <select className="input" value={overrideModality} onChange={(e) => setOverrideModality(e.target.value as BackendModality)}>
                             <option value="MR">MR</option>
                             <option value="CT">CT</option>
+                            <option value="XR">XR</option>
                           </select>
                         </Field>
                         <Field label="Anatomik bölge override">
                           <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
                             <option value="BRAIN">BRAIN</option>
                             <option value="CERVICAL">CERVICAL</option>
+                            <option value="THORAX">THORAX</option>
                           </select>
                         </Field>
                       </div>

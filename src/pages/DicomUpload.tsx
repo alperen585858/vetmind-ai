@@ -35,6 +35,7 @@ import type {
   BackendAnatomicalRegion,
   BackendModality,
   ClinicalInfo,
+  DicomDemoKind,
   DicomUploadResponse,
   NeuroExam,
   Patient,
@@ -73,7 +74,7 @@ export default function DicomUpload() {
   const [acceptSuggestion, setAcceptSuggestion] = useState(true)
   const [overrideModality, setOverrideModality] = useState<BackendModality>('MR')
   const [overrideRegion, setOverrideRegion] = useState<BackendAnatomicalRegion>('BRAIN')
-  const [pendingDemo, setPendingDemo] = useState<'brain_mri' | 'cervical_mri' | null>(null)
+  const [pendingDemo, setPendingDemo] = useState<DicomDemoKind | null>(null)
   const [busy, setBusy] = useState(false)
 
   const viewerFiles = useMemo(() => files.slice(0, MAX_VIEWER_FRAMES), [files])
@@ -149,7 +150,7 @@ export default function DicomUpload() {
     }
   }
 
-  const loadDemoForViewing = async (kind: 'brain_mri' | 'cervical_mri') => {
+  const loadDemoForViewing = async (kind: DicomDemoKind) => {
     setBusy(true)
     try {
       const demoFiles = await fetchDemoDicomFiles(kind)
@@ -172,11 +173,15 @@ export default function DicomUpload() {
   const applyDefaults = (upload: DicomUploadResponse) => {
     if (!upload.classification) return
     setAcceptSuggestion(true)
-    setOverrideModality(upload.classification.suggested_modality === 'CT' ? 'CT' : 'MR')
-    setOverrideRegion(upload.classification.suggested_anatomical_region === 'CERVICAL' ? 'CERVICAL' : 'BRAIN')
+    const mod = upload.classification.suggested_modality
+    setOverrideModality(mod === 'CT' || mod === 'XR' || mod === 'MR' ? mod : 'MR')
+    const region = upload.classification.suggested_anatomical_region
+    setOverrideRegion(
+      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' ? region : 'BRAIN',
+    )
   }
 
-  const runPreview = async (kind?: 'brain_mri' | 'cervical_mri') => {
+  const runPreview = async (kind?: DicomDemoKind) => {
     if (!patientName.trim()) {
       pushToast({ tone: 'warning', title: 'Hasta adı gerekli', body: 'Yüklemeden önce hasta adını girin.' })
       return
@@ -448,6 +453,12 @@ export default function DicomUpload() {
             <Button variant="secondary" disabled={busy} onClick={() => void loadDemoForViewing('cervical_mri')}>
               Demo · Cervical MRI
             </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => void loadDemoForViewing('brain_ct')}>
+              Demo · Brain CT
+            </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => void loadDemoForViewing('thorax_xr')}>
+              Demo · Thorax XR
+            </Button>
             {pendingDemo && (
               <Button variant="secondary" disabled={busy} onClick={() => void runPreview(pendingDemo)}>
                 Demo metadata ingest
@@ -551,10 +562,12 @@ export default function DicomUpload() {
                   <select className="input" value={overrideModality} onChange={(e) => setOverrideModality(e.target.value as BackendModality)}>
                     <option value="MR">MR</option>
                     <option value="CT">CT</option>
+                    <option value="XR">XR</option>
                   </select>
                   <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
                     <option value="BRAIN">BRAIN</option>
                     <option value="CERVICAL">CERVICAL</option>
+                    <option value="THORAX">THORAX</option>
                   </select>
                 </div>
               )}
@@ -597,7 +610,7 @@ export default function DicomUpload() {
             {busy ? 'İşleniyor…' : 'Onayla ve Mock Analiz Çalıştır'}
           </Button>
           <p className="text-[11px] text-slate-500">
-            Backend FastAPI senkron çalışır. Çıktı MOCK&apos;tur; uzman veteriner radyolog onayı zorunludur.
+            Backend FastAPI async job + poll ile çalışır (thread/RQ). Çıktı MOCK&apos;tur; uzman veteriner radyolog onayı zorunludur.
           </p>
         </Card>
       </div>

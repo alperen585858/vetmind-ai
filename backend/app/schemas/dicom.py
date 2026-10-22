@@ -31,6 +31,19 @@ class DicomValidationIssue(BaseModel):
     sop_instance_uid: Optional[str] = None
 
 
+class QuarantineObjectRef(BaseModel):
+    """Persisted pointer into the local quarantine store."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    original_filename: str
+    stored_filename: str
+    relative_path: str
+    size_bytes: int
+    sha256: str
+    content_kind: str = "dicom"
+
+
 class DicomInstanceMeta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -40,6 +53,7 @@ class DicomInstanceMeta(BaseModel):
     transfer_syntax_uid: Optional[str] = None
     has_pixel_data: bool = False
     pixel_data_analyzed: bool = False
+    quarantine_relative_path: Optional[str] = None
 
 
 class DicomSeriesMeta(BaseModel):
@@ -113,6 +127,8 @@ class DicomIngestionRecord(BaseModel):
     case_id: Optional[str] = None
     blocked: bool = False
     block_reason: Optional[str] = None
+    quarantine_dir: Optional[str] = None
+    quarantined_files: list[QuarantineObjectRef] = Field(default_factory=list)
 
 
 class DicomUploadResponse(BaseModel):
@@ -124,8 +140,11 @@ class DicomUploadResponse(BaseModel):
     issues: list[DicomValidationIssue]
     study: Optional[DicomStudyMeta]
     classification: Optional[ClassificationSuggestion]
+    quarantine_dir: Optional[str] = None
+    quarantined_file_count: int = 0
     note: str = (
         "DICOM metadata ingest only. Pixel data is ignored for diagnosis. "
+        "Uploaded bytes are retained in quarantine for future authorized adapters. "
         "Confirm classification before analysis when needs_confirmation is true."
     )
 

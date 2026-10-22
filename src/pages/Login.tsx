@@ -4,7 +4,8 @@ import { ArrowRight, Lock, Mail } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
-import { login, listDemoCredentials, postLoginPath } from '../lib/auth'
+import { login, listDemoCredentials, postLoginPath, setBackendAccessToken } from '../lib/auth'
+import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
 
 export default function Login() {
@@ -15,12 +16,18 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     setBusy(true)
     try {
       const session = login(email, password)
+      try {
+        const tokenRes = await backendLogin(email, password)
+        setBackendAccessToken(tokenRes.access_token)
+      } catch {
+        setBackendAccessToken(null)
+      }
       signIn(session)
       pushToast({ tone: 'success', title: 'Giriş başarılı', body: `${session.name} · ${ROLE_LABELS[session.role]}` })
       nav(postLoginPath(session.role))
@@ -45,7 +52,7 @@ export default function Login() {
             <span className="text-teal-300"> DICOM metadata yükleyin,</span> uzman onayıyla ilerleyin.
           </h1>
           <p className="mt-5 max-w-lg text-base text-navy-200">
-            Bu ekran demo kimlik doğrulamadır (localStorage). Üretim güvenliği, OAuth veya sunucu oturumu yoktur. AI çıktıları klinik tanı değildir.
+            Demo UI oturumu localStorage’dadır. Backend açıksa JWT de alınır (VETMIND_AUTH_ENABLED=1 iken API koruması aktif). AI çıktıları klinik tanı değildir.
           </p>
         </div>
 

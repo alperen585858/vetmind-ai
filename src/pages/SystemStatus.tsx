@@ -1,16 +1,106 @@
-import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, AlertTriangle, ListOrdered } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, AlertTriangle, ListOrdered, Server, RefreshCw } from 'lucide-react'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
+import { Button } from '../components/Button'
 import { DEPLOYMENTS, SERVICES } from '../data/mock'
 import { GpuChart } from './Dashboard'
 import { fmtDate } from '../lib/format'
+import { BackendUnavailableError, fetchBackendHealth, type BackendHealth } from '../lib/backend'
 
 export default function SystemStatus() {
   const vramUsed = 29.4
   const vramTotal = 48
+  const [health, setHealth] = useState<BackendHealth | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const loadHealth = () => {
+    setLoading(true)
+    setHealthError(null)
+    void fetchBackendHealth()
+      .then((h) => {
+        setHealth(h)
+        setHealthError(null)
+      })
+      .catch((err) => {
+        setHealth(null)
+        setHealthError(
+          err instanceof BackendUnavailableError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Health alınamadı',
+        )
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadHealth()
+  }, [])
+
+  const backendOk = health?.status === 'ok'
+
   return (
     <>
-      <PageHeader title="Sistem Durumu" subtitle="Son güncelleme: az önce · mock izleme verisi" actions={<span className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200"><AlertTriangle className="h-3.5 w-3.5" /> 1 serviste yüksek yük</span>} />
+      <PageHeader
+        title="Sistem Durumu"
+        subtitle={
+          health
+            ? `Backend /health · v${health.version} · storage=${health.storage} · rag=${health.rag}`
+            : loading
+              ? 'Backend /health sorgulanıyor…'
+              : 'Son güncelleme: az önce · mock izleme + canlı health'
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={loadHealth} disabled={loading}>
+              Yenile
+            </Button>
+            {backendOk ? (
+              <span className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5" /> API canlı
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5" /> {healthError ? 'API yok' : '1 serviste yüksek yük (mock)'}
+              </span>
+            )}
+          </div>
+        }
+      />
+
+      <Card className="mb-6">
+        <CardHeader title="FastAPI /health" subtitle="Canlı backend durumu (Vite proxy → :8000)" icon={<Server className="h-5 w-5" />} />
+        {loading && !health && !healthError && (
+          <p className="px-5 pb-5 text-sm text-slate-500">Sorgulanıyor…</p>
+        )}
+        {healthError && (
+          <p className="px-5 pb-5 text-sm text-amber-800">{healthError}</p>
+        )}
+        {health && (
+          <dl className="grid gap-3 px-5 pb-5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div><dt className="text-xs text-slate-500">status</dt><dd className="font-mono font-medium text-navy-900">{health.status}</dd></div>
+            <div><dt className="text-xs text-slate-500">mode</dt><dd className="font-mono font-medium text-navy-900">{health.mode}</dd></div>
+            <div><dt className="text-xs text-slate-500">version</dt><dd className="font-mono font-medium text-navy-900">{health.version}</dd></div>
+            <div><dt className="text-xs text-slate-500">storage</dt><dd className="font-mono font-medium text-navy-900">{health.storage}</dd></div>
+            <div><dt className="text-xs text-slate-500">rag</dt><dd className="font-mono font-medium text-navy-900">{health.rag}</dd></div>
+            <div><dt className="text-xs text-slate-500">job_backend</dt><dd className="font-mono font-medium text-navy-900">{health.job_backend}</dd></div>
+            <div><dt className="text-xs text-slate-500">auth_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.auth_enabled)}</dd></div>
+            <div><dt className="text-xs text-slate-500">vision_endpoint</dt><dd className="font-mono font-medium text-navy-900">{String(health.vision_endpoint)}</dd></div>
+            {health.sqlite_path ? (
+              <div className="sm:col-span-2"><dt className="text-xs text-slate-500">sqlite_path</dt><dd className="break-all font-mono text-xs text-navy-800">{health.sqlite_path}</dd></div>
+            ) : null}
+            {health.quarantine_root ? (
+              <div className="sm:col-span-2"><dt className="text-xs text-slate-500">quarantine_root</dt><dd className="break-all font-mono text-xs text-navy-800">{health.quarantine_root}</dd></div>
+            ) : null}
+            {health.note ? (
+              <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs text-slate-500">note</dt><dd className="text-slate-600">{health.note}</dd></div>
+            ) : null}
+          </dl>
+        )}
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SERVICES.map((s) => (
@@ -31,14 +121,14 @@ export default function SystemStatus() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="NVIDIA GPU #0" subtitle="gpu-node-01 · kullanım % (son 1 saat)" icon={<Cpu className="h-5 w-5" />} />
+          <CardHeader title="NVIDIA GPU #0" subtitle="gpu-node-01 · kullanım % (son 1 saat) · demo grafik" icon={<Cpu className="h-5 w-5" />} />
           <div className="grid gap-4 p-5 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <p className="mb-1 flex justify-between text-sm"><span className="text-slate-500">VRAM</span><span className="font-mono font-medium text-navy-900">{vramUsed} / {vramTotal} GB</span></p>
               <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-navy-600" style={{ width: `${(vramUsed / vramTotal) * 100}%` }} />
               </div>
-              <p className="mt-1 text-xs text-slate-400">vetmind-neuro-v0.1 + LoRA adaptörü + KV önbellek</p>
+              <p className="mt-1 text-xs text-slate-400">vetmind-neuro-v0.1 + LoRA adaptörü + KV önbellek (mock)</p>
             </div>
             <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
               <Thermometer className="h-6 w-6 text-orange-500" />
@@ -54,9 +144,9 @@ export default function SystemStatus() {
         </Card>
 
         <div className="space-y-4">
-          <StatCard label="Ortalama yanıt süresi" value="2.4 sn" icon={<Timer className="h-5 w-5" />} tone="amber" hint="p95: 4.1 sn · hedef < 3 sn" />
-          <StatCard label="Üretim hızı" value="38 token/s" icon={<Zap className="h-5 w-5" />} tone="teal" hint="Batch boyutu: 4" />
-          <StatCard label="Kuyruktaki iş" value="3" icon={<ListOrdered className="h-5 w-5" />} tone="violet" hint="2 belge işleme · 1 LLM çıkarımı" />
+          <StatCard label="Ortalama yanıt süresi" value="2.4 sn" icon={<Timer className="h-5 w-5" />} tone="amber" hint="p95: 4.1 sn · hedef < 3 sn · mock" />
+          <StatCard label="Üretim hızı" value="38 token/s" icon={<Zap className="h-5 w-5" />} tone="teal" hint="Batch boyutu: 4 · mock" />
+          <StatCard label="Kuyruktaki iş" value="3" icon={<ListOrdered className="h-5 w-5" />} tone="violet" hint="2 belge işleme · 1 LLM çıkarımı · mock" />
         </div>
       </div>
 
@@ -93,7 +183,7 @@ export default function SystemStatus() {
           </table>
         </div>
       </Card>
-      <p className="mt-4 flex items-center gap-2 text-xs text-slate-400"><Gauge className="h-3.5 w-3.5" /> İzleme verileri demo amaçlıdır; ilerleyen aşamada Prometheus/Grafana entegrasyonu planlanmaktadır.</p>
+      <p className="mt-4 flex items-center gap-2 text-xs text-slate-400"><Gauge className="h-3.5 w-3.5" /> GPU/kuyruk kartları demo amaçlıdır; üstteki /health paneli canlıdır.</p>
     </>
   )
 }

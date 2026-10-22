@@ -3,6 +3,7 @@ import { USERS } from '../data/mock'
 
 const ACCOUNTS_KEY = 'vetmind.demo.accounts'
 const SESSION_KEY = 'vetmind.demo.session'
+const BACKEND_TOKEN_KEY = 'vetmind.backend.jwt'
 
 export interface DemoAccount {
   id: string
@@ -96,6 +97,24 @@ export function loadSession(): DemoSession | null {
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(BACKEND_TOKEN_KEY)
+}
+
+export function getBackendAccessToken(): string | null {
+  try {
+    return localStorage.getItem(BACKEND_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setBackendAccessToken(token: string | null) {
+  try {
+    if (!token) localStorage.removeItem(BACKEND_TOKEN_KEY)
+    else localStorage.setItem(BACKEND_TOKEN_KEY, token)
+  } catch {
+    /* ignore */
+  }
 }
 
 function saveSession(session: DemoSession) {
@@ -171,4 +190,11 @@ export function userFromSession(session: DemoSession): User {
 export function postLoginPath(role: Role): string {
   if (role === 'vet') return '/dicom-yukle'
   return '/'
+}
+
+/** Seed demo accounts share this password with the FastAPI auth module. */
+export const DEMO_PASSWORD = 'demo1234'
+
+export function demoEmailForRole(role: Role): string {
+  return `${role}@demo.local`
 }

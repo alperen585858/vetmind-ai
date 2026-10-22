@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Check, ChevronDown, LogOut, Menu, RefreshCcw } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { DEMO_PASSWORD, demoEmailForRole, setBackendAccessToken } from '../lib/auth'
+import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS, USERS } from '../data/mock'
 import type { Role } from '../types'
 
@@ -31,6 +33,14 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
     setOpen(false)
     if (r === role) return
     setRole(r)
+    void (async () => {
+      try {
+        const tokenRes = await backendLogin(demoEmailForRole(r), DEMO_PASSWORD)
+        setBackendAccessToken(tokenRes.access_token)
+      } catch {
+        /* backend down or auth disabled — UI role still switches */
+      }
+    })()
     nav('/')
     pushToast({ tone: 'info', title: `Rol değiştirildi: ${ROLE_LABELS[r]}`, body: USERS[r].name })
   }

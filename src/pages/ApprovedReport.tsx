@@ -5,6 +5,7 @@ import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Logo } from '../components/Logo'
+import { RagCitations } from '../components/RagCitations'
 import { SECTION_LABELS } from '../data/mock'
 import { fmtDate } from '../lib/format'
 import type { SectionKey } from '../types'
@@ -95,6 +96,14 @@ export default function ApprovedReport() {
             </div>
           ))}
         </section>
+
+        {c.backendDraft?.rag_citations && c.backendDraft.rag_citations.length > 0 && (
+          <section className="border-t border-slate-100 px-8 py-6 no-print">
+            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-teal-700">Demo RAG citations</h3>
+            <p className="mb-3 text-xs text-slate-500">Lexical/embedding eşleşmeleri — klinik kanıt değil</p>
+            <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} />
+          </section>
+        )}
 
         <footer className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/70 px-8 py-5 sm:flex-row sm:items-end sm:justify-between print:bg-white">
           <div className="flex items-start gap-3">

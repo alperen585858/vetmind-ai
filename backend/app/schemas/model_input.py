@@ -26,7 +26,8 @@ class ModelInputFrameRef(BaseModel):
     columns: Optional[int] = None
     has_pixel_data: bool = False
     pixel_tensor_ready: bool = False
-    note: str = "Frame reference only. Real adapters may load pixels via a secure store."
+    quarantine_relative_path: Optional[str] = None
+    note: str = "Frame reference only. Real adapters may load pixels via quarantine/secure store."
 
 
 class ModelInputSeriesRef(BaseModel):
@@ -57,9 +58,11 @@ class ImagingModelInput(BaseModel):
     total_instances: int = 0
     metadata_only: bool = True
     pixel_analysis_authorized: bool = False
+    quarantine_dir: Optional[str] = None
+    quarantined_instance_count: int = 0
     prepared_for_models: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     note: str = (
         "Structured model input. Mock adapters do not diagnose from pixels. "
-        "Real Vision AI must set pixel_analysis_authorized and load tensors via secure storage."
+        "Real Vision AI must set pixel_analysis_authorized and load tensors via quarantine storage."
     )

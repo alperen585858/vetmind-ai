@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import threading
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -6,13 +9,14 @@ from fastapi import HTTPException, status
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import CaseCreate, CaseRecord, CaseSummary, ReviewFeedback
-from app.schemas.enums import CaseLifecycleStatus, ExpertReviewStatus, ReportStatus, ReviewAction
+from app.schemas.enums import CaseLifecycleStatus, ExpertReviewStatus, JobStatus, ReportStatus, ReviewAction
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
 from app.schemas.report import DraftReport
 from app.services.repository import CaseRepository
 from app.validation.report_validator import ReportValidator
+from app.workers.job_backend import JobBackend, ThreadJobBackend
 
 
 def _now() -> datetime:
@@ -25,10 +29,16 @@ class CaseService:
         repo: CaseRepository,
         orchestrator: AIOrchestrator,
         validator: ReportValidator | None = None,
+        *,
+        async_delay_ms: int = 0,
+        job_backend: JobBackend | None = None,
     ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._validator = validator or orchestrator.validator
+        self._async_delay_ms = max(0, async_delay_ms)
+        self._lock = threading.Lock()
+        self._jobs = job_backend or ThreadJobBackend(delay_ms=self._async_delay_ms)
 
     def create_case(self, payload: CaseCreate) -> CaseRecord:
         case = CaseRecord(
@@ -77,13 +87,7 @@ class CaseService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
         return case
 
-    def analyze(self, case_id: str) -> PipelineResult:
-        """Run the mock pipeline synchronously and return the completed job result.
-
-        Phase 1 does not use a background queue. The returned job_id is a run identifier
-        for the completed (or failed) synchronous execution.
-        """
-        case = self.get_case(case_id)
+    def _assert_analyzable(self, case: CaseRecord) -> None:
         if case.status == CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -94,6 +98,16 @@ class CaseService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot analyze: classification_confirmed is false.",
             )
+        if case.status == CaseLifecycleStatus.ANALYZING:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Analysis already in progress for this case.",
+            )
+
+    def analyze(self, case_id: str) -> PipelineResult:
+        """Run the mock pipeline synchronously and return the completed job result."""
+        case = self.get_case(case_id)
+        self._assert_analyzable(case)
         job = AIOrchestrator.new_job(case.case_id)
         case.latest_job_id = job.job_id
         case.status = CaseLifecycleStatus.ANALYZING
@@ -104,6 +118,42 @@ class CaseService:
         self._repo.save_job(result.job)
         self._repo.save_case(case)
         return result
+
+    def enqueue_analyze(self, case_id: str) -> AnalysisJob:
+        """Queue analysis via job backend (thread default, optional RQ).
+
+        Poll GET /jobs/{job_id}. RQ requires durable storage (sqlite/postgres), not memory.
+        """
+        case = self.get_case(case_id)
+        self._assert_analyzable(case)
+        if getattr(self._jobs, "name", "") == "rq":
+            from app.services.repository import InMemoryCaseRepository
+
+            if isinstance(self._repo, InMemoryCaseRepository):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="RQ job backend requires durable storage (sqlite/postgres), not memory.",
+                )
+        job = AIOrchestrator.new_job(case.case_id)
+        job.status = JobStatus.QUEUED
+        case.latest_job_id = job.job_id
+        case.status = CaseLifecycleStatus.ANALYZING
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        self._repo.save_job(job)
+
+        def _worker() -> None:
+            with self._lock:
+                current = self._repo.get_case(case_id)
+                queued = self._repo.get_job(job.job_id)
+                if current is None or queued is None:
+                    return
+                result = self._orchestrator.run(current, queued)
+                self._repo.save_job(result.job)
+                self._repo.save_case(current)
+
+        self._jobs.enqueue_analyze(case_id, job.job_id, _worker)
+        return job
 
     def get_job(self, job_id: str) -> AnalysisJob:
         job = self._repo.get_job(job_id)

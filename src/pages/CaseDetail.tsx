@@ -11,6 +11,7 @@ import { Button } from '../components/Button'
 import { PriorityBadge, SeverityBadge, StatusBadge } from '../components/StatusBadge'
 import { AIDisclaimer } from '../components/AIDisclaimer'
 import { Citations } from '../components/CitationChip'
+import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
 import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
@@ -425,8 +426,16 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             </div>
           </Card>
           <Card>
-            <CardHeader title="Kaynaklar" subtitle="RAG ile getirilen bilgi tabanı pasajları" icon={<BookOpen className="h-5 w-5" />} />
-            <SourceList ids={sources} />
+            <CardHeader
+              title="Kaynaklar / RAG"
+              subtitle={c.backendDraft?.rag_citations?.length ? 'Backend lexical/embedding RAG citations' : 'Yerel prototip kaynakları'}
+              icon={<BookOpen className="h-5 w-5" />}
+            />
+            {c.backendDraft?.rag_citations?.length ? (
+              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} />
+            ) : (
+              <SourceList ids={sources} />
+            )}
           </Card>
         </div>
       </div>

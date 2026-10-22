@@ -123,20 +123,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     setRoleState(r)
-    setSession((prev) => {
-      if (!prev) {
-        const demo: DemoSession = {
-          accountId: `role-${r}`,
-          email: `${r}@demo.local`,
-          role: r,
-          name: USERS[r].name,
-        }
-        localStorage.setItem('vetmind.demo.session', JSON.stringify(demo))
-        return demo
+    setSession(() => {
+      // Always bind role-switch to seed demo emails so backend JWT matches RBAC.
+      const demo: DemoSession = {
+        accountId: `role-${r}`,
+        email: `${r}@demo.local`,
+        role: r,
+        name: USERS[r].name,
       }
-      const updated = { ...prev, role: r, name: prev.name || USERS[r].name }
-      localStorage.setItem('vetmind.demo.session', JSON.stringify(updated))
-      return updated
+      localStorage.setItem('vetmind.demo.session', JSON.stringify(demo))
+      return demo
     })
     setSourceId(null)
   }, [])

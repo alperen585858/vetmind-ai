@@ -194,6 +194,120 @@ class MockCervicalMriModel:
         return out
 
 
+class MockCt3dModel:
+    """Stub CT 3D adapter — synthetic findings only; no volume reconstruction."""
+
+    model_id = "mock-ct-3d-v1"
+    version = "0.1.0"
+
+    def analyze(self, case: CaseRecord) -> StructuredFindings:
+        if case.scenario == MockScenario.MODEL_FAILURE:
+            raise MockVisionError("Mock CT 3D adapter forced failure (scenario=model_failure).")
+        if case.scenario == MockScenario.NO_FINDINGS:
+            out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+            out.no_findings_returned = True
+            out.warnings.append(ABSENCE_WARNING)
+            return out
+        out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+        region = case.anatomical_region.value.lower()
+        out.findings = [
+            _finding(
+                finding_id=f"{case.case_id}-f-ct-01",
+                finding_code="MOCK-CT-VOLUME-HINT",
+                description=(
+                    f"SYNTHETIC MOCK FINDING: CT volume stub flagged a possible soft-tissue density "
+                    f"asymmetry in the {region} study. Fixture only — no 3D reconstruction or HU analysis."
+                ),
+                anatomical_location=f"{region} (synthetic CT stub)",
+                finding_status=FindingStatus.POSSIBLE,
+                model_id=self.model_id,
+                version=self.version,
+                evidence=[
+                    EvidenceReference(
+                        evidence_id=f"{case.case_id}-ev-ct-01",
+                        description="Mock CT series hint; voxels were not reconstructed.",
+                        series_hint="Axial CT (placeholder)",
+                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                    )
+                ],
+            )
+        ]
+        out.warnings.append("CT 3D mock adapter: quarantine paths may be present but pixels were not loaded.")
+        return out
+
+
+class MockXrVisionModel:
+    model_id = "mock-xr-vision-v1"
+    version = "0.1.0"
+
+    def analyze(self, case: CaseRecord) -> StructuredFindings:
+        if case.scenario == MockScenario.MODEL_FAILURE:
+            raise MockVisionError("Mock X-Ray adapter forced failure (scenario=model_failure).")
+        if case.scenario == MockScenario.NO_FINDINGS:
+            out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+            out.no_findings_returned = True
+            out.warnings.append(ABSENCE_WARNING)
+            return out
+        out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+        out.findings = [
+            _finding(
+                finding_id=f"{case.case_id}-f-xr-01",
+                finding_code="MOCK-XR-THORAX-OPACITY",
+                description=(
+                    "SYNTHETIC MOCK FINDING: possible interstitial opacity in the caudal lung field "
+                    "on thorax radiograph. Fixture for pipeline testing, not a radiology interpretation."
+                ),
+                anatomical_location="thorax / caudal lung field (synthetic)",
+                finding_status=FindingStatus.SUSPECTED,
+                model_id=self.model_id,
+                version=self.version,
+                evidence=[
+                    EvidenceReference(
+                        evidence_id=f"{case.case_id}-ev-xr-01",
+                        description="Mock XR projection hint; pixels were not analyzed.",
+                        series_hint="Right lateral thorax (placeholder)",
+                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                    )
+                ],
+            )
+        ]
+        return out
+
+
+class MockMultimodalVlmModel:
+    """Document + text context stub (Image+Text branch in the architecture diagram)."""
+
+    model_id = "mock-multimodal-vlm-v1"
+    version = "0.1.0"
+
+    def analyze(self, case: CaseRecord) -> StructuredFindings:
+        out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+        doc_count = len(case.document_context.documents) if case.document_context else 0
+        preview = ""
+        if case.document_context and case.document_context.combined_text_preview:
+            preview = case.document_context.combined_text_preview[:280].replace("\n", " ")
+        out.findings = [
+            _finding(
+                finding_id=f"{case.case_id}-f-vlm-01",
+                finding_code="MOCK-VLM-DOCUMENT-CONTEXT",
+                description=(
+                    f"SYNTHETIC MOCK FINDING: multimodal stub reviewed {doc_count} quarantined "
+                    f"document(s) as draft context only. "
+                    f"Text preview: {preview or '(no extractable text)'}."
+                ),
+                anatomical_location="document context (synthetic)",
+                finding_status=FindingStatus.UNCERTAIN,
+                model_id=self.model_id,
+                version=self.version,
+                uncertainty_note="VLM stub does not perform vision OCR diagnosis; text is draft context.",
+            )
+        ]
+        out.warnings.append(
+            "Multimodal VLM mock: uses extracted document text / image stubs. Not clinical interpretation."
+        )
+        return out
+
+
 class ManualReviewStub:
     model_id = "manual-review"
     version = "0.1.0"
@@ -219,6 +333,9 @@ def default_model_registry() -> dict[str, ImagingModel]:
         MockBrainMriModel.model_id: MockBrainMriModel(),
         MockBrainMriAltModel.model_id: MockBrainMriAltModel(),
         MockCervicalMriModel.model_id: MockCervicalMriModel(),
+        MockCt3dModel.model_id: MockCt3dModel(),
+        MockXrVisionModel.model_id: MockXrVisionModel(),
+        MockMultimodalVlmModel.model_id: MockMultimodalVlmModel(),
         ManualReviewStub.model_id: ManualReviewStub(),
     }
     return registry

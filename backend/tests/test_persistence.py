@@ -42,7 +42,11 @@ def test_sqlite_case_survives_reopen(tmp_path: Path) -> None:
 
 def test_sqlite_api_restart_keeps_case(tmp_path: Path) -> None:
     db = tmp_path / "api.sqlite3"
-    settings = Settings(storage_backend="sqlite", sqlite_path=db)
+    settings = Settings(
+        storage_backend="sqlite",
+        sqlite_path=db,
+        quarantine_root=tmp_path / "quarantine",
+    )
     container1 = AppContainer(settings=settings)
     client1 = TestClient(create_app(container1))
 
@@ -66,7 +70,11 @@ def test_sqlite_dicom_ingest_persists(tmp_path: Path) -> None:
     from app.dicom.fixtures import brain_mri_study_files
 
     db = tmp_path / "dicom.sqlite3"
-    settings = Settings(storage_backend="sqlite", sqlite_path=db)
+    settings = Settings(
+        storage_backend="sqlite",
+        sqlite_path=db,
+        quarantine_root=tmp_path / "quarantine-dicom",
+    )
     client = TestClient(create_app(AppContainer(settings=settings)))
 
     files = brain_mri_study_files(1)
@@ -87,7 +95,13 @@ def test_sqlite_dicom_ingest_persists(tmp_path: Path) -> None:
 def test_build_repository_memory() -> None:
     from app.services.repository import InMemoryCaseRepository, build_repository
 
-    repo = build_repository(Settings(storage_backend="memory", sqlite_path=Path("unused.db")))
+    repo = build_repository(
+        Settings(
+            storage_backend="memory",
+            sqlite_path=Path("unused.db"),
+            quarantine_root=Path("unused-quarantine"),
+        )
+    )
     assert isinstance(repo, InMemoryCaseRepository)
 
 

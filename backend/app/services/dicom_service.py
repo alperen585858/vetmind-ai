@@ -1,4 +1,4 @@
-"""DICOM upload → classification confirmation → Case bridge."""
+"""DICOM upload → quarantine → classification confirmation → Case bridge."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.schemas.dicom import (
     ConfirmClassificationRequest,
     DicomIngestionRecord,
     DicomUploadResponse,
+    QuarantineObjectRef,
 )
 from app.schemas.enums import (
     AnatomicalRegion,
@@ -22,11 +23,23 @@ from app.schemas.enums import (
 )
 from app.schemas.findings import StudyInfo
 from app.services.repository import CaseRepository
+from app.storage.quarantine import QuarantineStore
+
+# Regions the mock automated pipeline can route today.
+_ROUTABLE_REGIONS = frozenset(
+    {
+        AnatomicalRegion.BRAIN,
+        AnatomicalRegion.CERVICAL,
+        AnatomicalRegion.THORAX,
+    }
+)
+_ROUTABLE_MODALITIES = frozenset({Modality.MR, Modality.CT, Modality.XR})
 
 
 class DicomService:
-    def __init__(self, repo: CaseRepository) -> None:
+    def __init__(self, repo: CaseRepository, quarantine: QuarantineStore) -> None:
         self._repo = repo
+        self._quarantine = quarantine
 
     def upload(
         self,
@@ -38,8 +51,36 @@ class DicomService:
         clinical_history: str | None = None,
         referring_clinic: str | None = None,
     ) -> DicomUploadResponse:
-        result = ingest_dicom_files(files)
         ingest_id = f"dicom-{uuid4().hex[:12]}"
+        stored = self._quarantine.store_files(
+            ingest_id,
+            files,
+            content_kinds=["dicom"] * len(files),
+        )
+        result = ingest_dicom_files(files)
+
+        # Attach quarantine paths onto instance metadata when SOP/filename match order.
+        if result.study is not None and stored:
+            by_name = {ref.original_filename: ref for ref in stored}
+            for series in result.study.series:
+                for inst in series.instances:
+                    ref = by_name.get(inst.filename or "")
+                    if ref is not None:
+                        inst.quarantine_relative_path = ref.relative_path
+
+        q_refs = [
+            QuarantineObjectRef(
+                original_filename=r.original_filename,
+                stored_filename=r.stored_filename,
+                relative_path=r.relative_path,
+                size_bytes=r.size_bytes,
+                sha256=r.sha256,
+                content_kind=r.content_kind,
+            )
+            for r in stored
+        ]
+        quarantine_dir = str(self._quarantine.ingest_dir(ingest_id)) if stored else None
+
         record = DicomIngestionRecord(
             ingest_id=ingest_id,
             patient_name=patient_name.strip(),
@@ -52,6 +93,8 @@ class DicomService:
             classification=result.classification,
             blocked=result.blocked,
             block_reason=result.block_reason,
+            quarantine_dir=quarantine_dir,
+            quarantined_files=q_refs,
         )
         self._repo.save_ingestion(record)
         return DicomUploadResponse(
@@ -61,6 +104,8 @@ class DicomService:
             issues=result.issues,
             study=result.study,
             classification=result.classification,
+            quarantine_dir=quarantine_dir,
+            quarantined_file_count=len(q_refs),
         )
 
     def get_ingestion(self, ingest_id: str) -> DicomIngestionRecord:
@@ -98,18 +143,28 @@ class DicomService:
             modality = payload.modality
             region = payload.anatomical_region
 
-        if modality == Modality.OTHER:
+        if modality not in _ROUTABLE_MODALITIES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Confirmed modality OTHER is unsupported for the mock imaging pipeline.",
+                detail="Confirmed modality is unsupported for the mock imaging pipeline (use MR/CT/XR).",
             )
-        if region in {AnatomicalRegion.OTHER, AnatomicalRegion.UNKNOWN}:
+        if region not in _ROUTABLE_REGIONS:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "Confirmed anatomical region must be BRAIN or CERVICAL for automated routing. "
+                    "Confirmed anatomical region must be BRAIN, CERVICAL, or THORAX for automated routing. "
                     "Use manual synthetic CaseCreate if you need OTHER/UNKNOWN demos."
                 ),
+            )
+        if modality == Modality.XR and region != AnatomicalRegion.THORAX:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="XR mock pipeline currently routes THORAX only.",
+            )
+        if modality in {Modality.MR, Modality.CT} and region == AnatomicalRegion.THORAX:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="MR/CT mock pipeline currently routes BRAIN or CERVICAL (not THORAX).",
             )
 
         patient_name = (payload.patient_name or record.patient_name).strip()
@@ -140,6 +195,7 @@ class DicomService:
             ),
             dicom_study=study,
             dicom_ingest_id=record.ingest_id,
+            quarantine_dir=record.quarantine_dir,
             classification_confirmed=True,
             status=CaseLifecycleStatus.CREATED,
         )

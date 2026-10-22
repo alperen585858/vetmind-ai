@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.dicom import DicomStudyMeta
+from app.schemas.documents import CaseDocumentContext
 from app.schemas.enums import (
     AnatomicalRegion,
     CaseLifecycleStatus,
@@ -67,6 +68,8 @@ class CaseRecord(BaseModel):
     referring_clinic: Optional[str] = None
     dicom_study: Optional[DicomStudyMeta] = None
     dicom_ingest_id: Optional[str] = None
+    quarantine_dir: Optional[str] = None
+    document_context: Optional[CaseDocumentContext] = None
     classification_confirmed: bool = True
     latest_job_id: Optional[str] = None
     model_input: Optional[ImagingModelInput] = None

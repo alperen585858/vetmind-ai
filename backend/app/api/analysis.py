@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import get_case_service
+from app.auth.deps import require_auth, require_capability
+from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.services.case_service import CaseService
 
-router = APIRouter(prefix="/api/v1", tags=["analysis"])
+router = APIRouter(prefix="/api/v1", tags=["analysis"], dependencies=[Depends(require_auth)])
 
 
 @router.post(
@@ -12,25 +14,37 @@ router = APIRouter(prefix="/api/v1", tags=["analysis"])
     response_model=PipelineResult,
     status_code=status.HTTP_200_OK,
     summary="Run mock analysis synchronously",
-    description=(
-        "The mock AI pipeline runs **synchronously** inside this HTTP request. "
-        "The returned `job_id` is a completed-run identifier, not evidence of a background queue. "
-        "Polling `GET /jobs/{job_id}` after this call returns the already-finished job. "
-        "No worker, broker, or async queue is used."
-    ),
 )
-def analyze_case(case_id: str, service: CaseService = Depends(get_case_service)) -> PipelineResult:
+def analyze_case(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    _auth=Depends(require_capability(CAP_ANALYZE)),
+) -> PipelineResult:
     return service.analyze(case_id)
+
+
+@router.post(
+    "/cases/{case_id}/analyze/async",
+    response_model=AnalysisJob,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Enqueue analysis (thread or RQ)",
+)
+def analyze_case_async(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    _auth=Depends(require_capability(CAP_ANALYZE)),
+) -> AnalysisJob:
+    return service.enqueue_analyze(case_id)
 
 
 @router.get(
     "/jobs/{job_id}",
     response_model=AnalysisJob,
-    summary="Get synchronous analysis run status",
-    description=(
-        "Returns the status of a prior synchronous analyze run. "
-        "Jobs are not queued for later execution."
-    ),
+    summary="Get analysis job status",
 )
-def get_job(job_id: str, service: CaseService = Depends(get_case_service)) -> AnalysisJob:
+def get_job(
+    job_id: str,
+    service: CaseService = Depends(get_case_service),
+    _auth=Depends(require_capability(CAP_CASE_READ)),
+) -> AnalysisJob:
     return service.get_job(job_id)

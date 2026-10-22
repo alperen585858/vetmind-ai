@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.enums import ExpertReviewStatus, ReportStatus, SourceKind
+from app.schemas.rag import RagPassage
 
 REPORT_SCHEMA_VERSION = "1.0.0"
 
@@ -50,3 +51,8 @@ class DraftReport(BaseModel):
     synthetic: bool = True
     clinically_validated: bool = False
     reviewer_comment: Optional[str] = None
+    rag_citations: list[RagPassage] = Field(default_factory=list)
+    rag_note: str = (
+        "Optional RAG citations are demo lexical matches only. "
+        "They are not clinical evidence and do not validate findings."
+    )

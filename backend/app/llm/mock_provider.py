@@ -19,12 +19,19 @@ class MockLLMProvider:
     def generate(self, request: LLMRequest) -> LLMResponse:
         findings = request.findings
         cited = [f.finding_id for f in findings.findings]
+        doc_note = ""
+        if request.case.document_context is not None:
+            n = len(request.case.document_context.documents)
+            doc_note = f" Document context: {n} quarantined file(s) available as draft text only."
+        quarantine_note = ""
+        if request.case.quarantine_dir:
+            quarantine_note = f" Quarantine dir present (pixels not authorized for diagnosis)."
         technique = ReportSection(
             text=(
                 f"{SYNTHETIC_BANNER}\n\n"
                 f"Technique (metadata only): species={findings.species.value}, "
                 f"modality={findings.modality.value}, region={findings.anatomical_region.value}. "
-                "No DICOM pixels were reconstructed or interpreted."
+                f"No DICOM pixels were reconstructed or interpreted.{quarantine_note}{doc_note}"
             ),
             cited_finding_ids=[],
         )
@@ -76,6 +83,20 @@ class MockLLMProvider:
                 "3. Do not treat unlisted anatomic regions as disease-free."
             )
 
+        rag_block = ""
+        if request.rag_passages:
+            lines = [
+                f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage[:180]}…"
+                if len(p.passage) > 180
+                else f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage}"
+                for p in request.rag_passages
+            ]
+            rag_block = (
+                "\n\nOptional demo RAG context (lexical matches only — not clinical evidence):\n"
+                + "\n".join(lines)
+            )
+            recs = f"{recs}\n4. Review listed RAG demo passages; do not treat them as proof of findings."
+
         report = DraftReport(
             report_id=f"rpt-{uuid4().hex[:12]}",
             case_id=request.case.case_id,
@@ -89,11 +110,12 @@ class MockLLMProvider:
                 clinically_validated=False,
             ),
             technique=technique,
-            findings=ReportSection(text=findings_text, cited_finding_ids=cited),
+            findings=ReportSection(text=findings_text + rag_block, cited_finding_ids=cited),
             impression=ReportSection(text=impression_text, cited_finding_ids=cited),
             recommendations=ReportSection(text=recs, cited_finding_ids=[]),
             synthetic=True,
             clinically_validated=False,
+            rag_citations=list(request.rag_passages),
         )
         return LLMResponse(
             provider_id=self.provider_id,

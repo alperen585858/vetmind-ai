@@ -7,6 +7,9 @@
     "dev": "vite --open",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "backend:dev": "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
+    "backend:test": "cd backend && .venv/bin/pytest -q",
     "build:share": "tsc --noEmit && vite build --mode share --outDir dist-share && node scripts/build-share.mjs"
   },
   "dependencies": {

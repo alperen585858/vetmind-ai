@@ -176,15 +176,16 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
             issues=issues,
         )
 
+    _supported_mods = {Modality.MR, Modality.CT, Modality.XR}
     modalities = {i.modality for i in deduped if i.modality is not None}
     if Modality.OTHER in modalities:
         issues.append(
             _error(
                 DicomValidationCode.UNSUPPORTED_MODALITY,
-                "Upload includes unsupported modality values (only MR/CT are accepted for routing).",
+                "Upload includes unsupported modality values (only MR/CT/XR are accepted for routing).",
             )
         )
-    if len({m for m in modalities if m in {Modality.MR, Modality.CT}}) > 1:
+    if len({m for m in modalities if m in _supported_mods}) > 1:
         issues.append(
             _warning(
                 DicomValidationCode.MIXED_MODALITY,
@@ -193,7 +194,7 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
         )
 
     # Block if every instance is unsupported modality.
-    supported = [i for i in deduped if i.modality in {Modality.MR, Modality.CT}]
+    supported = [i for i in deduped if i.modality in _supported_mods]
     if not supported and any(i.modality == Modality.OTHER for i in deduped):
         return ValidationResult(
             blocked=True,

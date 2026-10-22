@@ -1,3 +1,4 @@
+import { getBackendAccessToken } from './auth'
 import type { AIAssessment, ReportSections, Species } from '../types'
 import type {
   BackendCaseRecord,
@@ -9,6 +10,7 @@ import type {
   BackendPipelineResult,
   BackendScenario,
   BackendSpecies,
+  DicomDemoKind,
   DicomUploadResponse,
 } from '../types'
 
@@ -39,6 +41,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!isForm && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
+  const token = getBackendAccessToken()
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
 
   let res: Response
   try {
@@ -65,10 +71,57 @@ export function toBackendSpecies(species: Species): BackendSpecies {
   return 'other'
 }
 
+/** Optional backend JWT login (used when VETMIND_AUTH_ENABLED=1). */
+export async function backendLogin(email: string, password: string): Promise<{
+  access_token: string
+  role: string
+  auth_enabled: boolean
+}> {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export async function backendAuthStatus(): Promise<{ auth_enabled: boolean }> {
+  return request('/auth/status')
+}
+
+export type BackendHealth = {
+  status: string
+  mode: string
+  version: string
+  storage: string
+  sqlite_path?: string
+  quarantine_root?: string
+  rag: string
+  job_backend: string
+  auth_enabled: boolean
+  vision_endpoint: boolean
+  note?: string
+}
+
+export async function fetchBackendHealth(): Promise<BackendHealth> {
+  return request('/health')
+}
+
 /**
  * Create a synthetic case and run mock analysis synchronously.
  * The analyze endpoint blocks until the pipeline finishes; job_id is a run id, not a queue ticket.
  */
+function scenarioRouting(scenario: BackendScenario): {
+  modality: BackendModality
+  anatomical_region: BackendAnatomicalRegion
+} {
+  if (scenario === 'cervical_mri_suspected') return { modality: 'MR', anatomical_region: 'CERVICAL' }
+  if (scenario === 'ct_brain_suspected') return { modality: 'CT', anatomical_region: 'BRAIN' }
+  if (scenario === 'xr_thorax_suspected') return { modality: 'XR', anatomical_region: 'THORAX' }
+  if (scenario === 'document_context' || scenario === 'unsupported') {
+    return { modality: 'OTHER', anatomical_region: 'UNKNOWN' }
+  }
+  return { modality: 'MR', anatomical_region: 'BRAIN' }
+}
+
 export async function createAndAnalyzeCase(input: {
   patientName: string
   species: Species
@@ -76,8 +129,7 @@ export async function createAndAnalyzeCase(input: {
   clinicalHistory: string
   scenario: BackendScenario
 }): Promise<BackendPipelineResult> {
-  const modality = 'MR'
-  const anatomical_region = input.scenario === 'cervical_mri_suspected' ? 'CERVICAL' : 'BRAIN'
+  const { modality, anatomical_region } = scenarioRouting(input.scenario)
   const created = await request<{ case_id: string }>('/cases', {
     method: 'POST',
     body: JSON.stringify({
@@ -91,7 +143,7 @@ export async function createAndAnalyzeCase(input: {
       referring_clinic: 'Ornek Veteriner Klinigi (demo)',
     }),
   })
-  return request<BackendPipelineResult>(`/cases/${created.case_id}/analyze`, { method: 'POST' })
+  return analyzeCaseAsyncAndWait(created.case_id)
 }
 
 /** Multipart DICOM metadata upload (pixels ignored for diagnosis). */
@@ -116,7 +168,7 @@ export async function uploadDicomFiles(input: {
 
 /** Server-side synthetic DICOM fixtures (no real PHI). */
 export async function uploadDicomDemo(input: {
-  kind: 'brain_mri' | 'cervical_mri'
+  kind: DicomDemoKind
   patientName: string
   species: Species
   breed?: string
@@ -131,22 +183,133 @@ export async function uploadDicomDemo(input: {
   return request<DicomUploadResponse>(`/dicom/demo/${input.kind}`, { method: 'POST', body: form })
 }
 
+const DEMO_FILE_PREFIX: Record<DicomDemoKind, string> = {
+  brain_mri: 'brain_mr',
+  cervical_mri: 'cervical_mr',
+  brain_ct: 'brain_ct',
+  thorax_xr: 'thorax_xr',
+}
+
 /** Fetch synthetic .dcm bytes for the in-browser viewer (display only). */
-export async function fetchDemoDicomFiles(kind: 'brain_mri' | 'cervical_mri', count = 2): Promise<File[]> {
+export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 2): Promise<File[]> {
   const out: File[] = []
-  for (let i = 0; i < count; i++) {
+  const n = kind === 'thorax_xr' ? Math.min(count, 1) : count
+  const headers = new Headers()
+  const token = getBackendAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  for (let i = 0; i < n; i++) {
     let res: Response
     try {
-      res = await fetch(`${API_BASE}/dicom/fixtures/${kind}/${i}`)
+      res = await fetch(`${API_BASE}/dicom/fixtures/${kind}/${i}`, { headers })
     } catch {
       throw new BackendUnavailableError()
     }
     if (!res.ok) throw new Error(`Demo DICOM indirilemedi (${kind} #${i})`)
     const blob = await res.blob()
-    const name = kind === 'brain_mri' ? `brain_mr_${i + 1}.dcm` : `cervical_mr_${i + 1}.dcm`
-    out.push(new File([blob], name, { type: 'application/dicom' }))
+    out.push(new File([blob], `${DEMO_FILE_PREFIX[kind]}_${i + 1}.dcm`, { type: 'application/dicom' }))
   }
   return out
+}
+
+/** PDF / JPG / PNG / text → quarantine + text extract (multimodal stub path). */
+export async function uploadDocuments(input: {
+  files: File[]
+  patientName: string
+  species: Species
+  breed?: string
+  clinicalHistory?: string
+}): Promise<{
+  ingest_id: string
+  blocked: boolean
+  block_reason?: string | null
+  documents: { filename: string; content_kind: string; extracted_text?: string | null }[]
+  quarantined_file_count: number
+}> {
+  const form = new FormData()
+  form.append('patient_name', input.patientName)
+  form.append('species', toBackendSpecies(input.species))
+  if (input.breed) form.append('breed', input.breed)
+  if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
+  form.append('referring_clinic', 'Ornek Veteriner Klinigi (demo)')
+  for (const file of input.files) {
+    form.append('files', file, file.name)
+  }
+  return request('/documents/upload', { method: 'POST', body: form })
+}
+
+export async function confirmDocumentIngest(ingestId: string): Promise<BackendCaseRecord> {
+  return request<BackendCaseRecord>(`/documents/ingestions/${ingestId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+}
+
+export async function confirmDocumentAndAnalyze(ingestId: string): Promise<BackendPipelineResult> {
+  const caseRecord = await confirmDocumentIngest(ingestId)
+  return analyzeCaseAsyncAndWait(caseRecord.case_id)
+}
+
+/** Enqueue background analyze and poll until completed/failed. */
+export async function analyzeCaseAsyncAndWait(
+  caseId: string,
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<BackendPipelineResult> {
+  const timeoutMs = opts?.timeoutMs ?? 15_000
+  const intervalMs = opts?.intervalMs ?? 120
+  const job = await request<{ job_id: string; status: string; case_id: string }>(
+    `/cases/${caseId}/analyze/async`,
+    { method: 'POST' },
+  )
+  const deadline = Date.now() + timeoutMs
+  let status = job.status
+  while (Date.now() < deadline) {
+    const polled = await request<{
+      job_id: string
+      case_id: string
+      status: string
+      outcome: BackendPipelineResult['outcome'] | null
+      error_message?: string | null
+      routed_model_ids?: string[]
+      route_reason?: string | null
+    }>(`/jobs/${job.job_id}`)
+    status = polled.status
+    if (status === 'completed' || status === 'failed') {
+      const [findings, report, caseRecord] = await Promise.all([
+        request<BackendFindings | null>(`/cases/${caseId}/findings`).catch(() => null),
+        request<BackendDraftReport | null>(`/cases/${caseId}/report`).catch(() => null),
+        getBackendCase(caseId),
+      ])
+      const outcome =
+        (polled.outcome as BackendPipelineResult['outcome'] | null) ??
+        (status === 'failed' ? 'failed' : caseRecord.status === 'manual_review' ? 'unsupported' : 'success')
+      return {
+        outcome,
+        job: {
+          job_id: polled.job_id,
+          case_id: polled.case_id,
+          status: polled.status,
+          routed_model_ids: polled.routed_model_ids ?? [],
+          route_reason: polled.route_reason,
+          error_message: polled.error_message,
+        },
+        findings,
+        report,
+        messages: ['Async analyze (demo thread worker) completed.'],
+      }
+    }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
+}
+
+export async function searchRag(query: string, topK = 5): Promise<{
+  query: string
+  hits: { source_id: string; title: string; section: string; passage: string; score: number }[]
+  method: string
+  note: string
+}> {
+  const params = new URLSearchParams({ q: query, top_k: String(topK) })
+  return request(`/rag/search?${params.toString()}`)
 }
 
 export async function confirmDicomClassification(input: {
@@ -169,7 +332,7 @@ export async function confirmDicomClassification(input: {
   })
 }
 
-/** Confirm DICOM classification, then run synchronous mock analyze. */
+/** Confirm DICOM classification, then run async mock analyze (poll until done). */
 export async function confirmDicomAndAnalyze(input: {
   ingestId: string
   acceptSuggestion: boolean
@@ -179,7 +342,7 @@ export async function confirmDicomAndAnalyze(input: {
   clinicalHistory?: string
 }): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDicomClassification(input)
-  return request<BackendPipelineResult>(`/cases/${caseRecord.case_id}/analyze`, { method: 'POST' })
+  return analyzeCaseAsyncAndWait(caseRecord.case_id)
 }
 
 export async function listBackendCases(): Promise<BackendCaseSummary[]> {
