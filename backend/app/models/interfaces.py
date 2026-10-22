@@ -17,15 +17,16 @@ class ImagingModel(Protocol):
 
     Adapters should read ``case.model_input`` (ImagingModelInput) when present — that is the
     AI-facing study package. Do not parse arbitrary uploaded folders inside adapters.
+    Do not call builders that attach fields onto the case; orchestrator owns that write.
     """
 
     model_id: str
     version: str
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
-        """Return structured findings. Must not mutate the case record.
+        """Return structured findings. Must not mutate the case record or model input.
 
         Raise ImagingAdapterError (or a subclass) for deterministic/expected adapter failures.
-        Prefer ``case.model_input`` for modality/series/frame references.
+        Prefer ``require_model_input(case)`` / ``case.model_input`` for modality/series/frames.
         """
         ...

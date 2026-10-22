@@ -60,6 +60,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "job_backend": c.job_backend.name,
             "auth_enabled": c.auth.enabled,
             "vision_endpoint": bool(c.settings.vision_endpoint),
+            "vision_execution_policy": c.settings.vision_execution_policy,
+            "llm_provider": c.settings.llm_provider,
             "note": "Not a clinical system. Optional Postgres/auth/remote Vision/RQ via env.",
         }
 

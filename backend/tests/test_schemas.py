@@ -71,6 +71,17 @@ def test_finding_model_roundtrip() -> None:
         anatomical_location="brain",
         finding_status=FindingStatus.SUSPECTED,
         source_model="mock-brain-mri-v1",
+        synthetic=True,
     )
     assert finding.requires_review is True
     assert finding.synthetic is True
+    # Schema default is False so REAL adapters are not labeled synthetic by omission.
+    bare = Finding(
+        finding_id="f2",
+        finding_code="X",
+        description="d",
+        anatomical_location="brain",
+        finding_status=FindingStatus.UNCERTAIN,
+        source_model="adapter",
+    )
+    assert bare.synthetic is False

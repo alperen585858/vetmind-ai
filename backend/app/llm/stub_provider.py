@@ -23,17 +23,18 @@ class DeterministicStubLLMProvider:
     model_version = "0.1.0"
 
     def generate(self, request: LLMRequest) -> LLMResponse:
-        cited = [f.finding_id for f in request.findings.findings]
-        n = len(request.findings.findings)
+        gen = request.generation
+        cited = [f.finding_id for f in gen.findings]
+        n = len(gen.findings)
         body = (
             f"{STUB_BANNER}\n\n"
-            f"Stub summary for case={request.case.case_id}: "
-            f"{n} structured finding(s); modality={request.findings.modality.value}; "
-            f"region={request.findings.anatomical_region.value}."
+            f"Stub summary for case={gen.case_id}: "
+            f"{n} structured finding(s); modality={gen.modality.value}; "
+            f"region={gen.anatomical_region.value}."
         )
         report = DraftReport(
             report_id=f"stub-rpt-{uuid4().hex[:12]}",
-            case_id=request.case.case_id,
+            case_id=gen.case_id,
             status=ReportStatus.DRAFT,
             generation=GenerationMetadata(
                 provider_id=self.provider_id,

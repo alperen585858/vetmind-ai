@@ -15,8 +15,22 @@ from app.schemas.enums import AnatomicalRegion, ClassificationConfidence, Modali
 IMAGING_MODEL_INPUT_VERSION = "1.0.0"
 
 
+class PixelAuthorizationSummary(BaseModel):
+    """Policy outcome only — never implies pixels were loaded or transmitted."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    authorized: bool = False
+    reason_codes: list[str] = Field(default_factory=list)
+    evaluated_model_ids: list[str] = Field(default_factory=list)
+    note: str = (
+        "Authorization decision only. Does not load, decode, or transmit pixel data. "
+        "source_kind=real / authorized=true does not imply clinical validation."
+    )
+
+
 class ModelInputFrameRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     sop_instance_uid: str
     series_instance_uid: str
@@ -31,7 +45,7 @@ class ModelInputFrameRef(BaseModel):
 
 
 class ModelInputSeriesRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     series_instance_uid: str
     modality: Optional[Modality] = None
@@ -44,7 +58,7 @@ class ModelInputSeriesRef(BaseModel):
 class ImagingModelInput(BaseModel):
     """Canonical AI-facing study package. Swappable adapters analyze this, not raw folders."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: str = IMAGING_MODEL_INPUT_VERSION
     case_id: str
@@ -58,11 +72,14 @@ class ImagingModelInput(BaseModel):
     total_instances: int = 0
     metadata_only: bool = True
     pixel_analysis_authorized: bool = False
+    pixel_authorization: PixelAuthorizationSummary = Field(
+        default_factory=PixelAuthorizationSummary
+    )
     quarantine_dir: Optional[str] = None
     quarantined_instance_count: int = 0
     prepared_for_models: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     note: str = (
         "Structured model input. Mock adapters do not diagnose from pixels. "
-        "Real Vision AI must set pixel_analysis_authorized and load tensors via quarantine storage."
+        "pixel_analysis_authorized reflects policy only; this package does not embed pixel tensors."
     )

@@ -15,13 +15,17 @@ FINDINGS_SCHEMA_VERSION = "1.1.0"
 
 
 class EvidenceReference(BaseModel):
-    """Evidence pointer. Phase 2A still does not interpret DICOM pixels."""
+    """Evidence pointer. Optional DICOM UIDs link to ImagingModelInput frames when present."""
 
     model_config = ConfigDict(extra="forbid")
 
     evidence_id: str
     description: str
     series_hint: Optional[str] = None
+    study_instance_uid: Optional[str] = None
+    series_instance_uid: Optional[str] = None
+    sop_instance_uid: Optional[str] = None
+    frame_index: Optional[int] = None
     note: str = "Evidence reference only. Pixel-level imaging analysis may not have been performed."
 
 
@@ -38,7 +42,9 @@ class Finding(BaseModel):
     requires_review: bool = True
     evidence_references: list[EvidenceReference] = Field(default_factory=list)
     uncertainty_note: Optional[str] = None
-    synthetic: bool = True
+    # Default False so REAL adapters are not labeled synthetic by schema default.
+    # Mock adapters must set synthetic=True explicitly.
+    synthetic: bool = False
     conflict_group_id: Optional[str] = None
 
 

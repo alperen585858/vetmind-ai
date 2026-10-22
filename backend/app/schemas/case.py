@@ -71,6 +71,9 @@ class CaseRecord(BaseModel):
     quarantine_dir: Optional[str] = None
     document_context: Optional[CaseDocumentContext] = None
     classification_confirmed: bool = True
+    # Explicit verified grants for future pixel inference (default deny when False/unverifiable).
+    imaging_source_permission_verified: bool = False
+    imaging_analysis_consent_verified: bool = False
     latest_job_id: Optional[str] = None
     model_input: Optional[ImagingModelInput] = None
     structured_findings: Optional[StructuredFindings] = None

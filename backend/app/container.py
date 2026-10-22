@@ -1,16 +1,18 @@
 from app.auth.security import DEMO_USERS, AuthSettings
+from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
-from app.llm.mock_provider import MockLLMProvider
 from app.models.http_vision import build_optional_http_vision
 from app.models.mock_vision import default_model_registry
 from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.retriever import LexicalRagRetriever
 from app.rag.vector_store import JsonVectorStore
-from app.routing.capabilities import ModelCapability, default_capabilities
+from app.routing.capabilities import default_capabilities
+from app.routing.execution_policy import ModelExecutionPolicy, parse_vision_execution_mode
 from app.routing.model_router import ModelRouter
+from app.routing.registry_validation import validate_registry_capabilities
+from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
-from app.schemas.enums import AnatomicalRegion, Modality, Species
 from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
@@ -50,35 +52,33 @@ class AppContainer:
 
         capabilities = list(default_capabilities())
         self.models = default_model_registry()
-        remote = build_optional_http_vision(
-            endpoint=self.settings.vision_endpoint,
-            model_id=self.settings.vision_model_id,
-            api_key=self.settings.vision_api_key,
-        )
-        if remote is not None:
-            self.models[remote.model_id] = remote
-            canine_feline = frozenset({Species.CANINE, Species.FELINE})
-            capabilities.insert(
-                0,
-                ModelCapability(
-                    model_id=remote.model_id,
-                    modalities=frozenset({Modality.MR, Modality.CT, Modality.XR}),
-                    regions=frozenset(
-                        {
-                            AnatomicalRegion.BRAIN,
-                            AnatomicalRegion.CERVICAL,
-                            AnatomicalRegion.THORAX,
-                        }
-                    ),
-                    species=canine_feline,
-                    priority=1,
-                    description="Remote HTTP Vision/VLM adapter",
-                ),
+        remote_cap = remote_capability_from_settings(self.settings)
+        if remote_cap is not None:
+            remote = build_optional_http_vision(
+                endpoint=self.settings.vision_endpoint,
+                model_id=remote_cap.model_id,
+                api_key=self.settings.vision_api_key,
             )
+            if remote is None:
+                raise RuntimeError("vision_endpoint set but remote adapter was not built.")
+            self.models[remote.model_id] = remote
+            capabilities.insert(0, remote_cap)
 
+        # F8: fail fast if enabled capabilities lack adapters or IDs conflict.
+        validate_registry_capabilities(capabilities, self.models)
+
+        self.vision_execution_mode = parse_vision_execution_mode(
+            self.settings.vision_execution_policy
+        )
         self.router = ModelRouter(capabilities=capabilities)
         self.scenario_policy = ScenarioRoutingPolicy()
-        self.llm = LLMGateway(MockLLMProvider(), rag=self.rag)
+        self.execution_policy = ModelExecutionPolicy(
+            mode=self.vision_execution_mode,
+            capabilities=capabilities,
+        )
+        # F11: settings-selected provider (mock default). No network probe at startup.
+        self.llm_provider = build_llm_provider(self.settings)
+        self.llm = LLMGateway(self.llm_provider, rag=self.rag)
         self.validator = ReportValidator()
         self.orchestrator = AIOrchestrator(
             self.router,
@@ -86,6 +86,7 @@ class AppContainer:
             self.llm,
             self.validator,
             scenario_policy=self.scenario_policy,
+            execution_policy=self.execution_policy,
         )
         self.job_backend = build_job_backend(
             backend=self.settings.job_backend,

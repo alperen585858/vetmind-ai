@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from app.schemas.enums import AnatomicalRegion, Modality, Species
+from app.schemas.enums import AnatomicalRegion, Modality, SourceKind, Species
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,10 @@ class ModelCapability:
     priority: int = 100  # lower runs first / listed first
     enabled: bool = True
     description: str = ""
+    # Provenance class for execution policy (exclusive real vs mixed). Not vendor-specific.
+    source_kind: SourceKind = SourceKind.MOCK
+    # Pixel analysis is opt-in per capability. Mocks must remain False.
+    allows_pixel_analysis: bool = False
 
 
 def default_capabilities() -> list[ModelCapability]:

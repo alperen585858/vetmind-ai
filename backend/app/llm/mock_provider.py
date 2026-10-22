@@ -17,25 +17,24 @@ class MockLLMProvider:
     model_version = "0.1.0"
 
     def generate(self, request: LLMRequest) -> LLMResponse:
-        findings = request.findings
-        cited = [f.finding_id for f in findings.findings]
+        gen = request.generation
+        cited = [f.finding_id for f in gen.findings]
         doc_note = ""
-        if request.case.document_context is not None:
-            n = len(request.case.document_context.documents)
-            doc_note = f" Document context: {n} quarantined file(s) available as draft text only."
-        quarantine_note = ""
-        if request.case.quarantine_dir:
-            quarantine_note = f" Quarantine dir present (pixels not authorized for diagnosis)."
+        if gen.document_context_file_count > 0:
+            doc_note = (
+                f" Document context: {gen.document_context_file_count} file(s) "
+                "available as draft text only (paths omitted)."
+            )
         technique = ReportSection(
             text=(
                 f"{SYNTHETIC_BANNER}\n\n"
-                f"Technique (metadata only): species={findings.species.value}, "
-                f"modality={findings.modality.value}, region={findings.anatomical_region.value}. "
-                f"No DICOM pixels were reconstructed or interpreted.{quarantine_note}{doc_note}"
+                f"Technique (metadata only): species={gen.species.value}, "
+                f"modality={gen.modality.value}, region={gen.anatomical_region.value}. "
+                f"No DICOM pixels were reconstructed or interpreted.{doc_note}"
             ),
             cited_finding_ids=[],
         )
-        if findings.execution_status == ModelExecutionStatus.UNSUPPORTED:
+        if gen.execution_status == ModelExecutionStatus.UNSUPPORTED:
             findings_text = (
                 f"{SYNTHETIC_BANNER}\n\n"
                 "Automated imaging pipeline is unsupported for this case. "
@@ -50,11 +49,11 @@ class MockLLMProvider:
                 "Manual review of the original imaging study by a veterinary radiologist. "
                 "Do not use this draft for clinical decisions."
             )
-        elif findings.execution_status == ModelExecutionStatus.FAILED:
+        elif gen.execution_status == ModelExecutionStatus.FAILED:
             findings_text = f"{SYNTHETIC_BANNER}\n\nMock vision execution failed. No imaging findings are available."
             impression_text = f"{SYNTHETIC_BANNER}\n\nImpression cannot be generated because the imaging adapter failed."
             recs = "Re-run analysis after investigating the adapter failure. Expert review is still required."
-        elif findings.no_findings_returned or not findings.findings:
+        elif gen.no_findings_returned or not gen.findings:
             findings_text = (
                 f"{SYNTHETIC_BANNER}\n\n"
                 "The mock imaging adapter returned no findings. "
@@ -69,7 +68,7 @@ class MockLLMProvider:
         else:
             bullets = "\n".join(
                 f"- [{f.finding_code}] {f.description} (status={f.finding_status.value}, location={f.anatomical_location})"
-                for f in findings.findings
+                for f in gen.findings
             )
             findings_text = f"{SYNTHETIC_BANNER}\n\nReported mock findings:\n{bullets}"
             impression_text = (
@@ -84,12 +83,12 @@ class MockLLMProvider:
             )
 
         rag_block = ""
-        if request.rag_passages:
+        if gen.rag_passages:
             lines = [
                 f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage[:180]}…"
                 if len(p.passage) > 180
                 else f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage}"
-                for p in request.rag_passages
+                for p in gen.rag_passages
             ]
             rag_block = (
                 "\n\nOptional demo RAG context (lexical matches only — not clinical evidence):\n"
@@ -99,7 +98,7 @@ class MockLLMProvider:
 
         report = DraftReport(
             report_id=f"rpt-{uuid4().hex[:12]}",
-            case_id=request.case.case_id,
+            case_id=gen.case_id,
             status=ReportStatus.DRAFT,
             generation=GenerationMetadata(
                 provider_id=self.provider_id,
@@ -115,7 +114,7 @@ class MockLLMProvider:
             recommendations=ReportSection(text=recs, cited_finding_ids=[]),
             synthetic=True,
             clinically_validated=False,
-            rag_citations=list(request.rag_passages),
+            rag_citations=list(gen.rag_passages),
         )
         return LLMResponse(
             provider_id=self.provider_id,

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from app.routing.capabilities import default_capabilities
+from app.models.interfaces import ImagingAdapterError
+from app.models.pixel_authorization import summarize_pixel_authorization
+from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
 from app.schemas.enums import ClassificationConfidence
 from app.schemas.model_input import (
@@ -12,11 +14,20 @@ from app.schemas.model_input import (
 )
 
 
-def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
-    """Create the AI-facing study package. Safe for mock: metadata_only=True."""
+def build_imaging_model_input(
+    case: CaseRecord,
+    *,
+    capabilities: list[ModelCapability] | None = None,
+) -> ImagingModelInput:
+    """Create the AI-facing study package. Safe for mock: metadata_only=True.
+
+    Does not mutate ``case``. Orchestrator/services attach the result when persisting.
+    Pixel authorization is evaluated separately from any pixel loading (none here).
+    """
+    caps = list(capabilities if capabilities is not None else default_capabilities())
     warnings: list[str] = [
         "ImagingModelInput prepared for adapter consumption.",
-        "pixel_analysis_authorized=false: mock/real adapters must not invent pixel diagnoses.",
+        "pixel_analysis_authorized reflects policy only; pixels are not loaded in this package.",
     ]
     series_refs: list[ModelInputSeriesRef] = []
     total = 0
@@ -55,16 +66,15 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
         )
 
     if case.quarantine_dir:
-        warnings.append(f"Quarantine directory attached: {case.quarantine_dir}")
+        warnings.append("Quarantine directory attached (path omitted from authorization summary).")
     if case.document_context is not None:
         warnings.append(
             f"Document context attached ({len(case.document_context.documents)} file(s)); "
             "multimodal stub may use extracted text only."
         )
 
-    # Which mock/real models are plausible for this package (capability match).
     prepared: list[str] = []
-    for cap in default_capabilities():
+    for cap in caps:
         if not cap.enabled:
             continue
         if case.modality not in cap.modalities:
@@ -82,6 +92,20 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
         except ValueError:
             confidence = None
 
+    auth_summary = summarize_pixel_authorization(
+        case, model_ids=prepared, capabilities=caps
+    )
+    warnings.append(
+        "pixel_authorization="
+        f"{'authorized' if auth_summary.authorized else 'denied'} "
+        f"codes={list(auth_summary.reason_codes)}"
+    )
+    if auth_summary.authorized:
+        warnings.append(
+            "Policy authorized pixel analysis for a capable model; "
+            "no pixel tensors are attached and no decoding is performed in this phase."
+        )
+
     return ImagingModelInput(
         case_id=case.case_id,
         study_instance_uid=case.study.study_instance_uid or (
@@ -95,7 +119,8 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
         series=series_refs,
         total_instances=total,
         metadata_only=True,
-        pixel_analysis_authorized=False,
+        pixel_analysis_authorized=auth_summary.authorized,
+        pixel_authorization=auth_summary,
         quarantine_dir=case.quarantine_dir,
         quarantined_instance_count=quarantined,
         prepared_for_models=prepared,
@@ -103,8 +128,25 @@ def build_imaging_model_input(case: CaseRecord) -> ImagingModelInput:
     )
 
 
-def ensure_model_input(case: CaseRecord) -> ImagingModelInput:
-    """Attach ImagingModelInput to the case if missing; return the package."""
+def require_model_input(case: CaseRecord) -> ImagingModelInput:
+    """Read-only accessor for adapters. Never mutates the case.
+
+    Orchestrator must attach ``case.model_input`` before invoking adapters.
+    """
     if case.model_input is None:
-        case.model_input = build_imaging_model_input(case)
+        raise ImagingAdapterError(
+            "ImagingModelInput missing on case; orchestrator must prepare model input "
+            "before adapters run."
+        )
     return case.model_input
+
+
+def ensure_model_input(case: CaseRecord) -> ImagingModelInput:
+    """Return model input without mutating the case.
+
+    Prefer ``require_model_input`` inside adapters. Orchestrator/services should call
+    ``build_imaging_model_input`` and assign the result themselves.
+    """
+    if case.model_input is not None:
+        return case.model_input
+    return build_imaging_model_input(case)

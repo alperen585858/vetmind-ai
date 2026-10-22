@@ -1,9 +1,10 @@
 from collections import defaultdict
 
+from app.models.evidence_validation import validate_evidence_references
+from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import Finding, PotentialConflict, StructuredFindings
-
-from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
+from app.schemas.model_input import ImagingModelInput
 
 AGREEMENT_NOTE = (
     "Multiple models reported findings at the same location. "
@@ -70,11 +71,16 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
     return conflicts
 
 
-def normalize_outputs(outputs: list[StructuredFindings]) -> StructuredFindings:
+def normalize_outputs(
+    outputs: list[StructuredFindings],
+    *,
+    model_input: ImagingModelInput | None = None,
+) -> StructuredFindings:
     """Evidence fusion: merge adapter outputs without silently resolving disagreements.
 
     Preserves findings, model IDs/versions, source kinds, and evidence references.
-    Does not fabricate confidence scores.
+    Does not fabricate confidence scores. Flags dangling structured DICOM evidence when
+    ``model_input`` is provided.
     """
     if not outputs:
         raise ValueError("No model outputs to normalize.")
@@ -146,6 +152,31 @@ def normalize_outputs(outputs: list[StructuredFindings]) -> StructuredFindings:
             "Inspect contributing_source_kinds and per-finding source_model; do not treat the fused "
             "output as a single validated clinical source."
         )
+    if resolved_kind == SourceKind.REAL:
+        warnings.append(
+            "source_kind=real preserves adapter provenance only; it does not imply clinical validation."
+        )
+
+    # Flag contradictory finding-level provenance; never silently rewrite.
+    for finding in merged_findings:
+        parent_kinds = {
+            out.source_kind
+            for out in outputs
+            if finding.source_model in (out.contributing_model_ids or [out.source_model_id])
+            or finding.source_model == out.source_model_id
+        }
+        if SourceKind.REAL in parent_kinds and finding.synthetic:
+            warnings.append(
+                f"Contradictory provenance on {finding.finding_id}: "
+                "REAL-sourced finding marked synthetic=true (preserved, not rewritten)."
+            )
+        if parent_kinds == {SourceKind.MOCK} and not finding.synthetic:
+            warnings.append(
+                f"Contradictory provenance on {finding.finding_id}: "
+                "MOCK-sourced finding marked synthetic=false (preserved, not rewritten)."
+            )
+
+    warnings.extend(validate_evidence_references(merged_findings, model_input))
 
     if len(unique_models) == 1:
         source_id = unique_models[0]

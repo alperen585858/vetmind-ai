@@ -2,9 +2,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.llm.gateway import LLMGateway
+from app.llm.interfaces import LLMProviderError
 from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.model_input_builder import ensure_model_input
+from app.models.model_input_builder import build_imaging_model_input
 from app.models.normalizer import normalize_outputs
+from app.routing.execution_policy import ModelExecutionPolicy
 from app.routing.model_router import ModelRouter
 from app.routing.scenario_policy import ScenarioRoutingPolicy
 from app.schemas.case import CaseRecord
@@ -37,12 +39,15 @@ class AIOrchestrator:
         llm_gateway: LLMGateway,
         validator: ReportValidator,
         scenario_policy: ScenarioRoutingPolicy | None = None,
+        execution_policy: ModelExecutionPolicy | None = None,
     ) -> None:
         self._router = router
         self._models = model_registry
         self._llm = llm_gateway
         self._validator = validator
         self._scenario_policy = scenario_policy or ScenarioRoutingPolicy()
+        # Default exclusive_real with empty caps is a no-op filter (no REAL matches).
+        self._execution_policy = execution_policy or ModelExecutionPolicy()
 
     @property
     def validator(self) -> ReportValidator:
@@ -56,13 +61,26 @@ class AIOrchestrator:
         ]
 
         try:
-            model_input = ensure_model_input(case)
+            # Orchestrator owns case.model_input writes; adapters must not mutate the case.
+            if case.model_input is None:
+                case.model_input = build_imaging_model_input(
+                    case, capabilities=self._router.list_capabilities()
+                )
+            model_input = case.model_input
             messages.append(
                 f"ImagingModelInput v{model_input.schema_version} ready "
                 f"({model_input.total_instances} instances, prepared_for={model_input.prepared_for_models})."
             )
+            messages.append(
+                "pixel_authorization="
+                f"{'authorized' if model_input.pixel_analysis_authorized else 'denied'} "
+                f"codes={list(model_input.pixel_authorization.reason_codes)}"
+            )
 
-            decision = self._scenario_policy.apply(case, self._router.route(case))
+            # Capability route → mock scenario overrides → REAL/MOCK execution policy.
+            decision = self._execution_policy.apply(
+                self._scenario_policy.apply(case, self._router.route(case))
+            )
             job.routed_model_ids = decision.model_ids
             job.route_reason = decision.reason
             messages.append(decision.reason)
@@ -92,7 +110,7 @@ class AIOrchestrator:
                 case.updated_at = _now()
                 return PipelineResult(job=job, outcome=PipelineOutcome.FAILED, messages=messages + failures)
 
-            findings = normalize_outputs(outputs)
+            findings = normalize_outputs(outputs, model_input=model_input)
             if failures:
                 findings.warnings.extend(failures)
                 if findings.execution_status == ModelExecutionStatus.SUCCESS:
@@ -136,7 +154,27 @@ class AIOrchestrator:
                     messages=list(dict.fromkeys(messages + failures)),
                 )
 
-            report = self._llm.generate_draft(case, findings)
+            try:
+                report = self._llm.generate_draft(case, findings)
+            except LLMProviderError as exc:
+                # Typed LLM failure: keep findings, never attach an approvable draft, no mock fallback.
+                job.status = JobStatus.FAILED
+                job.outcome = PipelineOutcome.FAILED
+                job.error_message = f"LLM provider error ({exc.kind.value}): {exc}"
+                job.completed_at = _now()
+                case.status = CaseLifecycleStatus.FAILED
+                case.structured_findings = findings
+                case.draft_report = None
+                case.updated_at = _now()
+                messages.append(job.error_message)
+                return PipelineResult(
+                    job=job,
+                    findings=findings,
+                    report=None,
+                    outcome=PipelineOutcome.FAILED,
+                    messages=list(dict.fromkeys(messages)),
+                )
+
             validation = self._validator.validate(report, findings)
             messages.extend(validation.warnings)
             messages.extend(validation.errors)

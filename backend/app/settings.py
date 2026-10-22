@@ -21,6 +21,23 @@ class Settings:
     vision_endpoint: str | None = None
     vision_model_id: str = "remote-vision-v1"
     vision_api_key: str | None = None
+    # When a remote Vision endpoint is set: exclusive_real (default) or mixed (dev/test only).
+    vision_execution_policy: str = "exclusive_real"
+    # Explicit remote capability declaration (required when vision_endpoint is set).
+    vision_modalities: tuple[str, ...] = ()
+    vision_regions: tuple[str, ...] = ()
+    vision_species: tuple[str, ...] = ()  # empty → all species
+    vision_priority: int = 1
+    vision_enabled: bool = True
+    vision_source_kind: str = "real"
+    # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe).
+    llm_provider: str = "mock"
+    llm_endpoint: str | None = None
+    llm_provider_id: str = "http-llm"
+    llm_model_id: str = "generic-http-llm"
+    llm_model_version: str = "0.1.0"
+    llm_api_key: str | None = None
+    llm_timeout_s: float = 30.0
     auth_enabled: bool = False
     auth_api_key: str | None = None
     jwt_secret: str = "vetmind-demo-secret-change-me"
@@ -75,6 +92,42 @@ def load_settings() -> Settings:
     vision_endpoint = os.getenv("VETMIND_VISION_ENDPOINT") or None
     vision_model_id = os.getenv("VETMIND_VISION_MODEL_ID", "remote-vision-v1").strip() or "remote-vision-v1"
     vision_api_key = os.getenv("VETMIND_VISION_API_KEY") or None
+    vision_execution_policy = (
+        os.getenv("VETMIND_VISION_EXECUTION_POLICY", "exclusive_real").strip().lower()
+        or "exclusive_real"
+    )
+    if vision_execution_policy not in {"exclusive_real", "mixed"}:
+        vision_execution_policy = "exclusive_real"
+
+    def _csv_tuple(env_name: str) -> tuple[str, ...]:
+        raw = os.getenv(env_name, "") or ""
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+    vision_modalities = _csv_tuple("VETMIND_VISION_MODALITIES")
+    vision_regions = _csv_tuple("VETMIND_VISION_REGIONS")
+    vision_species = _csv_tuple("VETMIND_VISION_SPECIES")
+    try:
+        vision_priority = int(os.getenv("VETMIND_VISION_PRIORITY", "1"))
+    except ValueError:
+        vision_priority = 1
+    vision_enabled = os.getenv("VETMIND_VISION_ENABLED", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    vision_source_kind = os.getenv("VETMIND_VISION_SOURCE_KIND", "real").strip().lower() or "real"
+
+    llm_provider = os.getenv("VETMIND_LLM_PROVIDER", "mock").strip().lower() or "mock"
+    llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
+    llm_provider_id = os.getenv("VETMIND_LLM_PROVIDER_ID", "http-llm").strip() or "http-llm"
+    llm_model_id = os.getenv("VETMIND_LLM_MODEL_ID", "generic-http-llm").strip() or "generic-http-llm"
+    llm_model_version = os.getenv("VETMIND_LLM_MODEL_VERSION", "0.1.0").strip() or "0.1.0"
+    llm_api_key = os.getenv("VETMIND_LLM_API_KEY") or None
+    try:
+        llm_timeout_s = float(os.getenv("VETMIND_LLM_TIMEOUT_S", "30"))
+    except ValueError:
+        llm_timeout_s = 30.0
 
     auth_enabled = os.getenv("VETMIND_AUTH_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
@@ -100,6 +153,20 @@ def load_settings() -> Settings:
         vision_endpoint=vision_endpoint,
         vision_model_id=vision_model_id,
         vision_api_key=vision_api_key,
+        vision_execution_policy=vision_execution_policy,
+        vision_modalities=vision_modalities,
+        vision_regions=vision_regions,
+        vision_species=vision_species,
+        vision_priority=vision_priority,
+        vision_enabled=vision_enabled,
+        vision_source_kind=vision_source_kind,
+        llm_provider=llm_provider,
+        llm_endpoint=llm_endpoint,
+        llm_provider_id=llm_provider_id,
+        llm_model_id=llm_model_id,
+        llm_model_version=llm_model_version,
+        llm_api_key=llm_api_key,
+        llm_timeout_s=llm_timeout_s,
         auth_enabled=auth_enabled,
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,
