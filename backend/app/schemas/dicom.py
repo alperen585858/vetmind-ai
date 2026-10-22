@@ -1,0 +1,140 @@
+"""Versioned DICOM metadata contracts (Phase 2B). Metadata only — no pixel diagnosis."""
+
+from datetime import datetime, timezone
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.enums import (
+    AnatomicalRegion,
+    ClassificationConfidence,
+    DicomValidationCode,
+    DicomValidationSeverity,
+    Modality,
+    Species,
+)
+
+DICOM_SCHEMA_VERSION = "1.0.0"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class DicomValidationIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: DicomValidationCode
+    severity: DicomValidationSeverity
+    message: str
+    filename: Optional[str] = None
+    sop_instance_uid: Optional[str] = None
+
+
+class DicomInstanceMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sop_instance_uid: str
+    instance_number: Optional[int] = None
+    filename: Optional[str] = None
+    transfer_syntax_uid: Optional[str] = None
+    has_pixel_data: bool = False
+    pixel_data_analyzed: bool = False
+
+
+class DicomSeriesMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    series_instance_uid: str
+    series_number: Optional[int] = None
+    modality: Optional[Modality] = None
+    series_description: Optional[str] = None
+    body_part_examined: Optional[str] = None
+    instances: list[DicomInstanceMeta] = Field(default_factory=list)
+
+
+class DicomStudyMeta(BaseModel):
+    """Study → Series → Instance hierarchy from DICOM metadata tags only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = DICOM_SCHEMA_VERSION
+    study_instance_uid: str
+    study_description: Optional[str] = None
+    accession_number: Optional[str] = None
+    study_date: Optional[str] = None
+    patient_id_synthetic: Optional[str] = None
+    patient_name_from_dicom: Optional[str] = None
+    series: list[DicomSeriesMeta] = Field(default_factory=list)
+
+    @property
+    def series_count(self) -> int:
+        return len(self.series)
+
+    @property
+    def instance_count(self) -> int:
+        return sum(len(s.instances) for s in self.series)
+
+
+class ClassificationSuggestion(BaseModel):
+    """Metadata-derived routing hints. Not a clinical diagnosis."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    suggested_modality: Modality
+    suggested_anatomical_region: AnatomicalRegion
+    confidence: ClassificationConfidence
+    needs_confirmation: bool = True
+    rationale: list[str] = Field(default_factory=list)
+    source_tags: dict[str, Optional[str]] = Field(default_factory=dict)
+    note: str = (
+        "Classification is based on DICOM metadata heuristics only. "
+        "No pixel-based anatomical recognition was performed."
+    )
+
+
+class DicomIngestionRecord(BaseModel):
+    """In-memory ingest session awaiting optional classification confirmation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ingest_id: str
+    created_at: datetime = Field(default_factory=utcnow)
+    schema_version: str = DICOM_SCHEMA_VERSION
+    patient_name: str
+    species: Species
+    breed: Optional[str] = None
+    clinical_history: Optional[str] = None
+    referring_clinic: Optional[str] = None
+    study: Optional[DicomStudyMeta] = None
+    issues: list[DicomValidationIssue] = Field(default_factory=list)
+    classification: Optional[ClassificationSuggestion] = None
+    accepted: bool = False
+    case_id: Optional[str] = None
+    blocked: bool = False
+    block_reason: Optional[str] = None
+
+
+class DicomUploadResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ingest_id: str
+    blocked: bool
+    block_reason: Optional[str] = None
+    issues: list[DicomValidationIssue]
+    study: Optional[DicomStudyMeta]
+    classification: Optional[ClassificationSuggestion]
+    note: str = (
+        "DICOM metadata ingest only. Pixel data is ignored for diagnosis. "
+        "Confirm classification before analysis when needs_confirmation is true."
+    )
+
+
+class ConfirmClassificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    accept_suggestion: bool = True
+    modality: Optional[Modality] = None
+    anatomical_region: Optional[AnatomicalRegion] = None
+    patient_name: Optional[str] = None
+    clinical_history: Optional[str] = None

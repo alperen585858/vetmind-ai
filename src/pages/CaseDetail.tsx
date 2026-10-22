@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, XCircle,
@@ -26,10 +26,32 @@ const TABS = [
 export default function CaseDetail() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
-  const { getCase, role } = useApp()
+  const { getCase, role, hydrateBackendCase } = useApp()
   const nav = useNavigate()
   const c = getCase(id)
+  const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
   const tab = params.get('tab') ?? 'genel'
+
+  useEffect(() => {
+    if (!id.startsWith('case-')) {
+      setLoading(false)
+      return
+    }
+    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak')) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    void hydrateBackendCase(id).finally(() => setLoading(false))
+  }, [id, c?.fromBackend, c?.ai, c?.backendFindings, c?.status, hydrateBackendCase])
+
+  if (!c && loading) {
+    return (
+      <Card>
+        <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Backend’den vaka yükleniyor…" />
+      </Card>
+    )
+  }
 
   if (!c) return <Card><EmptyState icon={<FileSearch className="h-6 w-6" />} title="Vaka bulunamadı" action={<Link className="text-sm font-medium text-teal-700" to="/vakalar">Vakalara dön</Link>} /></Card>
 
@@ -53,6 +75,9 @@ export default function CaseDetail() {
             {role === 'expert' && c.status === 'uzman_incelemesinde' && (
               <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>İncelemeye başla</Button>
             )}
+            {role === 'expert' && c.status === 'manuel_inceleme' && (
+              <Button variant="secondary" icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>Manuel inceleme notları</Button>
+            )}
             {c.status === 'onaylandi' && (
               <Button variant="success" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>Onaylı raporu görüntüle</Button>
             )}
@@ -64,6 +89,18 @@ export default function CaseDetail() {
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <p><strong>Uzman revizyon talebi:</strong> {c.statusNote}</p>
+        </div>
+      )}
+      {c.status === 'analiz_basarisiz' && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p><strong>Analiz başarısız (AI adapter):</strong> {c.statusNote ?? 'Onaylanabilir AI taslak yoktur. Bu, uzman revizyon talebi değildir.'}</p>
+        </div>
+      )}
+      {c.status === 'manuel_inceleme' && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p><strong>Manuel inceleme:</strong> {c.statusNote ?? 'Desteklenmeyen vaka — AI draft onayı kapalıdır.'}</p>
         </div>
       )}
       {c.status === 'reddedildi' && c.statusNote && (
@@ -241,12 +278,14 @@ function Imaging() {
           </div>
           <div className="absolute right-3 top-3 font-mono text-[11px] text-slate-400">W: 1200 L: 600</div>
           <ImageIcon className="h-12 w-12 text-slate-500" />
-          <p className="mt-3 font-medium text-slate-200">DICOM görüntüleyici (OHIF) — ilerleyen aşamada entegre edilecek</p>
-          <p className="mt-1 text-sm text-slate-400">Seçili seri: {s}</p>
+          <p className="mt-3 font-medium text-slate-200">Vaka detayında gömülü OHIF yok</p>
+          <p className="mt-1 max-w-md text-sm text-slate-400">
+            DICOM sürükle-bırak önizlemesi <span className="text-teal-300">DICOM Yükle</span> ekranındadır. Seçili seri etiketi: {s}
+          </p>
         </div>
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 ring-1 ring-inset ring-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          Bu sürümde yapay zekâ görüntü analizi yapmaz; değerlendirme yalnızca yüklenen rapor metinleri ve klinik form üzerinden yapılır.
+          Görüntüleyici yalnızca display amaçlıdır; yapay zekâ piksel analizi yapmaz. Mock pipeline metadata ile çalışır.
         </p>
       </div>
     </Card>
@@ -296,6 +335,29 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
   return (
     <div className="space-y-5">
       <AIDisclaimer />
+      {c.backendFindings && (
+        <Card>
+          <CardHeader title="Yapılandırılmış mock bulgular (FastAPI)" subtitle={`${c.backendFindings.source_model_id} · ${c.backendOutcome ?? ''} · source=${c.backendFindings.source_kind}`} icon={<Brain className="h-5 w-5" />} />
+          <div className="space-y-3 p-5 text-sm text-navy-800">
+            <p className="rounded-lg bg-amber-50 p-3 text-amber-900 ring-1 ring-inset ring-amber-200">
+              Bu kayıtlar sentetiktir. Eksik bulgu, hastalığın yokluğu anlamına gelmez (`absences_not_confirmed={String(c.backendFindings.absences_not_confirmed)}`).
+            </p>
+            {c.backendFindings.findings.length === 0 ? (
+              <p>Döndürülen bulgu yok (`no_findings_returned={String(c.backendFindings.no_findings_returned)}`).</p>
+            ) : (
+              <ul className="space-y-2">
+                {c.backendFindings.findings.map((f) => (
+                  <li key={f.finding_id} className="rounded-lg border border-slate-200 p-3">
+                    <p className="font-mono text-xs text-teal-700">{f.finding_id} · {f.finding_code}</p>
+                    <p className="mt-1">{f.description}</p>
+                    <p className="mt-1 text-xs text-slate-500">{f.anatomical_location} · status={f.finding_status} · model={f.source_model}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      )}
       <div className={`grid gap-5 ${compact ? '' : 'xl:grid-cols-3'}`}>
         <div className={`space-y-5 ${compact ? '' : 'xl:col-span-2'}`}>
           <Card>

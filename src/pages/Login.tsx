@@ -1,71 +1,128 @@
-import { ArrowRight, Microscope, PawPrint, ServerCog, Stethoscope } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import type { ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowRight, Lock, Mail } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Logo } from '../components/Logo'
-import { USERS } from '../data/mock'
-import type { Role } from '../types'
-
-const ROLES: { role: Role; title: string; desc: string; icon: ReactNode; accent: string }[] = [
-  { role: 'vet', title: 'Veteriner Hekim (Klinik)', desc: 'Vaka oluşturur, tetkik yükler, onaylı raporu görür.', icon: <Stethoscope className="h-6 w-6" />, accent: 'from-teal-500 to-teal-700' },
-  { role: 'expert', title: 'Uzman Veteriner Hekim (VRM)', desc: 'AI taslaklarını inceler, düzenler, onaylar veya reddeder.', icon: <Microscope className="h-6 w-6" />, accent: 'from-violet-500 to-violet-700' },
-  { role: 'owner', title: 'Hayvan Sahibi', desc: 'Hayvanının vakalarını ve onaylanmış raporları görür.', icon: <PawPrint className="h-6 w-6" />, accent: 'from-sky-500 to-sky-700' },
-  { role: 'admin', title: 'Sistem Yöneticisi', desc: 'Modüller, bilgi tabanı ve sistem durumu.', icon: <ServerCog className="h-6 w-6" />, accent: 'from-slate-500 to-navy-700' },
-]
+import { Button } from '../components/Button'
+import { login, listDemoCredentials, postLoginPath } from '../lib/auth'
+import { ROLE_LABELS } from '../data/mock'
 
 export default function Login() {
-  const { setRole } = useApp()
+  const { signIn, pushToast } = useApp()
   const nav = useNavigate()
+  const [email, setEmail] = useState('vet@demo.local')
+  const [password, setPassword] = useState('demo1234')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      const session = login(email, password)
+      signIn(session)
+      pushToast({ tone: 'success', title: 'Giriş başarılı', body: `${session.name} · ${ROLE_LABELS[session.role]}` })
+      nav(postLoginPath(session.role))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Giriş başarısız')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-navy-950">
       <div className="pointer-events-none absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-teal-600/25 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-20 h-[420px] w-[420px] rounded-full bg-navy-600/40 blur-3xl" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-10">
-        <div className="flex items-center justify-between">
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-10 lg:flex-row lg:items-center lg:gap-16">
+        <div className="flex-1">
           <Logo dark size="lg" />
-          <span className="rounded-full border border-navy-700 px-3 py-1 text-xs text-navy-300">Demo prototip · mock veri</span>
-        </div>
-
-        <div className="mt-14 max-w-2xl lg:mt-20">
-          <p className="text-sm font-semibold uppercase tracking-wider text-teal-400">Veteriner Klinik Değerlendirme ve Raporlama Platformu</p>
-          <h1 className="mt-3 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-            Veteriner hekimin yerini almaz;
-            <br />
-            <span className="text-teal-300">değerlendirme sürecini güçlendirir.</span>
+          <p className="mt-10 text-sm font-semibold uppercase tracking-wider text-teal-400">VetMind AI · Bitirme Projesi</p>
+          <h1 className="mt-3 max-w-xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+            Giriş yapın,
+            <span className="text-teal-300"> DICOM metadata yükleyin,</span> uzman onayıyla ilerleyin.
           </h1>
-          <p className="mt-5 max-w-xl text-base text-navy-200">
-            Tetkik belgelerini işler, nöroloji bilgi tabanından kaynak getirir, kaynaklı bir ön değerlendirme üretir ve uzman hekim onayına sunar.
+          <p className="mt-5 max-w-lg text-base text-navy-200">
+            Bu ekran demo kimlik doğrulamadır (localStorage). Üretim güvenliği, OAuth veya sunucu oturumu yoktur. AI çıktıları klinik tanı değildir.
           </p>
         </div>
 
-        <div className="mt-12">
-          <p className="mb-4 text-sm font-medium text-navy-200">Devam etmek için bir rol seçin</p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {ROLES.map((r) => (
-              <button
-                key={r.role}
-                onClick={() => {
-                  setRole(r.role)
-                  nav('/')
-                }}
-                className="group flex flex-col rounded-2xl border border-navy-800 bg-navy-900/70 p-5 text-left backdrop-blur transition hover:-translate-y-0.5 hover:border-teal-500/60 hover:bg-navy-900"
-              >
-                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white ${r.accent}`}>{r.icon}</div>
-                <p className="font-semibold text-white">{r.title}</p>
-                <p className="mt-1 flex-1 text-sm text-navy-300">{r.desc}</p>
-                <div className="mt-4 flex items-center justify-between border-t border-navy-800 pt-3 text-xs text-navy-300">
-                  <span>{USERS[r.role].name}</span>
-                  <ArrowRight className="h-4 w-4 text-teal-400 transition group-hover:translate-x-1" />
-                </div>
-              </button>
-            ))}
+        <div className="mt-12 w-full max-w-md lg:mt-0">
+          <form onSubmit={onSubmit} className="rounded-2xl border border-navy-800 bg-navy-900/80 p-6 shadow-xl backdrop-blur">
+            <h2 className="text-lg font-semibold text-white">Hesaba giriş</h2>
+            <p className="mt-1 text-sm text-navy-300">Kayıtlı e-posta ve şifrenizle devam edin.</p>
+
+            <label className="mt-5 block text-xs font-medium text-navy-300">
+              E-posta
+              <div className="relative mt-1.5">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
+                <input
+                  className="input w-full bg-navy-950 pl-10 text-white ring-navy-700 placeholder:text-navy-500"
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="vet@demo.local"
+                  required
+                />
+              </div>
+            </label>
+
+            <label className="mt-4 block text-xs font-medium text-navy-300">
+              Şifre
+              <div className="relative mt-1.5">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
+                <input
+                  className="input w-full bg-navy-950 pl-10 text-white ring-navy-700 placeholder:text-navy-500"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </label>
+
+            {error && <p className="mt-3 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/30">{error}</p>}
+
+            <Button type="submit" className="mt-5 w-full" size="lg" disabled={busy} icon={<ArrowRight className="h-4 w-4" />}>
+              {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
+            </Button>
+
+            <p className="mt-4 text-center text-sm text-navy-300">
+              Hesabınız yok mu?{' '}
+              <Link to="/kayit" className="font-semibold text-teal-300 hover:underline">
+                Kayıt olun
+              </Link>
+            </p>
+          </form>
+
+          <div className="mt-4 rounded-xl border border-navy-800 bg-navy-900/50 p-4 text-xs text-navy-300">
+            <p className="font-semibold text-navy-100">Demo hesaplar (şifre: demo1234)</p>
+            <ul className="mt-2 space-y-1">
+              {listDemoCredentials().map((c) => (
+                <li key={c.email}>
+                  <button
+                    type="button"
+                    className="text-left hover:text-teal-300"
+                    onClick={() => {
+                      setEmail(c.email)
+                      setPassword(c.password)
+                    }}
+                  >
+                    {c.email} · {ROLE_LABELS[c.role]}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        <div className="mt-auto pt-12 text-xs text-navy-400">
-          Acıbadem Üniversitesi Bilgisayar Mühendisliği Bitirme Projesi · VRM Teknoloji iş birliğiyle
+        <div className="mt-auto pt-10 text-xs text-navy-400 lg:absolute lg:bottom-10 lg:left-6">
+          Acıbadem Üniversitesi CSE 401/402 · VRM Teknoloji iş birliğiyle · Demo prototip
         </div>
       </div>
     </div>

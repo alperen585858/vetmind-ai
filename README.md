@@ -1,67 +1,97 @@
-# VetMind AI — Tıklanabilir Demo Prototipi
+# VetMind AI — Veteriner Teleradyoloji Demo
 
-Yapay zekâ destekli veteriner klinik değerlendirme ve raporlama platformu için **demo prototip**.
-Acıbadem Üniversitesi Bilgisayar Mühendisliği bitirme projesi · VRM Teknoloji iş birliğiyle.
+Acıbadem Üniversitesi CSE 401/402 bitirme projesi · VRM Teknoloji iş birliğiyle.
 
-> Gerçek backend, gerçek AI veya gerçek dosya işleme **yoktur**. Tüm veriler `src/data/mock.ts` ve
-> `src/data/templates.ts` içindedir; AI işlem hattı animasyonla simüle edilir. Sayfa yenilenince veriler başa döner.
+**Multimodal / multi-model AI destekli veteriner teleradyoloji platformu** prototipi. Platform radyoloğa yardımcı olur; otonom tanı koymaz.
+
+> Klinik sistem değildir. Gerçek eğitilmiş Vision AI / VLM, ücretli LLM, PACS veya klinik validasyon **yoktur**. Mock çıktılar `MOCK` / `SYNTHETIC` etiketlidir ve uzman onayı gerektirir.
+
+---
+
+## Ne çalışıyor (güncel durum)
+
+| Katman | Durum |
+|--------|--------|
+| Frontend (React + Vite + TS) | Giriş / kayıt (demo), DICOM sürükle-bırak + tarayıcı önizleme, vaka senkronu, uzman inceleme UI |
+| Backend (FastAPI) | Case / Job / Findings / Report / Review API |
+| DICOM | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma + onay |
+| AI | Deterministik mock Vision + mock LLM; `ImagingModel` + `ImagingModelInput` girdi paketi / LLM Gateway |
+| DICOM viewer | W/L, dilim kaydırma, zoom/pan (görüntüleme; klinik PACS değil) |
+| Router | Capability tabanlı (modality, bölge, tür) |
+| Kalıcılık | SQLite JSON (`CaseRepository`); testlerde memory |
+| Analiz | **Senkron** HTTP isteği içinde (`job_id` = koşu kimliği, kuyruk yok) |
+
+### Henüz yok
+
+PostgreSQL prod, async worker, gerçek model/GPU, ücretli LLM, PACS, şirket yazılımı entegrasyonu.
+
+---
 
 ## Çalıştırma
 
-Node.js 18+ gerekir.
+Node.js 18+ · Python 3.11+
 
 ```bash
+# Backend
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# Frontend (ayrı terminal)
+cd ..
 npm install
 npm run dev
 ```
 
-Tarayıcı otomatik açılır (açılmazsa: http://localhost:5173).
+- UI: http://localhost:5173  
+- API / OpenAPI: http://127.0.0.1:8000/docs  
+- Vite `/api` → backend `:8000`
 
-Üretim derlemesi: `npm run build` (çıktı: `dist/`), önizleme: `npm run preview`.
+Kalıcılık: varsayılan SQLite → `backend/data/vetmind.sqlite3`. Geçici: `VETMIND_STORAGE=memory`.
 
-## Demo akışı (önerilen sıra)
+Backend ayrıntıları: [backend/README.md](backend/README.md).
 
-1. **Veteriner Hekim** olarak giriş yap → **Yeni Vaka** → sağ üstte **"Örnek vaka ile doldur"**
-   → adımlarda **İleri** (3. adımda "Olası lezyon lokalizasyonu: T3-L3" ipucunu göster) → **Yapay Zekâ Değerlendirmesine Gönder**.
-2. ~10 saniyelik **AI işleme** animasyonunu izle (6 katman) → **Ön değerlendirmeyi görüntüle**.
-   - Ayırıcı tanılardaki **[1] [3]** gibi kaynak atıflarına tıkla → sağdan kaynak paneli açılır.
-   - Sağdaki **Doğrulama Raporu** kutularına tıkla (yeşil / sarı "Derin ağrı…" / kırmızı "24 saat…").
-   - **Belgeler** sekmesinde bir belgeye tıkla: ham metin ↔ çıkarılmış alanlar. **Görüntüleme** sekmesi: OHIF yer tutucu.
-3. Üst bardaki **Rol değiştir → Uzman Hekim (VRM)** → kuyrukta bir vakada **İncele**
-   (ana demo vakası **Paşa**, ya da yeni oluşturulan **Fındık**).
-   - Sağdaki editörde **Değerlendirme** bölümünden kaynaksız "24 saat…" cümlesini sil → bölüm **"Düzenlendi"** rozeti alır,
-     alttaki **Düzeltme Kaydı**'nda AI metni → uzman metni görünür, kategori seçilebilir.
-   - **Onayla ve Yayınla** → bildirim çıkar, resmi rapor açılır. (Revizyon/Ret gerekçe modalı ister.)
-4. **Rol değiştir → Hayvan Sahibi** (Mehmet Yılmaz: Paşa, Zeytin, Fındık) → "Raporunuz hazır" → **Raporu görüntüle** → **PDF olarak indir**.
-5. **Rol değiştir → Sistem Yöneticisi** → **Uzmanlık Modülleri**, **Bilgi Tabanı** (öneri etiketlerinden birine tıklayarak
-   benzerlik skorlu arama, "Kaynak Ekle"), **Sistem Durumu**.
+---
 
-## Mock vakalar
+## Önerilen demo akışı
 
-| Hasta   | Tür / Irk                  | Durum               |
-|---------|----------------------------|---------------------|
-| Paşa    | Köpek · Dachshund          | Uzman İncelemesinde (ana demo) |
-| Duman   | Kedi · British Shorthair   | Onaylandı           |
-| Karamel | Köpek · Golden Retriever   | AI Analizi          |
-| Tarçın  | Köpek · Fransız Bulldog    | Revizyon İstendi    |
-| Pamuk   | Kedi · Tekir               | Taslak              |
-| Zeytin  | Köpek · Alman Kurdu        | Onaylandı           |
+1. **Giriş:** `vet@demo.local` / `demo1234` (veya kayıt ol).
+2. Veteriner otomatik **DICOM Yükle** ekranına düşer → **Demo · Brain MRI** (veya `.dcm` sürükle) → sınıflandırmayı onayla → mock analiz.
+3. **Vakalar** sayfasında **Backend’den yenile** ile SQLite’taki vakalar listelenir (restart sonrası da kalır).
+4. İşleme ekranı → rol değiştir **Uzman Hekim** → taslağı incele / onayla.
+4. İsteğe bağlı: **Yeni Vaka** ile eski yerel prototip veya sentetik mock senaryolar.
+
+Diğer demo hesaplar (şifre `demo1234`): `expert@demo.local`, `owner@demo.local`, `admin@demo.local`.
+
+---
+
+## Mimari (hedef veri akışı)
+
+```text
+DICOM upload → metadata doğrulama / sınıflandırma (onay)
+  → Model Router → Vision/VLM adapter(ler) [şimdi: mock]
+  → Normalizer / Evidence Fusion → Structured Findings
+  → LLM Gateway [şimdi: mock] → Draft Report → Validator
+  → Radyolog inceleme → onay / ret / revizyon
+```
+
+Gerçek modeller adapter olarak eklenir; orchestrator yeniden yazılmaz.
+
+---
 
 ## Teknoloji
 
-React 18 + TypeScript + Vite · Tailwind CSS · React Router · lucide-react · recharts.
+- **Frontend:** React 18, TypeScript, Vite, Tailwind, React Router  
+- **Backend:** Python, FastAPI, Pydantic, pydicom, SQLite  
+- **Test:** pytest (`cd backend && pytest`)
 
-## Klasör yapısı
+---
 
-```
-src/
-  App.tsx                 rotalar + rol bazlı erişim
-  context/AppContext.tsx  rol, vakalar, bildirimler, kaynak paneli (oturum boyunca)
-  data/mock.ts            kullanıcılar, vakalar, bilgi tabanı, izleme verileri
-  data/templates.ts       mock AI çıktı şablonları ve belge üretimi
-  lib/                    lokalizasyon ipucu, işlem hattı zamanlaması, tarih biçimleri
-  components/             Sidebar, Topbar, StatusBadge, Card, AIDisclaimer, CitationChip, SourcePanel, Modal, …
-  pages/                  Login, Dashboard, CaseList, NewCase, Processing, CaseDetail,
-                          ExpertReview, ReviewQueue, ReportList, ApprovedReport,
-                          Modules, KnowledgeBase, SystemStatus
+## Klasörler
+
+```text
+src/           React UI (giriş, DICOM yükleme, vakalar, inceleme)
+backend/app/   FastAPI (api, dicom, models, routing, orchestration, services)
+backend/tests/ pytest
 ```

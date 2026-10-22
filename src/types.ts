@@ -8,6 +8,10 @@ export type CaseStatus =
   | 'onaylandi'
   | 'reddedildi'
   | 'revizyon'
+  /** Mock/FastAPI adapter failure — not an expert-requested revision. */
+  | 'analiz_basarisiz'
+  /** Unsupported modality/region — manual review, no approvable AI draft. */
+  | 'manuel_inceleme'
 
 export type Species = 'Köpek' | 'Kedi'
 export type Priority = 'Acil' | 'Yüksek' | 'Normal'
@@ -119,6 +123,161 @@ export interface TimelineEvent {
   by?: string
 }
 
+export type BackendScenario =
+  | 'brain_mri_suspected'
+  | 'cervical_mri_suspected'
+  | 'no_findings'
+  | 'unsupported'
+  | 'model_failure'
+  | 'conflicting'
+
+export type BackendSpecies = 'canine' | 'feline' | 'other'
+
+export interface BackendFinding {
+  finding_id: string
+  finding_code: string
+  description: string
+  anatomical_location: string
+  finding_status: string
+  source_model: string
+  requires_review: boolean
+  synthetic: boolean
+}
+
+export interface BackendFindings {
+  schema_version: string
+  case_id: string
+  source_model_id: string
+  source_kind: string
+  execution_status: string
+  findings: BackendFinding[]
+  warnings: string[]
+  no_findings_returned: boolean
+  absences_not_confirmed: boolean
+  review_required: boolean
+  contributing_model_ids?: string[]
+  contributing_source_kinds?: string[]
+  potential_conflicts?: {
+    conflict_id: string
+    finding_ids: string[]
+    anatomical_location_key: string
+    reason: string
+    note: string
+  }[]
+}
+
+export interface BackendDraftReport {
+  report_id: string
+  case_id: string
+  status: string
+  synthetic: boolean
+  clinically_validated: boolean
+  generation: { provider_id: string; model_id: string; model_version: string; generated_at: string }
+  technique: { text: string; cited_finding_ids: string[] }
+  findings: { text: string; cited_finding_ids: string[] }
+  impression: { text: string; cited_finding_ids: string[] }
+  recommendations: { text: string; cited_finding_ids: string[] }
+  validation_warnings: string[]
+}
+
+export interface BackendPipelineResult {
+  outcome: 'success' | 'partial' | 'unsupported' | 'failed'
+  job: { job_id: string; case_id: string; status: string; routed_model_ids: string[]; route_reason?: string | null; error_message?: string | null }
+  findings: BackendFindings | null
+  report: BackendDraftReport | null
+  messages: string[]
+}
+
+export type BackendModality = 'MR' | 'CT' | 'OTHER'
+export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'OTHER' | 'UNKNOWN'
+export type ClassificationConfidence = 'high' | 'medium' | 'low' | 'unknown'
+
+export interface DicomValidationIssue {
+  code: string
+  severity: 'error' | 'warning'
+  message: string
+  filename?: string | null
+  sop_instance_uid?: string | null
+}
+
+export interface ClassificationSuggestion {
+  suggested_modality: BackendModality
+  suggested_anatomical_region: BackendAnatomicalRegion
+  confidence: ClassificationConfidence
+  needs_confirmation: boolean
+  rationale: string[]
+  source_tags: Record<string, string | null>
+  note: string
+}
+
+export interface DicomStudyMeta {
+  schema_version: string
+  study_instance_uid: string
+  study_description?: string | null
+  accession_number?: string | null
+  series: {
+    series_instance_uid: string
+    modality?: BackendModality | null
+    series_description?: string | null
+    body_part_examined?: string | null
+    instances: { sop_instance_uid: string; filename?: string | null; has_pixel_data: boolean; pixel_data_analyzed: boolean }[]
+  }[]
+}
+
+export interface DicomUploadResponse {
+  ingest_id: string
+  blocked: boolean
+  block_reason?: string | null
+  issues: DicomValidationIssue[]
+  study: DicomStudyMeta | null
+  classification: ClassificationSuggestion | null
+  note: string
+}
+
+export interface BackendCaseSummary {
+  case_id: string
+  patient_name: string
+  species: BackendSpecies
+  modality: BackendModality
+  anatomical_region: BackendAnatomicalRegion
+  status: string
+  scenario?: string | null
+  created_at: string
+  latest_job_id?: string | null
+}
+
+export interface BackendCaseRecord {
+  case_id: string
+  created_at: string
+  updated_at: string
+  status: string
+  patient_name: string
+  species: BackendSpecies
+  breed?: string | null
+  modality: BackendModality
+  anatomical_region: BackendAnatomicalRegion
+  clinical_history?: string | null
+  scenario?: string | null
+  referring_clinic?: string | null
+  classification_confirmed: boolean
+  latest_job_id?: string | null
+  structured_findings?: BackendFindings | null
+  draft_report?: BackendDraftReport | null
+  dicom_study?: DicomStudyMeta | null
+  dicom_ingest_id?: string | null
+  study: {
+    study_id?: string | null
+    study_instance_uid?: string | null
+    description?: string | null
+    accession?: string | null
+    dicom_available: boolean
+    metadata_only?: boolean
+    series_count?: number | null
+    instance_count?: number | null
+    classification_confidence?: string | null
+  }
+}
+
 export interface VetCase {
   id: string
   no: string
@@ -143,6 +302,13 @@ export interface VetCase {
   reportNo?: string
   processingMs?: number
   processingStartedAt?: number
+  backendCaseId?: string
+  backendJobId?: string
+  backendOutcome?: BackendPipelineResult['outcome']
+  backendFindings?: BackendFindings
+  backendDraft?: BackendDraftReport
+  /** True when this row was loaded/synced from FastAPI (SQLite). */
+  fromBackend?: boolean
 }
 
 export interface KbSource {

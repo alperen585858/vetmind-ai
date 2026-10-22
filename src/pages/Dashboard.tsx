@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  Activity, BookOpen, CheckCircle2, ChevronRight, Clock, Cpu, Database, FilePlus2, FileText, FolderOpen, Hourglass, Layers, Loader2, Microscope, PawPrint, Timer,
+  Activity, BookOpen, CheckCircle2, ChevronRight, Clock, Cpu, Database, FilePlus2, FileText, FolderOpen, Hourglass, Layers, Loader2, Microscope, PawPrint, Timer, UploadCloud,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader, StatCard } from '../components/Card'
@@ -35,7 +35,12 @@ function VetDashboard() {
       <PageHeader
         title={`Hoş geldiniz, ${user?.name}`}
         subtitle={`${user?.org} · Nöroloji modülü`}
-        actions={<Button size="lg" icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>Yeni Vaka</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button size="lg" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>DICOM Yükle</Button>
+            <Button size="lg" variant="secondary" icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>Yeni Vaka</Button>
+          </div>
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Açık vaka" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış tüm vakalar" />

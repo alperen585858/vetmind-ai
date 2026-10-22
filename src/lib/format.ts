@@ -2,9 +2,12 @@ const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl',
 
 export function fmtDate(iso?: string) {
   if (!iso) return '—'
-  const [d, time] = iso.split(' ')
+  const normalized = iso.includes('T') ? iso.replace('T', ' ').replace(/Z$/, '') : iso
+  const [d, time] = normalized.split(' ')
   const [y, m, day] = d.split('-').map(Number)
-  return `${day} ${MONTHS[m - 1]} ${y}${time ? ` · ${time}` : ''}`
+  if (!y || !m || !day) return iso
+  const clock = time ? time.slice(0, 5) : ''
+  return `${day} ${MONTHS[m - 1]} ${y}${clock ? ` · ${clock}` : ''}`
 }
 
 export function nowStamp() {

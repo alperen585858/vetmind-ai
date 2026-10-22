@@ -12,6 +12,7 @@ import { Citations } from '../components/CitationChip'
 import { EmptyState } from '../components/EmptyState'
 import { SECTION_LABELS, USERS } from '../data/mock'
 import { nowStamp, today } from '../lib/format'
+import { submitBackendReview } from '../lib/backend'
 import type { CorrectionCategory, ReportSections, SectionKey } from '../types'
 
 const KEYS = Object.keys(SECTION_LABELS) as SectionKey[]
@@ -27,16 +28,72 @@ export default function ExpertReview() {
   const [modal, setModal] = useState<null | 'revizyon' | 'reddedildi'>(null)
   const [reason, setReason] = useState('')
 
-  if (!c || !c.aiDraft || !text) {
+  if (!c) {
+    return <Card><EmptyState icon={<FileSearch className="h-6 w-6" />} title="Vaka bulunamadı" action={<Link to="/kuyruk" className="text-sm font-medium text-teal-700">Onay kuyruğuna dön</Link>} /></Card>
+  }
+  if (c.status === 'analiz_basarisiz' || c.backendOutcome === 'failed') {
+    return (
+      <Card>
+        <EmptyState
+          icon={<AlertTriangle className="h-6 w-6" />}
+          title="AI analizi başarısız — onaylanabilir taslak yok"
+          text="Bu durum uzman revizyon talebi değildir. Mock/FastAPI adapter hatası nedeniyle AI draft üretilmedi."
+          action={<Link to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">Vaka detayına dön</Link>}
+        />
+      </Card>
+    )
+  }
+  if (c.status === 'manuel_inceleme' || c.backendOutcome === 'unsupported') {
+    return (
+      <Card>
+        <EmptyState
+          icon={<AlertTriangle className="h-6 w-6" />}
+          title="Manuel inceleme — AI draft onayı kapalı"
+          text="Desteklenmeyen vaka. Bu ekran AI taslağı onaylamak için değildir; orijinal çalışma manuel radyolog incelemesi gerektirir."
+          action={<Link to={`/vakalar/${c.id}?tab=ai`} className="text-sm font-medium text-teal-700">Bulgulara / vaka detayına git</Link>}
+        />
+      </Card>
+    )
+  }
+  if (!c.aiDraft || !text) {
     return <Card><EmptyState icon={<FileSearch className="h-6 w-6" />} title="İncelenecek taslak bulunamadı" action={<Link to="/kuyruk" className="text-sm font-medium text-teal-700">Onay kuyruğuna dön</Link>} /></Card>
   }
   const draft = c.aiDraft
-  const reviewable = c.status === 'uzman_incelemesinde'
+  const draftEligible =
+    !c.backendCaseId
+    || (c.backendOutcome === 'success' || c.backendOutcome === 'partial')
+      && c.backendDraft?.status !== 'validation_failed'
+  const reviewable = c.status === 'uzman_incelemesinde' && draftEligible
   const edited = KEYS.filter((k) => text[k].trim() !== draft[k].trim())
   const corrections = edited.map((k) => ({ section: k, before: draft[k], after: text[k], category: cats[k] ?? 'Eksik bilgi' }))
   const warnings = c.ai?.validation.filter((v) => v.kind !== 'ok') ?? []
 
-  const approve = () => {
+  const syncBackendReview = async (action: 'approve' | 'reject' | 'request_revision', comment?: string) => {
+    if (!c.backendCaseId) return true
+    try {
+      await submitBackendReview(c.backendCaseId, {
+        action,
+        comment,
+        edited_technique: text.klinikOzet,
+        edited_findings: text.bulgular,
+        edited_impression: text.degerlendirme,
+        edited_recommendations: text.oneriler,
+      })
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Review reddedildi'
+      pushToast({ tone: 'error', title: 'Backend review reddedildi', body: msg })
+      return false
+    }
+  }
+
+  const approve = async () => {
+    if (!reviewable) {
+      pushToast({ tone: 'error', title: 'Onaylanamaz', body: 'Bu vaka için AI draft onayı uygun değil.' })
+      return
+    }
+    const ok = await syncBackendReview('approve')
+    if (!ok) return
     const stamp = nowStamp()
     updateCase(c.id, (x) => ({
       status: 'onaylandi',
@@ -46,14 +103,16 @@ export default function ExpertReview() {
       approvedAt: today(),
       reportNo: x.no.replace('VM-', 'VMR-'),
       statusNote: undefined,
-      timeline: [...x.timeline, { date: stamp, label: `Uzman tarafından onaylandı ve yayınlandı${corrections.length ? ` (${corrections.length} düzeltme)` : ''}`, by: USERS.expert.name }],
+      timeline: [...x.timeline, { date: stamp, label: `Uzman tarafından AI taslağı onaylandı ve yayınlandı${corrections.length ? ` (${corrections.length} düzeltme)` : ''}`, by: USERS.expert.name }],
     }))
     pushToast({ tone: 'success', title: 'Rapor onaylandı ve yayınlandı', body: `${c.patient.name} — veteriner hekim ve hayvan sahibi bilgilendirildi.` })
     nav(`/raporlar/${c.id}`)
   }
 
-  const decide = () => {
+  const decide = async () => {
     if (!modal) return
+    const ok = await syncBackendReview(modal === 'revizyon' ? 'request_revision' : 'reject', reason.trim() || undefined)
+    if (!ok) return
     const stamp = nowStamp()
     updateCase(c.id, (x) => ({
       status: modal,

@@ -10,6 +10,7 @@
     "build:share": "tsc --noEmit && vite build --mode share --outDir dist-share && node scripts/build-share.mjs"
   },
   "dependencies": {
+    "dicom-parser": "^1.8.21",
     "lucide-react": "0.441.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",

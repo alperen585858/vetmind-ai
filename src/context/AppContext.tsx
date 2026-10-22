@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import type { KbSource, Role, VetCase } from '../types'
+import type { KbSource, Role, User, VetCase } from '../types'
 import { KB_SOURCES, SEED_CASES, USERS } from '../data/mock'
+import { loadSession, logout as clearAuthSession, userFromSession, type DemoSession } from '../lib/auth'
+import { BackendUnavailableError, getBackendCase, listBackendCases } from '../lib/backend'
+import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 
 export interface Toast {
   id: number
@@ -11,12 +14,18 @@ export interface Toast {
 
 interface AppState {
   role: Role | null
+  session: DemoSession | null
   setRole: (r: Role | null) => void
-  user: (typeof USERS)[Role] | null
+  signIn: (session: DemoSession) => void
+  signOut: () => void
+  user: User | null
   cases: VetCase[]
   getCase: (id: string) => VetCase | undefined
   addCase: (c: VetCase) => void
   updateCase: (id: string, patch: Partial<VetCase> | ((c: VetCase) => Partial<VetCase>)) => void
+  refreshBackendCases: () => Promise<{ ok: boolean; count: number; error?: string }>
+  hydrateBackendCase: (caseId: string) => Promise<VetCase | null>
+  backendSyncing: boolean
   kbSources: KbSource[]
   addKbSource: (s: KbSource) => void
   updateKbSource: (id: number, patch: Partial<KbSource>) => void
@@ -30,12 +39,19 @@ interface AppState {
 
 const Ctx = createContext<AppState | null>(null)
 
+function initialSession(): DemoSession | null {
+  return loadSession()
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<Role | null>(null)
+  const boot = initialSession()
+  const [session, setSession] = useState<DemoSession | null>(boot)
+  const [role, setRoleState] = useState<Role | null>(boot?.role ?? null)
   const [cases, setCases] = useState<VetCase[]>(SEED_CASES)
   const [kbSources, setKb] = useState<KbSource[]>(KB_SOURCES)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [sourceId, setSourceId] = useState<number | null>(null)
+  const [backendSyncing, setBackendSyncing] = useState(false)
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
   const pushToast = useCallback(
@@ -51,18 +67,95 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCases((all) => all.map((c) => (c.id === id ? { ...c, ...(typeof patch === 'function' ? patch(c) : patch) } : c)))
   }, [])
 
+  const refreshBackendCases = useCallback(async () => {
+    setBackendSyncing(true)
+    try {
+      const summaries = await listBackendCases()
+      const mapped = summaries.map(summaryToVetCase)
+      setCases((local) => mergeBackendCases(local, mapped))
+      return { ok: true, count: mapped.length }
+    } catch (err) {
+      const error =
+        err instanceof BackendUnavailableError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Backend senkronizasyonu başarısız'
+      return { ok: false, count: 0, error }
+    } finally {
+      setBackendSyncing(false)
+    }
+  }, [])
+
+  const hydrateBackendCase = useCallback(async (caseId: string) => {
+    try {
+      const record = await getBackendCase(caseId)
+      const mapped = recordToVetCase(record)
+      setCases((all) => {
+        const without = all.filter((c) => c.id !== mapped.id && c.backendCaseId !== mapped.id)
+        return [mapped, ...without]
+      })
+      return mapped
+    } catch {
+      return null
+    }
+  }, [])
+
+  const signIn = useCallback((next: DemoSession) => {
+    setSession(next)
+    setRoleState(next.role)
+    setSourceId(null)
+  }, [])
+
+  const signOut = useCallback(() => {
+    clearAuthSession()
+    setSession(null)
+    setRoleState(null)
+    setSourceId(null)
+  }, [])
+
+  const setRole = useCallback((r: Role | null) => {
+    if (r === null) {
+      clearAuthSession()
+      setSession(null)
+      setRoleState(null)
+      setSourceId(null)
+      return
+    }
+    setRoleState(r)
+    setSession((prev) => {
+      if (!prev) {
+        const demo: DemoSession = {
+          accountId: `role-${r}`,
+          email: `${r}@demo.local`,
+          role: r,
+          name: USERS[r].name,
+        }
+        localStorage.setItem('vetmind.demo.session', JSON.stringify(demo))
+        return demo
+      }
+      const updated = { ...prev, role: r, name: prev.name || USERS[r].name }
+      localStorage.setItem('vetmind.demo.session', JSON.stringify(updated))
+      return updated
+    })
+    setSourceId(null)
+  }, [])
+
   const value = useMemo<AppState>(
     () => ({
       role,
-      setRole: (r) => {
-        setRole(r)
-        setSourceId(null)
-      },
-      user: role ? USERS[role] : null,
+      session,
+      setRole,
+      signIn,
+      signOut,
+      user: session ? userFromSession(session) : role ? USERS[role] : null,
       cases,
-      getCase: (id) => cases.find((c) => c.id === id),
-      addCase: (c) => setCases((all) => [c, ...all]),
+      getCase: (id) => cases.find((c) => c.id === id || c.backendCaseId === id),
+      addCase: (c) => setCases((all) => [c, ...all.filter((x) => x.id !== c.id)]),
       updateCase,
+      refreshBackendCases,
+      hydrateBackendCase,
+      backendSyncing,
       kbSources,
       addKbSource: (s) => setKb((all) => [s, ...all]),
       updateKbSource: (id, patch) => setKb((all) => all.map((s) => (s.id === id ? { ...s, ...patch } : s))),
@@ -73,7 +166,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openSource: setSourceId,
       closeSource: () => setSourceId(null),
     }),
-    [role, cases, kbSources, toasts, sourceId, updateCase, pushToast, dismissToast],
+    [
+      role,
+      session,
+      cases,
+      kbSources,
+      toasts,
+      sourceId,
+      backendSyncing,
+      setRole,
+      signIn,
+      signOut,
+      updateCase,
+      refreshBackendCases,
+      hydrateBackendCase,
+      pushToast,
+      dismissToast,
+    ],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

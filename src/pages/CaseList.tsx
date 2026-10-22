@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus2, FolderOpen, Search } from 'lucide-react'
+import { FilePlus2, FolderOpen, RefreshCw, Search, UploadCloud } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
@@ -11,11 +11,20 @@ import { STATUS_META, STATUS_ORDER } from '../components/StatusBadge'
 import type { CaseStatus } from '../types'
 
 export default function CaseList() {
-  const { cases, role } = useApp()
+  const { cases, role, refreshBackendCases, backendSyncing, pushToast } = useApp()
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<CaseStatus | ''>('')
   const [species, setSpecies] = useState('')
+
+  useEffect(() => {
+    void refreshBackendCases().then((r) => {
+      if (!r.ok && r.error) {
+        // Soft fail: keep local seeds; user can retry.
+        console.warn(r.error)
+      }
+    })
+  }, [refreshBackendCases])
 
   const filtered = useMemo(() => {
     const s = q.trim().toLocaleLowerCase('tr')
@@ -27,12 +36,39 @@ export default function CaseList() {
     )
   }, [cases, q, status, species])
 
+  const backendCount = cases.filter((c) => c.fromBackend).length
+
+  const onSync = async () => {
+    const r = await refreshBackendCases()
+    if (r.ok) {
+      pushToast({ tone: 'success', title: 'Backend senkronize', body: `${r.count} vaka SQLite’tan yüklendi.` })
+    } else {
+      pushToast({ tone: 'error', title: 'Senkron başarısız', body: r.error ?? 'Backend kapalı olabilir.' })
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Vakalar"
-        subtitle={`${cases.length} vaka · Nöroloji modülü`}
-        actions={role === 'vet' && <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>Yeni Vaka</Button>}
+        subtitle={`${cases.length} vaka · ${backendCount} backend · Nöroloji`}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" icon={<RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} />} onClick={() => void onSync()} disabled={backendSyncing}>
+              Backend’den yenile
+            </Button>
+            {role === 'vet' && (
+              <>
+                <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
+                  DICOM Yükle
+                </Button>
+                <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
+                  Yeni Vaka
+                </Button>
+              </>
+            )}
+          </div>
+        }
       />
       <Card>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">

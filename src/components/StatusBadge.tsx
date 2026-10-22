@@ -8,9 +8,21 @@ export const STATUS_META: Record<CaseStatus, { label: string; cls: string; dot: 
   onaylandi: { label: 'Onaylandı', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' },
   reddedildi: { label: 'Reddedildi', cls: 'bg-rose-50 text-rose-700 ring-rose-200', dot: 'bg-rose-500' },
   revizyon: { label: 'Revizyon İstendi', cls: 'bg-orange-50 text-orange-700 ring-orange-200', dot: 'bg-orange-500' },
+  analiz_basarisiz: { label: 'Analiz Başarısız', cls: 'bg-rose-50 text-rose-800 ring-rose-300', dot: 'bg-rose-600' },
+  manuel_inceleme: { label: 'Manuel İnceleme', cls: 'bg-slate-100 text-slate-800 ring-slate-300', dot: 'bg-slate-600' },
 }
 
-export const STATUS_ORDER: CaseStatus[] = ['taslak', 'isleniyor', 'ai_analizi', 'uzman_incelemesinde', 'onaylandi', 'reddedildi', 'revizyon']
+export const STATUS_ORDER: CaseStatus[] = [
+  'taslak',
+  'isleniyor',
+  'ai_analizi',
+  'uzman_incelemesinde',
+  'manuel_inceleme',
+  'analiz_basarisiz',
+  'onaylandi',
+  'reddedildi',
+  'revizyon',
+]
 
 export function StatusBadge({ status }: { status: CaseStatus }) {
   const m = STATUS_META[status]

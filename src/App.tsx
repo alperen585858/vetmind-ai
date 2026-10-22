@@ -8,9 +8,11 @@ import { Card } from './components/Card'
 import { EmptyState } from './components/EmptyState'
 import type { Role } from './types'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import CaseList from './pages/CaseList'
 import NewCase from './pages/NewCase'
+import DicomUpload from './pages/DicomUpload'
 import Processing from './pages/Processing'
 import CaseDetail from './pages/CaseDetail'
 import ExpertReview from './pages/ExpertReview'
@@ -37,7 +39,9 @@ export default function App() {
     <>
       {!role ? (
         <Routes>
-          <Route path="*" element={<Login />} />
+          <Route path="/giris" element={<Login />} />
+          <Route path="/kayit" element={<Register />} />
+          <Route path="*" element={<Navigate to="/giris" replace />} />
         </Routes>
       ) : (
         <Routes>
@@ -45,6 +49,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="vakalar" element={<Gate roles={['vet', 'expert']}><CaseList /></Gate>} />
             <Route path="vakalar/yeni" element={<Gate roles={['vet']}><NewCase /></Gate>} />
+            <Route path="dicom-yukle" element={<Gate roles={['vet']}><DicomUpload /></Gate>} />
             <Route path="vakalar/:id" element={<Gate roles={['vet', 'expert']}><CaseDetail /></Gate>} />
             <Route path="vakalar/:id/isleme" element={<Gate roles={['vet', 'expert']}><Processing /></Gate>} />
             <Route path="vakalar/:id/inceleme" element={<Gate roles={['expert']}><ExpertReview /></Gate>} />
@@ -54,6 +59,8 @@ export default function App() {
             <Route path="moduller" element={<Gate roles={['admin']}><Modules /></Gate>} />
             <Route path="bilgi-tabani" element={<Gate roles={['admin']}><KnowledgeBase /></Gate>} />
             <Route path="sistem" element={<Gate roles={['admin']}><SystemStatus /></Gate>} />
+            <Route path="giris" element={<Navigate to="/" replace />} />
+            <Route path="kayit" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
