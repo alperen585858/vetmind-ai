@@ -93,3 +93,51 @@ class QuarantineStore:
         if not str(path).startswith(str(self.root)):
             raise ValueError("Quarantine path escapes store root.")
         return path
+
+    def list_files(self, ingest_id: str) -> list[QuarantineFileRef]:
+        """Return quarantined file refs for an ingest (from manifest when present)."""
+        directory = self.root / ingest_id
+        manifest_path = directory / "manifest.json"
+        if manifest_path.is_file():
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+            refs: list[QuarantineFileRef] = []
+            for item in raw.get("files") or []:
+                refs.append(
+                    QuarantineFileRef(
+                        original_filename=str(item.get("original_filename") or "unnamed.dcm"),
+                        stored_filename=str(item.get("stored_filename") or ""),
+                        relative_path=str(item.get("relative_path") or ""),
+                        absolute_path=str(item.get("absolute_path") or ""),
+                        size_bytes=int(item.get("size_bytes") or 0),
+                        sha256=str(item.get("sha256") or ""),
+                        content_kind=str(item.get("content_kind") or "unknown"),
+                    )
+                )
+            return refs
+        if not directory.is_dir():
+            return []
+        # Fallback: directory scan without manifest
+        refs = []
+        for index, path in enumerate(sorted(directory.iterdir())):
+            if not path.is_file() or path.name == "manifest.json":
+                continue
+            data = path.read_bytes()
+            refs.append(
+                QuarantineFileRef(
+                    original_filename=path.name,
+                    stored_filename=path.name,
+                    relative_path=f"{ingest_id}/{path.name}",
+                    absolute_path=str(path.resolve()),
+                    size_bytes=len(data),
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    content_kind="dicom",
+                )
+            )
+        return refs
+
+    def read_file(self, relative_path: str) -> tuple[str, bytes]:
+        """Read quarantined bytes; returns (filename, data)."""
+        path = self.resolve(relative_path)
+        if not path.is_file():
+            raise FileNotFoundError(relative_path)
+        return path.name, path.read_bytes()

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
@@ -13,8 +13,22 @@ import { AIDisclaimer } from '../components/AIDisclaimer'
 import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
+import { DicomViewer } from '../components/DicomViewer'
 import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
+import {
+  BackendUnavailableError,
+  fetchCaseDicomFiles,
+  fetchDemoDicomFiles,
+  resolveDemoKindForCase,
+} from '../lib/backend'
+import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
+import {
+  MAX_VIEWER_FRAMES,
+  collectFilesFromDataTransfer,
+  collectFilesFromFileList,
+} from '../lib/dicomFolder'
+import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../lib/dicomCaseCache'
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
@@ -127,7 +141,7 @@ export default function CaseDetail() {
 
       {tab === 'genel' && <Overview c={c} />}
       {tab === 'belgeler' && <Documents c={c} />}
-      {tab === 'goruntu' && <Imaging />}
+      {tab === 'goruntu' && <Imaging c={c} />}
       {tab === 'ai' && <AssessmentView c={c} />}
     </>
   )
@@ -258,35 +272,352 @@ function Documents({ c }: { c: VetCase }) {
   )
 }
 
-function Imaging() {
-  const series = ['T2 sagittal', 'T2 transvers', 'T1 post-kontrast']
-  const [s, setS] = useState(series[0])
+function Imaging({ c }: { c: VetCase }) {
+  const { pushToast } = useApp()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [frames, setFrames] = useState<DicomFramePreview[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [drag, setDrag] = useState(false)
+  const [seriesKey, setSeriesKey] = useState<string | null>(null)
+  const [sourceLabel, setSourceLabel] = useState('DICOM')
+
+  const caseKey = c.backendCaseId || c.id
+  const explicitDemoKind = c.dicomDemoKind
+  const fallbackDemoKind = useMemo(
+    () =>
+      resolveDemoKindForCase({
+        dicomDemoKind: c.dicomDemoKind,
+        statusNote: c.statusNote,
+        documents: c.documents,
+      }),
+    [c.dicomDemoKind, c.statusNote, c.documents],
+  )
+
+  const seriesOptions = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; count: number }>()
+    for (const f of frames) {
+      if (!f.ok) continue
+      const key = f.seriesInstanceUid || (f.seriesDescription ? `desc:${f.seriesDescription}` : 'default')
+      const label = f.seriesDescription || f.modality || 'Series'
+      const prev = map.get(key)
+      if (prev) prev.count += 1
+      else map.set(key, { key, label, count: 1 })
+    }
+    return Array.from(map.values())
+  }, [frames])
+
+  const activeSeriesKey = seriesKey && seriesOptions.some((s) => s.key === seriesKey) ? seriesKey : seriesOptions[0]?.key ?? null
+
+  const viewFrames = useMemo(() => {
+    if (!activeSeriesKey) return frames
+    return frames.filter((f) => {
+      const key = f.seriesInstanceUid || (f.seriesDescription ? `desc:${f.seriesDescription}` : 'default')
+      return key === activeSeriesKey
+    })
+  }, [frames, activeSeriesKey])
+
+  const paintFiles = async (next: File[], label: string) => {
+    const capped = next.slice(0, MAX_VIEWER_FRAMES)
+    setFiles(capped)
+    setSourceLabel(label)
+    setFrames(await buildDicomPreviews(capped))
+    setSeriesKey(null)
+    setError(null)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    void (async () => {
+      try {
+        // 1) Browser cache from this session's upload (user's real files)
+        const cached = await loadCachedCaseDicomFiles(caseKey)
+        if (cancelled) return
+        if (cached?.length) {
+          await paintFiles(cached, `Yüklenen çalışma · ${cached.length} dosya`)
+          return
+        }
+
+        // 2) Backend quarantine (same bytes that were uploaded for the case)
+        if (c.fromBackend || caseKey.startsWith('case-')) {
+          try {
+            const quarantined = await fetchCaseDicomFiles(caseKey)
+            if (cancelled) return
+            if (quarantined.length) {
+              await paintFiles(quarantined, `Vaka DICOM · ${quarantined.length} dosya`)
+              void cacheCaseDicomFiles(caseKey, quarantined)
+              return
+            }
+          } catch (err) {
+            // Fall through — may still have explicit demo or local drop
+            if (cancelled) return
+            if (!(err instanceof BackendUnavailableError) && !explicitDemoKind) {
+              // Keep going to empty/demo paths
+            }
+          }
+        }
+
+        // 3) Only if this case was explicitly created from a demo fixture
+        if (explicitDemoKind) {
+          const demoFiles = await fetchDemoDicomFiles(
+            explicitDemoKind,
+            explicitDemoKind === 'thorax_xr' ? 1 : 12,
+          )
+          if (cancelled) return
+          await paintFiles(demoFiles, `Demo · ${explicitDemoKind.replace(/_/g, ' ')}`)
+          return
+        }
+
+        // 4) No study attached — do NOT invent synthetic images
+        if (cancelled) return
+        setFiles([])
+        setFrames([])
+        setSourceLabel('DICOM yok')
+      } catch (err) {
+        if (cancelled) return
+        const message =
+          err instanceof BackendUnavailableError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'DICOM yüklenemedi'
+        setError(message)
+        setFiles([])
+        setFrames([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [caseKey, c.fromBackend, explicitDemoKind])
+
+  const applyLocalFiles = async (incoming: File[], label: string) => {
+    if (!incoming.length) {
+      pushToast({ tone: 'warning', title: 'DICOM bulunamadı', body: 'Uygun .dcm dosyası seçilmedi.' })
+      return
+    }
+    setBusy(true)
+    setLoading(true)
+    try {
+      await paintFiles(incoming, label)
+      void cacheCaseDicomFiles(caseKey, incoming.slice(0, MAX_VIEWER_FRAMES))
+      pushToast({ tone: 'success', title: `${Math.min(incoming.length, MAX_VIEWER_FRAMES)} görüntü yüklendi`, body: label })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Önizleme oluşturulamadı')
+    } finally {
+      setLoading(false)
+      setBusy(false)
+    }
+  }
+
+  const loadDemoOptional = async () => {
+    setBusy(true)
+    setLoading(true)
+    setError(null)
+    try {
+      const kind = explicitDemoKind ?? fallbackDemoKind
+      const demoFiles = await fetchDemoDicomFiles(kind, kind === 'thorax_xr' ? 1 : 12)
+      await paintFiles(demoFiles, `Demo · ${kind.replace(/_/g, ' ')} (örnek)`)
+    } catch (err) {
+      const message =
+        err instanceof BackendUnavailableError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Demo yüklenemedi'
+      setError(message)
+    } finally {
+      setLoading(false)
+      setBusy(false)
+    }
+  }
+
+  const reloadCaseStudy = async () => {
+    setBusy(true)
+    setLoading(true)
+    setError(null)
+    try {
+      const quarantined = await fetchCaseDicomFiles(caseKey)
+      if (!quarantined.length) {
+        pushToast({
+          tone: 'warning',
+          title: 'Vaka DICOM bulunamadı',
+          body: 'Bu vakada quarantine kaydı yok. Kendi dosyalarınızı sürükleyin.',
+        })
+        setFiles([])
+        setFrames([])
+        setSourceLabel('DICOM yok')
+        return
+      }
+      await paintFiles(quarantined, `Vaka DICOM · ${quarantined.length} dosya`)
+      void cacheCaseDicomFiles(caseKey, quarantined)
+    } catch (err) {
+      const message =
+        err instanceof BackendUnavailableError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Yükleme başarısız'
+      setError(message)
+    } finally {
+      setLoading(false)
+      setBusy(false)
+    }
+  }
+
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
-        <span className="mr-2 text-sm font-medium text-navy-800">Seriler:</span>
-        {series.map((x) => (
-          <button key={x} onClick={() => setS(x)} className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${s === x ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'}`}>
-            {x}
-          </button>
-        ))}
-      </div>
-      <div className="p-4">
-        <div className="relative flex aspect-[16/9] max-h-[520px] w-full flex-col items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 text-center">
-          <div className="absolute left-3 top-3 font-mono text-[11px] leading-relaxed text-slate-400">
-            <p>Seri: {s}</p>
-            <p>Görüntü 12 / 24</p>
-          </div>
-          <div className="absolute right-3 top-3 font-mono text-[11px] text-slate-400">W: 1200 L: 600</div>
-          <ImageIcon className="h-12 w-12 text-slate-500" />
-          <p className="mt-3 font-medium text-slate-200">Vaka detayında gömülü OHIF yok</p>
-          <p className="mt-1 max-w-md text-sm text-slate-400">
-            DICOM sürükle-bırak önizlemesi <span className="text-teal-300">DICOM Yükle</span> ekranındadır. Seçili seri etiketi: {s}
-          </p>
+        <span className="mr-1 text-sm font-medium text-navy-800">Seriler:</span>
+        {seriesOptions.length > 0 ? (
+          seriesOptions.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setSeriesKey(s.key)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${
+                activeSeriesKey === s.key
+                  ? 'bg-navy-900 text-white ring-navy-900'
+                  : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {s.label}
+              <span className="ml-1.5 text-[11px] opacity-70">{s.count}</span>
+            </button>
+          ))
+        ) : (
+          <span className="text-sm text-slate-500">{loading ? 'Yükleniyor…' : 'Seri yok'}</span>
+        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-slate-500">{sourceLabel}{files.length ? ` · ${files.length} dosya` : ''}</span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={busy || loading}
+            icon={<FileText className="h-3.5 w-3.5" />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Dosya
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={busy || loading}
+            icon={<FolderOpen className="h-3.5 w-3.5" />}
+            onClick={() => folderInputRef.current?.click()}
+          >
+            Klasör
+          </Button>
+          {(c.fromBackend || caseKey.startsWith('case-')) && (
+            <Button type="button" variant="ghost" size="sm" disabled={busy || loading} onClick={() => void reloadCaseStudy()}>
+              Vakadan yükle
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" disabled={busy || loading} onClick={() => void loadDemoOptional()}>
+            Örnek demo
+          </Button>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".dcm,.dicom,application/dicom,*/*"
+          className="hidden"
+          onChange={(e) => {
+            void applyLocalFiles(collectFilesFromFileList(e.target.files), 'Yerel dosya')
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            void applyLocalFiles(collectFilesFromFileList(e.target.files), 'Yerel klasör')
+            e.target.value = ''
+          }}
+          {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
+        />
+      </div>
+
+      <div className="p-4">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDrag(true)
+          }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDrag(false)
+            void (async () => {
+              try {
+                const collected = await collectFilesFromDataTransfer(e.dataTransfer)
+                await applyLocalFiles(collected, 'Sürükle-bırak')
+              } catch (err) {
+                pushToast({
+                  tone: 'error',
+                  title: 'Klasör okunamadı',
+                  body: err instanceof Error ? err.message : 'Dosyalar işlenemedi.',
+                })
+              }
+            })()
+          }}
+          className={`rounded-xl ${drag ? 'ring-2 ring-[#0D827B] ring-offset-2' : ''}`}
+        >
+          {error && !frames.length ? (
+            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-6 text-center">
+              <AlertCircle className="h-8 w-8 text-rose-500" />
+              <p className="mt-3 font-medium text-rose-900">Görüntü yüklenemedi</p>
+              <p className="mt-1 max-w-md text-sm text-rose-800">{error}</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => void reloadCaseStudy()}>
+                  Vakadan dene
+                </Button>
+                <Button size="sm" variant="secondary" icon={<UploadCloud className="h-3.5 w-3.5" />} onClick={() => fileInputRef.current?.click()}>
+                  Dosya seç
+                </Button>
+              </div>
+            </div>
+          ) : !loading && !busy && !frames.length ? (
+            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-[#E3EAF0] bg-[#F4F7FA] px-6 text-center">
+              <UploadCloud className="h-10 w-10 text-[#0D827B]" />
+              <p className="mt-3 font-medium text-[#172B45]">Bu vakaya ait DICOM henüz görüntülenemiyor</p>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                Yüklediğiniz çalışma sunucudan getirilir. Bulunamazsa kendi DICOM klasörünüzü buraya sürükleyin —
+                sentetik demo otomatik açılmaz.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => void reloadCaseStudy()}>
+                  Vakadan yükle
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                  Dosya seç
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void loadDemoOptional()}>
+                  Örnek demo (isteğe bağlı)
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <DicomViewer frames={viewFrames} loading={loading || busy} />
+          )}
+        </div>
+
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 ring-1 ring-inset ring-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          Görüntüleyici yalnızca display amaçlıdır; yapay zekâ piksel analizi yapmaz. Mock pipeline metadata ile çalışır.
+          Önce sizin yüklediğiniz DICOM (quarantine / tarayıcı önbelleği) gösterilir. Sentetik “SYNTHETIC …” görüntüler
+          yalnızca isteğe bağlı örnek demoda açılır; yapay zekâ piksel analizi yapmaz.
         </p>
       </div>
     </Card>

@@ -327,6 +327,8 @@ export interface VetCase {
   backendDraft?: BackendDraftReport
   /** True when this row was loaded/synced from FastAPI (SQLite). */
   fromBackend?: boolean
+  /** Demo fixture kind used at ingest — for case-detail viewer reload (display only). */
+  dicomDemoKind?: DicomDemoKind
 }
 
 export interface KbSource {

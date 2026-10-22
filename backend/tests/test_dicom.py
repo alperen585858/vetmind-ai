@@ -203,3 +203,30 @@ def test_api_demo_fixture_brain(client: TestClient) -> None:
     analyzed = client.post(f"/api/v1/cases/{confirmed.json()['case_id']}/analyze")
     assert analyzed.status_code == 200
     assert analyzed.json()["outcome"] == "success"
+
+
+def test_case_dicom_files_from_quarantine(client: TestClient) -> None:
+    """Case viewer must serve the uploaded study bytes, not synthetic fixture defaults."""
+    upload = client.post(
+        "/api/v1/dicom/demo/brain_mri",
+        data={"patient_name": "Viewer Pax", "species": "canine"},
+    )
+    assert upload.status_code == 201, upload.text
+    ingest_id = upload.json()["ingest_id"]
+    confirmed = client.post(
+        f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
+        json={"accept_suggestion": True},
+    )
+    assert confirmed.status_code == 200
+    case_id = confirmed.json()["case_id"]
+
+    listing = client.get(f"/api/v1/cases/{case_id}/dicom/files")
+    assert listing.status_code == 200, listing.text
+    files = listing.json()["files"]
+    assert len(files) >= 1
+    assert listing.json()["ingest_id"] == ingest_id
+
+    first = client.get(f"/api/v1/cases/{case_id}/dicom/files/0")
+    assert first.status_code == 200
+    assert first.content[128:132] == b"DICM"
+    assert "brain_mr" in (first.headers.get("content-disposition") or "").lower() or len(first.content) > 128

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 
 from app.api.deps import get_dicom_service
@@ -25,17 +25,31 @@ router = APIRouter(
 
 _MAX_FILES = 200
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
+_MAX_VIEW_FIXTURES = 24
 DemoFixtureKind = Literal["brain_mri", "cervical_mri", "brain_ct", "thorax_xr"]
 
+# Process-local cache so sequential /fixtures/{kind}/{index} fetches share one synthetic study.
+_fixture_view_cache: dict[tuple[str, int], list[tuple[str, bytes]]] = {}
 
-def _demo_files(kind: DemoFixtureKind) -> list[tuple[str, bytes]]:
+
+def _demo_files(kind: DemoFixtureKind, instance_count: int | None = None) -> list[tuple[str, bytes]]:
     if kind == "brain_mri":
-        return brain_mri_study_files(2)
+        return brain_mri_study_files(instance_count or 2)
     if kind == "cervical_mri":
-        return cervical_mri_study_files(2)
+        return cervical_mri_study_files(instance_count or 2)
     if kind == "brain_ct":
-        return brain_ct_study_files(2)
-    return thorax_xr_study_files(1)
+        return brain_ct_study_files(instance_count or 2)
+    return thorax_xr_study_files(min(instance_count or 1, 1))
+
+
+def _view_fixture_files(kind: DemoFixtureKind, count: int) -> list[tuple[str, bytes]]:
+    n = 1 if kind == "thorax_xr" else max(1, min(count, _MAX_VIEW_FIXTURES))
+    key = (kind, n)
+    cached = _fixture_view_cache.get(key)
+    if cached is None:
+        cached = _demo_files(kind, n)
+        _fixture_view_cache[key] = cached
+    return cached
 
 
 @router.post("/upload", response_model=DicomUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -108,16 +122,28 @@ def upload_demo_fixture(
 
 
 @router.get("/fixtures/{kind}/{index}")
-def download_demo_fixture(kind: DemoFixtureKind, index: int) -> Response:
+def download_demo_fixture(
+    kind: DemoFixtureKind,
+    index: int,
+    count: int = Query(
+        default=12,
+        ge=1,
+        le=_MAX_VIEW_FIXTURES,
+        description="Synthetic study size for client-side viewing (cached per process).",
+    ),
+) -> Response:
     """Download a synthetic DICOM instance for client-side viewing (not diagnosis)."""
-    files = _demo_files(kind)
+    files = _view_fixture_files(kind, count)
     if index < 0 or index >= len(files):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture index out of range.")
     name, data = files[index]
     return Response(
         content=data,
         media_type="application/dicom",
-        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+            "X-VetMind-Fixture-Count": str(len(files)),
+        },
     )
 
 

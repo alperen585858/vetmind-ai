@@ -1,4 +1,5 @@
 import { getBackendAccessToken } from './auth'
+import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, ReportSections, Species } from '../types'
 import type {
   BackendCaseRecord,
@@ -191,24 +192,51 @@ const DEMO_FILE_PREFIX: Record<DicomDemoKind, string> = {
 }
 
 /** Fetch synthetic .dcm bytes for the in-browser viewer (display only). */
-export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 2): Promise<File[]> {
+export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 12): Promise<File[]> {
   const out: File[] = []
-  const n = kind === 'thorax_xr' ? Math.min(count, 1) : count
+  const n = kind === 'thorax_xr' ? Math.min(count, 1) : Math.min(count, 24)
   const headers = new Headers()
   const token = getBackendAccessToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  for (let i = 0; i < n; i++) {
+  let available = n
+  for (let i = 0; i < available; i++) {
     let res: Response
     try {
-      res = await fetch(`${API_BASE}/dicom/fixtures/${kind}/${i}`, { headers })
+      res = await fetch(`${API_BASE}/dicom/fixtures/${kind}/${i}?count=${n}`, { headers })
     } catch {
       throw new BackendUnavailableError()
     }
-    if (!res.ok) throw new Error(`Demo DICOM indirilemedi (${kind} #${i})`)
+    if (!res.ok) {
+      if (i === 0) throw new Error(`Demo DICOM indirilemedi (${kind} #${i})`)
+      break
+    }
+    const headerCount = Number(res.headers.get('X-VetMind-Fixture-Count'))
+    if (Number.isFinite(headerCount) && headerCount > 0) {
+      available = Math.min(n, headerCount)
+    }
     const blob = await res.blob()
     out.push(new File([blob], `${DEMO_FILE_PREFIX[kind]}_${i + 1}.dcm`, { type: 'application/dicom' }))
   }
   return out
+}
+
+/** Pick a demo fixture kind for case-detail viewing from stored hints (never invents clinical pixels). */
+export function resolveDemoKindForCase(input: {
+  dicomDemoKind?: DicomDemoKind
+  statusNote?: string
+  documents?: { name: string; type: string; rawText?: string }[]
+}): DicomDemoKind {
+  if (input.dicomDemoKind) return input.dicomDemoKind
+  const hay = [
+    input.statusNote ?? '',
+    ...(input.documents ?? []).flatMap((d) => [d.name, d.type, d.rawText ?? '']),
+  ]
+    .join(' ')
+    .toUpperCase()
+  if (/CERVICAL|SERV[Iİ]KAL|C-SPINE|CSPINE/.test(hay)) return 'cervical_mri'
+  if (/\bCT\b|B[İI]LG[İI]SAYARLI|\bBT\b/.test(hay)) return 'brain_ct'
+  if (/\bXR\b|\bDX\b|THORAX|TORAKS|R[ÖO]NTGEN/.test(hay)) return 'thorax_xr'
+  return 'brain_mri'
 }
 
 /** PDF / JPG / PNG / text → quarantine + text extract (multimodal stub path). */
@@ -351,6 +379,45 @@ export async function listBackendCases(): Promise<BackendCaseSummary[]> {
 
 export async function getBackendCase(caseId: string): Promise<BackendCaseRecord> {
   return request<BackendCaseRecord>(`/cases/${caseId}`)
+}
+
+export interface CaseDicomFileList {
+  case_id: string
+  ingest_id?: string | null
+  files: { index: number; filename: string; size_bytes: number; content_kind: string }[]
+  note: string
+}
+
+/** List quarantined DICOM files for a backend case (user upload, not synthetic fixtures). */
+export async function listCaseDicomFiles(caseId: string): Promise<CaseDicomFileList> {
+  return request<CaseDicomFileList>(`/cases/${caseId}/dicom/files`)
+}
+
+/**
+ * Download quarantined DICOM bytes for case-detail viewing.
+ * Returns empty array when the case has no ingest (seed / metadata-only).
+ */
+export async function fetchCaseDicomFiles(caseId: string, maxFiles = MAX_VIEWER_FRAMES): Promise<File[]> {
+  const listing = await listCaseDicomFiles(caseId)
+  if (!listing.files.length) return []
+  const headers = new Headers()
+  const token = getBackendAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const out: File[] = []
+  const limit = Math.min(listing.files.length, maxFiles)
+  for (let i = 0; i < limit; i++) {
+    const meta = listing.files[i]
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/cases/${caseId}/dicom/files/${meta.index}`, { headers })
+    } catch {
+      throw new BackendUnavailableError()
+    }
+    if (!res.ok) throw new Error(`Vaka DICOM indirilemedi (#${meta.index})`)
+    const blob = await res.blob()
+    out.push(new File([blob], meta.filename || `instance_${i + 1}.dcm`, { type: 'application/dicom' }))
+  }
+  return out
 }
 
 export interface ImagingModelInputPackage {
