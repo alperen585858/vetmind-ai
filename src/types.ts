@@ -186,14 +186,58 @@ export interface BackendDraftReport {
   status: string
   synthetic: boolean
   clinically_validated: boolean
-  generation: { provider_id: string; model_id: string; model_version: string; generated_at: string }
+  generation: {
+    provider_id: string
+    model_id: string
+    model_version: string
+    generated_at: string
+    source_kind?: string
+    synthetic?: boolean
+  }
   technique: { text: string; cited_finding_ids: string[] }
   findings: { text: string; cited_finding_ids: string[] }
   impression: { text: string; cited_finding_ids: string[] }
   recommendations: { text: string; cited_finding_ids: string[] }
   validation_warnings: string[]
+  expert_review_status?: string
+  reviewer_comment?: string | null
   rag_citations?: BackendRagCitation[]
   rag_note?: string
+  version?: number
+  created_at?: string
+  updated_at?: string
+  immutable?: boolean
+  revision_notes?: string | null
+  reviewed_by?: string | null
+}
+
+export interface BackendReportVersionSummary {
+  version: number
+  report_id: string
+  case_id: string
+  created_at: string
+  updated_at: string
+  author_or_source: string
+  status: string
+  expert_review_status: string
+  immutable: boolean
+  revision_notes?: string | null
+  reviewed_by?: string | null
+  source_kind: string
+  model_id: string
+  model_version: string
+  synthetic: boolean
+  is_current: boolean
+}
+
+export interface BackendReportVersionSnapshot extends BackendReportVersionSummary {
+  content: BackendDraftReport
+}
+
+export interface BackendReviewFeedback {
+  reviewer_id: string
+  action: string
+  comment?: string | null
 }
 
 export interface BackendPipelineResult {
@@ -256,12 +300,19 @@ export interface BackendCaseSummary {
   case_id: string
   patient_name: string
   species: BackendSpecies
+  breed?: string | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
   status: string
   scenario?: string | null
   created_at: string
   latest_job_id?: string | null
+  classification_confirmed?: boolean
+  study_instance_uid?: string | null
+  series_count?: number | null
+  instance_count?: number | null
+  owner_subject?: string | null
+  clinic_id?: string | null
 }
 
 export interface BackendCaseRecord {
@@ -277,10 +328,20 @@ export interface BackendCaseRecord {
   clinical_history?: string | null
   scenario?: string | null
   referring_clinic?: string | null
+  /** Phase 5 ownership — null in demo / legacy rows. */
+  owner_subject?: string | null
+  clinic_id?: string | null
   classification_confirmed: boolean
   latest_job_id?: string | null
   structured_findings?: BackendFindings | null
   draft_report?: BackendDraftReport | null
+  /**
+   * Embedded on GET /cases/{id} as full snapshots (may omit is_current).
+   * List endpoint /report/versions returns summaries with is_current.
+   */
+  report_versions?: Array<BackendReportVersionSummary | BackendReportVersionSnapshot>
+  current_report_version?: number | null
+  review_history?: BackendReviewFeedback[]
   dicom_study?: DicomStudyMeta | null
   dicom_ingest_id?: string | null
   study: {
@@ -325,10 +386,19 @@ export interface VetCase {
   backendOutcome?: BackendPipelineResult['outcome']
   backendFindings?: BackendFindings
   backendDraft?: BackendDraftReport
+  reportVersions?: BackendReportVersionSummary[]
+  currentReportVersion?: number
   /** True when this row was loaded/synced from FastAPI (SQLite). */
   fromBackend?: boolean
   /** Demo fixture kind used at ingest — for case-detail viewer reload (display only). */
   dicomDemoKind?: DicomDemoKind
+  /** Imaging metadata from backend summary/record (never invented). */
+  modality?: BackendModality | string
+  anatomicalRegion?: BackendAnatomicalRegion | string
+  classificationConfirmed?: boolean
+  studyInstanceUid?: string
+  seriesCount?: number
+  instanceCount?: number
 }
 
 export interface KbSource {

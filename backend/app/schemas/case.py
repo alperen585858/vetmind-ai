@@ -15,7 +15,7 @@ from app.schemas.enums import (
 )
 from app.schemas.findings import StructuredFindings, StudyInfo
 from app.schemas.model_input import ImagingModelInput
-from app.schemas.report import DraftReport
+from app.schemas.report import DraftReport, ReportVersionSnapshot
 
 
 def utcnow() -> datetime:
@@ -66,6 +66,9 @@ class CaseRecord(BaseModel):
     scenario: Optional[MockScenario] = None
     study: StudyInfo = Field(default_factory=StudyInfo)
     referring_clinic: Optional[str] = None
+    # Phase 5: ownership / clinic isolation (null = legacy unscoped demo row).
+    owner_subject: Optional[str] = None
+    clinic_id: Optional[str] = None
     dicom_study: Optional[DicomStudyMeta] = None
     dicom_ingest_id: Optional[str] = None
     quarantine_dir: Optional[str] = None
@@ -78,6 +81,9 @@ class CaseRecord(BaseModel):
     model_input: Optional[ImagingModelInput] = None
     structured_findings: Optional[StructuredFindings] = None
     draft_report: Optional[DraftReport] = None
+    # Phase 4: append-only version history (approved snapshots are immutable).
+    report_versions: list[ReportVersionSnapshot] = Field(default_factory=list)
+    current_report_version: Optional[int] = None
     review_history: list[ReviewFeedback] = Field(default_factory=list)
 
 
@@ -87,9 +93,16 @@ class CaseSummary(BaseModel):
     case_id: str
     patient_name: str
     species: Species
+    breed: Optional[str] = None
     modality: Modality
     anatomical_region: AnatomicalRegion
     status: CaseLifecycleStatus
     scenario: Optional[MockScenario] = None
     created_at: datetime
     latest_job_id: Optional[str] = None
+    classification_confirmed: bool = True
+    study_instance_uid: Optional[str] = None
+    series_count: Optional[int] = None
+    instance_count: Optional[int] = None
+    owner_subject: Optional[str] = None
+    clinic_id: Optional[str] = None

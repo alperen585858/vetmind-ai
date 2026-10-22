@@ -7,5 +7,10 @@ backend/.venv
 backend/.pytest_cache
 backend/**/__pycache__
 backend/data/
+backend/.pytest_tmp
 *.pyc
 *.sqlite3
+e2e-report
+test-results
+playwright-report
+e2e/.data

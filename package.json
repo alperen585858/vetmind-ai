@@ -8,8 +8,11 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "backend:dev": "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
     "backend:test": "cd backend && .venv/bin/pytest -q",
+    "e2e": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test",
+    "e2e:ui": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test --ui",
     "build:share": "tsc --noEmit && vite build --mode share --outDir dist-share && node scripts/build-share.mjs"
   },
   "dependencies": {
@@ -21,6 +24,7 @@
     "recharts": "2.12.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.2",
     "@types/react": "18.3.11",
     "@types/react-dom": "18.3.0",
     "@vitejs/plugin-react": "4.3.2",
@@ -28,6 +32,7 @@
     "postcss": "8.4.47",
     "tailwindcss": "3.4.13",
     "typescript": "5.6.2",
-    "vite": "5.4.8"
+    "vite": "5.4.8",
+    "vitest": "^2.1.4"
   }
 }

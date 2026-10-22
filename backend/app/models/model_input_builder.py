@@ -41,9 +41,16 @@ def build_imaging_model_input(
                     series_instance_uid=series.series_instance_uid,
                     instance_number=inst.instance_number,
                     filename=inst.filename,
+                    rows=inst.rows,
+                    columns=inst.columns,
                     has_pixel_data=inst.has_pixel_data,
                     pixel_tensor_ready=False,
                     quarantine_relative_path=inst.quarantine_relative_path,
+                    transfer_syntax_uid=inst.transfer_syntax_uid,
+                    pixel_spacing=inst.pixel_spacing,
+                    slice_thickness=inst.slice_thickness,
+                    image_orientation_patient=inst.image_orientation_patient,
+                    image_position_patient=inst.image_position_patient,
                 )
                 for inst in series.instances
             ]

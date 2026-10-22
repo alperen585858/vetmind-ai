@@ -33,7 +33,11 @@ class ReportSection(BaseModel):
 
 
 class DraftReport(BaseModel):
-    """LLM (or mock LLM) radiology report draft. Always requires expert review."""
+    """LLM (or mock LLM) radiology report draft. Always requires expert review.
+
+    ``version`` / ``immutable`` support Phase 4 lifecycle. Approved reports set
+    ``immutable=True`` and must not be silently overwritten.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -56,3 +60,56 @@ class DraftReport(BaseModel):
         "Optional RAG citations are demo lexical matches only. "
         "They are not clinical evidence and do not validate findings."
     )
+    # Phase 4 versioning (defaults keep older persisted payloads valid).
+    version: int = 1
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+    immutable: bool = False
+    revision_notes: Optional[str] = None
+    reviewed_by: Optional[str] = None
+
+
+class ReportVersionSnapshot(BaseModel):
+    """Immutable-capable snapshot stored on the case for history / print-by-version."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    report_id: str
+    case_id: str
+    created_at: datetime
+    updated_at: datetime
+    author_or_source: str
+    status: ReportStatus
+    expert_review_status: ExpertReviewStatus = ExpertReviewStatus.PENDING
+    immutable: bool = False
+    revision_notes: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    source_kind: SourceKind = SourceKind.MOCK
+    model_id: str = ""
+    model_version: str = ""
+    synthetic: bool = True
+    content: DraftReport
+
+
+class ReportVersionSummary(BaseModel):
+    """List row for report history UI (no full section bodies)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    report_id: str
+    case_id: str
+    created_at: datetime
+    updated_at: datetime
+    author_or_source: str
+    status: ReportStatus
+    expert_review_status: ExpertReviewStatus
+    immutable: bool
+    revision_notes: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    source_kind: SourceKind
+    model_id: str
+    model_version: str
+    synthetic: bool
+    is_current: bool = False

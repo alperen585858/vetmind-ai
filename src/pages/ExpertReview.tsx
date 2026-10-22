@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, Bot, CheckCircle2, ExternalLink, FileSearch, GraduationCap, History, PenLine, RotateCcw, Send, XCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -21,13 +21,50 @@ const CATEGORIES: CorrectionCategory[] = ['Klinik hata', 'Eksik bilgi', 'Üslup'
 
 export default function ExpertReview() {
   const { id = '' } = useParams()
-  const { getCase, updateCase, pushToast } = useApp()
+  const { getCase, updateCase, pushToast, hydrateBackendCase } = useApp()
   const nav = useNavigate()
   const c = getCase(id)
+  const [hydrating, setHydrating] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [text, setText] = useState<ReportSections | undefined>(c?.report)
   const [cats, setCats] = useState<Partial<Record<SectionKey, CorrectionCategory>>>({})
   const [modal, setModal] = useState<null | 'revizyon' | 'reddedildi'>(null)
   const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    if (!id.startsWith('case-')) {
+      setHydrating(false)
+      return
+    }
+    if (c?.aiDraft || c?.backendDraft) {
+      setHydrating(false)
+      if (c.report || c.aiDraft) setText((prev) => prev ?? c.report ?? c.aiDraft)
+      return
+    }
+    let cancelled = false
+    setHydrating(true)
+    void hydrateBackendCase(id).then((mapped) => {
+      if (cancelled) return
+      if (mapped?.report || mapped?.aiDraft) {
+        setText(mapped.report ?? mapped.aiDraft)
+      }
+      setHydrating(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, c?.aiDraft, c?.backendDraft, c?.report, hydrateBackendCase])
+
+  if (hydrating) {
+    return (
+      <Card>
+        <EmptyState
+          icon={<FileSearch className="h-6 w-6" />}
+          title="Uzman inceleme yükleniyor…"
+          text="Vaka backend’den alınırken lütfen bekleyin."
+        />
+      </Card>
+    )
+  }
 
   if (!c) {
     return <Card><EmptyState icon={<FileSearch className="h-6 w-6" />} title="Vaka bulunamadı" action={<Link to="/kuyruk" className="text-sm font-medium text-teal-700">Onay kuyruğuna dön</Link>} /></Card>
@@ -80,6 +117,8 @@ export default function ExpertReview() {
         edited_impression: text.degerlendirme,
         edited_recommendations: text.oneriler,
       })
+      // Re-hydrate so ApprovedReport / print-PDF uses persisted draft + review_history.
+      await hydrateBackendCase(c.backendCaseId)
       return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Review reddedildi'
@@ -96,17 +135,30 @@ export default function ExpertReview() {
     const ok = await syncBackendReview('approve')
     if (!ok) return
     const stamp = nowStamp()
-    updateCase(c.id, (x) => ({
-      status: 'onaylandi',
-      report: text,
-      corrections,
-      approvedBy: USERS.expert.name,
-      approvedAt: today(),
-      reportNo: x.no.replace('VM-', 'VMR-'),
-      statusNote: undefined,
-      timeline: [...x.timeline, { date: stamp, label: `Uzman tarafından AI taslağı onaylandı ve yayınlandı${corrections.length ? ` (${corrections.length} düzeltme)` : ''}`, by: USERS.expert.name }],
-    }))
-    pushToast({ tone: 'success', title: 'Rapor onaylandı ve yayınlandı', body: `${c.patient.name} — veteriner hekim ve hayvan sahibi bilgilendirildi.` })
+    if (!c.backendCaseId) {
+      updateCase(c.id, (x) => ({
+        status: 'onaylandi',
+        report: text,
+        corrections,
+        approvedBy: USERS.expert.name,
+        approvedAt: today(),
+        reportNo: x.no.replace('VM-', 'VMR-'),
+        statusNote: undefined,
+        timeline: [
+          ...x.timeline,
+          {
+            date: stamp,
+            label: `Uzman tarafından AI taslağı onaylandı ve yayınlandı${corrections.length ? ` (${corrections.length} düzeltme)` : ''}`,
+            by: USERS.expert.name,
+          },
+        ],
+      }))
+    }
+    pushToast({
+      tone: 'success',
+      title: 'Rapor onaylandı ve yayınlandı',
+      body: `${c.patient.name} — veteriner hekim ve hayvan sahibi bilgilendirildi.`,
+    })
     nav(`/raporlar/${c.id}`)
   }
 
@@ -115,14 +167,27 @@ export default function ExpertReview() {
     const ok = await syncBackendReview(modal === 'revizyon' ? 'request_revision' : 'reject', reason.trim() || undefined)
     if (!ok) return
     const stamp = nowStamp()
-    updateCase(c.id, (x) => ({
-      status: modal,
-      report: text,
-      corrections,
-      statusNote: reason.trim(),
-      timeline: [...x.timeline, { date: stamp, label: modal === 'revizyon' ? 'Revizyon istendi' : 'Rapor reddedildi', by: USERS.expert.name }],
-    }))
-    pushToast({ tone: modal === 'revizyon' ? 'warning' : 'error', title: modal === 'revizyon' ? 'Revizyon istendi' : 'Rapor reddedildi', body: `${c.patient.name} — gerekçe kaydedildi.` })
+    if (!c.backendCaseId) {
+      updateCase(c.id, (x) => ({
+        status: modal,
+        report: text,
+        corrections,
+        statusNote: reason.trim(),
+        timeline: [
+          ...x.timeline,
+          {
+            date: stamp,
+            label: modal === 'revizyon' ? 'Revizyon istendi' : 'Rapor reddedildi',
+            by: USERS.expert.name,
+          },
+        ],
+      }))
+    }
+    pushToast({
+      tone: modal === 'revizyon' ? 'warning' : 'error',
+      title: modal === 'revizyon' ? 'Revizyon istendi' : 'Rapor reddedildi',
+      body: `${c.patient.name} — gerekçe kaydedildi.`,
+    })
     setModal(null)
     setReason('')
     nav('/kuyruk')
@@ -140,6 +205,34 @@ export default function ExpertReview() {
         subtitle={`${c.no} · ${c.patient.species}, ${c.patient.breed}, ${c.patient.age} yaş · ${c.clinic}`}
         actions={<Button variant="secondary" icon={<ExternalLink className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>Tam AI değerlendirmesi</Button>}
       />
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+        <p>
+          <span className="font-semibold text-navy-900">Rapor durumu:</span>{' '}
+          {c.backendDraft?.status ?? c.status}
+          {c.backendDraft?.version != null ? ` · v${c.backendDraft.version}` : ''}
+          {c.backendDraft?.immutable ? ' · immutable' : ''}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          source_kind={c.backendFindings?.source_kind ?? 'mock'} · Uzman onayı klinik sertifikasyon değildir.
+        </p>
+        {warnings.length > 0 && (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
+            {warnings.map((w) => (
+              <li key={w.text + w.detail}>
+                {w.text}: {w.detail}
+              </li>
+            ))}
+          </ul>
+        )}
+        {c.backendDraft?.validation_warnings?.length ? (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
+            {c.backendDraft.validation_warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       {!reviewable && (
         <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">

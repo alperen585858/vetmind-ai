@@ -24,6 +24,43 @@ export class BackendUnavailableError extends Error {
   }
 }
 
+/**
+ * Frontend stopped polling (unmount / navigation / user cancel).
+ * Does NOT cancel the backend AnalysisJob — the worker may still finish.
+ */
+export class PollingCancelledError extends Error {
+  readonly jobId?: string
+  constructor(message = 'Job polling cancelled by client', jobId?: string) {
+    super(message)
+    this.name = 'PollingCancelledError'
+    this.jobId = jobId
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined, jobId?: string): void {
+  if (signal?.aborted) {
+    throw new PollingCancelledError('Job polling cancelled by client', jobId)
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new PollingCancelledError())
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new PollingCancelledError())
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 function formatDetail(detail: unknown): string {
   if (typeof detail === 'string') return detail
   if (detail && typeof detail === 'object' && 'message' in detail) {
@@ -49,8 +86,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let res: Response
   try {
+    if (init?.signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError')
+    }
     res = await fetch(`${API_BASE}${path}`, { ...init, headers })
-  } catch {
+  } catch (err) {
+    const name = err instanceof Error ? err.name : ''
+    if (name === 'AbortError') throw err
     throw new BackendUnavailableError()
   }
   if (!res.ok) {
@@ -84,7 +126,13 @@ export async function backendLogin(email: string, password: string): Promise<{
   })
 }
 
-export async function backendAuthStatus(): Promise<{ auth_enabled: boolean }> {
+export async function backendAuthStatus(): Promise<{
+  auth_enabled: boolean
+  deployment_mode?: string
+  tenant_isolation?: boolean
+  encryption_at_rest?: string
+  malware_scan_required?: boolean
+}> {
   return request('/auth/status')
 }
 
@@ -154,6 +202,7 @@ export async function uploadDicomFiles(input: {
   species: Species
   breed?: string
   clinicalHistory?: string
+  signal?: AbortSignal
 }): Promise<DicomUploadResponse> {
   const form = new FormData()
   form.append('patient_name', input.patientName)
@@ -164,7 +213,11 @@ export async function uploadDicomFiles(input: {
   for (const file of input.files) {
     form.append('files', file, file.name)
   }
-  return request<DicomUploadResponse>('/dicom/upload', { method: 'POST', body: form })
+  return request<DicomUploadResponse>('/dicom/upload', {
+    method: 'POST',
+    body: form,
+    signal: input.signal,
+  })
 }
 
 /** Server-side synthetic DICOM fixtures (no real PHI). */
@@ -174,6 +227,7 @@ export async function uploadDicomDemo(input: {
   species: Species
   breed?: string
   clinicalHistory?: string
+  signal?: AbortSignal
 }): Promise<DicomUploadResponse> {
   const form = new FormData()
   form.append('patient_name', input.patientName)
@@ -181,7 +235,11 @@ export async function uploadDicomDemo(input: {
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
   form.append('referring_clinic', 'Ornek Veteriner Klinigi (demo)')
-  return request<DicomUploadResponse>(`/dicom/demo/${input.kind}`, { method: 'POST', body: form })
+  return request<DicomUploadResponse>(`/dicom/demo/${input.kind}`, {
+    method: 'POST',
+    body: form,
+    signal: input.signal,
+  })
 }
 
 const DEMO_FILE_PREFIX: Record<DicomDemoKind, string> = {
@@ -277,57 +335,90 @@ export async function confirmDocumentAndAnalyze(ingestId: string): Promise<Backe
   return analyzeCaseAsyncAndWait(caseRecord.case_id)
 }
 
-/** Enqueue background analyze and poll until completed/failed. */
+/** Enqueue background analyze and poll until completed/failed.
+ *
+ * `signal` aborts **client polling only** — it does not cancel the backend job.
+ * Catch {@link PollingCancelledError} vs network/backend failures separately.
+ */
 export async function analyzeCaseAsyncAndWait(
   caseId: string,
-  opts?: { timeoutMs?: number; intervalMs?: number },
+  opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
 ): Promise<BackendPipelineResult> {
   const timeoutMs = opts?.timeoutMs ?? 15_000
   const intervalMs = opts?.intervalMs ?? 120
-  const job = await request<{ job_id: string; status: string; case_id: string }>(
-    `/cases/${caseId}/analyze/async`,
-    { method: 'POST' },
-  )
-  const deadline = Date.now() + timeoutMs
-  let status = job.status
-  while (Date.now() < deadline) {
-    const polled = await request<{
-      job_id: string
-      case_id: string
-      status: string
-      outcome: BackendPipelineResult['outcome'] | null
-      error_message?: string | null
-      routed_model_ids?: string[]
-      route_reason?: string | null
-    }>(`/jobs/${job.job_id}`)
-    status = polled.status
-    if (status === 'completed' || status === 'failed') {
-      const [findings, report, caseRecord] = await Promise.all([
-        request<BackendFindings | null>(`/cases/${caseId}/findings`).catch(() => null),
-        request<BackendDraftReport | null>(`/cases/${caseId}/report`).catch(() => null),
-        getBackendCase(caseId),
-      ])
-      const outcome =
-        (polled.outcome as BackendPipelineResult['outcome'] | null) ??
-        (status === 'failed' ? 'failed' : caseRecord.status === 'manual_review' ? 'unsupported' : 'success')
-      return {
-        outcome,
-        job: {
-          job_id: polled.job_id,
-          case_id: polled.case_id,
-          status: polled.status,
-          routed_model_ids: polled.routed_model_ids ?? [],
-          route_reason: polled.route_reason,
-          error_message: polled.error_message,
-        },
-        findings,
-        report,
-        messages: ['Async analyze (demo thread worker) completed.'],
+  const signal = opts?.signal
+  let jobId: string | undefined
+  try {
+    throwIfAborted(signal)
+    const job = await request<{ job_id: string; status: string; case_id: string }>(
+      `/cases/${caseId}/analyze/async`,
+      { method: 'POST', signal },
+    )
+    jobId = job.job_id
+    const deadline = Date.now() + timeoutMs
+    let status = job.status
+    while (Date.now() < deadline) {
+      throwIfAborted(signal, job.job_id)
+      const polled = await request<{
+        job_id: string
+        case_id: string
+        status: string
+        outcome: BackendPipelineResult['outcome'] | null
+        error_message?: string | null
+        routed_model_ids?: string[]
+        route_reason?: string | null
+      }>(`/jobs/${job.job_id}`, { signal })
+      status = polled.status
+      const terminal =
+        status === 'completed' ||
+        status === 'failed' ||
+        status === 'cancelled' ||
+        status === 'timed_out'
+      if (terminal) {
+        throwIfAborted(signal, job.job_id)
+        const [findings, report, caseRecord] = await Promise.all([
+          request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal }).catch(() => null),
+          request<BackendDraftReport | null>(`/cases/${caseId}/report`, { signal }).catch(() => null),
+          getBackendCase(caseId, signal),
+        ])
+        const outcome =
+          (polled.outcome as BackendPipelineResult['outcome'] | null) ??
+          (status === 'failed' || status === 'cancelled' || status === 'timed_out'
+            ? 'failed'
+            : caseRecord.status === 'manual_review'
+              ? 'unsupported'
+              : 'success')
+        return {
+          outcome,
+          job: {
+            job_id: polled.job_id,
+            case_id: polled.case_id,
+            status: polled.status,
+            routed_model_ids: polled.routed_model_ids ?? [],
+            route_reason: polled.route_reason,
+            error_message: polled.error_message,
+          },
+          findings,
+          report,
+          messages: [
+            status === 'completed'
+              ? 'Async analyze (demo thread worker) completed.'
+              : `Async analyze ended with status=${status}.`,
+            'Client poll abort does not cancel the backend job.',
+          ],
+        }
       }
+      await sleep(intervalMs, signal)
     }
-    await new Promise((r) => setTimeout(r, intervalMs))
+    throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
+  } catch (err) {
+    if (err instanceof PollingCancelledError) throw err
+    const name = err instanceof Error ? err.name : ''
+    if (name === 'AbortError') {
+      throw new PollingCancelledError('Job polling cancelled by client', jobId)
+    }
+    throw err
   }
-  throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
 }
 
 export async function searchRag(query: string, topK = 5): Promise<{
@@ -347,15 +438,22 @@ export async function confirmDicomClassification(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
+  /** Maps UI consent → case flags (does not enable pixel inference by itself). */
+  imagingSourcePermissionVerified?: boolean
+  imagingAnalysisConsentVerified?: boolean
+  signal?: AbortSignal
 }): Promise<BackendCaseRecord> {
   return request<BackendCaseRecord>(`/dicom/ingestions/${input.ingestId}/confirm`, {
     method: 'POST',
+    signal: input.signal,
     body: JSON.stringify({
       accept_suggestion: input.acceptSuggestion,
       modality: input.modality ?? null,
       anatomical_region: input.anatomicalRegion ?? null,
       patient_name: input.patientName ?? null,
       clinical_history: input.clinicalHistory ?? null,
+      imaging_source_permission_verified: Boolean(input.imagingSourcePermissionVerified),
+      imaging_analysis_consent_verified: Boolean(input.imagingAnalysisConsentVerified),
     }),
   })
 }
@@ -368,17 +466,67 @@ export async function confirmDicomAndAnalyze(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
+  imagingSourcePermissionVerified?: boolean
+  imagingAnalysisConsentVerified?: boolean
+  signal?: AbortSignal
 }): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDicomClassification(input)
-  return analyzeCaseAsyncAndWait(caseRecord.case_id)
+  return analyzeCaseAsyncAndWait(caseRecord.case_id, { signal: input.signal })
 }
 
 export async function listBackendCases(): Promise<BackendCaseSummary[]> {
   return request<BackendCaseSummary[]>('/cases')
 }
 
-export async function getBackendCase(caseId: string): Promise<BackendCaseRecord> {
-  return request<BackendCaseRecord>(`/cases/${caseId}`)
+export async function getBackendCase(caseId: string, signal?: AbortSignal): Promise<BackendCaseRecord> {
+  return request<BackendCaseRecord>(`/cases/${caseId}`, { signal })
+}
+
+export async function listReportVersions(
+  caseId: string,
+  signal?: AbortSignal,
+): Promise<import('../types').BackendReportVersionSummary[]> {
+  return request(`/cases/${caseId}/report/versions`, { signal })
+}
+
+export async function getReportVersion(
+  caseId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<import('../types').BackendReportVersionSnapshot> {
+  return request(`/cases/${caseId}/report/versions/${version}`, { signal })
+}
+
+export async function getBackendReport(
+  caseId: string,
+  version?: number,
+  signal?: AbortSignal,
+): Promise<import('../types').BackendDraftReport> {
+  const q = version != null ? `?version=${version}` : ''
+  return request(`/cases/${caseId}/report${q}`, { signal })
+}
+
+export type BackendAnalysisJob = {
+  job_id: string
+  case_id: string
+  status: string
+  outcome?: string | null
+  error_message?: string | null
+  routed_model_ids?: string[]
+  routed_model_versions?: string[]
+  route_reason?: string | null
+  analysis_mode?: string
+  cancel_requested?: boolean
+  timeout_s?: number | null
+  idempotency_key?: string | null
+}
+
+export async function getAnalysisJob(jobId: string, signal?: AbortSignal): Promise<BackendAnalysisJob> {
+  return request<BackendAnalysisJob>(`/jobs/${jobId}`, { signal })
+}
+
+export async function requestCancelAnalysisJob(jobId: string): Promise<BackendAnalysisJob> {
+  return request<BackendAnalysisJob>(`/jobs/${jobId}/cancel`, { method: 'POST' })
 }
 
 export interface CaseDicomFileList {

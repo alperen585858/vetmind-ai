@@ -54,11 +54,16 @@ export function DicomViewer({
   loading = false,
   className = '',
   onActiveFrameChange,
+  focusSopUid,
+  focusRequestId = 0,
 }: {
   frames: DicomFramePreview[]
   loading?: boolean
   className?: string
   onActiveFrameChange?: (frame: DicomFramePreview, index: number) => void
+  /** When set with a new focusRequestId, jump to matching viewable frame. */
+  focusSopUid?: string | null
+  focusRequestId?: number
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -81,6 +86,12 @@ export function DicomViewer({
     setPan({ x: 0, y: 0 })
     setInvert(false)
   }, [frames])
+
+  useEffect(() => {
+    if (!focusSopUid || !focusRequestId) return
+    const idx = viewable.findIndex((f) => f.sopInstanceUid === focusSopUid)
+    if (idx >= 0) setIndex(idx)
+  }, [focusSopUid, focusRequestId, viewable])
 
   useEffect(() => {
     if (!frame) return

@@ -35,5 +35,6 @@ def test_async_conflict_while_running(client: TestClient) -> None:
     first = client.post(f"/api/v1/cases/{case_id}/analyze/async")
     assert first.status_code == 202
     second = client.post(f"/api/v1/cases/{case_id}/analyze/async")
-    # While ANALYZING, second enqueue should 409
-    assert second.status_code == 409
+    # While ANALYZING, second enqueue is idempotent (same in-flight job).
+    assert second.status_code == 202
+    assert second.json()["job_id"] == first.json()["job_id"]

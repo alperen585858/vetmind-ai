@@ -136,16 +136,21 @@ export function SeriesExplorer({
   frames,
   study,
   activeSeriesKey,
+  activeSopUid,
   onRemoveFile,
   onClearAll,
+  onSelectInstance,
   className = '',
 }: {
   files: File[]
   frames: DicomFramePreview[]
   study?: DicomStudyMeta | null
   activeSeriesKey?: string | null
+  activeSopUid?: string | null
   onRemoveFile: (file: File) => void
   onClearAll?: () => void
+  /** Jump viewer to this instance (SOP UID and/or file). Does not invent metadata. */
+  onSelectInstance?: (ref: { sopInstanceUid?: string; file?: File; seriesKey: string }) => void
   className?: string
 }) {
   const tree = useMemo(() => buildSeriesItems(files, frames, study), [files, frames, study])
@@ -223,30 +228,53 @@ export function SeriesExplorer({
               </button>
               {isOpen && (
                 <ul className="border-t border-[#E3EAF0] bg-[#F4F7FA]/80">
-                  {series.instances.map((inst) => (
-                    <li
-                      key={inst.id}
-                      className="flex items-center justify-between gap-2 px-3 py-1.5 pl-9"
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate text-[12px] text-[#172B45]" title={inst.label}>
-                          {inst.label}
-                        </span>
-                      </div>
-                      {inst.file && (
+                  {series.instances.map((inst) => {
+                    const isInstActive =
+                      (activeSopUid != null &&
+                        inst.sopInstanceUid != null &&
+                        inst.sopInstanceUid === activeSopUid) ||
+                      false
+                    return (
+                      <li
+                        key={inst.id}
+                        className={`flex items-center justify-between gap-2 px-3 py-1.5 pl-9 ${
+                          isInstActive ? 'bg-teal-50/80' : ''
+                        }`}
+                      >
                         <button
                           type="button"
-                          className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                          title="Kaldır"
-                          aria-label={`${inst.label} kaldır`}
-                          onClick={() => onRemoveFile(inst.file!)}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-[#0D827B]"
+                          title="Görüntüleyicide aç"
+                          onClick={() =>
+                            onSelectInstance?.({
+                              sopInstanceUid: inst.sopInstanceUid,
+                              file: inst.file,
+                              seriesKey: series.key,
+                            })
+                          }
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate text-[12px] text-[#172B45]" title={inst.label}>
+                            {inst.label}
+                          </span>
+                          {!inst.hasPixelPreview && (
+                            <span className="shrink-0 text-[10px] text-slate-400">meta</span>
+                          )}
                         </button>
-                      )}
-                    </li>
-                  ))}
+                        {inst.file && (
+                          <button
+                            type="button"
+                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            title="Kaldır"
+                            aria-label={`${inst.label} kaldır`}
+                            onClick={() => onRemoveFile(inst.file!)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </li>

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.enums import (
     AnatomicalRegion,
@@ -46,6 +46,17 @@ class Finding(BaseModel):
     # Mock adapters must set synthetic=True explicitly.
     synthetic: bool = False
     conflict_group_id: Optional[str] = None
+    # Model-provided confidence only — never fabricate. Reject out-of-range when present.
+    model_confidence: Optional[float] = None
+
+    @field_validator("model_confidence")
+    @classmethod
+    def _confidence_range(cls, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        if value < 0.0 or value > 1.0:
+            raise ValueError("model_confidence must be in [0, 1] when present")
+        return value
 
 
 class PotentialConflict(BaseModel):
@@ -103,3 +114,5 @@ class StructuredFindings(BaseModel):
     contributing_model_ids: list[str] = Field(default_factory=list)
     contributing_source_kinds: list[SourceKind] = Field(default_factory=list)
     potential_conflicts: list[PotentialConflict] = Field(default_factory=list)
+    # Opaque processing metadata from adapters (timeouts, prep contract ids). Never PHI.
+    processing_metadata: dict[str, str] = Field(default_factory=dict)

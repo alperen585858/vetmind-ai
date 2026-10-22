@@ -1,7 +1,7 @@
 """Local quarantine object store for uploaded study/document bytes.
 
 Files land under ``backend/data/quarantine/{ingest_id}/`` before any model sees them.
-Demo-only: not a virus scanner, not production object storage.
+Demo-only: not a virus scanner, not production object storage, not encrypted by default.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+_SAFE_INGEST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 
 
 @dataclass(frozen=True)
@@ -34,13 +35,28 @@ def _safe_filename(name: str, index: int) -> str:
     return f"{index:04d}_{cleaned}"
 
 
+def validate_ingest_id(ingest_id: str) -> str:
+    """Reject path traversal and unsafe ingest identifiers."""
+    if not ingest_id or not _SAFE_INGEST.match(ingest_id):
+        raise ValueError("Invalid ingest_id.")
+    if ".." in ingest_id or "/" in ingest_id or "\\" in ingest_id:
+        raise ValueError("Invalid ingest_id.")
+    return ingest_id
+
+
 class QuarantineStore:
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, max_file_bytes: int | None = None) -> None:
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.max_file_bytes = max_file_bytes
 
     def ingest_dir(self, ingest_id: str) -> Path:
-        path = self.root / ingest_id
+        safe = validate_ingest_id(ingest_id)
+        path = (self.root / safe).resolve()
+        try:
+            path.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("Ingest path escapes store root.") from exc
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -50,6 +66,8 @@ class QuarantineStore:
         files: list[tuple[str, bytes]],
         *,
         content_kinds: list[str] | None = None,
+        owner_subject: str | None = None,
+        clinic_id: str | None = None,
     ) -> list[QuarantineFileRef]:
         """Write bytes to quarantine and return stable refs. Empty list is a no-op."""
         if not files:
@@ -57,6 +75,8 @@ class QuarantineStore:
         directory = self.ingest_dir(ingest_id)
         refs: list[QuarantineFileRef] = []
         for index, (filename, data) in enumerate(files):
+            if self.max_file_bytes is not None and len(data) > self.max_file_bytes:
+                raise ValueError(f"File exceeds quarantine max_file_bytes ({self.max_file_bytes}).")
             stored = _safe_filename(filename, index)
             target = directory / stored
             target.write_bytes(data)
@@ -79,8 +99,11 @@ class QuarantineStore:
         manifest = {
             "ingest_id": ingest_id,
             "root": str(self.root),
+            "owner_subject": owner_subject,
+            "clinic_id": clinic_id,
             "files": [asdict(r) for r in refs],
             "note": "Quarantine store — bytes retained for future authorized adapters. Not clinical PACS.",
+            "encryption": "none",
         }
         (directory / "manifest.json").write_text(
             json.dumps(manifest, indent=2),
@@ -89,13 +112,48 @@ class QuarantineStore:
         return refs
 
     def resolve(self, relative_path: str) -> Path:
-        path = (self.root / relative_path).resolve()
-        if not str(path).startswith(str(self.root)):
+        """Resolve a relative quarantine path; reject traversal outside the store root."""
+        if not relative_path or relative_path.startswith("/") or ".." in Path(relative_path).parts:
             raise ValueError("Quarantine path escapes store root.")
+        path = (self.root / relative_path).resolve()
+        try:
+            path.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("Quarantine path escapes store root.") from exc
         return path
+
+    def cleanup_temp_dir(self, temp_dir: Path) -> None:
+        """Remove a temporary prep directory if it stays under the quarantine root."""
+        resolved = temp_dir.resolve()
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("Refusing to delete path outside quarantine root.") from exc
+        if resolved.is_dir():
+            for child in sorted(resolved.rglob("*"), reverse=True):
+                if child.is_file():
+                    child.unlink(missing_ok=True)
+                elif child.is_dir():
+                    child.rmdir()
+            resolved.rmdir()
+
+    def ownership(self, ingest_id: str) -> tuple[str | None, str | None]:
+        """Return (owner_subject, clinic_id) from manifest when present."""
+        try:
+            directory = self.ingest_dir(ingest_id)
+        except ValueError:
+            return None, None
+        manifest_path = directory / "manifest.json"
+        if not manifest_path.is_file():
+            return None, None
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+        owner = raw.get("owner_subject")
+        clinic = raw.get("clinic_id")
+        return (str(owner) if owner else None, str(clinic) if clinic else None)
 
     def list_files(self, ingest_id: str) -> list[QuarantineFileRef]:
         """Return quarantined file refs for an ingest (from manifest when present)."""
+        validate_ingest_id(ingest_id)
         directory = self.root / ingest_id
         manifest_path = directory / "manifest.json"
         if manifest_path.is_file():
@@ -135,9 +193,14 @@ class QuarantineStore:
             )
         return refs
 
-    def read_file(self, relative_path: str) -> tuple[str, bytes]:
-        """Read quarantined bytes; returns (filename, data)."""
+    def read_file(self, relative_path: str, *, expected_sha256: str | None = None) -> tuple[str, bytes]:
+        """Read quarantined bytes; optionally verify integrity against expected sha256."""
         path = self.resolve(relative_path)
         if not path.is_file():
             raise FileNotFoundError(relative_path)
-        return path.name, path.read_bytes()
+        data = path.read_bytes()
+        if expected_sha256:
+            digest = hashlib.sha256(data).hexdigest()
+            if digest != expected_sha256:
+                raise ValueError("Quarantine integrity check failed.")
+        return path.name, data

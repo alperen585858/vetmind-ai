@@ -51,6 +51,12 @@ class DicomInstanceMeta(BaseModel):
     instance_number: Optional[int] = None
     filename: Optional[str] = None
     transfer_syntax_uid: Optional[str] = None
+    rows: Optional[int] = None
+    columns: Optional[int] = None
+    pixel_spacing: Optional[str] = None
+    slice_thickness: Optional[str] = None
+    image_orientation_patient: Optional[str] = None
+    image_position_patient: Optional[str] = None
     has_pixel_data: bool = False
     pixel_data_analyzed: bool = False
     quarantine_relative_path: Optional[str] = None
@@ -108,7 +114,12 @@ class ClassificationSuggestion(BaseModel):
 
 
 class DicomIngestionRecord(BaseModel):
-    """In-memory ingest session awaiting optional classification confirmation."""
+    """Ingest session before a CaseRecord exists.
+
+    Classification confirmation is ingest-scoped (`accepted` + optional `case_id`).
+    CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION is reserved/unused;
+    cases are created only after successful confirm with classification_confirmed=True.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -120,6 +131,8 @@ class DicomIngestionRecord(BaseModel):
     breed: Optional[str] = None
     clinical_history: Optional[str] = None
     referring_clinic: Optional[str] = None
+    owner_subject: Optional[str] = None
+    clinic_id: Optional[str] = None
     study: Optional[DicomStudyMeta] = None
     issues: list[DicomValidationIssue] = Field(default_factory=list)
     classification: Optional[ClassificationSuggestion] = None
@@ -157,3 +170,7 @@ class ConfirmClassificationRequest(BaseModel):
     anatomical_region: Optional[AnatomicalRegion] = None
     patient_name: Optional[str] = None
     clinical_history: Optional[str] = None
+    # Wired from UI consent. Does NOT by itself authorize pixel inference
+    # (see pixel_authorization + allows_pixel_analysis on capabilities).
+    imaging_source_permission_verified: bool = False
+    imaging_analysis_consent_verified: bool = False

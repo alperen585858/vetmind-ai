@@ -1,10 +1,12 @@
-"""Runtime settings. Persistence / RAG / auth / vision / jobs are selectable via env."""
+"""Runtime settings. Persistence / RAG / auth / vision / jobs / security are selectable via env."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.auth.security import DEFAULT_JWT_SECRET
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,8 @@ class Settings:
     vision_priority: int = 1
     vision_enabled: bool = True
     vision_source_kind: str = "real"
+    vision_timeout_s: float = 30.0
+    vision_model_version: str = "0.1.0-http"
     # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe).
     llm_provider: str = "mock"
     llm_endpoint: str | None = None
@@ -40,14 +44,28 @@ class Settings:
     llm_timeout_s: float = 30.0
     auth_enabled: bool = False
     auth_api_key: str | None = None
-    jwt_secret: str = "vetmind-demo-secret-change-me"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_ttl_seconds: int = 60 * 60 * 12
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
+    # Phase 5 — security / privacy / performance
+    deployment_mode: str = "demo"  # demo | protected
+    tenant_isolation: bool = False
+    allow_insecure_demo: bool = False
+    malware_scan_required: bool = False
+    encryption_at_rest: str = "none"
+    retention_dicom_days: int | None = None
+    retention_temp_hours: int = 24
+    retention_artifacts_days: int | None = None
+    retention_reports_days: int | None = None
+    retention_logs_days: int = 90
+    max_concurrent_analyze: int = 8
+    audit_log_path: Path | None = None
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
         "Optional remote Vision via VETMIND_VISION_ENDPOINT. "
         "Auth off by default (VETMIND_AUTH_ENABLED=1 to enforce). "
+        "Protected mode: VETMIND_DEPLOYMENT_MODE=protected (requires auth + non-default JWT secret). "
         "Jobs: thread (default) or rq+redis."
     )
 
@@ -66,6 +84,27 @@ def _default_quarantine_root() -> Path:
 
 def _default_rag_index_path() -> Path:
     return _backend_root() / "data" / "rag_index.json"
+
+
+def _default_audit_log_path() -> Path:
+    return _backend_root() / "data" / "audit" / "security.jsonl"
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_optional_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def load_settings() -> Settings:
@@ -117,6 +156,13 @@ def load_settings() -> Settings:
         "off",
     }
     vision_source_kind = os.getenv("VETMIND_VISION_SOURCE_KIND", "real").strip().lower() or "real"
+    try:
+        vision_timeout_s = float(os.getenv("VETMIND_VISION_TIMEOUT_S", "30"))
+    except ValueError:
+        vision_timeout_s = 30.0
+    vision_model_version = (
+        os.getenv("VETMIND_VISION_MODEL_VERSION", "0.1.0-http").strip() or "0.1.0-http"
+    )
 
     llm_provider = os.getenv("VETMIND_LLM_PROVIDER", "mock").strip().lower() or "mock"
     llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
@@ -129,9 +175,9 @@ def load_settings() -> Settings:
     except ValueError:
         llm_timeout_s = 30.0
 
-    auth_enabled = os.getenv("VETMIND_AUTH_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+    auth_enabled = _env_bool("VETMIND_AUTH_ENABLED", False)
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
-    jwt_secret = os.getenv("VETMIND_JWT_SECRET", "vetmind-demo-secret-change-me")
+    jwt_secret = os.getenv("VETMIND_JWT_SECRET", DEFAULT_JWT_SECRET)
     try:
         jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(60 * 60 * 12)))
     except ValueError:
@@ -141,6 +187,46 @@ def load_settings() -> Settings:
     if job_backend not in {"thread", "rq"}:
         job_backend = "thread"
     redis_url = os.getenv("VETMIND_REDIS_URL") or None
+
+    deployment_mode = os.getenv("VETMIND_DEPLOYMENT_MODE", "demo").strip().lower() or "demo"
+    if deployment_mode not in {"demo", "protected"}:
+        deployment_mode = "demo"
+    # Isolation defaults on when auth is enabled unless explicitly overridden.
+    if os.getenv("VETMIND_TENANT_ISOLATION") is None:
+        tenant_isolation = auth_enabled or deployment_mode == "protected"
+    else:
+        tenant_isolation = _env_bool("VETMIND_TENANT_ISOLATION", False)
+    allow_insecure_demo = _env_bool("VETMIND_ALLOW_INSECURE_DEMO", False)
+    malware_scan_required = _env_bool(
+        "VETMIND_MALWARE_SCAN_REQUIRED",
+        default=(deployment_mode == "protected"),
+    )
+    encryption_at_rest = os.getenv("VETMIND_ENCRYPTION_AT_REST", "none").strip().lower() or "none"
+
+    retention_dicom_days = _env_optional_int("VETMIND_RETENTION_DICOM_DAYS")
+    try:
+        retention_temp_hours = int(os.getenv("VETMIND_RETENTION_TEMP_HOURS", "24"))
+    except ValueError:
+        retention_temp_hours = 24
+    retention_artifacts_days = _env_optional_int("VETMIND_RETENTION_ARTIFACTS_DAYS")
+    retention_reports_days = _env_optional_int("VETMIND_RETENTION_REPORTS_DAYS")
+    try:
+        retention_logs_days = int(os.getenv("VETMIND_RETENTION_LOGS_DAYS", "90"))
+    except ValueError:
+        retention_logs_days = 90
+    try:
+        max_concurrent_analyze = int(os.getenv("VETMIND_MAX_CONCURRENT_ANALYZE", "8"))
+    except ValueError:
+        max_concurrent_analyze = 8
+    max_concurrent_analyze = max(1, min(max_concurrent_analyze, 64))
+
+    audit_raw = os.getenv("VETMIND_AUDIT_LOG_PATH")
+    if audit_raw:
+        audit_log_path = Path(audit_raw)
+    elif auth_enabled or deployment_mode == "protected":
+        audit_log_path = _default_audit_log_path()
+    else:
+        audit_log_path = None
 
     return Settings(
         storage_backend=backend,
@@ -160,6 +246,8 @@ def load_settings() -> Settings:
         vision_priority=vision_priority,
         vision_enabled=vision_enabled,
         vision_source_kind=vision_source_kind,
+        vision_timeout_s=max(1.0, vision_timeout_s),
+        vision_model_version=vision_model_version,
         llm_provider=llm_provider,
         llm_endpoint=llm_endpoint,
         llm_provider_id=llm_provider_id,
@@ -173,4 +261,35 @@ def load_settings() -> Settings:
         jwt_ttl_seconds=max(60, jwt_ttl),
         job_backend=job_backend,
         redis_url=redis_url,
+        deployment_mode=deployment_mode,
+        tenant_isolation=tenant_isolation,
+        allow_insecure_demo=allow_insecure_demo,
+        malware_scan_required=malware_scan_required,
+        encryption_at_rest=encryption_at_rest,
+        retention_dicom_days=retention_dicom_days,
+        retention_temp_hours=max(1, retention_temp_hours),
+        retention_artifacts_days=retention_artifacts_days,
+        retention_reports_days=retention_reports_days,
+        retention_logs_days=max(1, retention_logs_days),
+        max_concurrent_analyze=max_concurrent_analyze,
+        audit_log_path=audit_log_path,
     )
+
+
+def validate_security_settings(settings: Settings) -> None:
+    """Fail closed for protected / auth-enabled deployments with insecure defaults."""
+    if settings.deployment_mode == "protected" and not settings.auth_enabled:
+        raise RuntimeError(
+            "Protected deployment requires VETMIND_AUTH_ENABLED=1. "
+            "Demo mode remains available with VETMIND_DEPLOYMENT_MODE=demo."
+        )
+    insecure_secret = settings.jwt_secret == DEFAULT_JWT_SECRET
+    if settings.auth_enabled and insecure_secret and not settings.allow_insecure_demo:
+        raise RuntimeError(
+            "Auth is enabled but VETMIND_JWT_SECRET is still the demo default. "
+            "Set a strong secret, or set VETMIND_ALLOW_INSECURE_DEMO=1 for local demos only."
+        )
+    if settings.deployment_mode == "protected" and insecure_secret:
+        raise RuntimeError(
+            "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
+        )

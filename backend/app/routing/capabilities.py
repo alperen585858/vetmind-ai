@@ -6,9 +6,9 @@ from app.schemas.enums import AnatomicalRegion, Modality, SourceKind, Species
 
 @dataclass(frozen=True)
 class ModelCapability:
-    """Declarative routing metadata. Router matches study properties to these capabilities.
+    """Declarative routing + integration metadata for Vision adapters.
 
-    Does not import or reference concrete adapter classes.
+    Does not import concrete adapter classes. Pixel access remains opt-in.
     """
 
     model_id: str
@@ -18,10 +18,15 @@ class ModelCapability:
     priority: int = 100  # lower runs first / listed first
     enabled: bool = True
     description: str = ""
-    # Provenance class for execution policy (exclusive real vs mixed). Not vendor-specific.
     source_kind: SourceKind = SourceKind.MOCK
-    # Pixel analysis is opt-in per capability. Mocks must remain False.
     allows_pixel_analysis: bool = False
+    # Phase 3 integration declarations (defaults keep mocks honest).
+    model_version: str = "1.0.0"
+    input_contract_id: str = "imaging-model-input/1.0.0"
+    output_schema_version: str = "1.1.0"  # StructuredFindings schema_version
+    timeout_s: float = 30.0
+    max_instances: int | None = None
+    resource_hint: str = "cpu"  # cpu | gpu | remote — advisory only
 
 
 def default_capabilities() -> list[ModelCapability]:
@@ -36,6 +41,9 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=10,
             description="Mock Brain MRI (canine/feline)",
+            model_version="1.0.0-mock",
+            timeout_s=15.0,
+            resource_hint="cpu",
         ),
         ModelCapability(
             model_id="mock-cervical-mri-v1",
@@ -44,6 +52,8 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=10,
             description="Mock Cervical MRI (canine/feline)",
+            model_version="1.0.0-mock",
+            timeout_s=15.0,
         ),
         ModelCapability(
             model_id="mock-ct-3d-v1",
@@ -52,6 +62,8 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=20,
             description="Mock CT 3D volume stub (brain/cervical)",
+            model_version="1.0.0-mock",
+            timeout_s=20.0,
         ),
         ModelCapability(
             model_id="mock-xr-vision-v1",
@@ -60,6 +72,8 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=20,
             description="Mock X-Ray vision stub (thorax)",
+            model_version="1.0.0-mock",
+            timeout_s=10.0,
         ),
         ModelCapability(
             model_id="mock-multimodal-vlm-v1",
@@ -68,5 +82,7 @@ def default_capabilities() -> list[ModelCapability]:
             species=canine_feline,
             priority=50,
             description="Mock multimodal VLM stub (document + text context)",
+            model_version="1.0.0-mock",
+            timeout_s=15.0,
         ),
     ]

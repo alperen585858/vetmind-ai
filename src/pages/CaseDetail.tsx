@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, UploadCloud, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
@@ -29,14 +29,31 @@ import {
   collectFilesFromFileList,
 } from '../lib/dicomFolder'
 import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../lib/dicomCaseCache'
+import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
   { key: 'genel', label: 'Genel Bakış', icon: <LayoutGrid className="h-4 w-4" /> },
+  { key: 'bulgular', label: 'Bulgular', icon: <Brain className="h-4 w-4" /> },
+  { key: 'goruntu', label: 'Görüntüler', icon: <ImageIcon className="h-4 w-4" /> },
+  { key: 'rapor', label: 'Rapor', icon: <ClipboardList className="h-4 w-4" /> },
+  { key: 'gecmis', label: 'İşlem Geçmişi', icon: <History className="h-4 w-4" /> },
   { key: 'belgeler', label: 'Belgeler', icon: <FileText className="h-4 w-4" /> },
-  { key: 'goruntu', label: 'Görüntüleme', icon: <ImageIcon className="h-4 w-4" /> },
-  { key: 'ai', label: 'AI Ön Değerlendirme', icon: <Brain className="h-4 w-4" /> },
+  { key: 'ai', label: 'AI Ön Değerlendirme', icon: <Microscope className="h-4 w-4" /> },
 ]
+
+function DetailSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-busy="true" aria-label="Vaka yükleniyor">
+      <div className="h-10 w-2/3 rounded-lg bg-slate-100" />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="h-48 rounded-xl bg-slate-100" />
+        <div className="h-48 rounded-xl bg-slate-100" />
+      </div>
+      <div className="h-40 rounded-xl bg-slate-100" />
+    </div>
+  )
+}
 
 export default function CaseDetail() {
   const { id = '' } = useParams()
@@ -45,30 +62,78 @@ export default function CaseDetail() {
   const nav = useNavigate()
   const c = getCase(id)
   const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
+  const [loadError, setLoadError] = useState<string | null>(null)
   const tab = params.get('tab') ?? 'genel'
+
+  const reload = () => {
+    if (!id.startsWith('case-')) return
+    setLoading(true)
+    setLoadError(null)
+    void hydrateBackendCase(id).then((mapped) => {
+      if (!mapped) {
+        setLoadError('Vaka backend’den yüklenemedi. Yetki veya ağ sorununu kontrol edin.')
+      }
+      setLoading(false)
+    })
+  }
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
       setLoading(false)
+      setLoadError(null)
       return
     }
-    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak')) {
+    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak' || c.modality)) {
       setLoading(false)
+      setLoadError(null)
       return
     }
     setLoading(true)
-    void hydrateBackendCase(id).finally(() => setLoading(false))
-  }, [id, c?.fromBackend, c?.ai, c?.backendFindings, c?.status, hydrateBackendCase])
+    setLoadError(null)
+    let cancelled = false
+    void hydrateBackendCase(id).then((mapped) => {
+      if (cancelled) return
+      if (!mapped && !getCase(id)) {
+        setLoadError('Vaka backend’den yüklenemedi.')
+      }
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, c?.fromBackend, c?.ai, c?.backendFindings, c?.status, c?.modality, hydrateBackendCase, getCase])
 
   if (!c && loading) {
     return (
-      <Card>
-        <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Backend’den vaka yükleniyor…" />
+      <Card className="p-6">
+        <DetailSkeleton />
       </Card>
     )
   }
 
-  if (!c) return <Card><EmptyState icon={<FileSearch className="h-6 w-6" />} title="Vaka bulunamadı" action={<Link className="text-sm font-medium text-teal-700" to="/vakalar">Vakalara dön</Link>} /></Card>
+  if (!c) {
+    return (
+      <Card>
+        <EmptyState
+          icon={<FileSearch className="h-6 w-6" />}
+          title="Vaka bulunamadı"
+          text={loadError ?? 'Bu kimlik için kayıt yok veya erişim yok.'}
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              {id.startsWith('case-') && (
+                <Button size="sm" variant="secondary" onClick={reload}>
+                  Tekrar dene
+                </Button>
+              )}
+              <Link className="text-sm font-medium text-teal-700" to="/vakalar">
+                Vakalara dön
+              </Link>
+            </div>
+          }
+        />
+      </Card>
+    )
+  }
 
   return (
     <>
@@ -139,9 +204,12 @@ export default function CaseDetail() {
         ))}
       </div>
 
-      {tab === 'genel' && <Overview c={c} />}
-      {tab === 'belgeler' && <Documents c={c} />}
+      {tab === 'genel' && <Overview c={c} onOpenAiTab={() => setParams({ tab: 'bulgular' }, { replace: true })} />}
+      {tab === 'bulgular' && <AssessmentView c={c} />}
       {tab === 'goruntu' && <Imaging c={c} />}
+      {tab === 'rapor' && <ReportWorkspace c={c} />}
+      {tab === 'gecmis' && <CaseHistoryPanel c={c} />}
+      {tab === 'belgeler' && <Documents c={c} />}
       {tab === 'ai' && <AssessmentView c={c} />}
     </>
   )
@@ -156,7 +224,7 @@ function Row({ k, v }: { k: string; v: ReactNode }) {
   )
 }
 
-function Overview({ c }: { c: VetCase }) {
+function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
   const p = c.patient
   const n = c.neuro
   const loc = localize(n, c.clinical)
@@ -186,6 +254,62 @@ function Overview({ c }: { c: VetCase }) {
             </dl>
           </Card>
         </div>
+        <Card>
+          <CardHeader title="Görüntüleme & sınıflandırma" icon={<ImageIcon className="h-5 w-5" />} />
+          <dl className="divide-y divide-slate-50 px-5 py-2">
+            <Row k="Modalite / Bölge" v={`${c.modality ?? '—'} · ${c.anatomicalRegion ?? '—'}`} />
+            <Row
+              k="Sınıflandırma"
+              v={
+                c.classificationConfirmed
+                  ? 'Onaylandı (vaka oluşturuldu)'
+                  : 'Onay bekleniyor / bilinmiyor'
+              }
+            />
+            <Row
+              k="Study UID"
+              v={
+                <span className="break-all font-mono text-xs" title={c.studyInstanceUid}>
+                  {c.studyInstanceUid ?? '—'}
+                </span>
+              }
+            />
+            <Row
+              k="Seri / görüntü"
+              v={
+                c.seriesCount != null || c.instanceCount != null
+                  ? `${c.seriesCount ?? '—'} seri · ${c.instanceCount ?? '—'} görüntü`
+                  : '—'
+              }
+            />
+            <Row k="Demo analiz" v={analysisStatusLabel(c.status)} />
+            <Row k="Uzman inceleme" v={expertReviewLabel(c.status)} />
+            <Row
+              k="Rapor"
+              v={
+                c.status === 'onaylandi' ? (
+                  <Link className="font-medium text-teal-700 hover:underline" to={`/raporlar/${c.id}`}>
+                    Onaylı raporu aç
+                  </Link>
+                ) : c.backendDraft || c.aiDraft ? (
+                  <button type="button" className="font-medium text-teal-700 hover:underline" onClick={onOpenAiTab}>
+                    AI taslak (mock) — AI sekmesi
+                  </button>
+                ) : (
+                  'Henüz yok'
+                )
+              }
+            />
+          </dl>
+          <div className="border-t border-slate-100 px-5 py-3">
+            <Link
+              to={`/vakalar/${c.id}?tab=goruntu`}
+              className="text-sm font-medium text-teal-700 hover:underline"
+            >
+              DICOM görüntüleyiciye git →
+            </Link>
+          </div>
+        </Card>
         <Card>
           <CardHeader title="Nörolojik Muayene Özeti" icon={<Brain className="h-5 w-5" />} action={loc && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">Olası lokalizasyon: {loc.region}</span>} />
           <div className="grid gap-x-8 px-5 py-2 md:grid-cols-2">
@@ -794,5 +918,153 @@ function SourceList({ ids }: { ids: number[] }) {
         )
       })}
     </ul>
+  )
+}
+
+function ReportWorkspace({ c }: { c: VetCase }) {
+  const nav = useNavigate()
+  const draft = c.backendDraft
+  const prov = draft
+    ? `${draft.generation?.model_id ?? '—'} · v${draft.version ?? c.currentReportVersion ?? '—'}${draft.immutable ? ' · immutable' : ''}`
+    : c.aiDraft
+      ? 'Yerel prototip taslak'
+      : null
+
+  if (!draft && !c.aiDraft && !c.report) {
+    return (
+      <Card>
+        <EmptyState
+          icon={<FileText className="h-6 w-6" />}
+          title="Rapor henüz yok"
+          text="Analiz tamamlanıp taslak oluşunca burada görünecek. Desteklenmeyen/başarısız vakalarda AI taslağı yoktur."
+        />
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-navy-900">Rapor durumu</p>
+            <p className="mt-1 text-xs text-slate-600">
+              {draft?.status ?? c.status}
+              {draft?.expert_review_status ? ` · review=${draft.expert_review_status}` : ''}
+            </p>
+            <p className="mt-1 font-mono text-xs text-slate-500">{prov}</p>
+            {draft?.synthetic !== false && (
+              <p className="mt-2 text-xs font-semibold text-amber-800">DEMO / MOCK — klinik sertifikasyon değildir</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {c.status === 'onaylandi' && (
+              <Button size="sm" onClick={() => nav(`/raporlar/${c.id}`)}>
+                Print / PDF
+              </Button>
+            )}
+            {c.status === 'uzman_incelemesinde' && (
+              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>
+                Uzman inceleme
+              </Button>
+            )}
+          </div>
+        </div>
+        {draft?.validation_warnings && draft.validation_warnings.length > 0 && (
+          <ul className="mt-3 list-disc space-y-1 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-950">
+            {draft.validation_warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      {(draft || c.report || c.aiDraft) && (
+        <Card className="p-5">
+          <dl className="space-y-4 text-sm">
+            {[
+              ['Teknik', draft?.technique?.text ?? c.report?.klinikOzet ?? c.aiDraft?.klinikOzet],
+              ['Bulgular', draft?.findings?.text ?? c.report?.bulgular ?? c.aiDraft?.bulgular],
+              ['Değerlendirme', draft?.impression?.text ?? c.report?.degerlendirme ?? c.aiDraft?.degerlendirme],
+              ['Öneriler', draft?.recommendations?.text ?? c.report?.oneriler ?? c.aiDraft?.oneriler],
+            ].map(([label, text]) =>
+              text ? (
+                <div key={String(label)}>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{label}</dt>
+                  <dd className="mt-1 whitespace-pre-line text-navy-900">{text}</dd>
+                </div>
+              ) : null,
+            )}
+          </dl>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function CaseHistoryPanel({ c }: { c: VetCase }) {
+  const nav = useNavigate()
+  const versions = c.reportVersions ?? []
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader title="Rapor sürümleri" subtitle="Onaylı sürümler immutable — düzenlenemez" icon={<History className="h-5 w-5" />} />
+        {versions.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-500">
+            {c.fromBackend ? 'Henüz sürüm kaydı yok (analiz sonrası oluşur).' : 'Yerel prototip — backend sürüm geçmişi yok.'}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {versions
+              .slice()
+              .sort((a, b) => b.version - a.version)
+              .map((v) => (
+                <li key={v.version} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm">
+                    <p className="font-semibold text-navy-900">
+                      v{v.version}
+                      {v.is_current ? ' · güncel' : ''}
+                      {v.immutable ? ' · kilitli' : ''}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {v.status} · {v.expert_review_status}
+                      {v.reviewed_by ? ` · ${v.reviewed_by}` : ''} · {fmtDate(v.updated_at)}
+                    </p>
+                    {v.revision_notes && <p className="mt-1 text-xs text-slate-600">{v.revision_notes}</p>}
+                    <p className="mt-0.5 font-mono text-[11px] text-slate-400">
+                      {v.source_kind} · {v.model_id}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={v.status !== 'approved'}
+                    onClick={() => nav(`/raporlar/${c.id}?version=${v.version}`)}
+                  >
+                    {v.status === 'approved' ? 'Görüntüle / PDF' : 'Salt okunur'}
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        )}
+      </Card>
+      <Card>
+        <CardHeader title="İnceleme olayları" icon={<ClipboardList className="h-5 w-5" />} />
+        <ul className="divide-y divide-slate-100 px-5 py-2 text-sm">
+          {c.timeline.length === 0 ? (
+            <li className="py-3 text-slate-500">Kayıt yok</li>
+          ) : (
+            c.timeline.map((t, i) => (
+              <li key={`${t.date}-${i}`} className="py-2">
+                <p className="font-medium text-navy-900">{t.label}</p>
+                <p className="text-xs text-slate-500">
+                  {t.date}
+                  {t.by ? ` · ${t.by}` : ''}
+                </p>
+              </li>
+            ))
+          )}
+        </ul>
+      </Card>
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { KB_SOURCES, SEED_CASES, USERS } from '../data/mock'
 import { loadSession, logout as clearAuthSession, userFromSession, type DemoSession } from '../lib/auth'
 import { BackendUnavailableError, getBackendCase, listBackendCases } from '../lib/backend'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
+import { clearDicomCaseCache } from '../lib/dicomCaseCache'
 
 export interface Toast {
   id: number
@@ -109,6 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     clearAuthSession()
+    void clearDicomCaseCache()
     setSession(null)
     setRoleState(null)
     setSourceId(null)
@@ -117,6 +119,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setRole = useCallback((r: Role | null) => {
     if (r === null) {
       clearAuthSession()
+      void clearDicomCaseCache()
       setSession(null)
       setRoleState(null)
       setSourceId(null)

@@ -41,6 +41,12 @@ class ModelInputFrameRef(BaseModel):
     has_pixel_data: bool = False
     pixel_tensor_ready: bool = False
     quarantine_relative_path: Optional[str] = None
+    # Geometry / transfer metadata for future prep (never invent when missing).
+    transfer_syntax_uid: Optional[str] = None
+    pixel_spacing: Optional[str] = None
+    slice_thickness: Optional[str] = None
+    image_orientation_patient: Optional[str] = None
+    image_position_patient: Optional[str] = None
     note: str = "Frame reference only. Real adapters may load pixels via quarantine/secure store."
 
 

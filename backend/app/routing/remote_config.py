@@ -114,4 +114,11 @@ def remote_capability_from_settings(settings: Settings) -> ModelCapability | Non
         enabled=bool(settings.vision_enabled),
         description="Remote HTTP Vision/VLM adapter (configured)",
         source_kind=source_kind,
+        # Remains False until a pixel-capable remote is explicitly configured later.
+        allows_pixel_analysis=False,
+        model_version=getattr(settings, "vision_model_version", None) or "0.1.0-http",
+        input_contract_id="imaging-model-input/1.0.0",
+        output_schema_version="1.1.0",
+        timeout_s=float(getattr(settings, "vision_timeout_s", 30.0) or 30.0),
+        resource_hint="remote",
     )

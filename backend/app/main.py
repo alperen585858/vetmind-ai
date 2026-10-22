@@ -46,19 +46,27 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     @app.get("/api/v1/health")
     def health() -> dict[str, str | bool | None]:
         c: AppContainer = app.state.container
+        # Protected / auth-enabled: do not leak absolute filesystem paths.
+        expose_paths = c.auth.deployment_mode == "demo" and not c.auth.enabled
         sqlite_path = ""
-        if c.storage_backend == "sqlite":
-            sqlite_path = str(c.settings.sqlite_path)
+        quarantine_root = ""
+        if expose_paths:
+            if c.storage_backend == "sqlite":
+                sqlite_path = str(c.settings.sqlite_path)
+            quarantine_root = str(c.settings.quarantine_root)
         return {
             "status": "ok",
             "mode": "mock",
             "version": __version__,
             "storage": c.storage_backend,
             "sqlite_path": sqlite_path,
-            "quarantine_root": str(c.settings.quarantine_root),
+            "quarantine_root": quarantine_root,
             "rag": c.rag_method,
             "job_backend": c.job_backend.name,
             "auth_enabled": c.auth.enabled,
+            "deployment_mode": c.auth.deployment_mode,
+            "tenant_isolation": c.auth.tenant_isolation,
+            "encryption_at_rest": c.encryption.mode,
             "vision_endpoint": bool(c.settings.vision_endpoint),
             "vision_execution_policy": c.settings.vision_execution_policy,
             "llm_provider": c.settings.llm_provider,

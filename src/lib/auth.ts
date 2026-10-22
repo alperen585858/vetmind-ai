@@ -95,14 +95,42 @@ export function loadSession(): DemoSession | null {
   }
 }
 
+const PROTECTED_TOKEN_KEY = 'vetmind.backend.jwt.session'
+
+/** When true, JWT is kept in sessionStorage (cleared when the tab/browser session ends). */
+let preferSessionToken = false
+
+export function setProtectedTokenMode(enabled: boolean) {
+  preferSessionToken = enabled
+  if (enabled) {
+    try {
+      const existing = localStorage.getItem(BACKEND_TOKEN_KEY)
+      if (existing) {
+        sessionStorage.setItem(PROTECTED_TOKEN_KEY, existing)
+        localStorage.removeItem(BACKEND_TOKEN_KEY)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
   localStorage.removeItem(BACKEND_TOKEN_KEY)
+  try {
+    sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getBackendAccessToken(): string | null {
   try {
-    return localStorage.getItem(BACKEND_TOKEN_KEY)
+    if (preferSessionToken) {
+      return sessionStorage.getItem(PROTECTED_TOKEN_KEY) || localStorage.getItem(BACKEND_TOKEN_KEY)
+    }
+    return localStorage.getItem(BACKEND_TOKEN_KEY) || sessionStorage.getItem(PROTECTED_TOKEN_KEY)
   } catch {
     return null
   }
@@ -110,8 +138,18 @@ export function getBackendAccessToken(): string | null {
 
 export function setBackendAccessToken(token: string | null) {
   try {
-    if (!token) localStorage.removeItem(BACKEND_TOKEN_KEY)
-    else localStorage.setItem(BACKEND_TOKEN_KEY, token)
+    if (!token) {
+      localStorage.removeItem(BACKEND_TOKEN_KEY)
+      sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
+      return
+    }
+    if (preferSessionToken) {
+      sessionStorage.setItem(PROTECTED_TOKEN_KEY, token)
+      localStorage.removeItem(BACKEND_TOKEN_KEY)
+    } else {
+      localStorage.setItem(BACKEND_TOKEN_KEY, token)
+      sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
+    }
   } catch {
     /* ignore */
   }

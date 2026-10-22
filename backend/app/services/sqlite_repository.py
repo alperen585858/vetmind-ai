@@ -23,7 +23,8 @@ class SqliteCaseRepository:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL;")
+        # DELETE is more portable than WAL (some sandboxed/tmp FS reject -wal/-shm sidecars).
+        self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.execute("PRAGMA foreign_keys=ON;")
         self._init_schema()
 

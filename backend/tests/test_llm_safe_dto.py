@@ -105,6 +105,8 @@ def test_generation_input_excludes_disallowed_fields() -> None:
     assert "Authorization" not in blob
     assert payload["case_id"] == "case-safe"
     assert payload["document_context_file_count"] == 1
+    assert payload["findings_source_kind"] == findings.source_kind.value
+    assert payload["rag_is_clinical_validation"] is False
     assert isinstance(gen, LLMGenerationInput)
 
 

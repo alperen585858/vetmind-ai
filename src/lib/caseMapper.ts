@@ -99,7 +99,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
   return {
     id: s.case_id,
     no: s.case_id.replace(/^case-/, 'VM-').toUpperCase(),
-    patient: basePatient(s.patient_name, species),
+    patient: basePatient(s.patient_name, species, s.breed),
     clinical: emptyClinical(),
     neuro: EMPTY_NEURO,
     documents: [],
@@ -115,6 +115,12 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     backendJobId: s.latest_job_id ?? undefined,
     fromBackend: true,
     statusNote: modalityNote(s.modality, s.anatomical_region),
+    modality: s.modality,
+    anatomicalRegion: s.anatomical_region,
+    classificationConfirmed: s.classification_confirmed ?? true,
+    studyInstanceUid: s.study_instance_uid ?? undefined,
+    seriesCount: s.series_count ?? undefined,
+    instanceCount: s.instance_count ?? undefined,
   }
 }
 
@@ -143,7 +149,23 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
   } else if (r.structured_findings && !r.draft_report) {
     backendFindings = r.structured_findings
     backendOutcome = status === 'analiz_basarisiz' ? 'failed' : 'unsupported'
+  } else if (r.draft_report) {
+    backendDraft = r.draft_report
+    aiDraft = draftToSections(backendDraft)
+    report = { ...aiDraft }
   }
+
+  const approveEntry = [...(r.review_history ?? [])].reverse().find((h) => h.action === 'approve')
+  const approvedBy = approveEntry?.reviewer_id
+  // Backend ReviewFeedback has no timestamp; case.updated_at is the best persisted signal after approve.
+  const approvedAt = status === 'onaylandi' ? r.updated_at.slice(0, 10) : undefined
+  const reportNo = status === 'onaylandi' ? r.case_id.replace(/^case-/, 'VMR-').toUpperCase() : undefined
+
+  const reviewEvents = (r.review_history ?? []).map((h) => ({
+    date: r.updated_at,
+    label: `Review: ${h.action}${h.comment ? ` — ${h.comment}` : ''}`,
+    by: h.reviewer_id,
+  }))
 
   const docs =
     r.study?.dicom_available || r.dicom_study
@@ -186,22 +208,124 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     timeline: [
       { date: r.created_at, label: 'Backend vakası', by: 'api' },
       ...(r.latest_job_id ? [{ date: r.updated_at, label: `Son job: ${r.latest_job_id}`, by: 'backend' }] : []),
+      ...reviewEvents,
     ],
     backendCaseId: r.case_id,
     backendJobId: r.latest_job_id ?? undefined,
     backendOutcome,
     backendFindings,
     backendDraft,
+    reportVersions: (r.report_versions || []).map((v) => ({
+      version: v.version,
+      report_id: v.report_id,
+      case_id: v.case_id,
+      created_at: v.created_at,
+      updated_at: v.updated_at,
+      author_or_source: v.author_or_source,
+      status: v.status,
+      expert_review_status: v.expert_review_status,
+      immutable: Boolean(v.immutable),
+      revision_notes: v.revision_notes,
+      reviewed_by: v.reviewed_by,
+      source_kind: v.source_kind,
+      model_id: v.model_id,
+      model_version: v.model_version,
+      synthetic: Boolean(v.synthetic),
+      is_current: Boolean(v.is_current) || v.version === r.current_report_version,
+    })),
+    currentReportVersion: r.current_report_version ?? r.draft_report?.version ?? undefined,
     fromBackend: true,
-    statusNote: modalityNote(r.modality, r.anatomical_region),
+    approvedBy: approvedBy ?? r.draft_report?.reviewed_by ?? undefined,
+    approvedAt,
+    reportNo,
+    statusNote:
+      r.draft_report?.reviewer_comment ||
+      modalityNote(r.modality, r.anatomical_region),
+    modality: r.modality,
+    anatomicalRegion: r.anatomical_region,
+    classificationConfirmed: r.classification_confirmed,
+    studyInstanceUid: r.study?.study_instance_uid ?? r.dicom_study?.study_instance_uid ?? undefined,
+    seriesCount: r.study?.series_count ?? r.dicom_study?.series?.length ?? undefined,
+    instanceCount:
+      r.study?.instance_count ??
+      r.dicom_study?.series?.reduce((n, s) => n + s.instances.length, 0) ??
+      undefined,
   }
 }
 
-/** Merge: backend cases replace same ids; keep local-only demo seeds. */
+/** Expert-review facing label derived from case status (no invented review records). */
+export function expertReviewLabel(status: CaseStatus): string {
+  switch (status) {
+    case 'uzman_incelemesinde':
+      return 'Bekliyor'
+    case 'onaylandi':
+      return 'Onaylandı'
+    case 'reddedildi':
+      return 'Reddedildi'
+    case 'revizyon':
+      return 'Revizyon'
+    case 'manuel_inceleme':
+      return 'Manuel'
+    case 'analiz_basarisiz':
+      return 'Analiz yok'
+    case 'ai_analizi':
+    case 'isleniyor':
+      return 'Analiz sürüyor'
+    default:
+      return '—'
+  }
+}
+
+export function analysisStatusLabel(status: CaseStatus): string {
+  switch (status) {
+    case 'taslak':
+      return 'Bekliyor'
+    case 'isleniyor':
+    case 'ai_analizi':
+      return 'Demo analiz'
+    case 'uzman_incelemesinde':
+    case 'onaylandi':
+    case 'reddedildi':
+    case 'revizyon':
+      return 'Tamamlandı (mock)'
+    case 'analiz_basarisiz':
+      return 'Başarısız'
+    case 'manuel_inceleme':
+      return 'Desteklenmiyor'
+    default:
+      return status
+  }
+}
+
+/**
+ * Merge list sync with in-memory cases.
+ * Preserves hydrated report/findings when list API returns summary-only rows
+ * (critical for print-PDF after refreshBackendCases).
+ */
 export function mergeBackendCases(local: VetCase[], backend: VetCase[]): VetCase[] {
-  const backendIds = new Set(backend.map((c) => c.id))
+  const hydrated = new Map(
+    local
+      .filter((c) => c.fromBackend && (c.backendDraft || c.backendFindings || c.report))
+      .map((c) => [c.id, c]),
+  )
+  const mergedBackend = backend.map((row) => {
+    const prev = hydrated.get(row.id)
+    if (!prev) return row
+    return {
+      ...prev,
+      status: row.status,
+      backendJobId: row.backendJobId ?? prev.backendJobId,
+      modality: row.modality ?? prev.modality,
+      anatomicalRegion: row.anatomicalRegion ?? prev.anatomicalRegion,
+      studyInstanceUid: row.studyInstanceUid ?? prev.studyInstanceUid,
+      seriesCount: row.seriesCount ?? prev.seriesCount,
+      instanceCount: row.instanceCount ?? prev.instanceCount,
+      classificationConfirmed: row.classificationConfirmed ?? prev.classificationConfirmed,
+      fromBackend: true,
+    }
+  })
+  const backendIds = new Set(mergedBackend.map((c) => c.id))
   const keptLocal = local.filter((c) => !c.fromBackend && !backendIds.has(c.id) && c.id !== c.backendCaseId)
-  // Drop local shadows that already point at a backend id
   const cleaned = keptLocal.filter((c) => !c.backendCaseId || !backendIds.has(c.backendCaseId))
-  return [...backend, ...cleaned]
+  return [...mergedBackend, ...cleaned]
 }

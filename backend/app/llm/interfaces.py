@@ -3,7 +3,14 @@ from typing import Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.schemas.rag import RagPassage
 from app.schemas.report import DraftReport
 
@@ -58,7 +65,11 @@ class LLMFindingRef(BaseModel):
 
 
 class LLMGenerationInput(BaseModel):
-    """Safe outbound generation context — no CaseRecord, quarantine paths, or credentials."""
+    """Safe outbound generation context — no CaseRecord, quarantine paths, or credentials.
+
+    ``findings`` are clinical-model outputs. ``rag_passages`` are retrieval context only
+    and must never be treated as clinical validation of those findings.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -68,13 +79,18 @@ class LLMGenerationInput(BaseModel):
     anatomical_region: AnatomicalRegion
     clinical_history: Optional[str] = None
     findings: list[LLMFindingRef] = Field(default_factory=list)
+    findings_source_kind: SourceKind = SourceKind.MOCK
+    findings_model_id: Optional[str] = None
+    findings_model_version: Optional[str] = None
     execution_status: ModelExecutionStatus
     no_findings_returned: bool = False
     document_context_file_count: int = 0
     rag_passages: list[RagPassage] = Field(default_factory=list)
+    rag_is_clinical_validation: bool = False
     note: str = (
         "Minimal LLM generation input. Opaque case_id for traceability only. "
-        "Not clinically validated. Do not send storage paths or credentials."
+        "findings_source_kind traces imaging provenance separately from rag_passages. "
+        "RAG is never clinical validation. Do not send storage paths or credentials."
     )
 
 

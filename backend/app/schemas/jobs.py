@@ -17,9 +17,15 @@ class AnalysisJob(BaseModel):
     outcome: Optional[PipelineOutcome] = None
     error_message: Optional[str] = None
     routed_model_ids: list[str] = Field(default_factory=list)
+    routed_model_versions: list[str] = Field(default_factory=list)
     route_reason: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    # Phase 3 job control — cancel is cooperative; FE poll abort ≠ cancel.
+    cancel_requested: bool = False
+    idempotency_key: Optional[str] = None
+    timeout_s: Optional[float] = None
+    analysis_mode: str = "mock"  # mock | real | mixed — advisory from routed source_kinds
 
 
 class PipelineResult(BaseModel):

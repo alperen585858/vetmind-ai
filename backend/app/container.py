@@ -1,4 +1,5 @@
 from app.auth.security import DEMO_USERS, AuthSettings
+from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
 from app.models.http_vision import build_optional_http_vision
@@ -13,11 +14,15 @@ from app.routing.model_router import ModelRouter
 from app.routing.registry_validation import validate_registry_capabilities
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
+from app.security.audit import AuditLogger
+from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
-from app.settings import Settings, load_settings
+from app.settings import Settings, load_settings, validate_security_settings
+from app.storage.encryption import encryption_status
+from app.storage.malware_scan import build_scanner
 from app.storage.quarantine import QuarantineStore
 from app.validation.report_validator import ReportValidator
 from app.workers.job_backend import build_job_backend
@@ -30,13 +35,28 @@ class AppContainer:
         settings: Settings | None = None,
     ) -> None:
         self.settings = settings or load_settings()
+        validate_security_settings(self.settings)
         self.repo = repo if repo is not None else build_repository(self.settings)
         self.storage_backend = (
             "memory"
             if isinstance(self.repo, InMemoryCaseRepository)
             else self.settings.storage_backend
         )
-        self.quarantine = QuarantineStore(self.settings.quarantine_root)
+        self.quarantine = QuarantineStore(
+            self.settings.quarantine_root,
+            max_file_bytes=25 * 1024 * 1024,
+        )
+        self.audit = AuditLogger(self.settings.audit_log_path)
+        self.encryption = encryption_status(self.settings.encryption_at_rest)
+        self.malware_scanner = build_scanner(required=self.settings.malware_scan_required)
+        self.retention_policy = RetentionPolicy(
+            dicom_days=self.settings.retention_dicom_days,
+            temp_hours=self.settings.retention_temp_hours,
+            artifacts_days=self.settings.retention_artifacts_days,
+            reports_days=self.settings.retention_reports_days,
+            logs_days=self.settings.retention_logs_days,
+            preserve_approved_reports=True,
+        )
 
         if self.settings.rag_backend == "lexical":
             self.rag = LexicalRagRetriever()
@@ -58,6 +78,8 @@ class AppContainer:
                 endpoint=self.settings.vision_endpoint,
                 model_id=remote_cap.model_id,
                 api_key=self.settings.vision_api_key,
+                timeout_s=self.settings.vision_timeout_s,
+                version=self.settings.vision_model_version,
             )
             if remote is None:
                 raise RuntimeError("vision_endpoint set but remote adapter was not built.")
@@ -71,6 +93,7 @@ class AppContainer:
             self.settings.vision_execution_policy
         )
         self.router = ModelRouter(capabilities=capabilities)
+        self.imaging_prep = MetadataOnlyPreparationPipeline(capabilities=capabilities)
         self.scenario_policy = ScenarioRoutingPolicy()
         self.execution_policy = ModelExecutionPolicy(
             mode=self.vision_execution_mode,
@@ -99,8 +122,18 @@ class AppContainer:
             self.validator,
             async_delay_ms=self.settings.async_analyze_delay_ms,
             job_backend=self.job_backend,
+            tenant_isolation=self.settings.tenant_isolation,
+            audit=self.audit,
+            max_concurrent_analyze=self.settings.max_concurrent_analyze,
         )
-        self.dicom = DicomService(self.repo, self.quarantine)
+        self.dicom = DicomService(
+            self.repo,
+            self.quarantine,
+            capabilities=capabilities,
+            tenant_isolation=self.settings.tenant_isolation,
+            audit=self.audit,
+            malware_scanner=self.malware_scanner,
+        )
         self.documents = DocumentService(self.repo, self.quarantine)
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,
@@ -108,4 +141,6 @@ class AppContainer:
             jwt_secret=self.settings.jwt_secret,
             jwt_ttl_seconds=self.settings.jwt_ttl_seconds,
             users=DEMO_USERS,
+            tenant_isolation=self.settings.tenant_isolation,
+            deployment_mode=self.settings.deployment_mode,
         )

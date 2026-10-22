@@ -13,6 +13,7 @@ from typing import Any, Optional
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.http_policy import vision_http_policy
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
 from app.schemas.case import CaseRecord
@@ -48,6 +49,8 @@ class RemoteFindingPayload(BaseModel):
     evidence_references: list[RemoteEvidencePayload] = Field(default_factory=list)
     uncertainty_note: Optional[str] = None
     synthetic: Optional[bool] = None
+    # Optional model-provided confidence — never invented by VetMind if absent.
+    model_confidence: Optional[float] = None
 
 
 class RemoteVisionResponse(BaseModel):
@@ -123,9 +126,15 @@ class HttpRemoteVisionModel:
             "clinical_history": case.clinical_history,
             "note": "Remote Vision request. Server must not invent clinical certainty.",
         }
+        policy = vision_http_policy(self._timeout_s)
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with httpx.Client(timeout=policy.timeout_s) as client:
+                # POST is never auto-retried (non-idempotent inference).
                 res = client.post(self._endpoint, json=payload, headers=headers)
+        except httpx.TimeoutException as exc:
+            raise ImagingAdapterError(
+                f"Remote vision timed out after {policy.timeout_s}s."
+            ) from exc
         except httpx.HTTPError as exc:
             raise ImagingAdapterError(f"Remote vision HTTP error: {type(exc).__name__}: {exc}") from exc
 
@@ -207,6 +216,11 @@ class HttpRemoteVisionModel:
             absences_not_confirmed=True,
             contributing_model_ids=[self.model_id],
             contributing_source_kinds=[source_kind],
+            processing_metadata={
+                "adapter": "http_remote_vision",
+                "timeout_s": str(self._timeout_s),
+                "endpoint_configured": "true",
+            },
         )
 
     def _map_finding(
@@ -267,6 +281,20 @@ class HttpRemoteVisionModel:
                 )
             )
 
+        confidence: float | None = None
+        if item.model_confidence is not None:
+            try:
+                conf = float(item.model_confidence)
+            except (TypeError, ValueError) as exc:
+                raise ImagingAdapterError(
+                    f"Finding {fid}: model_confidence must be a number when present."
+                ) from exc
+            if conf < 0.0 or conf > 1.0:
+                raise ImagingAdapterError(
+                    f"Finding {fid}: model_confidence={conf} out of range [0, 1]."
+                )
+            confidence = conf
+
         return Finding(
             finding_id=fid,
             finding_code=code,
@@ -279,6 +307,7 @@ class HttpRemoteVisionModel:
             evidence_references=evidence,
             uncertainty_note=str(item.uncertainty_note or "Remote model uncertainty."),
             synthetic=synthetic,
+            model_confidence=confidence,
         )
 
 
@@ -287,7 +316,15 @@ def build_optional_http_vision(
     endpoint: str | None,
     model_id: str = "remote-vision-v1",
     api_key: str | None = None,
+    timeout_s: float = 30.0,
+    version: str = "0.1.0-http",
 ) -> ImagingModel | None:
     if not endpoint:
         return None
-    return HttpRemoteVisionModel(model_id=model_id, endpoint=endpoint, api_key=api_key)
+    return HttpRemoteVisionModel(
+        model_id=model_id,
+        endpoint=endpoint,
+        api_key=api_key,
+        timeout_s=timeout_s,
+        version=version,
+    )

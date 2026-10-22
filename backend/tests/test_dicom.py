@@ -68,10 +68,16 @@ def test_duplicate_sop_reported() -> None:
     # Same bytes twice → same SOP UID → duplicate
     files = [files[0], ("dup.dcm", files[0][1])]
     result = ingest_dicom_files(files)
-    assert any(i.code == DicomValidationCode.DUPLICATE_SOP for i in result.issues)
+    dups = [i for i in result.issues if i.code == DicomValidationCode.DUPLICATE_SOP]
+    assert len(dups) == 1
+    assert dups[0].severity.value == "warning"
+    assert "kept" in dups[0].message.lower() or "dropped" in dups[0].message.lower()
     assert result.blocked is False
     assert result.study is not None
     assert result.study.instance_count == 1
+    # Identity tree has unique SOPs after soft-dedupe
+    sops = [i.sop_instance_uid for s in result.study.series for i in s.instances]
+    assert len(sops) == len(set(sops)) == 1
 
 
 def test_classifier_unknown_without_tokens() -> None:
@@ -203,6 +209,115 @@ def test_api_demo_fixture_brain(client: TestClient) -> None:
     analyzed = client.post(f"/api/v1/cases/{confirmed.json()['case_id']}/analyze")
     assert analyzed.status_code == 200
     assert analyzed.json()["outcome"] == "success"
+
+
+def test_case_list_includes_study_summary_fields(client: TestClient) -> None:
+    upload = client.post(
+        "/api/v1/dicom/demo/brain_mri",
+        data={"patient_name": "List Pax", "species": "canine", "breed": "Retriever"},
+    )
+    ingest_id = upload.json()["ingest_id"]
+    confirmed = client.post(
+        f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
+        json={"accept_suggestion": True},
+    )
+    assert confirmed.status_code == 200
+    listing = client.get("/api/v1/cases")
+    assert listing.status_code == 200
+    row = next(r for r in listing.json() if r["case_id"] == confirmed.json()["case_id"])
+    assert row["breed"] == "Retriever"
+    assert row["modality"] == "MR"
+    assert row["classification_confirmed"] is True
+    assert row["study_instance_uid"]
+    assert row["series_count"] >= 1
+    assert row["instance_count"] >= 1
+
+
+def test_analyze_blocked_when_classification_unconfirmed(client: TestClient) -> None:
+    """Invalid transition: analyze requires classification_confirmed."""
+    from app.schemas.enums import CaseLifecycleStatus
+    from tests.conftest import make_payload
+
+    payload = make_payload().model_dump(mode="json")
+    created = client.post("/api/v1/cases", json=payload)
+    assert created.status_code == 201
+    case_id = created.json()["case_id"]
+
+    container = client.app.state.container
+    case = container.cases.get_case(case_id)
+    case.classification_confirmed = False
+    case.status = CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION
+    container.repo.save_case(case)
+    denied = client.post(f"/api/v1/cases/{case_id}/analyze")
+    assert denied.status_code == 409
+    assert "classification" in denied.json()["detail"].lower()
+
+
+def test_confirm_wires_consent_flags_without_pixel_auth(client: TestClient) -> None:
+    """UI consent maps to case flags; mock adapters still cannot run pixel inference."""
+    upload = client.post(
+        "/api/v1/dicom/demo/brain_mri",
+        data={"patient_name": "Consent Pax", "species": "canine"},
+    )
+    assert upload.status_code == 201
+    ingest_id = upload.json()["ingest_id"]
+    confirmed = client.post(
+        f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
+        json={
+            "accept_suggestion": True,
+            "imaging_source_permission_verified": True,
+            "imaging_analysis_consent_verified": True,
+        },
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    case = confirmed.json()
+    assert case["imaging_source_permission_verified"] is True
+    assert case["imaging_analysis_consent_verified"] is True
+    assert case["study"]["metadata_only"] is True
+    model_input = case.get("model_input") or {}
+    # Consent alone must not authorize pixels for mock capabilities.
+    assert model_input.get("pixel_analysis_authorized") is False
+    assert model_input.get("metadata_only") is True
+    prepared = model_input.get("prepared_for_models") or []
+    assert any(str(m).startswith("mock-") for m in prepared)
+
+
+def test_api_upload_rejects_oversized_per_file(client: TestClient, monkeypatch) -> None:
+    """Per-file budget is enforced (TestClient cannot reliably ship 25+ MiB bodies)."""
+    import app.api.dicom as dicom_api
+
+    monkeypatch.setattr(dicom_api, "_MAX_FILE_BYTES", 1_000)
+    monkeypatch.setattr(dicom_api, "_MAX_TOTAL_BYTES", 50_000)
+    chunk = b"x" * 1_500
+    res = client.post(
+        "/api/v1/dicom/upload",
+        data={"patient_name": "Big", "species": "canine"},
+        files=[("files", ("big.dcm", chunk, "application/dicom"))],
+    )
+    assert res.status_code == 413
+
+
+def test_api_upload_rejects_total_budget(client: TestClient, monkeypatch) -> None:
+    """When each file is under per-file cap, total still cannot exceed aggregate."""
+    import app.api.dicom as dicom_api
+
+    monkeypatch.setattr(dicom_api, "_MAX_TOTAL_BYTES", 5_000)
+    monkeypatch.setattr(dicom_api, "_MAX_FILE_BYTES", 4_000)
+    # Tiny opaque blobs (not real studies) — only size accounting is under test.
+    a = b"A" * 3_000
+    b = b"B" * 3_000
+    assert len(a) <= 4_000 and len(b) <= 4_000
+    assert len(a) + len(b) > 5_000
+    res = client.post(
+        "/api/v1/dicom/upload",
+        data={"patient_name": "Budget", "species": "canine"},
+        files=[
+            ("files", ("a.dcm", a, "application/dicom")),
+            ("files", ("b.dcm", b, "application/dicom")),
+        ],
+    )
+    assert res.status_code == 413
+    assert "Total upload exceeds" in res.json()["detail"]
 
 
 def test_case_dicom_files_from_quarantine(client: TestClient) -> None:

@@ -73,6 +73,9 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCEL_REQUESTED = "cancel_requested"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
 
 
 class PipelineOutcome(str, Enum):

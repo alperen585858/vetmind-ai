@@ -30,6 +30,12 @@ class ParsedInstance:
     patient_name: Optional[str] = None
     transfer_syntax_uid: Optional[str] = None
     series_number: Optional[int] = None
+    rows: Optional[int] = None
+    columns: Optional[int] = None
+    pixel_spacing: Optional[str] = None
+    slice_thickness: Optional[str] = None
+    image_orientation_patient: Optional[str] = None
+    image_position_patient: Optional[str] = None
     has_pixel_data: bool = False
     malformed: bool = False
     error_message: Optional[str] = None
@@ -132,5 +138,11 @@ def parse_dicom_bytes(data: bytes, filename: str) -> ParsedInstance:
         patient_name=_tag_str(ds, "PatientName"),
         transfer_syntax_uid=transfer_syntax,
         series_number=_tag_int(ds, "SeriesNumber"),
+        rows=_tag_int(ds, "Rows"),
+        columns=_tag_int(ds, "Columns"),
+        pixel_spacing=_tag_str(ds, "PixelSpacing"),
+        slice_thickness=_tag_str(ds, "SliceThickness"),
+        image_orientation_patient=_tag_str(ds, "ImageOrientationPatient"),
+        image_position_patient=_tag_str(ds, "ImagePositionPatient"),
         has_pixel_data=has_pixel,
     )

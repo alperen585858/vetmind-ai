@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 
 from app.api.deps import get_dicom_service
-from app.auth.deps import require_auth, require_capability
+from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_DICOM
 from app.dicom.fixtures import (
     brain_ct_study_files,
@@ -25,6 +25,7 @@ router = APIRouter(
 
 _MAX_FILES = 200
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
+_MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MiB aggregate per upload
 _MAX_VIEW_FIXTURES = 24
 DemoFixtureKind = Literal["brain_mri", "cervical_mri", "brain_ct", "thorax_xr"]
 
@@ -61,6 +62,7 @@ async def upload_dicom(
     clinical_history: str | None = Form(default=None),
     referring_clinic: str | None = Form(default=None),
     service: DicomService = Depends(get_dicom_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> DicomUploadResponse:
     if not files:
         return service.upload(
@@ -70,6 +72,7 @@ async def upload_dicom(
             breed=breed,
             clinical_history=clinical_history,
             referring_clinic=referring_clinic,
+            principal=principal,
         )
     if len(files) > _MAX_FILES:
         raise HTTPException(
@@ -78,12 +81,19 @@ async def upload_dicom(
         )
 
     parsed_files: list[tuple[str, bytes]] = []
+    total_bytes = 0
     for upload in files:
         data = await upload.read()
         if len(data) > _MAX_FILE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File '{upload.filename}' exceeds {_MAX_FILE_BYTES} bytes.",
+            )
+        total_bytes += len(data)
+        if total_bytes > _MAX_TOTAL_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Total upload exceeds {_MAX_TOTAL_BYTES} bytes.",
             )
         name = upload.filename or "unnamed.dcm"
         parsed_files.append((name, data))
@@ -95,6 +105,7 @@ async def upload_dicom(
         breed=breed,
         clinical_history=clinical_history,
         referring_clinic=referring_clinic,
+        principal=principal,
     )
 
 
@@ -107,6 +118,7 @@ def upload_demo_fixture(
     clinical_history: str | None = Form(default=None),
     referring_clinic: str | None = Form(default=None),
     service: DicomService = Depends(get_dicom_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> DicomUploadResponse:
     """Ingest synthetic DICOM fixtures (no real PHI). Same response shape as /upload."""
     files = _demo_files(kind)
@@ -118,6 +130,7 @@ def upload_demo_fixture(
         clinical_history=clinical_history
         or f"Demo DICOM metadata ingest ({kind}). Synthetic only — not clinical imagery.",
         referring_clinic=referring_clinic,
+        principal=principal,
     )
 
 
@@ -148,8 +161,12 @@ def download_demo_fixture(
 
 
 @router.get("/ingestions/{ingest_id}", response_model=DicomIngestionRecord)
-def get_ingestion(ingest_id: str, service: DicomService = Depends(get_dicom_service)) -> DicomIngestionRecord:
-    return service.get_ingestion(ingest_id)
+def get_ingestion(
+    ingest_id: str,
+    service: DicomService = Depends(get_dicom_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> DicomIngestionRecord:
+    return service.get_ingestion(ingest_id, principal=principal)
 
 
 @router.post("/ingestions/{ingest_id}/confirm", response_model=CaseRecord)
@@ -157,5 +174,6 @@ def confirm_classification(
     ingest_id: str,
     payload: ConfirmClassificationRequest,
     service: DicomService = Depends(get_dicom_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
-    return service.confirm(ingest_id, payload)
+    return service.confirm(ingest_id, payload, principal=principal)

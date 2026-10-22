@@ -55,10 +55,14 @@ def build_generation_input(
             )
             for f in findings.findings
         ],
+        findings_source_kind=findings.source_kind,
+        findings_model_id=findings.source_model_id,
+        findings_model_version=findings.source_model_version,
         execution_status=findings.execution_status,
         no_findings_returned=findings.no_findings_returned,
         document_context_file_count=doc_count,
         rag_passages=list(rag_passages or []),
+        rag_is_clinical_validation=False,
     )
 
 

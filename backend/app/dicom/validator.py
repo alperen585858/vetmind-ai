@@ -157,10 +157,11 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
         assert item.sop_instance_uid is not None
         prior = seen_sops.get(item.sop_instance_uid)
         if prior is not None:
+            # Soft-dedupe: keep first instance, warn (not hard-fail) so upload can continue.
             issues.append(
-                _error(
+                _warning(
                     DicomValidationCode.DUPLICATE_SOP,
-                    f"Duplicate SOPInstanceUID (also in '{prior}').",
+                    f"Duplicate SOPInstanceUID dropped (kept '{prior}').",
                     filename=item.filename,
                     sop=item.sop_instance_uid,
                 )
@@ -251,6 +252,12 @@ def _build_study(instances: list[ParsedInstance]) -> DicomStudyMeta:
                 instance_number=item.instance_number,
                 filename=item.filename,
                 transfer_syntax_uid=item.transfer_syntax_uid,
+                rows=item.rows,
+                columns=item.columns,
+                pixel_spacing=item.pixel_spacing,
+                slice_thickness=item.slice_thickness,
+                image_orientation_patient=item.image_orientation_patient,
+                image_position_patient=item.image_position_patient,
                 has_pixel_data=item.has_pixel_data,
                 pixel_data_analyzed=False,
             )

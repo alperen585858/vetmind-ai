@@ -4,8 +4,14 @@ import { ArrowRight, Lock, Mail } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
-import { login, listDemoCredentials, postLoginPath, setBackendAccessToken } from '../lib/auth'
-import { backendLogin } from '../lib/backend'
+import {
+  login,
+  listDemoCredentials,
+  postLoginPath,
+  setBackendAccessToken,
+  setProtectedTokenMode,
+} from '../lib/auth'
+import { backendAuthStatus, backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
 
 export default function Login() {
@@ -23,6 +29,8 @@ export default function Login() {
     try {
       const session = login(email, password)
       try {
+        const status = await backendAuthStatus()
+        setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
         const tokenRes = await backendLogin(email, password)
         setBackendAccessToken(tokenRes.access_token)
       } catch {

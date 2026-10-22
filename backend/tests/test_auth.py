@@ -62,3 +62,29 @@ def test_auth_enabled_requires_credentials(tmp_path: Path) -> None:
         headers={"X-API-Key": "test-api-key"},
     )
     assert api_key_ok.status_code == 201
+
+
+def test_auth_enabled_denies_unauthenticated_case_access(tmp_path: Path) -> None:
+    client = _auth_client(tmp_path)
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "vet@demo.local", "password": "demo1234"},
+    )
+    token = login.json()["access_token"]
+    created = client.post(
+        "/api/v1/cases",
+        json=make_payload().model_dump(mode="json"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 201
+    case_id = created.json()["case_id"]
+
+    denied = client.get(f"/api/v1/cases/{case_id}")
+    assert denied.status_code == 401
+
+    allowed = client.get(
+        f"/api/v1/cases/{case_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert allowed.status_code == 200
+    assert allowed.json()["case_id"] == case_id

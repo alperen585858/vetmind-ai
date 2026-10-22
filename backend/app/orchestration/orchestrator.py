@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.llm.gateway import LLMGateway
 from app.llm.interfaces import LLMProviderError
 from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.model_input_builder import build_imaging_model_input
 from app.models.normalizer import normalize_outputs
 from app.routing.execution_policy import ModelExecutionPolicy
 from app.routing.model_router import ModelRouter
@@ -48,24 +48,39 @@ class AIOrchestrator:
         self._scenario_policy = scenario_policy or ScenarioRoutingPolicy()
         # Default exclusive_real with empty caps is a no-op filter (no REAL matches).
         self._execution_policy = execution_policy or ModelExecutionPolicy()
+        self._prep = MetadataOnlyPreparationPipeline(
+            capabilities=list(self._router.list_capabilities())
+        )
 
     @property
     def validator(self) -> ReportValidator:
         return self._validator
 
     def run(self, case: CaseRecord, job: AnalysisJob) -> PipelineResult:
+        if job.cancel_requested or job.status == JobStatus.CANCEL_REQUESTED:
+            job.status = JobStatus.CANCELLED
+            job.outcome = PipelineOutcome.FAILED
+            job.error_message = "Cancelled before start (cooperative cancel)."
+            job.completed_at = _now()
+            case.status = CaseLifecycleStatus.FAILED
+            case.updated_at = _now()
+            return PipelineResult(
+                job=job,
+                outcome=PipelineOutcome.FAILED,
+                messages=["Job cancelled before adapter execution."],
+            )
+
         job.status = JobStatus.RUNNING
         job.started_at = _now()
         messages: list[str] = [
-            "Analysis executes synchronously in the HTTP request (no background worker)."
+            "Orchestrator run (sync within worker/request). FE poll abort does not cancel this job."
         ]
 
         try:
-            # Orchestrator owns case.model_input writes; adapters must not mutate the case.
-            if case.model_input is None:
-                case.model_input = build_imaging_model_input(
-                    case, capabilities=self._router.list_capabilities()
-                )
+            # Always refresh via metadata-only prep (F4) — adapters must not mutate case.
+            caps = self._router.list_capabilities()
+            self._prep = MetadataOnlyPreparationPipeline(capabilities=list(caps))
+            case.model_input = self._prep.prepare(case=case)
             model_input = case.model_input
             messages.append(
                 f"ImagingModelInput v{model_input.schema_version} ready "
@@ -83,11 +98,52 @@ class AIOrchestrator:
             )
             job.routed_model_ids = decision.model_ids
             job.route_reason = decision.reason
+            cap_by_id = {c.model_id: c for c in caps}
+            job.routed_model_versions = [
+                cap_by_id[m].model_version for m in decision.model_ids if m in cap_by_id
+            ]
+            kinds = {cap_by_id[m].source_kind.value for m in decision.model_ids if m in cap_by_id}
+            if kinds == {"real"}:
+                job.analysis_mode = "real"
+            elif kinds == {"mock"} or not kinds:
+                job.analysis_mode = "mock"
+            else:
+                job.analysis_mode = "mixed"
+            if decision.model_ids:
+                timeouts = [cap_by_id[m].timeout_s for m in decision.model_ids if m in cap_by_id]
+                if timeouts:
+                    job.timeout_s = max(timeouts)
             messages.append(decision.reason)
+            messages.append(f"analysis_mode={job.analysis_mode}")
+
+            if job.cancel_requested:
+                job.status = JobStatus.CANCELLED
+                job.outcome = PipelineOutcome.FAILED
+                job.error_message = "Cancelled after routing (before adapters)."
+                job.completed_at = _now()
+                case.status = CaseLifecycleStatus.FAILED
+                case.updated_at = _now()
+                return PipelineResult(
+                    job=job,
+                    outcome=PipelineOutcome.FAILED,
+                    messages=messages + [job.error_message],
+                )
 
             outputs: list[StructuredFindings] = []
             failures: list[str] = []
             for model_id in decision.model_ids:
+                if job.cancel_requested:
+                    job.status = JobStatus.CANCELLED
+                    job.outcome = PipelineOutcome.FAILED
+                    job.error_message = "Cancelled during adapter loop."
+                    job.completed_at = _now()
+                    case.status = CaseLifecycleStatus.FAILED
+                    case.updated_at = _now()
+                    return PipelineResult(
+                        job=job,
+                        outcome=PipelineOutcome.FAILED,
+                        messages=messages + [job.error_message],
+                    )
                 adapter = self._models.get(model_id)
                 if adapter is None:
                     failures.append(f"Unknown model id '{model_id}'.")
@@ -95,12 +151,16 @@ class AIOrchestrator:
                 try:
                     outputs.append(adapter.analyze(case))
                 except ImagingAdapterError as exc:
-                    failures.append(str(exc))
+                    msg = str(exc)
+                    failures.append(msg)
+                    if "timed out" in msg.lower():
+                        job.status = JobStatus.TIMED_OUT
                 except Exception as exc:  # noqa: BLE001 — convert unexpected adapter crashes
                     failures.append(f"Adapter {model_id} raised {type(exc).__name__}.")
 
             if not outputs:
-                job.status = JobStatus.FAILED
+                if job.status != JobStatus.TIMED_OUT:
+                    job.status = JobStatus.FAILED
                 job.outcome = PipelineOutcome.FAILED
                 job.error_message = "; ".join(failures) or "No imaging adapter produced output."
                 job.completed_at = _now()

@@ -14,21 +14,35 @@ from dataclasses import dataclass
 from typing import Any
 
 
+DEFAULT_JWT_SECRET = "vetmind-demo-secret-change-me"
+
+
+@dataclass(frozen=True)
+class DemoUserRecord:
+    password: str
+    role: str
+    clinic_id: str | None = None
+
+
 @dataclass(frozen=True)
 class AuthSettings:
     enabled: bool
     api_key: str | None
     jwt_secret: str
     jwt_ttl_seconds: int = 60 * 60 * 12
-    # demo users: email -> (password, role)
-    users: dict[str, tuple[str, str]] | None = None
+    users: dict[str, DemoUserRecord] | None = None
+    tenant_isolation: bool = False
+    deployment_mode: str = "demo"  # demo | protected
 
 
-DEMO_USERS: dict[str, tuple[str, str]] = {
-    "vet@demo.local": ("demo1234", "vet"),
-    "expert@demo.local": ("demo1234", "expert"),
-    "admin@demo.local": ("demo1234", "admin"),
-    "owner@demo.local": ("demo1234", "owner"),
+# Seed users for local / CI demos. Passwords are demo-only; not a production IdP.
+DEMO_USERS: dict[str, DemoUserRecord] = {
+    "vet@demo.local": DemoUserRecord("demo1234", "vet", "clinic-demo-a"),
+    "vet-b@demo.local": DemoUserRecord("demo1234", "vet", "clinic-demo-b"),
+    "expert@demo.local": DemoUserRecord("demo1234", "expert", "clinic-demo-a"),
+    "expert-b@demo.local": DemoUserRecord("demo1234", "expert", "clinic-demo-b"),
+    "admin@demo.local": DemoUserRecord("demo1234", "admin", None),
+    "owner@demo.local": DemoUserRecord("demo1234", "owner", "clinic-demo-a"),
 }
 
 
@@ -41,21 +55,29 @@ def _b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + pad)
 
 
+def verify_password(provided: str, expected: str) -> bool:
+    """Constant-time string compare for demo plaintext passwords."""
+    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+
 def create_access_token(
     *,
     subject: str,
     role: str,
     secret: str,
     ttl_seconds: int,
+    clinic_id: str | None = None,
 ) -> str:
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
     now = int(time.time())
-    payload_obj = {
+    payload_obj: dict[str, Any] = {
         "sub": subject,
         "role": role,
         "iat": now,
         "exp": now + ttl_seconds,
     }
+    if clinic_id:
+        payload_obj["clinic_id"] = clinic_id
     payload = _b64url(json.dumps(payload_obj, separators=(",", ":")).encode())
     signing_input = f"{header}.{payload}".encode()
     sig = hmac.new(secret.encode(), signing_input, hashlib.sha256).digest()
@@ -67,6 +89,12 @@ def decode_token(token: str, secret: str) -> dict[str, Any]:
         header_b64, payload_b64, sig_b64 = token.split(".")
     except ValueError as exc:
         raise ValueError("Malformed token.") from exc
+    try:
+        header = json.loads(_b64url_decode(header_b64))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("Malformed token header.") from exc
+    if header.get("alg") != "HS256":
+        raise ValueError("Unsupported token algorithm.")
     signing_input = f"{header_b64}.{payload_b64}".encode()
     expected = hmac.new(secret.encode(), signing_input, hashlib.sha256).digest()
     if not hmac.compare_digest(expected, _b64url_decode(sig_b64)):

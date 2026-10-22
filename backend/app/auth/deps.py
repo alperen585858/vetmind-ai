@@ -2,27 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.deps import get_container
-from app.auth.rbac import role_has_capability
+from app.auth.principal import AuthPrincipal
 from app.auth.security import decode_token, verify_api_key
 from app.container import AppContainer
+from app.security.audit import AuditLogger, AuditOutcome
 
 _bearer = HTTPBearer(auto_error=False)
 
-
-@dataclass(frozen=True)
-class AuthPrincipal:
-    subject: str
-    role: str
-    via: str  # "jwt" | "api_key" | "disabled"
-
-    def can(self, capability: str) -> bool:
-        return role_has_capability(self.role, capability)
+# Re-export for existing imports
+__all__ = ["AuthPrincipal", "require_auth", "require_capability", "require_roles"]
 
 
 def require_auth(
@@ -31,14 +23,23 @@ def require_auth(
     container: AppContainer = Depends(get_container),
 ) -> AuthPrincipal:
     auth = container.auth
+    audit: AuditLogger | None = getattr(container, "audit", None)
     if not auth.enabled:
-        return AuthPrincipal(subject="anonymous", role="demo", via="disabled")
+        return AuthPrincipal(subject="anonymous", role="demo", via="disabled", clinic_id=None)
 
     api_key = request.headers.get("X-API-Key")
     if verify_api_key(api_key, auth.api_key):
-        return AuthPrincipal(subject="api-key", role="service", via="api_key")
+        return AuthPrincipal(subject="api-key", role="service", via="api_key", clinic_id=None)
 
     if credentials is None or credentials.scheme.lower() != "bearer":
+        if audit is not None:
+            audit.record(
+                event_type="auth.failure",
+                actor="anonymous",
+                resource=str(request.url.path),
+                outcome=AuditOutcome.DENIED,
+                detail="missing_credentials",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required. Use Bearer JWT or X-API-Key.",
@@ -47,15 +48,26 @@ def require_auth(
     try:
         payload = decode_token(credentials.credentials, auth.jwt_secret)
     except ValueError as exc:
+        if audit is not None:
+            audit.record(
+                event_type="auth.failure",
+                actor="anonymous",
+                resource=str(request.url.path),
+                outcome=AuditOutcome.DENIED,
+                detail="invalid_token",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
+            detail="Invalid or expired credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+    clinic_raw = payload.get("clinic_id")
+    clinic_id = str(clinic_raw) if clinic_raw else None
     return AuthPrincipal(
         subject=str(payload.get("sub", "unknown")),
         role=str(payload.get("role", "vet")),
         via="jwt",
+        clinic_id=clinic_id,
     )
 
 
