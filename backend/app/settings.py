@@ -60,6 +60,7 @@ class Settings:
     retention_reports_days: int | None = None
     retention_logs_days: int = 90
     max_concurrent_analyze: int = 8
+    analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
@@ -220,6 +221,9 @@ def load_settings() -> Settings:
         max_concurrent_analyze = 8
     max_concurrent_analyze = max(1, min(max_concurrent_analyze, 64))
 
+    gate_raw = os.getenv("VETMIND_ANALYZE_GATE_PATH")
+    analyze_gate_path = Path(gate_raw) if gate_raw else (_backend_root() / "data" / "analyze_gate.count")
+
     audit_raw = os.getenv("VETMIND_AUDIT_LOG_PATH")
     if audit_raw:
         audit_log_path = Path(audit_raw)
@@ -272,6 +276,7 @@ def load_settings() -> Settings:
         retention_reports_days=retention_reports_days,
         retention_logs_days=max(1, retention_logs_days),
         max_concurrent_analyze=max_concurrent_analyze,
+        analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
     )
 

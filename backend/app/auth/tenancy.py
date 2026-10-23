@@ -33,12 +33,18 @@ class TenancyConfig:
 
 
 def principal_is_global(principal: AuthPrincipal) -> bool:
-    """Admin/service (and demo-via-disabled) bypass clinic filters."""
+    """Bypass clinic filters only for trusted auth channels / admin JWT.
+
+    ``role=demo`` is never global via JWT (Phase 8). It only appears when
+    ``via=disabled`` (auth off). ``service`` is only via API key.
+    """
     if principal.via == "disabled":
         return True
     if principal.via == "api_key":
         return True
-    return principal.role in {"admin", "service", "demo"}
+    if principal.via == "jwt" and principal.role == "admin":
+        return True
+    return False
 
 
 def can_access_owned(principal: AuthPrincipal, resource: OwnedResource, *, isolation: bool) -> bool:

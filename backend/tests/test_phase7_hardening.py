@@ -46,6 +46,7 @@ def test_analyze_discarded_when_approved_in_flight(tmp_path: Path) -> None:
         malware_scan_required=False,
         audit_log_path=tmp_path / "audit.jsonl",
         max_concurrent_analyze=8,
+        analyze_gate_path=tmp_path / "analyze_gate.count",
     )
     container = AppContainer(repo=InMemoryCaseRepository(), settings=settings)
     client = TestClient(create_app(container))
@@ -156,6 +157,7 @@ def test_document_confirm_includes_live_remote_capability(tmp_path: Path) -> Non
         malware_scan_required=False,
         audit_log_path=tmp_path / "audit.jsonl",
         max_concurrent_analyze=4,
+        analyze_gate_path=tmp_path / "analyze_gate.count",
     )
     container = AppContainer(repo=InMemoryCaseRepository(), settings=settings)
     # Inject remote capability into document service list (simulate registered remote).

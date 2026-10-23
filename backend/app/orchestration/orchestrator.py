@@ -234,6 +234,22 @@ class AIOrchestrator:
                     messages=list(dict.fromkeys(messages + failures)),
                 )
 
+            if _cancelled():
+                job.status = JobStatus.CANCELLED
+                job.outcome = PipelineOutcome.FAILED
+                job.error_message = "Cancelled after imaging (before LLM draft)."
+                job.completed_at = _now()
+                case.status = CaseLifecycleStatus.FAILED
+                case.structured_findings = findings
+                case.updated_at = _now()
+                return PipelineResult(
+                    job=job,
+                    findings=findings,
+                    report=None,
+                    outcome=PipelineOutcome.FAILED,
+                    messages=messages + [job.error_message],
+                )
+
             try:
                 report = self._llm.generate_draft(case, findings)
             except LLMProviderError as exc:

@@ -44,6 +44,14 @@ export default defineConfig({
     : [
         {
           command: [
+            // Fresh isolated storage each run — stale sqlite was a flaky root cause.
+            'rm -f',
+            JSON.stringify(sqlitePath),
+            JSON.stringify(auditPath),
+            '&&',
+            'rm -rf',
+            JSON.stringify(quarantineRoot),
+            '&&',
             'mkdir -p',
             JSON.stringify(e2eData),
             JSON.stringify(quarantineRoot),
@@ -53,19 +61,22 @@ export default defineConfig({
             `VETMIND_SQLITE_PATH=${JSON.stringify(sqlitePath)}`,
             `VETMIND_QUARANTINE_ROOT=${JSON.stringify(quarantineRoot)}`,
             `VETMIND_AUDIT_LOG_PATH=${JSON.stringify(auditPath)}`,
+            `VETMIND_ANALYZE_GATE_PATH=${JSON.stringify(path.join(e2eData, 'analyze_gate.count'))}`,
             `VETMIND_AUTH_ENABLED=0`,
-            `VETMIND_ASYNC_DELAY_MS=200`,
+            // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
+            `VETMIND_ASYNC_DELAY_MS=50`,
             `VETMIND_RAG=lexical`,
             '.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000',
           ].join(' '),
           url: 'http://127.0.0.1:8000/api/v1/health',
-          reuseExistingServer: !process.env.CI,
+          // Prefer a process we control so storage wipe always applies.
+          reuseExistingServer: false,
           timeout: 90_000,
         },
         {
           command: 'npx vite --host 127.0.0.1 --port 5173 --strictPort',
           url: 'http://127.0.0.1:5173',
-          reuseExistingServer: !process.env.CI,
+          reuseExistingServer: false,
           timeout: 90_000,
         },
       ],

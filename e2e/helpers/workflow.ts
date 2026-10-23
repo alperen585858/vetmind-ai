@@ -54,7 +54,16 @@ export async function confirmAndRunDemoAnalysis(page: Page, patientName: string)
   const analyzeBtn = page.getByRole('button', { name: 'Demo analize devam et' })
   await expect(analyzeBtn).toBeEnabled({ timeout: 20_000 })
   await analyzeBtn.click()
-  await page.waitForURL(/\/vakalar\/case-[a-z0-9]+\/isleme/, { timeout: 60_000 })
+  // Deterministic readiness: navigate to processing OR surface a toast error (no sleep).
+  const processing = page.waitForURL(/\/vakalar\/case-[a-z0-9]+\/isleme/, { timeout: 60_000 })
+  const errorToast = page
+    .getByText(/Analiz başlatılamadı|Backend.*ulaşılamıyor|DICOM.*başarısız/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 60_000 })
+    .then(() => {
+      throw new Error('Demo analyze failed before navigation (error toast visible)')
+    })
+  await Promise.race([processing, errorToast])
   const caseId = page.url().match(/vakalar\/(case-[a-z0-9]+)/)?.[1]
   if (!caseId) throw new Error('case id missing from processing URL')
   return caseId

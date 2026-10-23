@@ -34,6 +34,7 @@ def _settings(tmp_path: Path, **kwargs) -> Settings:
         malware_scan_required=False,
         audit_log_path=tmp_path / "audit.jsonl",
         max_concurrent_analyze=4,
+        analyze_gate_path=tmp_path / "analyze_gate.count",
     )
     base.update(kwargs)
     return Settings(**base)
@@ -352,8 +353,8 @@ def test_concurrent_analyze_limit(tmp_path: Path) -> None:
     container = AppContainer(repo=InMemoryCaseRepository(), settings=settings)
     client = TestClient(create_app(container))
     vet = _token(client, "vet@demo.local")
-    # Hold the gate so a second sync analyze gets 429
-    assert container.cases._analyze_gate.acquire(blocking=False)  # noqa: SLF001
+    # Hold the durable gate so a second sync analyze gets 429
+    assert container.cases._analyze_gate.try_acquire()  # noqa: SLF001
     case_id = client.post(
         "/api/v1/cases",
         json=make_payload().model_dump(mode="json"),

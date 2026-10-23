@@ -29,6 +29,7 @@ def _mem_settings(tmp_path: Path, **kwargs) -> Settings:
         tenant_isolation=False,
         malware_scan_required=False,
         max_concurrent_analyze=8,
+        analyze_gate_path=tmp_path / "analyze_gate.count",
     )
     base.update(kwargs)
     return Settings(**base)

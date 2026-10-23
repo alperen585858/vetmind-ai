@@ -21,6 +21,7 @@ def container(tmp_path: Path) -> AppContainer:
             sqlite_path=Path("unused-memory.sqlite3"),
             quarantine_root=tmp_path / "quarantine",
             async_analyze_delay_ms=50,
+            analyze_gate_path=tmp_path / "analyze_gate.count",
         ),
     )
 

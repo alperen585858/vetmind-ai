@@ -7,7 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.deps import get_container
 from app.auth.principal import AuthPrincipal
-from app.auth.security import decode_token, verify_api_key
+from app.auth.security import decode_token, resolve_jwt_identity, verify_api_key
 from app.container import AppContainer
 from app.security.audit import AuditLogger, AuditOutcome
 
@@ -25,10 +25,12 @@ def require_auth(
     auth = container.auth
     audit: AuditLogger | None = getattr(container, "audit", None)
     if not auth.enabled:
+        # Demo-only principal when auth is off — never minted as a signed JWT.
         return AuthPrincipal(subject="anonymous", role="demo", via="disabled", clinic_id=None)
 
     api_key = request.headers.get("X-API-Key")
     if verify_api_key(api_key, auth.api_key):
+        # service role only via API key — not via JWT role claim.
         return AuthPrincipal(subject="api-key", role="service", via="api_key", clinic_id=None)
 
     if credentials is None or credentials.scheme.lower() != "bearer":
@@ -47,6 +49,7 @@ def require_auth(
         )
     try:
         payload = decode_token(credentials.credentials, auth.jwt_secret)
+        subject, role, clinic_id = resolve_jwt_identity(payload, auth.users)
     except ValueError as exc:
         if audit is not None:
             audit.record(
@@ -61,11 +64,9 @@ def require_auth(
             detail="Invalid or expired credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
-    clinic_raw = payload.get("clinic_id")
-    clinic_id = str(clinic_raw) if clinic_raw else None
     return AuthPrincipal(
-        subject=str(payload.get("sub", "unknown")),
-        role=str(payload.get("role", "vet")),
+        subject=subject,
+        role=role,
         via="jwt",
         clinic_id=clinic_id,
     )

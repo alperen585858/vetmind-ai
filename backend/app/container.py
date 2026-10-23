@@ -125,6 +125,7 @@ class AppContainer:
             tenant_isolation=self.settings.tenant_isolation,
             audit=self.audit,
             max_concurrent_analyze=self.settings.max_concurrent_analyze,
+            analyze_gate_path=self.settings.analyze_gate_path,
         )
         self.dicom = DicomService(
             self.repo,
