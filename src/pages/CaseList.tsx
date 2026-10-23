@@ -81,9 +81,9 @@ export default function CaseList() {
   return (
     <>
       <PageHeader
-        title="Vaka kuyruğu"
-        subtitle={`${filtered.length} / ${cases.length} vaka${backendCount ? ` · ${backendCount} senkron` : ''}`}
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'Vakalar' }]}
+        title="Vakalar"
+        subtitle={`${cases.length} vaka · ${backendCount} backend senkron · klinik iş akışı`}
+        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'Vakalar' }]}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -97,10 +97,10 @@ export default function CaseList() {
             {role === 'vet' && (
               <>
                 <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
-                  DICOM yükle
+                  DICOM Yükle
                 </Button>
                 <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
-                  Yeni vaka
+                  Yeni Vaka
                 </Button>
               </>
             )}
@@ -167,6 +167,25 @@ export default function CaseList() {
             </select>
           </label>
         </div>
+        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-4 py-3">
+          {STATUS_ORDER.map((s) => {
+            const n = cases.filter((c) => c.status === s).length
+            const active = status === s
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(active ? '' : s)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
+                  active ? STATUS_META[s].cls : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {STATUS_META[s].label} <span className="ml-1 opacity-70">{n}</span>
+              </button>
+            )
+          })}
+        </div>
+
         {showSkeleton ? (
           <TableSkeleton />
         ) : filtered.length ? (

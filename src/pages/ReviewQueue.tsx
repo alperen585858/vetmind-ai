@@ -60,9 +60,9 @@ export default function ReviewQueue() {
   return (
     <>
       <PageHeader
-        title="İş listesi"
-        subtitle="İnceleyin · raporlayın"
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'İş listesi' }]}
+        title="Radyolog İş Listesi"
+        subtitle="Öncelik · modalite · durum · atama · çalışma alanına açın"
+        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'İş Listesi' }]}
         actions={
           <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
             Yenile
@@ -71,8 +71,8 @@ export default function ReviewQueue() {
       />
 
       <Card className="mb-4 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="label flex-1" htmlFor="wl-q">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <label className="label" htmlFor="wl-q">
             Ara
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -82,64 +82,59 @@ export default function ReviewQueue() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && load()}
-                placeholder="Hasta veya vaka no"
+                placeholder="hasta / vaka / klinik"
               />
             </div>
           </label>
+          <label className="label" htmlFor="wl-status">
+            Durum
+            <select id="wl-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Tümü</option>
+              <option value="awaiting_review">Uzman inceleme</option>
+              <option value="revision_requested">Revizyon</option>
+              <option value="manual_review">Manuel inceleme</option>
+              <option value="analyzing">Analiz</option>
+            </select>
+          </label>
+          <label className="label" htmlFor="wl-modality">
+            Modalite
+            <select id="wl-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
+              <option value="">Tümü</option>
+              <option value="MR">MR</option>
+              <option value="CT">CT</option>
+              <option value="XR">XR</option>
+            </select>
+          </label>
+          <label className="label" htmlFor="wl-priority">
+            Öncelik
+            <select id="wl-priority" className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <option value="">Tümü</option>
+              <option value="stat">STAT</option>
+              <option value="urgent">Acil (URGENT)</option>
+              <option value="high">Yüksek</option>
+              <option value="normal">Normal</option>
+            </select>
+          </label>
+          <label className="label" htmlFor="wl-assigned">
+            Atama
+            <select id="wl-assigned" className="input mt-1" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+              <option value="">Tümü</option>
+              <option value="unassigned">Atanmamış</option>
+              <option value="expert-demo">expert-demo</option>
+            </select>
+          </label>
+        </div>
+        <div className="mt-3">
           <Button size="sm" onClick={load}>
-            Ara
+            Filtrele
           </Button>
         </div>
-        <details className="mt-3 border-t border-slate-100 pt-3">
-          <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-navy-800">
-            Gelişmiş filtreler
-          </summary>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="label" htmlFor="wl-status">
-              Durum
-              <select id="wl-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">Tümü</option>
-                <option value="awaiting_review">Uzman inceleme</option>
-                <option value="revision_requested">Revizyon</option>
-                <option value="manual_review">Manuel inceleme</option>
-                <option value="analyzing">Analiz</option>
-              </select>
-            </label>
-            <label className="label" htmlFor="wl-modality">
-              Modalite
-              <select id="wl-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
-                <option value="">Tümü</option>
-                <option value="MR">MR</option>
-                <option value="CT">CT</option>
-                <option value="XR">XR</option>
-              </select>
-            </label>
-            <label className="label" htmlFor="wl-priority">
-              Öncelik
-              <select id="wl-priority" className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
-                <option value="">Tümü</option>
-                <option value="stat">STAT</option>
-                <option value="urgent">Acil</option>
-                <option value="high">Yüksek</option>
-                <option value="normal">Normal</option>
-              </select>
-            </label>
-            <label className="label" htmlFor="wl-assigned">
-              Atama
-              <select id="wl-assigned" className="input mt-1" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
-                <option value="">Tümü</option>
-                <option value="unassigned">Atanmamış</option>
-                <option value="expert-demo">expert-demo</option>
-              </select>
-            </label>
-          </div>
-        </details>
       </Card>
 
       <Card>
         <CardHeader
           title={`${display.length} vaka`}
-          subtitle={error ? `Yerel kuyruk · ${error}` : undefined}
+          subtitle={error ? `API: ${error} · yerel kuyruk gösteriliyor` : 'Acil vakalar üstte'}
         />
         {loading ? (
           <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">

@@ -52,9 +52,9 @@ export default function AdminUsers() {
   return (
     <>
       <PageHeader
-        title="Kullanıcılar"
-        subtitle="Roller ve klinik üyelikleri"
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'Kullanıcılar' }]}
+        title="Kullanıcılar ve roller"
+        subtitle="Klinik üyelikleri · demo IdP dizini (kalıcı workflow store)"
+        crumbs={[{ label: 'Sistem', to: '/' }, { label: 'Kullanıcılar' }]}
       />
       {error && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>

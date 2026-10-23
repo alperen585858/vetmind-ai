@@ -1,17 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  CheckCircle2,
-  ClipboardCheck,
-  FileText,
-  FolderOpen,
-  Hourglass,
-  Microscope,
-  PawPrint,
-  UploadCloud,
-  Users,
+  Activity, BookOpen, CheckCircle2, ChevronRight, Clock, Cpu, Database, FilePlus2, FileText, FolderOpen, Hourglass, Layers, Loader2, Microscope, PawPrint, Timer, UploadCloud,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
@@ -19,7 +11,8 @@ import { Button } from '../components/Button'
 import { CaseTable, SpeciesIcon } from '../components/CaseTable'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import { GPU_SERIES } from '../data/mock'
+import { CaseProgressTracker } from '../components/CaseProgressTracker'
+import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
 import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
@@ -36,111 +29,146 @@ export default function Dashboard() {
 function VetDashboard() {
   const { cases, user, refreshBackendCases } = useApp()
   const nav = useNavigate()
+  const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [stats, setStats] = useState<ClinicDashboardStats | null>(null)
-  const [pendingSubs, setPendingSubs] = useState(0)
 
   useEffect(() => {
     void refreshBackendCases()
-    void getClinicDashboard().then(setStats).catch(() => setStats(null))
-    void listSubmissions()
-      .then((rows) =>
-        setPendingSubs(rows.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length),
-      )
-      .catch(() => setPendingSubs(0))
-  }, [refreshBackendCases])
+    void getClinicDashboard({ q: q || undefined })
+      .then(setStats)
+      .catch(() => setStats(null))
+  }, [refreshBackendCases, q])
+
+  const filtered = useMemo(() => {
+    const ql = q.trim().toLowerCase()
+    return cases.filter((c) => {
+      if (statusFilter && c.status !== statusFilter) return false
+      if (!ql) return true
+      const hay = `${c.patient.name} ${c.no} ${c.id} ${c.clinic}`.toLowerCase()
+      return hay.includes(ql)
+    })
+  }, [cases, q, statusFilter])
 
   const open = stats?.active_cases ?? cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
   const review = stats?.awaiting_review ?? cases.filter((c) => c.status === 'uzman_incelemesinde').length
-  const active = cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).slice(0, 6)
+  const urgent =
+    stats?.urgent_cases ??
+    cases.filter((c) => (c.priority === 'STAT' || c.priority === 'Acil') && !['onaylandi', 'reddedildi'].includes(c.status))
+      .length
+  const approved = stats?.completed_reports ?? cases.filter((c) => c.status === 'onaylandi').length
 
   return (
     <>
       <PageHeader
-        title={`Merhaba, ${user?.name?.split(' ')[0] || 'Veteriner'}`}
-        subtitle="Başvuru onayı · vaka kuyruğu · DICOM"
+        title={`Hoş geldiniz, ${user?.name}`}
+        subtitle={`${user?.org} · Klinik vaka panosu`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
-              DICOM yükle
-            </Button>
-            <Button variant="secondary" icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => nav('/basvurular')}>
-              Başvurular{pendingSubs > 0 ? ` (${pendingSubs})` : ''}
-            </Button>
+            <Button size="lg" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>DICOM Yükle</Button>
+            <Button size="lg" variant="secondary" icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>Yeni Vaka</Button>
           </div>
         }
       />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Aktif vaka" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
-        <StatCard label="Onay bekleyen başvuru" value={pendingSubs} icon={<ClipboardCheck className="h-5 w-5" />} tone="amber" />
-        <StatCard label="Radyolog kuyruğu" value={review} icon={<Hourglass className="h-5 w-5" />} tone="violet" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Aktif vakalar" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış" />
+        <StatCard label="İnceleme bekleyen" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Uzman kuyruğunda" />
+        <StatCard label="Acil / STAT" value={urgent} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli iş listesi" />
+        <StatCard label="Tamamlanan rapor" value={approved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Onaylı teslimat" />
       </div>
-
       <Card className="mt-6">
-        <CardHeader
-          title="Vaka kuyruğu"
-          subtitle="Son aktif vakalar"
-          action={
-            <Link to="/vakalar" className="text-sm font-medium text-teal-700 hover:underline">
-              Tümü
-            </Link>
-          }
-        />
-        {active.length ? (
-          <CaseTable cases={active} />
-        ) : (
-          <EmptyState
-            compact
-            icon={<FolderOpen className="h-5 w-5" />}
-            title="Aktif vaka yok"
-            text="DICOM yükleyin veya sahip başvurusunu doğrulayın."
-            action={
-              <Button size="sm" onClick={() => nav('/dicom-yukle')}>
-                DICOM yükle
-              </Button>
-            }
-          />
-        )}
+        <CardHeader title="Klinik filtre" subtitle="Durum ve arama" />
+        <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3">
+          <label className="label sm:col-span-2" htmlFor="vet-dash-q">
+            Ara
+            <input
+              id="vet-dash-q"
+              className="input mt-1"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Hasta, vaka no, klinik…"
+            />
+          </label>
+          <label className="label" htmlFor="vet-dash-status">
+            Durum
+            <select
+              id="vet-dash-status"
+              className="input mt-1"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Tümü</option>
+              <option value="taslak">Taslak</option>
+              <option value="ai_analizi">AI analizi</option>
+              <option value="uzman_incelemesinde">Uzman incelemesi</option>
+              <option value="onaylandi">Onaylandı</option>
+              <option value="revizyon">Revizyon</option>
+            </select>
+          </label>
+        </div>
       </Card>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            title="Aktif vakalar"
+            subtitle={`${filtered.length} kayıt`}
+            action={<Link to="/vakalar" className="text-sm font-medium text-teal-700 hover:underline">Tümünü gör</Link>}
+          />
+          <CaseTable cases={filtered.slice(0, 8)} />
+        </Card>
+        <Card>
+          <CardHeader title="İlerleme özeti" subtitle="Seçili ilk vaka" />
+          <div className="px-5 pb-5">
+            {filtered[0] ? (
+              <CaseProgressTracker status={filtered[0].status} handoffNotes={filtered[0].handoffNotes} />
+            ) : (
+              <EmptyState icon={<FolderOpen className="h-6 w-6" />} title="Vaka yok" text="Filtreyi temizleyin veya yeni vaka oluşturun." />
+            )}
+            {stats && stats.unread_messages > 0 && (
+              <p className="mt-3 text-xs font-medium text-amber-800">{stats.unread_messages} okunmamış vaka mesajı</p>
+            )}
+          </div>
+        </Card>
+      </div>
     </>
   )
 }
 
 function waitText(c: VetCase) {
-  return c.id.startsWith('c-new') ? 'az önce' : c.priority === 'Acil' ? '3 sa' : '1 gün'
+  return c.id.startsWith('c-new') ? 'az önce' : c.priority === 'Acil' ? '3 sa 12 dk' : '1 gün'
 }
 
 export function QueueList({ items }: { items: VetCase[] }) {
   const nav = useNavigate()
-  if (!items.length) {
-    return <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title="Kuyruk boş" text="İnceleme bekleyen vaka yok." />
-  }
+  if (!items.length) return <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title="Kuyruk boş" text="Onay bekleyen rapor bulunmuyor." />
   const order = { STAT: 0, Acil: 1, Yüksek: 2, Normal: 3 }
   return (
     <ul className="divide-y divide-slate-100">
-      {[...items]
-        .sort((a, b) => order[a.priority] - order[b.priority])
-        .map((c) => (
-          <li key={c.id} className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm">
-                <SpeciesIcon species={c.patient.species} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-navy-900">{c.patient.name}</p>
-                  <PriorityBadge priority={c.priority} />
-                </div>
-                <p className="truncate text-sm text-slate-600">
-                  {c.modality || '—'} · {c.anatomicalRegion || '—'} · {waitText(c)}
-                </p>
-              </div>
+      {[...items].sort((a, b) => order[a.priority] - order[b.priority]).map((c) => (
+        <li key={c.id} className="flex flex-col gap-3 px-5 py-4 transition hover:bg-slate-50/70 sm:flex-row sm:items-center">
+          <div className="flex flex-1 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg">
+              <SpeciesIcon species={c.patient.species} />
             </div>
-            <Button size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)} icon={<Microscope className="h-4 w-4" />}>
-              İncele
-            </Button>
-          </li>
-        ))}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-navy-900">{c.patient.name}</p>
+                <PriorityBadge priority={c.priority} />
+                <span className="font-mono text-xs text-slate-500">{c.no}</span>
+              </div>
+              <p className="mt-0.5 truncate text-sm text-slate-600">
+                {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş — {c.ai?.differentials[0]?.name ?? c.clinical.complaint}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {c.clinic} · {c.vetName} · Bekleme: {waitText(c)}
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => nav(`/vakalar/${c.id}/calisma`)} icon={<Microscope className="h-4 w-4" />}>
+            Çalışma alanı
+          </Button>
+        </li>
+      ))}
     </ul>
   )
 }
@@ -149,29 +177,72 @@ function ExpertDashboard() {
   const { cases, user } = useApp()
   const nav = useNavigate()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde')
+  const approvedCount = cases.filter((c) => c.status === 'onaylandi').length
+  const recent = cases.filter((c) => c.status === 'onaylandi' || c.status === 'revizyon' || c.status === 'reddedildi')
   const urgentN = queue.filter((q) => q.priority === 'STAT' || q.priority === 'Acil').length
-
   return (
     <>
       <PageHeader
-        title={`Merhaba, ${user?.name?.split(' ')[0] || 'Radyolog'}`}
-        subtitle="İş listesi · DICOM görüntüleyici · rapor"
+        title={`Hoş geldiniz, ${user?.name}`}
+        subtitle="Radyolog paneli · iş listesi ve çalışma alanı"
         actions={
           <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav('/kuyruk')}>
-            İş listesi{queue.length ? ` (${queue.length})` : ''}
+            İş listesine git
           </Button>
         }
       />
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        <StatCard label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
-        <StatCard label="STAT / Acil" value={urgentN} icon={<ClipboardCheck className="h-5 w-5" />} tone="violet" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${urgentN} STAT/acil`} />
+        <StatCard label="STAT / Acil kuyruk" value={urgentN} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli inceleme" />
+        <StatCard label="Onaylı rapor (oturum)" value={approvedCount} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yerel + senkron kayıtlar" />
       </div>
-      <Card>
-        <CardHeader title="Sıradaki vakalar" subtitle="Öncelik sırasına göre" />
-        <QueueList items={queue.slice(0, 8)} />
-      </Card>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            title="Onay bekleyen raporlar"
+            subtitle="Öncelik sırasına göre · çalışma alanından açın"
+            icon={<Clock className="h-5 w-5" />}
+            action={
+              <Link to="/kuyruk" className="text-sm font-medium text-teal-700 hover:underline">
+                Tüm iş listesi
+              </Link>
+            }
+          />
+          <QueueList items={queue} />
+        </Card>
+        <Card>
+          <CardHeader title="Son kararlarınız" />
+          {recent.length === 0 ? (
+            <EmptyState compact icon={<CheckCircle2 className="h-5 w-5" />} title="Henüz karar yok" text="İş listesinden bir vaka üstlenin." />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recent.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/vakalar/${c.id}/calisma`} className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-slate-50">
+                    <div>
+                      <p className="text-sm font-medium text-navy-900">{c.patient.name}</p>
+                      <p className="text-xs text-slate-500">{c.no}</p>
+                    </div>
+                    <StatusBadge status={c.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
   )
+}
+
+const OWNER_TEXT: Record<string, string> = {
+  taslak: 'Vaka kaydı hazırlanıyor.',
+  isleniyor: 'Tetkik belgeleri işleniyor.',
+  ai_analizi: 'Değerlendirme süreci devam ediyor.',
+  uzman_incelemesinde: 'Raporunuz uzman veteriner hekim tarafından inceleniyor.',
+  revizyon: 'Raporunuz uzman veteriner hekim tarafından inceleniyor.',
+  reddedildi: 'Ek değerlendirme gerekiyor; veteriner hekiminiz sizinle iletişime geçecek.',
+  onaylandi: 'Raporunuz hazır.',
 }
 
 function OwnerDashboard() {
@@ -179,109 +250,95 @@ function OwnerDashboard() {
   const nav = useNavigate()
   const [pets, setPets] = useState<BackendPet[]>([])
   const [subs, setSubs] = useState<BackendImagingSubmission[]>([])
-
   useEffect(() => {
     void refreshBackendCases()
     void listPets().then(setPets).catch(() => setPets([]))
     void listSubmissions().then(setSubs).catch(() => setSubs([]))
   }, [refreshBackendCases])
-
-  const ready = cases.filter((c) => {
-    if (c.status !== 'onaylandi') return false
-    if (c.fromBackend) {
-      return !c.petOwnerSubject || c.petOwnerSubject === user?.email || c.patient.ownerName === user?.email
-    }
-    return c.patient.ownerName === user?.name
-  })
+  const mine = cases.filter((c) => c.status === 'onaylandi' || c.patient.ownerName === user?.name)
+  const ready = mine.filter((c) => c.status === 'onaylandi')
   const pendingSubs = subs.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length
-  const linkedSubs = subs.filter((s) => s.status === 'linked').length
-
-  const tiles = [
-    {
-      title: 'Hayvanlarım',
-      text: pets.length ? `${pets.length} kayıtlı pet` : 'Pet profili ekleyin',
-      icon: <PawPrint className="h-6 w-6" />,
-      to: '/hayvanlar',
-      tone: 'bg-sky-50 text-sky-700',
-    },
-    {
-      title: 'DICOM yükle',
-      text: 'Görüntüleme talebi gönderin',
-      icon: <UploadCloud className="h-6 w-6" />,
-      to: '/basvurular',
-      tone: 'bg-teal-50 text-teal-700',
-      primary: true,
-    },
-    {
-      title: 'Taleplerim',
-      text: pendingSubs ? `${pendingSubs} onay bekliyor` : linkedSubs ? `${linkedSubs} vakaya bağlandı` : 'Henüz talep yok',
-      icon: <FolderOpen className="h-6 w-6" />,
-      to: '/basvurular',
-      tone: 'bg-amber-50 text-amber-800',
-    },
-    {
-      title: 'Raporlarım',
-      text: ready.length ? `${ready.length} hazır rapor` : 'Onaylı rapor yok',
-      icon: <FileText className="h-6 w-6" />,
-      to: '/raporlar',
-      tone: 'bg-emerald-50 text-emerald-700',
-    },
-  ]
-
   return (
     <>
       <PageHeader
-        title={`Merhaba, ${user?.name?.split(' ')[0] || 'Sahip'}`}
-        subtitle="Hayvanlarınız · DICOM · raporlar"
+        title={`Merhaba, ${user?.name}`}
+        subtitle="Pet profilleri · görüntüleme talepleri · onaylı raporlar"
         actions={
-          <Button icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/basvurular')}>
-            DICOM yükle
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/hayvanlar')} icon={<PawPrint className="h-4 w-4" />}>
+              Petler
+            </Button>
+            <Button onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
+              Yeni talep
+            </Button>
+            {ready.length > 0 ? (
+              <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
+                Raporlarım
+              </Button>
+            ) : null}
+          </div>
         }
       />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {tiles.map((t) => (
-          <button
-            key={t.title}
-            type="button"
-            onClick={() => nav(t.to)}
-            className={`flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-5 text-left transition hover:border-teal-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
-              t.primary ? 'sm:col-span-2 ring-1 ring-teal-200' : ''
-            }`}
-          >
-            <span className={`rounded-lg p-2.5 ${t.tone}`}>{t.icon}</span>
-            <span>
-              <span className="block text-base font-semibold text-navy-900">{t.title}</span>
-              <span className="mt-0.5 block text-sm text-slate-600">{t.text}</span>
-            </span>
-          </button>
-        ))}
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Pet profili" value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint="Kayıtlı hayvanlar" />
+        <StatCard label="Bekleyen talep" value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Vet doğrulaması" />
+        <StatCard label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yetkili erişim" />
       </div>
-
       {ready.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader title="Hazır raporlar" action={<Link to="/raporlar" className="text-sm font-medium text-teal-700 hover:underline">Tümü</Link>} />
-          <ul className="divide-y divide-slate-100">
-            {ready.slice(0, 4).map((c) => (
-              <li key={c.id}>
-                <Link to={`/raporlar/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-slate-50">
-                  <div>
-                    <p className="font-medium text-navy-900">{c.patient.name}</p>
-                    <p className="text-xs text-slate-500">{fmtDate(c.createdAt)}</p>
-                  </div>
-                  <StatusBadge status="onaylandi" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
+          <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" aria-hidden />
+          <p className="flex-1 text-sm text-emerald-900">
+            <strong>{ready.length} onaylanmış raporunuz hazır.</strong> Raporlar uzman veteriner hekim tarafından incelenip onaylanmıştır.
+          </p>
+          <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>Raporlarım</Button>
+        </div>
       )}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {mine.map((c) => {
+          const visibleStatus = c.status === 'revizyon' ? 'uzman_incelemesinde' : c.status
+          return (
+            <Card key={c.id} className="flex flex-col overflow-hidden">
+              <div className="flex items-center gap-4 bg-gradient-to-br from-navy-900 to-navy-700 p-5 text-white">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-lg font-semibold" aria-hidden>
+                  {c.patient.species === 'Kedi' ? 'K' : 'Kö'}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">{c.patient.name}</p>
+                  <p className="text-sm text-navy-200">
+                    {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-1 flex-col gap-3 p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">{c.no} · {fmtDate(c.createdAt)}</span>
+                  <StatusBadge status={visibleStatus} />
+                </div>
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium text-navy-800">Şikâyet:</span> {c.clinical.complaint}
+                </p>
+                <p className="rounded-lg bg-slate-50 p-3 text-sm text-navy-800">{OWNER_TEXT[c.status]}</p>
+                <div className="mt-auto pt-1">
+                  {c.status === 'onaylandi' ? (
+                    <Button className="w-full" onClick={() => nav(`/raporlar/${c.id}`)} icon={<FileText className="h-4 w-4" />}>Raporu görüntüle</Button>
+                  ) : (
+                    <p className="flex items-center gap-2 text-xs text-slate-400"><Clock className="h-3.5 w-3.5" /> Rapor onaylandığında bildirim alacaksınız.</p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )
+        })}
+        {!mine.length && (
+          <Card className="md:col-span-2 xl:col-span-3">
+            <EmptyState icon={<PawPrint className="h-6 w-6" />} title="Kayıtlı vaka bulunmuyor" />
+          </Card>
+        )}
+      </div>
     </>
   )
 }
 
-/** Used by SystemStatus (admin advanced). Kept off the main dashboards. */
 export function GpuChart({ height = 180 }: { height?: number }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -294,11 +351,7 @@ export function GpuChart({ height = 180 }: { height?: number }) {
         </defs>
         <XAxis dataKey="t" tick={{ fontSize: 11, fill: '#64748b' }} interval={11} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
-        <Tooltip
-          formatter={(v: number) => [`%${v}`, 'GPU kullanımı']}
-          labelStyle={{ color: '#12233a' }}
-          contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-        />
+        <Tooltip formatter={(v: number) => [`%${v}`, 'GPU kullanımı']} labelStyle={{ color: '#12233a' }} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
         <Area type="monotone" dataKey="gpu" stroke="#0b807a" strokeWidth={2} fill="url(#gpuFill)" />
       </AreaChart>
     </ResponsiveContainer>
@@ -309,106 +362,98 @@ function ClinicOwnerDashboard() {
   const { user } = useApp()
   const nav = useNavigate()
   const [stats, setStats] = useState<BackendClinicStats | null>(null)
-
   useEffect(() => {
     void getClinicStats().then(setStats).catch(() => setStats(null))
   }, [])
-
   return (
     <>
       <PageHeader
-        title="Klinik genel bakış"
-        subtitle={user?.org || stats?.clinic_id || 'Klinik'}
+        title={`Klinik panosu · ${user?.name}`}
+        subtitle="Vakalar, personel atamaları ve operasyon özeti"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => nav('/basvurular')}>
-              Başvurular
+              Sahip başvuruları
             </Button>
-            <Button onClick={() => nav('/vakalar')}>Vakalar</Button>
+            <Button onClick={() => nav('/vakalar')}>Klinik vakalar</Button>
           </div>
         }
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Toplam vaka" value={stats?.case_count ?? '—'} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
         <StatCard label="İnceleme bekleyen" value={stats?.awaiting_review ?? '—'} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
         <StatCard label="Onaylı rapor" value={stats?.approved ?? '—'} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-        <StatCard label="Bekleyen başvuru" value={stats?.pending_submissions ?? '—'} icon={<ClipboardCheck className="h-5 w-5" />} tone="violet" />
+        <StatCard label="Bekleyen başvuru" value={stats?.pending_submissions ?? '—'} icon={<UploadCloud className="h-5 w-5" />} tone="violet" />
       </div>
       <Card className="mt-6">
-        <CardHeader title="Personel" subtitle={stats?.clinic_id || undefined} icon={<Users className="h-5 w-5" />} />
-        {(stats?.staff || []).length ? (
-          <ul className="divide-y divide-slate-100">
-            {stats!.staff.map((s) => (
-              <li key={s.email} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="font-medium text-navy-900">{s.display_name || s.email}</span>
-                <span className="text-xs text-slate-500">
-                  {s.role} · {s.active ? 'aktif' : 'pasif'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState compact icon={<Users className="h-5 w-5" />} title="Personel listesi yok" text="Auth açıkken klinik personeli burada görünür." />
-        )}
+        <CardHeader title="Klinik personeli" subtitle={stats?.clinic_id || '—'} />
+        <ul className="divide-y divide-slate-100">
+          {(stats?.staff || []).map((s) => (
+            <li key={s.email} className="flex items-center justify-between px-5 py-3 text-sm">
+              <span className="font-medium text-navy-900">{s.display_name || s.email}</span>
+              <span className="font-mono text-xs text-slate-500">
+                {s.role} · {s.active ? 'aktif' : 'pasif'}
+              </span>
+            </li>
+          ))}
+          {!stats?.staff?.length && (
+            <li className="px-5 py-4 text-sm text-slate-500">Personel listesi için API’ye bağlanın (auth açıkken).</li>
+          )}
+        </ul>
       </Card>
     </>
   )
 }
 
 function AdminDashboard() {
-  const { cases } = useApp()
+  const { kbSources, cases } = useApp()
   const nav = useNavigate()
-
+  const chunks = kbSources.reduce((s, k) => s + k.chunks, 0)
+  const ok = SERVICES.filter((s) => s.status === 'ok').length
   return (
     <>
       <PageHeader
-        title="Yönetim"
-        subtitle="Kullanıcılar ve sistem araçları"
+        title="Sistem Özeti"
+        subtitle="Platform durumu · kullanıcı / rol yönetimi"
         actions={
-          <Button onClick={() => nav('/kullanicilar')} icon={<Users className="h-4 w-4" />}>
-            Kullanıcılar
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/kullanicilar')}>
+              Kullanıcılar
+            </Button>
+            <Button variant="secondary" onClick={() => nav('/sistem')}>
+              Sistem durumu
+            </Button>
+          </div>
         }
       />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => nav('/kullanicilar')}
-          className="rounded-xl border border-slate-200 bg-white p-5 text-left hover:border-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-        >
-          <Users className="h-5 w-5 text-teal-700" />
-          <p className="mt-3 font-semibold text-navy-900">Kullanıcılar ve roller</p>
-          <p className="mt-1 text-sm text-slate-600">Vet, radyolog, sahip, klinik hesabı</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => nav('/sistem')}
-          className="rounded-xl border border-slate-200 bg-white p-5 text-left hover:border-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-        >
-          <CheckCircle2 className="h-5 w-5 text-teal-700" />
-          <p className="mt-3 font-semibold text-navy-900">Sistem durumu</p>
-          <p className="mt-1 text-sm text-slate-600">Servis sağlığı · GPU · dağıtımlar</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => nav('/moduller')}
-          className="rounded-xl border border-slate-200 bg-white p-5 text-left hover:border-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-        >
-          <FolderOpen className="h-5 w-5 text-teal-700" />
-          <p className="mt-3 font-semibold text-navy-900">Modüller</p>
-          <p className="mt-1 text-sm text-slate-600">Uzmanlık modül yapılandırması</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => nav('/bilgi-tabani')}
-          className="rounded-xl border border-slate-200 bg-white p-5 text-left hover:border-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-        >
-          <FileText className="h-5 w-5 text-teal-700" />
-          <p className="mt-3 font-semibold text-navy-900">Bilgi tabanı</p>
-          <p className="mt-1 text-sm text-slate-600">RAG kaynakları (gelişmiş)</p>
-        </button>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="Nöroloji aktif" />
+        <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça indeksli`} />
+        <StatCard label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
+        <StatCard label="Servis sağlığı" value={`${ok}/${SERVICES.length}`} icon={<Activity className="h-5 w-5" />} tone="amber" hint="Mock health paneli" />
       </div>
-      <p className="mt-4 text-xs text-slate-500">Oturumdaki vaka kaydı: {cases.length}</p>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader title="GPU kullanımı" subtitle="NVIDIA GPU #0 · son 1 saat" icon={<Cpu className="h-5 w-5" />} action={<Link to="/sistem" className="text-sm font-medium text-teal-700 hover:underline">Sistem Durumu</Link>} />
+          <div className="p-4">
+            <GpuChart />
+          </div>
+        </Card>
+        <Card>
+          <CardHeader title="Son dağıtımlar" />
+          <ul className="divide-y divide-slate-100">
+            {DEPLOYMENTS.slice(0, 3).map((d) => (
+              <li key={d.version} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-navy-900">{d.version}</p>
+                  <p className="text-xs text-slate-500">{d.kind} · {fmtDate(d.date)}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-slate-300" />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
     </>
   )
 }

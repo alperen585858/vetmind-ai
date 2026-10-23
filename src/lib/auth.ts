@@ -230,11 +230,11 @@ export function userFromSession(session: DemoSession): User {
     ...base,
     name: session.name,
     initials,
-    email: session.email || base.email,
   }
 }
 
-export function postLoginPath(_role: Role): string {
+export function postLoginPath(role: Role): string {
+  if (role === 'vet') return '/dicom-yukle'
   return '/'
 }
 
