@@ -570,20 +570,34 @@ class WorkflowService:
             case.assigned_reviewer_id = payload.assigned_reviewer_id
         if sub.dicom_ingest_id and not case.dicom_ingest_id:
             case.dicom_ingest_id = sub.dicom_ingest_id
-        # Carry forward submission attachments / answered info context (no new case).
-        if sub.attachments:
-            case.attachment_refs = [*case.attachment_refs, *sub.attachments]
-        if sub.document_ingest_id and case.document_context is None:
-            # Document remains quarantined until explicitly attached to case via documents API.
-            case.attachment_refs = [
-                *case.attachment_refs,
+        # Carry forward ALL submission DICOM/document attachments onto the verified case.
+        merged_atts = list(case.attachment_refs)
+        seen_ingests = {a.ingest_id for a in merged_atts}
+        if sub.dicom_ingest_id and sub.dicom_ingest_id not in seen_ingests:
+            merged_atts.append(
+                AttachmentRef(
+                    kind="dicom",
+                    ingest_id=sub.dicom_ingest_id,
+                    uploaded_by=sub.pet_owner_subject,
+                    label="primary_dicom",
+                )
+            )
+            seen_ingests.add(sub.dicom_ingest_id)
+        for att in sub.attachments:
+            if att.ingest_id in seen_ingests:
+                continue
+            merged_atts.append(att)
+            seen_ingests.add(att.ingest_id)
+        if sub.document_ingest_id and sub.document_ingest_id not in seen_ingests:
+            merged_atts.append(
                 AttachmentRef(
                     kind="document",
                     ingest_id=sub.document_ingest_id,
                     uploaded_by=sub.pet_owner_subject,
                     label="submission_document",
-                ),
-            ]
+                )
+            )
+        case.attachment_refs = merged_atts
         actor = principal.subject
         append_activity(case, kind="submission_created", actor_subject=sub.pet_owner_subject, detail=sub.submission_id)
         if sub.dicom_ingest_id:

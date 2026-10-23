@@ -78,14 +78,18 @@ export default function RadiologistWorkspace() {
   useEffect(() => {
     if (!c) return
     let cancelled = false
+    const ac = new AbortController()
     setLoadingFrames(true)
     setError(null)
     void (async () => {
       try {
         const caseKey = c.backendCaseId || c.id
+        // Fetches all linked DICOM ingests (primary + attachment_refs); decode yields for large studies.
         const files = await fetchCaseDicomFiles(caseKey, MAX_VIEWER_FRAMES)
         if (cancelled) return
-        setFrames(await buildDicomPreviews(files))
+        const decoded = await buildDicomPreviews(files, { signal: ac.signal })
+        if (cancelled) return
+        setFrames(decoded)
       } catch (err) {
         if (cancelled) return
         setFrames([])
@@ -102,6 +106,7 @@ export default function RadiologistWorkspace() {
     })()
     return () => {
       cancelled = true
+      ac.abort()
     }
   }, [c?.id, c?.backendCaseId])
 
@@ -350,7 +355,7 @@ export default function RadiologistWorkspace() {
           )}
           <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[420px] xl:min-h-[560px]" />
           <p className="text-[11px] text-slate-500">
-            Kısayollar: W/L · P pan · Z zoom · M ölçüm · F tam ekran · C karşılaştır · ok tuşları dilim · tablet/mobilde kaydırarak panelleri gezin
+            Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri karşılaştır · R reset · ok tuşları dilim. Taslak kaydı vaka geçişinde korunur.
           </p>
         </div>
         <div className="space-y-3">

@@ -1,20 +1,43 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  type WheelEvent,
+} from 'react'
 import {
   ChevronLeft,
   ChevronRight,
   Columns2,
   Contrast,
+  FlipHorizontal2,
+  FlipVertical2,
   ImageOff,
   Maximize2,
   Minimize2,
   Move,
-  Ruler,
+  Pause,
+  Play,
   RotateCcw,
+  RotateCw,
+  Ruler,
+  Square,
+  Triangle,
   ZoomIn,
 } from 'lucide-react'
-import { autoWindow, renderFrameToCanvas, type DicomFramePreview } from '../lib/dicomPreview'
+import {
+  autoWindow,
+  groupFramesBySeries,
+  renderFrameToCanvas,
+  roiStats,
+  type DicomFramePreview,
+} from '../lib/dicomPreview'
 
-type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure'
+type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi'
 
 const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
   { id: 'auto', label: 'Auto', wc: 0, ww: 0 },
@@ -22,6 +45,7 @@ const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
   { id: 'brain', label: 'Brain', wc: 40, ww: 80 },
   { id: 'bone', label: 'Bone', wc: 300, ww: 1500 },
   { id: 'lung', label: 'Lung', wc: -600, ww: 1500 },
+  { id: 'abdomen', label: 'Abd', wc: 40, ww: 350 },
 ]
 
 function ToolButton({
@@ -53,6 +77,20 @@ function ToolButton({
   )
 }
 
+function formatDistance(
+  dx: number,
+  dy: number,
+  spacing?: [number, number],
+): { text: string; calibrated: boolean } {
+  const pxDist = Math.hypot(dx, dy)
+  if (spacing) {
+    const [rowMm, colMm] = spacing
+    const mm = Math.hypot(dx * colMm, dy * rowMm)
+    return { text: `${mm.toFixed(1)} mm`, calibrated: true }
+  }
+  return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false }
+}
+
 export function DicomViewer({
   frames,
   loading = false,
@@ -65,28 +103,64 @@ export function DicomViewer({
   loading?: boolean
   className?: string
   onActiveFrameChange?: (frame: DicomFramePreview, index: number) => void
-  /** When set with a new focusRequestId, jump to matching viewable frame. */
   focusSopUid?: string | null
   focusRequestId?: number
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
-  const viewable = useMemo(() => frames.filter((f) => f.ok && f.pixels && f.rows && f.cols), [frames])
+  const compareCanvasRef = useRef<HTMLCanvasElement>(null)
+  const seriesGroups = useMemo(() => groupFramesBySeries(frames), [frames])
+  const [seriesKey, setSeriesKey] = useState<string | null>(null)
+  const activeSeries = useMemo(() => {
+    if (!seriesGroups.length) return null
+    return seriesGroups.find((s) => s.key === seriesKey) || seriesGroups[0]!
+  }, [seriesGroups, seriesKey])
+  const viewable = useMemo(
+    () => (activeSeries?.frames || []).filter((f) => f.ok && f.pixels && f.rows && f.cols),
+    [activeSeries],
+  )
+  const [compareSeriesKey, setCompareSeriesKey] = useState<string | null>(null)
+  const compareSeries = useMemo(() => {
+    if (!compareSeriesKey) return null
+    return seriesGroups.find((s) => s.key === compareSeriesKey) || null
+  }, [seriesGroups, compareSeriesKey])
+  const compareViewable = useMemo(
+    () => (compareSeries?.frames || []).filter((f) => f.ok && f.pixels && f.rows && f.cols),
+    [compareSeries],
+  )
+
   const [index, setIndex] = useState(0)
   const [tool, setTool] = useState<Tool>('wwwl')
   const [invert, setInvert] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [rotation, setRotation] = useState(0)
+  const [flipH, setFlipH] = useState(false)
+  const [flipV, setFlipV] = useState(false)
   const [wc, setWc] = useState(0)
   const [ww, setWw] = useState(400)
   const [fullscreen, setFullscreen] = useState(false)
   const [compare, setCompare] = useState(false)
   const [compareIndex, setCompareIndex] = useState(0)
+  const [cine, setCine] = useState(false)
+  const [cineFps, setCineFps] = useState(8)
   const [measurePts, setMeasurePts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
   const [measureLabel, setMeasureLabel] = useState<string | null>(null)
+  const [anglePts, setAnglePts] = useState<null | { a: { x: number; y: number }; b: { x: number; y: number }; c?: { x: number; y: number } }>(
+    null,
+  )
+  const [angleLabel, setAngleLabel] = useState<string | null>(null)
+  const [roiPts, setRoiPts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [roiLabel, setRoiLabel] = useState<string | null>(null)
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
   const measureStartRef = useRef<{ x: number; y: number } | null>(null)
-  const compareCanvasRef = useRef<HTMLCanvasElement>(null)
+  const roiStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (seriesGroups.length && (!seriesKey || !seriesGroups.some((s) => s.key === seriesKey))) {
+      setSeriesKey(seriesGroups[0]!.key)
+    }
+  }, [seriesGroups, seriesKey])
 
   const safeIndex = Math.min(index, Math.max(0, viewable.length - 1))
   const frame = viewable[safeIndex]
@@ -96,13 +170,30 @@ export function DicomViewer({
     setZoom(1)
     setPan({ x: 0, y: 0 })
     setInvert(false)
-  }, [frames])
+    setRotation(0)
+    setFlipH(false)
+    setFlipV(false)
+    setCine(false)
+    setMeasurePts(null)
+    setMeasureLabel(null)
+    setAnglePts(null)
+    setAngleLabel(null)
+    setRoiPts(null)
+    setRoiLabel(null)
+  }, [seriesKey, frames])
 
   useEffect(() => {
     if (!focusSopUid || !focusRequestId) return
-    const idx = viewable.findIndex((f) => f.sopInstanceUid === focusSopUid)
-    if (idx >= 0) setIndex(idx)
-  }, [focusSopUid, focusRequestId, viewable])
+    for (const g of seriesGroups) {
+      const idx = g.frames.findIndex((f) => f.sopInstanceUid === focusSopUid)
+      if (idx >= 0) {
+        setSeriesKey(g.key)
+        const viewIdx = g.frames.filter((f) => f.ok && f.pixels).findIndex((f) => f.sopInstanceUid === focusSopUid)
+        if (viewIdx >= 0) setIndex(viewIdx)
+        break
+      }
+    }
+  }, [focusSopUid, focusRequestId, seriesGroups])
 
   useEffect(() => {
     if (!frame) return
@@ -126,12 +217,22 @@ export function DicomViewer({
     paint()
   }, [paint])
 
-  const compareFrame = viewable[Math.min(compareIndex, Math.max(0, viewable.length - 1))]
+  const comparePool = compareViewable.length ? compareViewable : viewable
+  const compareFrame = comparePool[Math.min(compareIndex, Math.max(0, comparePool.length - 1))]
   useEffect(() => {
     const canvas = compareCanvasRef.current
     if (!compare || !canvas || !compareFrame) return
     renderFrameToCanvas(canvas, compareFrame, { windowCenter: wc, windowWidth: ww, invert })
   }, [compare, compareFrame, wc, ww, invert])
+
+  useEffect(() => {
+    if (!cine || viewable.length < 2) return
+    const ms = Math.max(40, Math.round(1000 / cineFps))
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % viewable.length)
+    }, ms)
+    return () => window.clearInterval(id)
+  }, [cine, cineFps, viewable.length])
 
   useEffect(() => {
     const onFs = () => setFullscreen(Boolean(document.fullscreenElement))
@@ -146,7 +247,7 @@ export function DicomViewer({
       if (document.fullscreenElement) await document.exitFullscreen()
       else await el.requestFullscreen()
     } catch {
-      /* browser may block; ignore */
+      /* ignore */
     }
   }
 
@@ -185,6 +286,25 @@ export function DicomViewer({
       setMeasureLabel(null)
       return
     }
+    if (tool === 'roi') {
+      const pt = canvasLocalPoint(e)
+      roiStartRef.current = pt
+      setRoiPts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
+      setRoiLabel(null)
+      return
+    }
+    if (tool === 'angle') {
+      const pt = canvasLocalPoint(e)
+      setAnglePts((prev) => {
+        if (!prev || prev.c) return { a: pt, b: pt }
+        if (!prev.c && (prev.a.x !== prev.b.x || prev.a.y !== prev.b.y)) {
+          return { ...prev, c: pt }
+        }
+        return { a: prev.a, b: pt }
+      })
+      setAngleLabel(null)
+      return
+    }
     dragRef.current = { x: e.clientX, y: e.clientY, wc, ww, panX: pan.x, panY: pan.y, zoom }
   }
 
@@ -197,6 +317,21 @@ export function DicomViewer({
         x1: pt.x,
         y1: pt.y,
       })
+      return
+    }
+    if (tool === 'roi' && roiStartRef.current) {
+      const pt = canvasLocalPoint(e)
+      setRoiPts({
+        x0: roiStartRef.current.x,
+        y0: roiStartRef.current.y,
+        x1: pt.x,
+        y1: pt.y,
+      })
+      return
+    }
+    if (tool === 'angle' && anglePts && !anglePts.c) {
+      const pt = canvasLocalPoint(e)
+      setAnglePts({ ...anglePts, b: pt })
       return
     }
     const d = dragRef.current
@@ -217,17 +352,51 @@ export function DicomViewer({
     if (tool === 'measure' && measurePts && frame) {
       const dx = measurePts.x1 - measurePts.x0
       const dy = measurePts.y1 - measurePts.y0
-      const pxDist = Math.hypot(dx, dy)
-      if (frame.pixelSpacingMm) {
-        const [rowMm, colMm] = frame.pixelSpacingMm
-        const mm = Math.hypot(dx * colMm, dy * rowMm)
-        setMeasureLabel(`${mm.toFixed(1)} mm`)
-      } else {
-        setMeasureLabel(`${pxDist.toFixed(1)} px (spacing yok)`)
+      const { text } = formatDistance(dx, dy, frame.pixelSpacingMm)
+      setMeasureLabel(text)
+    }
+    if (tool === 'roi' && roiPts && frame) {
+      const stats = roiStats(frame, roiPts.x0, roiPts.y0, roiPts.x1, roiPts.y1)
+      if (stats) {
+        const unit = frame.pixelSpacingMm ? '' : ' (kalibre değil)'
+        setRoiLabel(`ROI μ=${stats.mean.toFixed(1)} min=${stats.min.toFixed(1)} max=${stats.max.toFixed(1)} n=${stats.count}${unit}`)
+      }
+    }
+    if (tool === 'angle' && anglePts?.c) {
+      const v1x = anglePts.a.x - anglePts.b.x
+      const v1y = anglePts.a.y - anglePts.b.y
+      const v2x = anglePts.c.x - anglePts.b.x
+      const v2y = anglePts.c.y - anglePts.b.y
+      const dot = v1x * v2x + v1y * v2y
+      const n1 = Math.hypot(v1x, v1y)
+      const n2 = Math.hypot(v2x, v2y)
+      if (n1 > 1e-6 && n2 > 1e-6) {
+        const deg = (Math.acos(Math.max(-1, Math.min(1, dot / (n1 * n2)))) * 180) / Math.PI
+        setAngleLabel(`${deg.toFixed(1)}°`)
       }
     }
     measureStartRef.current = null
+    roiStartRef.current = null
     dragRef.current = null
+  }
+
+  const resetView = () => {
+    if (!frame) return
+    const aw = autoWindow(frame)
+    setWc(aw.center)
+    setWw(aw.width)
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    setInvert(false)
+    setRotation(0)
+    setFlipH(false)
+    setFlipV(false)
+    setMeasurePts(null)
+    setMeasureLabel(null)
+    setAnglePts(null)
+    setAngleLabel(null)
+    setRoiPts(null)
+    setRoiLabel(null)
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -244,26 +413,25 @@ export function DicomViewer({
     } else if (e.key === 'End') {
       e.preventDefault()
       setIndex(viewable.length - 1)
+    } else if (e.key === ' ') {
+      e.preventDefault()
+      setCine((v) => !v)
     } else if (e.key === 'r' || e.key === 'R') {
       e.preventDefault()
       resetView()
     } else if (e.key === 'i' || e.key === 'I') {
       e.preventDefault()
       setInvert((v) => !v)
-    } else if (e.key === 'w' || e.key === 'W') {
-      setTool('wwwl')
-    } else if (e.key === 'p' || e.key === 'P') {
-      setTool('pan')
-    } else if (e.key === 'z' || e.key === 'Z') {
-      setTool('zoom')
-    } else if (e.key === 'm' || e.key === 'M') {
-      setTool('measure')
-    } else if (e.key === 'f' || e.key === 'F') {
+    } else if (e.key === 'w' || e.key === 'W') setTool('wwwl')
+    else if (e.key === 'p' || e.key === 'P') setTool('pan')
+    else if (e.key === 'z' || e.key === 'Z') setTool('zoom')
+    else if (e.key === 'm' || e.key === 'M') setTool('measure')
+    else if (e.key === 'a' || e.key === 'A') setTool('angle')
+    else if (e.key === 'o' || e.key === 'O') setTool('roi')
+    else if (e.key === 'f' || e.key === 'F') {
       e.preventDefault()
       void toggleFullscreen()
-    } else if (e.key === 'c' || e.key === 'C') {
-      setCompare((v) => !v)
-    }
+    } else if (e.key === 'c' || e.key === 'C') setCompare((v) => !v)
   }
 
   const applyPreset = (id: string) => {
@@ -281,14 +449,9 @@ export function DicomViewer({
     }
   }
 
-  const resetView = () => {
-    if (!frame) return
-    const aw = autoWindow(frame)
-    setWc(aw.center)
-    setWw(aw.width)
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-    setInvert(false)
+  const transformStyle = {
+    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+    transformOrigin: 'center center' as const,
   }
 
   if (loading) {
@@ -304,18 +467,24 @@ export function DicomViewer({
   if (!frames.length) return null
 
   if (!viewable.length) {
+    const err = frames.find((f) => f.error)?.error
     return (
       <div className={`rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 ${className}`}>
         <div className="flex items-start gap-2">
           <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="font-semibold">Piksel önizlemesi yok</p>
-            <p className="mt-1 text-xs">Metadata okundu; görüntü verisi yok veya format desteklenmiyor.</p>
+            <p className="mt-1 text-xs">
+              Metadata okundu; görüntü verisi yok veya transfer syntax desteklenmiyor.
+              {err ? ` (${err})` : ''}
+            </p>
           </div>
         </div>
       </div>
     )
   }
+
+  const statusBits = [measureLabel, angleLabel, roiLabel].filter(Boolean).join(' · ')
 
   return (
     <div
@@ -326,7 +495,37 @@ export function DicomViewer({
       role="application"
       aria-label="DICOM görüntüleyici"
     >
-      {/* Toolbar: Window/Level | Pan | Zoom | Invert | Reset | Presets */}
+      {seriesGroups.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
+          {seriesGroups.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              title={s.label}
+              onClick={() => setSeriesKey(s.key)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
+                s.key === activeSeries?.key
+                  ? 'bg-[#0D827B] text-white'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              {s.thumbUrl ? (
+                <img src={s.thumbUrl} alt="" className="h-8 w-8 rounded object-cover" />
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded bg-black text-[9px] text-slate-500">
+                  {s.frames.length}
+                </span>
+              )}
+              <span className="max-w-[100px] truncate">
+                {s.modality ? `${s.modality} · ` : ''}
+                {s.label}
+              </span>
+              <span className="text-slate-400">({s.frames.length})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
         <span className="mr-2 hidden text-[10px] font-semibold uppercase tracking-wider text-[#0D827B] sm:inline">
           Viewer
@@ -340,17 +539,62 @@ export function DicomViewer({
         <ToolButton active={tool === 'zoom'} title="Zoom (Z)" onClick={() => setTool('zoom')}>
           <ZoomIn className="h-3.5 w-3.5" /> Zoom
         </ToolButton>
-        <ToolButton active={tool === 'measure'} title="Ölçüm (M)" onClick={() => setTool('measure')}>
-          <Ruler className="h-3.5 w-3.5" /> Ölç
+        <ToolButton active={tool === 'measure'} title="Mesafe (M)" onClick={() => setTool('measure')}>
+          <Ruler className="h-3.5 w-3.5" /> Mesafe
+        </ToolButton>
+        <ToolButton active={tool === 'angle'} title="Açı (A)" onClick={() => setTool('angle')}>
+          <Triangle className="h-3.5 w-3.5" /> Açı
+        </ToolButton>
+        <ToolButton active={tool === 'roi'} title="ROI (O)" onClick={() => setTool('roi')}>
+          <Square className="h-3.5 w-3.5" /> ROI
         </ToolButton>
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
         <ToolButton active={invert} title="Invert (I)" onClick={() => setInvert((v) => !v)}>
           Invert
         </ToolButton>
+        <ToolButton title="90° döndür" onClick={() => setRotation((r) => (r + 90) % 360)}>
+          <RotateCw className="h-3.5 w-3.5" />
+        </ToolButton>
+        <ToolButton active={flipH} title="Yatay çevir" onClick={() => setFlipH((v) => !v)}>
+          <FlipHorizontal2 className="h-3.5 w-3.5" />
+        </ToolButton>
+        <ToolButton active={flipV} title="Dikey çevir" onClick={() => setFlipV((v) => !v)}>
+          <FlipVertical2 className="h-3.5 w-3.5" />
+        </ToolButton>
         <ToolButton title="Reset (R)" onClick={resetView}>
           <RotateCcw className="h-3.5 w-3.5" /> Reset
         </ToolButton>
-        <ToolButton active={compare} title="Karşılaştır (C)" onClick={() => setCompare((v) => !v)}>
+        <ToolButton
+          active={cine}
+          title="Cine (Space)"
+          onClick={() => setCine((v) => !v)}
+        >
+          {cine ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} Cine
+        </ToolButton>
+        {cine && (
+          <label className="flex items-center gap-1 text-[10px] text-slate-400">
+            fps
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={cineFps}
+              onChange={(e) => setCineFps(Math.max(1, Math.min(30, Number(e.target.value) || 8)))}
+              className="w-10 rounded border border-white/10 bg-black/40 px-1 py-0.5 text-white"
+            />
+          </label>
+        )}
+        <ToolButton
+          active={compare}
+          title="Karşılaştır (C)"
+          onClick={() => {
+            setCompare((v) => !v)
+            if (!compare && seriesGroups.length > 1) {
+              const other = seriesGroups.find((s) => s.key !== activeSeries?.key)
+              setCompareSeriesKey(other?.key || null)
+            }
+          }}
+        >
           <Columns2 className="h-3.5 w-3.5" /> Compare
         </ToolButton>
         <ToolButton title="Tam ekran (F)" onClick={() => void toggleFullscreen()}>
@@ -368,13 +612,13 @@ export function DicomViewer({
             {p.label}
           </button>
         ))}
-        <span className="ml-auto font-mono text-[10px] tabular-nums text-slate-400">
+        <span className="ml-auto max-w-[50%] truncate font-mono text-[10px] tabular-nums text-slate-400">
           W:{Math.round(ww)} L:{Math.round(wc)} · {Math.round(zoom * 100)}% · {safeIndex + 1}/{viewable.length}
-          {measureLabel ? ` · ${measureLabel}` : ''}
+          {statusBits ? ` · ${statusBits}` : ''}
+          {!frame.pixelSpacingMm ? ' · spacing yok' : ''}
         </span>
       </div>
 
-      {/* Viewport */}
       <div
         className={`relative flex min-h-[min(62vh,640px)] flex-1 cursor-crosshair items-center justify-center overflow-hidden bg-black select-none ${compare ? 'gap-1' : ''}`}
         onWheel={onWheel}
@@ -384,40 +628,88 @@ export function DicomViewer({
         onPointerCancel={onPointerUp}
         onClick={() => viewportRef.current?.focus()}
       >
-        <div
-          className={`relative flex items-center justify-center ${compare ? 'w-1/2' : 'w-full'}`}
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: 'center center',
-          }}
-        >
+        <div className={`relative flex items-center justify-center ${compare ? 'w-1/2' : 'w-full'}`} style={transformStyle}>
           <canvas ref={canvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
-          {measurePts && frame?.cols && frame.rows && (
+          {frame?.cols && frame.rows && (
             <svg
               className="pointer-events-none absolute inset-0 h-full w-full"
               viewBox={`0 0 ${frame.cols} ${frame.rows}`}
               preserveAspectRatio="none"
             >
-              <line
-                x1={measurePts.x0}
-                y1={measurePts.y0}
-                x2={measurePts.x1}
-                y2={measurePts.y1}
-                stroke="#5eead4"
-                strokeWidth={Math.max(1, frame.cols / 400)}
-              />
+              {measurePts && (
+                <line
+                  x1={measurePts.x0}
+                  y1={measurePts.y0}
+                  x2={measurePts.x1}
+                  y2={measurePts.y1}
+                  stroke="#5eead4"
+                  strokeWidth={Math.max(1, frame.cols / 400)}
+                />
+              )}
+              {anglePts && (
+                <>
+                  <line
+                    x1={anglePts.a.x}
+                    y1={anglePts.a.y}
+                    x2={anglePts.b.x}
+                    y2={anglePts.b.y}
+                    stroke="#fbbf24"
+                    strokeWidth={Math.max(1, frame.cols / 400)}
+                  />
+                  {anglePts.c && (
+                    <line
+                      x1={anglePts.b.x}
+                      y1={anglePts.b.y}
+                      x2={anglePts.c.x}
+                      y2={anglePts.c.y}
+                      stroke="#fbbf24"
+                      strokeWidth={Math.max(1, frame.cols / 400)}
+                    />
+                  )}
+                </>
+              )}
+              {roiPts && (
+                <rect
+                  x={Math.min(roiPts.x0, roiPts.x1)}
+                  y={Math.min(roiPts.y0, roiPts.y1)}
+                  width={Math.abs(roiPts.x1 - roiPts.x0)}
+                  height={Math.abs(roiPts.y1 - roiPts.y0)}
+                  fill="rgba(94,234,212,0.12)"
+                  stroke="#5eead4"
+                  strokeWidth={Math.max(1, frame.cols / 400)}
+                />
+              )}
             </svg>
           )}
         </div>
         {compare && (
           <div className="flex w-1/2 flex-col items-center justify-center border-l border-white/10">
+            {seriesGroups.length > 1 && (
+              <select
+                className="mb-1 max-w-[90%] rounded border border-white/10 bg-[#0b1727] px-2 py-0.5 text-[10px] text-slate-200"
+                value={compareSeriesKey || ''}
+                onChange={(e) => {
+                  setCompareSeriesKey(e.target.value || null)
+                  setCompareIndex(0)
+                }}
+                aria-label="Karşılaştırma serisi"
+              >
+                <option value="">Aynı seri (dilim)</option>
+                {seriesGroups.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.modality ? `${s.modality} · ` : ''}
+                    {s.label} ({s.frames.length})
+                  </option>
+                ))}
+              </select>
+            )}
             <canvas ref={compareCanvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
-            {viewable.length > 1 && (
+            {comparePool.length > 1 && (
               <input
                 type="range"
                 min={0}
-                max={viewable.length - 1}
-                value={Math.min(compareIndex, viewable.length - 1)}
+                max={comparePool.length - 1}
+                value={Math.min(compareIndex, comparePool.length - 1)}
                 onChange={(e) => setCompareIndex(Number(e.target.value))}
                 className="mt-2 w-4/5 accent-[#0D827B]"
                 aria-label="Karşılaştırma dilimi"
@@ -438,13 +730,18 @@ export function DicomViewer({
             Im: {safeIndex + 1}/{viewable.length}
           </p>
           {frame.instanceNumber != null && <p>Inst#: {frame.instanceNumber}</p>}
+          {frame.imagePositionPatient && (
+            <p className="text-slate-400">
+              IPP z={frame.imagePositionPatient[2].toFixed(1)}
+            </p>
+          )}
         </div>
         <div className="pointer-events-none absolute right-3 top-3 text-right font-mono text-[10px] leading-relaxed text-slate-300/90">
           <p>
             WL {Math.round(wc)} / {Math.round(ww)}
           </p>
           <p>{tool.toUpperCase()}</p>
-          <p className="text-slate-500">Scroll: dilim · Ctrl+scroll: zoom</p>
+          <p className="text-slate-500">Scroll dilim · Ctrl+scroll zoom · Space cine</p>
         </div>
         <div className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] truncate font-mono text-[10px] text-slate-400">
           {frame.relativePath || frame.fileName}
@@ -474,17 +771,15 @@ export function DicomViewer({
         )}
       </div>
 
-      {/* Slice navigation + W/L + thumbnails */}
       <div className="space-y-2 border-t border-white/10 bg-[#0b1727] px-3 py-2">
         {viewable.length > 1 && (
           <div className="flex items-center gap-2">
             <button
               type="button"
-              title="Önceki dilim"
-              aria-label="Önceki dilim"
               className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
               onClick={() => goSlice(-1)}
               disabled={safeIndex <= 0}
+              aria-label="Önceki dilim"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -493,18 +788,19 @@ export function DicomViewer({
               min={0}
               max={viewable.length - 1}
               value={safeIndex}
-              onChange={(e) => setIndex(Number(e.target.value))}
+              onChange={(e) => {
+                setCine(false)
+                setIndex(Number(e.target.value))
+              }}
               className="h-1.5 flex-1 cursor-pointer accent-[#0D827B]"
               aria-label="Dilim kaydırıcı"
-              title={`Dilim ${safeIndex + 1} / ${viewable.length}`}
             />
             <button
               type="button"
-              title="Sonraki dilim"
-              aria-label="Sonraki dilim"
               className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
               onClick={() => goSlice(1)}
               disabled={safeIndex >= viewable.length - 1}
+              aria-label="Sonraki dilim"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -523,7 +819,6 @@ export function DicomViewer({
               value={Math.round(wc)}
               onChange={(e) => setWc(Number(e.target.value))}
               className="flex-1 accent-[#0D827B]"
-              title="Window center"
             />
           </label>
           <label className="flex items-center gap-2 text-[11px] text-slate-400">
@@ -535,7 +830,6 @@ export function DicomViewer({
               value={Math.round(ww)}
               onChange={(e) => setWw(Number(e.target.value))}
               className="flex-1 accent-[#0D827B]"
-              title="Window width"
             />
           </label>
         </div>
@@ -550,7 +844,10 @@ export function DicomViewer({
                   key={`${f.sopInstanceUid || f.fileName}-${i}`}
                   type="button"
                   title={f.relativePath || f.fileName}
-                  onClick={() => setIndex(i)}
+                  onClick={() => {
+                    setCine(false)
+                    setIndex(i)
+                  }}
                   className={`h-14 shrink-0 overflow-hidden rounded bg-black ring-2 ${
                     i === safeIndex ? 'ring-[#0D827B]' : 'ring-white/10 hover:ring-white/25'
                   }`}

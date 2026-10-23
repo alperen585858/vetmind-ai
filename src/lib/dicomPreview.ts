@@ -1,7 +1,7 @@
 /**
  * Client-side DICOM decode for radiologist viewing.
  * Keeps float pixels so window/level can be adjusted live.
- * NOT pixel-based AI diagnosis.
+ * NOT pixel-based AI diagnosis. Not clinical/PACS-grade validation.
  */
 
 import { parseDicom } from 'dicom-parser'
@@ -17,6 +17,7 @@ export interface DicomFramePreview {
   studyDescription?: string
   seriesDescription?: string
   seriesInstanceUid?: string
+  studyInstanceUid?: string
   sopInstanceUid?: string
   instanceNumber?: number
   photometric?: string
@@ -29,8 +30,14 @@ export interface DicomFramePreview {
   defaultWindowWidth?: number
   /** Row/col spacing in mm when PixelSpacing present (calibrated measure). */
   pixelSpacingMm?: [number, number]
+  /** Image Position Patient (x,y,z) when present — used for spatial slice sort. */
+  imagePositionPatient?: [number, number, number]
+  /** Slice Location tag when present (fallback axis). */
+  sliceLocation?: number
   /** Cached thumbnail data URL (auto window). */
   thumbUrl?: string
+  /** Transfer syntax UID when readable (unsupported syntax → ok:false). */
+  transferSyntaxUid?: string
 }
 
 function tag(ds: ReturnType<typeof parseDicom>, name: string): string | undefined {
@@ -43,6 +50,71 @@ function firstNumber(ds: ReturnType<typeof parseDicom>, name: string): number | 
   const first = raw.split('\\')[0]
   const n = Number(first)
   return Number.isFinite(n) ? n : undefined
+}
+
+function parseFloatTriplet(raw: string | undefined): [number, number, number] | undefined {
+  if (!raw) return undefined
+  const parts = raw.split('\\').map((p) => Number(p.trim()))
+  if (parts.length < 3) return undefined
+  if (!parts.slice(0, 3).every((n) => Number.isFinite(n))) return undefined
+  return [parts[0]!, parts[1]!, parts[2]!]
+}
+
+/** Spatial / instance sort key — never invents positions; falls back to InstanceNumber then filename. */
+export function frameSortKey(f: DicomFramePreview): [number, number, number, number, string] {
+  if (f.imagePositionPatient) {
+    const [x, y, z] = f.imagePositionPatient
+    return [0, z, y, x, f.sopInstanceUid || f.fileName]
+  }
+  if (f.sliceLocation != null && Number.isFinite(f.sliceLocation)) {
+    return [1, f.sliceLocation, 0, 0, f.sopInstanceUid || f.fileName]
+  }
+  if (f.instanceNumber != null) {
+    return [2, f.instanceNumber, 0, 0, f.sopInstanceUid || f.fileName]
+  }
+  return [3, 0, 0, 0, f.fileName]
+}
+
+export function sortFramesSpatially(frames: DicomFramePreview[]): DicomFramePreview[] {
+  return [...frames].sort((a, b) => {
+    const ka = frameSortKey(a)
+    const kb = frameSortKey(b)
+    for (let i = 0; i < 4; i++) {
+      if (ka[i] !== kb[i]) return (ka[i] as number) - (kb[i] as number)
+    }
+    return String(ka[4]).localeCompare(String(kb[4]))
+  })
+}
+
+export function seriesKeyOf(f: DicomFramePreview): string {
+  return f.seriesInstanceUid || (f.seriesDescription ? `desc:${f.seriesDescription}` : 'ungrouped')
+}
+
+export function groupFramesBySeries(frames: DicomFramePreview[]): {
+  key: string
+  label: string
+  modality?: string
+  frames: DicomFramePreview[]
+  thumbUrl?: string
+}[] {
+  const map = new Map<string, DicomFramePreview[]>()
+  for (const f of frames) {
+    const key = seriesKeyOf(f)
+    const list = map.get(key) || []
+    list.push(f)
+    map.set(key, list)
+  }
+  return [...map.entries()].map(([key, list]) => {
+    const sorted = sortFramesSpatially(list)
+    const first = sorted.find((x) => x.ok) || sorted[0]
+    return {
+      key,
+      label: first?.seriesDescription || key.slice(0, 12),
+      modality: first?.modality,
+      frames: sorted,
+      thumbUrl: first?.thumbUrl,
+    }
+  })
 }
 
 export function renderFrameToCanvas(
@@ -68,13 +140,44 @@ export function renderFrameToCanvas(
     let g = ((pixels[i] - lo) / (hi - lo)) * 255
     g = Math.max(0, Math.min(255, g))
     if (invert) g = 255 - g
-    const o = i * 4
+    const o = i < pixels.length ? i * 4 : 0
     image.data[o] = g
     image.data[o + 1] = g
     image.data[o + 2] = g
     image.data[o + 3] = 255
   }
   ctx.putImageData(image, 0, 0)
+}
+
+/** ROI mean/min/max over pixel values (display units after rescale). Bounds clamped to image. */
+export function roiStats(
+  frame: DicomFramePreview,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): { mean: number; min: number; max: number; count: number } | null {
+  if (!frame.ok || !frame.pixels || !frame.rows || !frame.cols) return null
+  const left = Math.max(0, Math.min(Math.floor(x0), Math.floor(x1)))
+  const right = Math.min(frame.cols - 1, Math.max(Math.floor(x0), Math.floor(x1)))
+  const top = Math.max(0, Math.min(Math.floor(y0), Math.floor(y1)))
+  const bottom = Math.min(frame.rows - 1, Math.max(Math.floor(y0), Math.floor(y1)))
+  if (right < left || bottom < top) return null
+  let sum = 0
+  let min = Infinity
+  let max = -Infinity
+  let count = 0
+  for (let y = top; y <= bottom; y++) {
+    for (let x = left; x <= right; x++) {
+      const v = frame.pixels[y * frame.cols + x]!
+      sum += v
+      if (v < min) min = v
+      if (v > max) max = v
+      count++
+    }
+  }
+  if (!count) return null
+  return { mean: sum / count, min, max, count }
 }
 
 export function autoWindow(frame: DicomFramePreview): { center: number; width: number } {
@@ -102,6 +205,21 @@ function extractPixels(
   const slope = dataSet.floatString('x00281053') ?? 1
   const intercept = dataSet.floatString('x00281052') ?? 0
   if (samplesPerPixel !== 1) throw new Error(`Çok kanallı görüntü desteklenmiyor (samples=${samplesPerPixel})`)
+
+  const transferSyntax = tag(dataSet, 'x00020010') || ''
+  // Encapsulated / JPEG / RLE etc. — dicom-parser raw PixelData often unusable without a codec.
+  if (
+    transferSyntax &&
+    transferSyntax !== '1.2.840.10008.1.2' &&
+    transferSyntax !== '1.2.840.10008.1.2.1' &&
+    transferSyntax !== '1.2.840.10008.1.2.2'
+  ) {
+    // Still try raw extract; many demo files are Explicit VR Little Endian.
+    const encapsulated = Boolean(dataSet.elements.x7fe00010?.fragments?.length)
+    if (encapsulated) {
+      throw new Error(`Desteklenmeyen transfer syntax (sıkıştırılmış): ${transferSyntax}`)
+    }
+  }
 
   const offset = pixelElement.dataOffset
   const length = pixelElement.length
@@ -131,7 +249,6 @@ function makeThumb(frame: DicomFramePreview): string | undefined {
   const canvas = document.createElement('canvas')
   const { center, width } = autoWindow(frame)
   renderFrameToCanvas(canvas, frame, { windowCenter: center, windowWidth: width })
-  // Downscale thumb
   const thumb = document.createElement('canvas')
   const tw = 64
   const th = Math.max(1, Math.round((frame.rows / frame.cols) * tw))
@@ -148,26 +265,48 @@ export async function buildDicomPreview(file: File): Promise<DicomFramePreview> 
     const buf = await file.arrayBuffer()
     const byteArray = new Uint8Array(buf)
     const dataSet = parseDicom(byteArray)
+    const transferSyntaxUid = tag(dataSet, 'x00020010')
     const rows = dataSet.uint16('x00280010')
     const cols = dataSet.uint16('x00280011')
+    const metaBase = {
+      fileName: file.name,
+      relativePath: file.webkitRelativePath || undefined,
+      modality: tag(dataSet, 'x00080060'),
+      studyDescription: tag(dataSet, 'x00081030'),
+      seriesDescription: tag(dataSet, 'x0008103e'),
+      seriesInstanceUid: tag(dataSet, 'x0020000e'),
+      studyInstanceUid: tag(dataSet, 'x0020000d'),
+      sopInstanceUid: tag(dataSet, 'x00080018'),
+      instanceNumber: dataSet.intString('x00200013'),
+      transferSyntaxUid,
+      imagePositionPatient: parseFloatTriplet(tag(dataSet, 'x00200032')),
+      sliceLocation: firstNumber(dataSet, 'x00201041'),
+    }
     if (!rows || !cols) {
       return {
-        fileName: file.name,
-        relativePath: file.webkitRelativePath || undefined,
+        ...metaBase,
         ok: false,
         error: 'Rows/Columns okunamadı (metadata-only dosya olabilir).',
-        modality: tag(dataSet, 'x00080060'),
-        studyDescription: tag(dataSet, 'x00081030'),
-        seriesDescription: tag(dataSet, 'x0008103e'),
       }
     }
 
     const photometric = (tag(dataSet, 'x00280004') || 'MONOCHROME2').toUpperCase()
-    const pixels = extractPixels(byteArray, dataSet, rows, cols)
+    let pixels: Float32Array
+    try {
+      pixels = extractPixels(byteArray, dataSet, rows, cols)
+    } catch (err) {
+      return {
+        ...metaBase,
+        ok: false,
+        rows,
+        cols,
+        error: err instanceof Error ? err.message : 'Piksel decode başarısız',
+      }
+    }
     let pixelMin = Infinity
     let pixelMax = -Infinity
     for (let i = 0; i < pixels.length; i++) {
-      const v = pixels[i]
+      const v = pixels[i]!
       if (v < pixelMin) pixelMin = v
       if (v > pixelMax) pixelMax = v
     }
@@ -186,17 +325,10 @@ export async function buildDicomPreview(file: File): Promise<DicomFramePreview> 
     }
 
     const frame: DicomFramePreview = {
-      fileName: file.name,
-      relativePath: file.webkitRelativePath || undefined,
+      ...metaBase,
       ok: true,
-      modality: tag(dataSet, 'x00080060'),
       rows,
       cols,
-      studyDescription: tag(dataSet, 'x00081030'),
-      seriesDescription: tag(dataSet, 'x0008103e'),
-      seriesInstanceUid: tag(dataSet, 'x0020000e'),
-      sopInstanceUid: tag(dataSet, 'x00080018'),
-      instanceNumber: dataSet.intString('x00200013'),
       photometric,
       pixels,
       pixelMin,
@@ -217,14 +349,22 @@ export async function buildDicomPreview(file: File): Promise<DicomFramePreview> 
   }
 }
 
-export async function buildDicomPreviews(files: File[]): Promise<DicomFramePreview[]> {
+/** Decode files with spatial sort. Yields periodically for large studies (lazy-friendly). */
+export async function buildDicomPreviews(
+  files: File[],
+  opts?: { onProgress?: (done: number, total: number) => void; signal?: AbortSignal },
+): Promise<DicomFramePreview[]> {
   const out: DicomFramePreview[] = []
-  for (const file of files) {
-    out.push(await buildDicomPreview(file))
+  for (let i = 0; i < files.length; i++) {
+    if (opts?.signal?.aborted) break
+    out.push(await buildDicomPreview(files[i]!))
+    opts?.onProgress?.(i + 1, files.length)
+    // Yield to UI every few frames for large studies
+    if (i > 0 && i % 4 === 0) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
   }
-  // Sort by instance number when available
-  out.sort((a, b) => (a.instanceNumber ?? 0) - (b.instanceNumber ?? 0))
-  return out
+  return sortFramesSpatially(out)
 }
 
 /** Client-side AI package summary (mirrors backend ImagingModelInput fields). */

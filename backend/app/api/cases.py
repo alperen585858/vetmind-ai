@@ -38,6 +38,9 @@ class CaseDicomFileInfo(BaseModel):
     filename: str
     size_bytes: int
     content_kind: str = "dicom"
+    # Phase 19: multi-ingest — global index spans primary + attachment DICOM ingests.
+    ingest_id: str | None = None
+    ingest_file_index: int | None = None
 
 
 class CaseDicomFileList(BaseModel):
@@ -45,8 +48,33 @@ class CaseDicomFileList(BaseModel):
 
     case_id: str
     ingest_id: str | None = None
+    ingest_ids: list[str] = Field(default_factory=list)
     files: list[CaseDicomFileInfo] = Field(default_factory=list)
     note: str = "Display bytes from quarantine. Not a clinical PACS retrieval."
+
+
+def _case_dicom_ingest_ids(case) -> list[str]:
+    """Primary dicom_ingest_id plus all authorized DICOM attachment_refs (deduped, stable order)."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+    if getattr(case, "dicom_ingest_id", None):
+        ordered.append(case.dicom_ingest_id)
+        seen.add(case.dicom_ingest_id)
+    for att in getattr(case, "attachment_refs", None) or []:
+        if getattr(att, "kind", None) == "dicom" and att.ingest_id and att.ingest_id not in seen:
+            ordered.append(att.ingest_id)
+            seen.add(att.ingest_id)
+    return ordered
+
+
+def _flatten_case_dicom_files(container, case) -> list[tuple[str, int, object]]:
+    """Return list of (ingest_id, local_index, quarantine_ref) for every linked DICOM ingest."""
+    flat: list[tuple[str, int, object]] = []
+    for ingest_id in _case_dicom_ingest_ids(case):
+        refs = container.quarantine.list_files(ingest_id)
+        for local_i, ref in enumerate(refs):
+            flat.append((ingest_id, local_i, ref))
+    return flat
 
 
 @router.post("", response_model=CaseRecord, status_code=status.HTTP_201_CREATED)
@@ -273,13 +301,13 @@ def list_case_dicom_files(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_DICOM)),
 ) -> CaseDicomFileList:
-    """List quarantined DICOM instances for in-browser viewing (uploaded study, not synthetic fixtures)."""
+    """List all authorized quarantined DICOM instances (primary + DICOM attachment_refs)."""
     case = service.get_case(case_id, principal=principal)
-    ingest_id = case.dicom_ingest_id
-    if not ingest_id:
-        return CaseDicomFileList(case_id=case_id, ingest_id=None, files=[])
+    ingest_ids = _case_dicom_ingest_ids(case)
+    if not ingest_ids:
+        return CaseDicomFileList(case_id=case_id, ingest_id=None, ingest_ids=[], files=[])
     container = get_container(request)
-    refs = container.quarantine.list_files(ingest_id)
+    flat = _flatten_case_dicom_files(container, case)
     if container.audit is not None:
         container.audit.record(
             event_type="dicom.list",
@@ -290,16 +318,23 @@ def list_case_dicom_files(
         )
     return CaseDicomFileList(
         case_id=case_id,
-        ingest_id=ingest_id,
+        ingest_id=ingest_ids[0],
+        ingest_ids=ingest_ids,
         files=[
             CaseDicomFileInfo(
                 index=i,
                 filename=ref.original_filename,
                 size_bytes=ref.size_bytes,
                 content_kind=ref.content_kind,
+                ingest_id=ingest_id,
+                ingest_file_index=local_i,
             )
-            for i, ref in enumerate(refs)
+            for i, (ingest_id, local_i, ref) in enumerate(flat)
         ],
+        note=(
+            "Display bytes from quarantine across all linked DICOM ingests. "
+            "Not a clinical PACS retrieval."
+        ),
     )
 
 
@@ -311,16 +346,15 @@ def download_case_dicom_file(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_DICOM)),
 ) -> Response:
-    """Download one quarantined DICOM instance for display decode in the case viewer."""
+    """Download one quarantined DICOM instance (global index across linked ingests)."""
     case = service.get_case(case_id, principal=principal)
-    ingest_id = case.dicom_ingest_id
-    if not ingest_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case has no DICOM ingest.")
     container = get_container(request)
-    refs = container.quarantine.list_files(ingest_id)
-    if index < 0 or index >= len(refs):
+    flat = _flatten_case_dicom_files(container, case)
+    if not flat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case has no DICOM ingest.")
+    if index < 0 or index >= len(flat):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DICOM file index out of range.")
-    ref = refs[index]
+    ingest_id, _local_i, ref = flat[index]
     try:
         _name, data = container.quarantine.read_file(ref.relative_path, expected_sha256=ref.sha256 or None)
     except (FileNotFoundError, ValueError) as exc:
@@ -329,7 +363,7 @@ def download_case_dicom_file(
         container.audit.record(
             event_type="dicom.retrieve",
             actor=principal.subject,
-            resource=f"{case_id}:{index}",
+            resource=f"{case_id}:{index}:{ingest_id}",
             outcome=AuditOutcome.SUCCESS,
             clinic_id=principal.clinic_id,
         )
@@ -339,6 +373,7 @@ def download_case_dicom_file(
         media_type="application/dicom",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            "X-VetMind-Case-Dicom-Count": str(len(refs)),
+            "X-VetMind-Case-Dicom-Count": str(len(flat)),
+            "X-VetMind-Dicom-Ingest-Id": ingest_id,
         },
     )

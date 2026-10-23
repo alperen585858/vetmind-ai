@@ -15,8 +15,8 @@ export const MAX_DICOM_FILE_BYTES = 25 * 1024 * 1024
 /** Aggregate upload budget (matches backend `_MAX_TOTAL_BYTES`). */
 export const MAX_DICOM_TOTAL_BYTES = 100 * 1024 * 1024
 
-/** Max frames rendered in the browser viewer (performance). */
-export const MAX_VIEWER_FRAMES = 48
+/** Max frames fetched for the browser viewer (lazy decode still yields during build). */
+export const MAX_VIEWER_FRAMES = 96
 
 export type FileRejectReason =
   | 'empty'

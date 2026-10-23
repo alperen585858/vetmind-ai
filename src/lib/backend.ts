@@ -667,7 +667,16 @@ export async function requestCancelAnalysisJob(jobId: string): Promise<BackendAn
 export interface CaseDicomFileList {
   case_id: string
   ingest_id?: string | null
-  files: { index: number; filename: string; size_bytes: number; content_kind: string }[]
+  /** Phase 19: all linked DICOM ingests (primary + attachment_refs). */
+  ingest_ids?: string[]
+  files: {
+    index: number
+    filename: string
+    size_bytes: number
+    content_kind: string
+    ingest_id?: string | null
+    ingest_file_index?: number | null
+  }[]
   note: string
 }
 
