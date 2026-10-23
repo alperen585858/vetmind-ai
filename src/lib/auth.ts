@@ -48,6 +48,14 @@ const SEED_ACCOUNTS: DemoAccount[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    id: 'acc-clinic-owner',
+    email: 'clinic-owner@demo.local',
+    password: 'demo1234',
+    name: USERS.clinic_owner.name,
+    role: 'clinic_owner',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
     id: 'acc-admin',
     email: 'admin@demo.local',
     password: 'demo1234',
@@ -234,5 +242,6 @@ export function postLoginPath(role: Role): string {
 export const DEMO_PASSWORD = 'demo1234'
 
 export function demoEmailForRole(role: Role): string {
+  if (role === 'clinic_owner') return 'clinic-owner@demo.local'
   return `${role}@demo.local`
 }

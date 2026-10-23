@@ -1,4 +1,4 @@
-from app.auth.security import DEMO_USERS, AuthSettings
+from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
@@ -22,6 +22,8 @@ from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
+from app.services.workflow_service import WorkflowService
+from app.services.workflow_store import build_workflow_store
 from app.settings import Settings, load_settings, validate_security_settings
 from app.storage.encryption import encryption_status
 from app.storage.malware_scan import build_scanner
@@ -150,12 +152,22 @@ class AppContainer:
             capabilities=capabilities,
             tenant_isolation=self.settings.tenant_isolation,
         )
+        # Mutable login directory (admin can add/update users via WorkflowService).
+        self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)
+        self.workflow_store = build_workflow_store(self.settings)
+        self.workflow = WorkflowService(
+            self.workflow_store,
+            self.cases,
+            tenant_isolation=self.settings.tenant_isolation,
+            auth_users=self._auth_users,
+        )
+        self.workflow.sync_auth_directory()
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,
             api_key=self.settings.auth_api_key,
             jwt_secret=self.settings.jwt_secret,
             jwt_ttl_seconds=self.settings.jwt_ttl_seconds,
-            users=DEMO_USERS,
+            users=self._auth_users,
             tenant_isolation=self.settings.tenant_isolation,
             deployment_mode=self.settings.deployment_mode,
         )

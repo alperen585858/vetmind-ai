@@ -179,6 +179,11 @@ class CaseRecord(BaseModel):
     report_available_at: Optional[datetime] = None
     report_delivered_at: Optional[datetime] = None
     report_viewed_at: Optional[datetime] = None
+    # Phase 14: pet-owner linkage (owner ACL uses pet_owner_subject, not clinic-wide).
+    pet_id: Optional[str] = None
+    pet_owner_subject: Optional[str] = None
+    submission_id: Optional[str] = None
+    vet_verified: bool = True
 
 
 class CaseSummary(BaseModel):
@@ -208,3 +213,7 @@ class CaseSummary(BaseModel):
     report_available_at: Optional[datetime] = None
     report_delivered_at: Optional[datetime] = None
     report_viewed_at: Optional[datetime] = None
+    pet_id: Optional[str] = None
+    pet_owner_subject: Optional[str] = None
+    submission_id: Optional[str] = None
+    vet_verified: bool = True

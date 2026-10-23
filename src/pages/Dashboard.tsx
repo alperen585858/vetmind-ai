@@ -13,14 +13,15 @@ import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
-import { getClinicDashboard } from '../lib/backend'
+import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
 import { fmtDate } from '../lib/format'
-import type { ClinicDashboardStats, VetCase } from '../types'
+import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
 
 export default function Dashboard() {
   const { role } = useApp()
   if (role === 'expert') return <ExpertDashboard />
   if (role === 'owner') return <OwnerDashboard />
+  if (role === 'clinic_owner') return <ClinicOwnerDashboard />
   if (role === 'admin') return <AdminDashboard />
   return <VetDashboard />
 }
@@ -245,27 +246,43 @@ const OWNER_TEXT: Record<string, string> = {
 }
 
 function OwnerDashboard() {
-  const { cases, user } = useApp()
+  const { cases, user, refreshBackendCases } = useApp()
   const nav = useNavigate()
-  const mine = cases.filter((c) => c.patient.ownerName === user?.name)
+  const [pets, setPets] = useState<BackendPet[]>([])
+  const [subs, setSubs] = useState<BackendImagingSubmission[]>([])
+  useEffect(() => {
+    void refreshBackendCases()
+    void listPets().then(setPets).catch(() => setPets([]))
+    void listSubmissions().then(setSubs).catch(() => setSubs([]))
+  }, [refreshBackendCases])
+  const mine = cases.filter((c) => c.status === 'onaylandi' || c.patient.ownerName === user?.name)
   const ready = mine.filter((c) => c.status === 'onaylandi')
-  const inProgress = mine.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
+  const pendingSubs = subs.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length
   return (
     <>
       <PageHeader
         title={`Merhaba, ${user?.name}`}
-        subtitle="Hayvanlarınızın vaka durumu ve onaylı raporlar"
+        subtitle="Pet profilleri · görüntüleme talepleri · onaylı raporlar"
         actions={
-          ready.length > 0 ? (
-            <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
-              Raporlarım
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/hayvanlar')} icon={<PawPrint className="h-4 w-4" />}>
+              Petler
             </Button>
-          ) : undefined
+            <Button onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
+              Yeni talep
+            </Button>
+            {ready.length > 0 ? (
+              <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
+                Raporlarım
+              </Button>
+            ) : null}
+          </div>
         }
       />
-      <div className="mb-6 grid gap-4 sm:grid-cols-2">
-        <StatCard label="Devam eden" value={inProgress} icon={<Clock className="h-5 w-5" />} tone="amber" hint="Klinik sürecinde" />
-        <StatCard label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Görüntülenebilir" />
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Pet profili" value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint="Kayıtlı hayvanlar" />
+        <StatCard label="Bekleyen talep" value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Vet doğrulaması" />
+        <StatCard label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yetkili erişim" />
       </div>
       {ready.length > 0 && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
@@ -341,6 +358,53 @@ export function GpuChart({ height = 180 }: { height?: number }) {
   )
 }
 
+function ClinicOwnerDashboard() {
+  const { user } = useApp()
+  const nav = useNavigate()
+  const [stats, setStats] = useState<BackendClinicStats | null>(null)
+  useEffect(() => {
+    void getClinicStats().then(setStats).catch(() => setStats(null))
+  }, [])
+  return (
+    <>
+      <PageHeader
+        title={`Klinik panosu · ${user?.name}`}
+        subtitle="Vakalar, personel atamaları ve operasyon özeti"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/basvurular')}>
+              Sahip başvuruları
+            </Button>
+            <Button onClick={() => nav('/vakalar')}>Klinik vakalar</Button>
+          </div>
+        }
+      />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Toplam vaka" value={stats?.case_count ?? '—'} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
+        <StatCard label="İnceleme bekleyen" value={stats?.awaiting_review ?? '—'} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
+        <StatCard label="Onaylı rapor" value={stats?.approved ?? '—'} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
+        <StatCard label="Bekleyen başvuru" value={stats?.pending_submissions ?? '—'} icon={<UploadCloud className="h-5 w-5" />} tone="violet" />
+      </div>
+      <Card className="mt-6">
+        <CardHeader title="Klinik personeli" subtitle={stats?.clinic_id || '—'} />
+        <ul className="divide-y divide-slate-100">
+          {(stats?.staff || []).map((s) => (
+            <li key={s.email} className="flex items-center justify-between px-5 py-3 text-sm">
+              <span className="font-medium text-navy-900">{s.display_name || s.email}</span>
+              <span className="font-mono text-xs text-slate-500">
+                {s.role} · {s.active ? 'aktif' : 'pasif'}
+              </span>
+            </li>
+          ))}
+          {!stats?.staff?.length && (
+            <li className="px-5 py-4 text-sm text-slate-500">Personel listesi için API’ye bağlanın (auth açıkken).</li>
+          )}
+        </ul>
+      </Card>
+    </>
+  )
+}
+
 function AdminDashboard() {
   const { kbSources, cases } = useApp()
   const nav = useNavigate()
@@ -350,11 +414,16 @@ function AdminDashboard() {
     <>
       <PageHeader
         title="Sistem Özeti"
-        subtitle="Platform durumu · demo izleme verisi (üretim metrikleri değil)"
+        subtitle="Platform durumu · kullanıcı / rol yönetimi"
         actions={
-          <Button variant="secondary" onClick={() => nav('/sistem')}>
-            Sistem durumu
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/kullanicilar')}>
+              Kullanıcılar
+            </Button>
+            <Button variant="secondary" onClick={() => nav('/sistem')}>
+              Sistem durumu
+            </Button>
+          </div>
         }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

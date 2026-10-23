@@ -9,7 +9,7 @@ import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
 import type { Role } from '../types'
 
-const ROLES: Role[] = ['vet', 'expert', 'owner', 'admin']
+const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
 
 export default function Register() {
   const { signIn, pushToast } = useApp()

@@ -201,6 +201,10 @@ class CaseService:
             report_available_at=getattr(c, "report_available_at", None),
             report_delivered_at=getattr(c, "report_delivered_at", None),
             report_viewed_at=getattr(c, "report_viewed_at", None),
+            pet_id=getattr(c, "pet_id", None),
+            pet_owner_subject=getattr(c, "pet_owner_subject", None),
+            submission_id=getattr(c, "submission_id", None),
+            vet_verified=bool(getattr(c, "vet_verified", True)),
         )
 
     def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
@@ -208,6 +212,14 @@ class CaseService:
         for c in self._repo.list_cases():
             if principal is not None and not can_access_owned(
                 principal, c, isolation=self._tenant_isolation
+            ):
+                continue
+            # Pet owners only see finalized (approved) cases linked to them.
+            if (
+                principal is not None
+                and principal.role == "owner"
+                and principal.via == "jwt"
+                and c.status != CaseLifecycleStatus.APPROVED
             ):
                 continue
             summaries.append(self._to_summary(c, principal=principal))
@@ -480,10 +492,21 @@ class CaseService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
         if principal is not None:
             assert_case_access(principal, case, isolation=self._tenant_isolation)
+            if (
+                principal.role == "owner"
+                and principal.via == "jwt"
+                and case.status != CaseLifecycleStatus.APPROVED
+            ):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
             self._emit_audit("case.read", principal=principal, resource=case_id)
         return case
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
+        if getattr(case, "vet_verified", True) is False:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Owner submissions require veterinary verification before analysis.",
+            )
         if case.status == CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

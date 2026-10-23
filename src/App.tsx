@@ -24,6 +24,9 @@ import ApprovedReport from './pages/ApprovedReport'
 import Modules from './pages/Modules'
 import KnowledgeBase from './pages/KnowledgeBase'
 import SystemStatus from './pages/SystemStatus'
+import OwnerPets from './pages/OwnerPets'
+import Submissions from './pages/Submissions'
+import AdminUsers from './pages/AdminUsers'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { role } = useApp()
@@ -50,16 +53,19 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
-            <Route path="vakalar" element={<Gate roles={['vet', 'expert']}><CaseList /></Gate>} />
+            <Route path="vakalar" element={<Gate roles={['vet', 'expert', 'clinic_owner']}><CaseList /></Gate>} />
             <Route path="vakalar/yeni" element={<Gate roles={['vet']}><NewCase /></Gate>} />
             <Route path="dicom-yukle" element={<Gate roles={['vet']}><DicomUpload /></Gate>} />
-            <Route path="vakalar/:id" element={<Gate roles={['vet', 'expert']}><CaseDetail /></Gate>} />
+            <Route path="vakalar/:id" element={<Gate roles={['vet', 'expert', 'clinic_owner', 'owner']}><CaseDetail /></Gate>} />
             <Route path="vakalar/:id/isleme" element={<Gate roles={['vet', 'expert']}><Processing /></Gate>} />
             <Route path="vakalar/:id/inceleme" element={<Gate roles={['expert']}><ExpertReview /></Gate>} />
             <Route path="vakalar/:id/calisma" element={<Gate roles={['expert']}><RadiologistWorkspace /></Gate>} />
             <Route path="kuyruk" element={<Gate roles={['expert']}><ReviewQueue /></Gate>} />
-            <Route path="raporlar" element={<Gate roles={['vet', 'owner', 'expert']}><ReportList /></Gate>} />
-            <Route path="raporlar/:id" element={<Gate roles={['vet', 'owner', 'expert']}><ApprovedReport /></Gate>} />
+            <Route path="hayvanlar" element={<Gate roles={['owner']}><OwnerPets /></Gate>} />
+            <Route path="basvurular" element={<Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>} />
+            <Route path="kullanicilar" element={<Gate roles={['admin']}><AdminUsers /></Gate>} />
+            <Route path="raporlar" element={<Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ReportList /></Gate>} />
+            <Route path="raporlar/:id" element={<Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ApprovedReport /></Gate>} />
             <Route path="moduller" element={<Gate roles={['admin']}><Modules /></Gate>} />
             <Route path="bilgi-tabani" element={<Gate roles={['admin']}><KnowledgeBase /></Gate>} />
             <Route path="sistem" element={<Gate roles={['admin']}><SystemStatus /></Gate>} />

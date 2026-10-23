@@ -21,7 +21,9 @@ JWT_ISSUER = "vetmind"
 JWT_AUDIENCE = "vetmind-api"
 
 # Roles that login may put in a JWT. Never issue/accept demo|service via Bearer JWT.
-JWT_ISSUABLE_ROLES: frozenset[str] = frozenset({"vet", "expert", "owner", "admin"})
+JWT_ISSUABLE_ROLES: frozenset[str] = frozenset(
+    {"vet", "expert", "owner", "clinic_owner", "admin"}
+)
 JWT_FORBIDDEN_ROLES: frozenset[str] = frozenset({"demo", "service"})
 
 
@@ -51,6 +53,7 @@ DEMO_USERS: dict[str, DemoUserRecord] = {
     "expert-b@demo.local": DemoUserRecord("demo1234", "expert", "clinic-demo-b"),
     "admin@demo.local": DemoUserRecord("demo1234", "admin", None),
     "owner@demo.local": DemoUserRecord("demo1234", "owner", "clinic-demo-a"),
+    "clinic-owner@demo.local": DemoUserRecord("demo1234", "clinic_owner", "clinic-demo-a"),
 }
 
 

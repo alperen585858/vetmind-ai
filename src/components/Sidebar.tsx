@@ -20,6 +20,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const menus: Record<Role, NavItem[]> = {
     vet: [
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
+      { to: '/basvurular', label: 'Sahip başvuruları', icon: <ClipboardCheck className={ic} /> },
       { to: '/dicom-yukle', label: 'DICOM Yükle', icon: <UploadCloud className={ic} /> },
       { to: '/vakalar', label: 'Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/vakalar/yeni', label: 'Yeni Vaka', icon: <FilePlus2 className={ic} /> },
@@ -32,10 +33,19 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     ],
     owner: [
       { to: '/', label: 'Hayvanlarım', icon: <PawPrint className={ic} /> },
+      { to: '/hayvanlar', label: 'Pet profilleri', icon: <PawPrint className={ic} /> },
+      { to: '/basvurular', label: 'Görüntüleme talepleri', icon: <UploadCloud className={ic} /> },
       { to: '/raporlar', label: 'Raporlarım', icon: <FileText className={ic} /> },
+    ],
+    clinic_owner: [
+      { to: '/', label: 'Klinik panosu', icon: <LayoutDashboard className={ic} /> },
+      { to: '/vakalar', label: 'Klinik vakalar', icon: <FolderOpen className={ic} /> },
+      { to: '/basvurular', label: 'Sahip başvuruları', icon: <ClipboardCheck className={ic} /> },
+      { to: '/raporlar', label: 'Onaylı raporlar', icon: <FileText className={ic} /> },
     ],
     admin: [
       { to: '/', label: 'Sistem Özeti', icon: <LayoutDashboard className={ic} /> },
+      { to: '/kullanicilar', label: 'Kullanıcılar / roller', icon: <ShieldCheck className={ic} /> },
       { to: '/moduller', label: 'Uzmanlık Modülleri', icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: 'Bilgi Tabanı', icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: 'Sistem Durumu', icon: <Activity className={ic} /> },

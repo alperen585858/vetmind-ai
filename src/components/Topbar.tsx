@@ -11,6 +11,7 @@ export const ROLE_BADGE: Record<Role, string> = {
   vet: 'bg-teal-50 text-teal-700 ring-teal-200',
   expert: 'bg-violet-50 text-violet-700 ring-violet-200',
   owner: 'bg-sky-50 text-sky-700 ring-sky-200',
+  clinic_owner: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
   admin: 'bg-slate-100 text-slate-700 ring-slate-300',
 }
 

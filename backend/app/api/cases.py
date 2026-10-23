@@ -112,8 +112,12 @@ def post_message(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseMessageView:
-    """Vet (cases:write) or radiologist (review) may post; tenant isolation via CaseService."""
-    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+    """Vet, radiologist, or pet owner (own approved case) may post."""
+    if not (
+        principal.can(CAP_CASE_WRITE)
+        or principal.can(CAP_REVIEW)
+        or principal.role == "owner"
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Messaging not allowed for this role.")
     return service.post_message(case_id, payload, principal=principal)
 
@@ -132,8 +136,11 @@ def update_assignment(
     case_id: str,
     payload: CaseAssignmentUpdate,
     service: CaseService = Depends(get_case_service),
-    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
+    """Vet (cases:write) or radiologist (review) may assign / set priority."""
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assignment not allowed.")
     return service.update_assignment(case_id, payload, principal=principal)
 
 

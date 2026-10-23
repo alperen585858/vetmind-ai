@@ -21,6 +21,14 @@ class OwnedResource(Protocol):
     owner_subject: str | None
 
 
+class PetOwnedResource(Protocol):
+    """Optional pet-owner subject for Phase 14 ACL (cases/submissions)."""
+
+    clinic_id: str | None
+    owner_subject: str | None
+    pet_owner_subject: str | None
+
+
 @dataclass(frozen=True)
 class TenancyConfig:
     """Runtime tenancy policy derived from settings."""
@@ -48,6 +56,15 @@ def principal_is_global(principal: AuthPrincipal) -> bool:
 
 
 def can_access_owned(principal: AuthPrincipal, resource: OwnedResource, *, isolation: bool) -> bool:
+    # Pet owners never receive clinic-wide access — only pet_owner_subject match.
+    if principal.role == "owner" and principal.via == "jwt":
+        pet_owner = getattr(resource, "pet_owner_subject", None)
+        if pet_owner is not None and pet_owner == principal.subject:
+            return True
+        # Fallback: resource.owner_subject is the pet owner (pets/submissions)
+        owner = resource.owner_subject
+        return owner is not None and owner == principal.subject
+
     if not isolation or principal_is_global(principal):
         return True
     clinic = resource.clinic_id

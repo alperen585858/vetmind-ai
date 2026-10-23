@@ -776,3 +776,105 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
     generatedAt: report.generation.generated_at,
   }
 }
+
+// --- Phase 14 role workflows ---
+
+export async function listPets() {
+  return request<import('../types').BackendPet[]>('/pets')
+}
+
+export async function createPet(payload: {
+  name: string
+  species: 'canine' | 'feline' | 'other'
+  breed?: string
+  age_years?: number
+  sex?: string
+  medical_history?: string
+}) {
+  return request<import('../types').BackendPet>('/pets', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function updatePet(
+  petId: string,
+  payload: Partial<{ name: string; breed: string; age_years: number; sex: string; medical_history: string }>,
+) {
+  return request<import('../types').BackendPet>(`/pets/${petId}`, { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export async function listSubmissions(status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return request<import('../types').BackendImagingSubmission[]>(`/submissions${q}`)
+}
+
+export async function createSubmission(payload: {
+  pet_id: string
+  chief_complaint?: string
+  clinical_notes?: string
+}) {
+  return request<import('../types').BackendImagingSubmission>('/submissions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateSubmission(
+  id: string,
+  payload: Partial<{
+    chief_complaint: string
+    clinical_notes: string
+    dicom_ingest_id: string
+    document_ingest_id: string
+  }>,
+) {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function vetSubmissionAction(
+  id: string,
+  payload: {
+    action: 'accept' | 'reject' | 'request_info'
+    vet_notes?: string
+    missing_info_request?: string
+    assigned_reviewer_id?: string
+    run_analyze?: boolean
+  },
+) {
+  return request<import('../types').BackendCaseRecord | import('../types').BackendImagingSubmission>(
+    `/submissions/${id}/vet-action`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export async function getClinicStats() {
+  return request<import('../types').BackendClinicStats>('/clinic/stats')
+}
+
+export async function listManagedUsers() {
+  return request<import('../types').BackendManagedUser[]>('/admin/users')
+}
+
+export async function createManagedUser(payload: {
+  email: string
+  password: string
+  role: string
+  clinic_id?: string
+  display_name?: string
+}) {
+  return request<import('../types').BackendManagedUser>('/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateManagedUser(
+  email: string,
+  payload: Partial<{ role: string; clinic_id: string; display_name: string; active: boolean; password: string }>,
+) {
+  return request<import('../types').BackendManagedUser>(`/admin/users/${encodeURIComponent(email)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
