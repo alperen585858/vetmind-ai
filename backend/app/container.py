@@ -21,6 +21,8 @@ from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
+from app.services.notification_service import NotificationService
+from app.services.notification_store import build_notification_store
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
 from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
@@ -127,6 +129,8 @@ class AppContainer:
             delay_ms=self.settings.async_analyze_delay_ms,
             redis_url=self.settings.redis_url,
         )
+        self.notification_store = build_notification_store(self.settings)
+        self.notifications = NotificationService(self.notification_store)
         self.cases = CaseService(
             self.repo,
             self.orchestrator,
@@ -137,6 +141,7 @@ class AppContainer:
             audit=self.audit,
             max_concurrent_analyze=self.settings.max_concurrent_analyze,
             analyze_gate_path=self.settings.analyze_gate_path,
+            notifications=self.notifications,
         )
         self.dicom = DicomService(
             self.repo,
@@ -159,6 +164,7 @@ class AppContainer:
             self.workflow_store,
             self.cases,
             dicom=self.dicom,
+            notifications=self.notifications,
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
         )

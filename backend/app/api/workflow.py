@@ -23,6 +23,7 @@ from app.schemas.workflow import (
     ManagedUserCreate,
     ManagedUserUpdate,
     PetCreate,
+    PetMedicalHistory,
     PetRecord,
     PetUpdate,
     SubmissionCreate,
@@ -77,6 +78,23 @@ def update_pet(
     service=Depends(_workflow),
 ) -> PetRecord:
     return service.update_pet(pet_id, payload, principal=principal)
+
+
+@router.get("/pets/{pet_id}/medical-history", response_model=PetMedicalHistory)
+def pet_medical_history(
+    pet_id: str,
+    principal: AuthPrincipal = Depends(require_auth),
+    service=Depends(_workflow),
+) -> PetMedicalHistory:
+    """Chronological pet history derived from submissions, DICOM links, and cases."""
+    if not (
+        principal.can(CAP_PETS)
+        or principal.can(CAP_CASE_READ)
+        or principal.can(CAP_CLINIC_MANAGE)
+        or principal.can(CAP_SUBMISSIONS)
+    ):
+        raise HTTPException(status_code=403, detail="Not allowed.")
+    return service.pet_medical_history(pet_id, principal=principal)
 
 
 @router.post("/submissions", response_model=ImagingSubmission, status_code=status.HTTP_201_CREATED)

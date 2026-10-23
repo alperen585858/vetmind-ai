@@ -20,14 +20,18 @@ from app.schemas.workflow import (
     ManagedUserCreate,
     ManagedUserUpdate,
     PetCreate,
+    PetHistoryEntry,
+    PetMedicalHistory,
     PetRecord,
     PetUpdate,
     SubmissionCreate,
     SubmissionUpdate,
     SubmissionVetAction,
 )
+from app.services.activity import append_activity
 from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
+from app.services.notification_service import NotificationService
 from app.services.workflow_store import WorkflowStore
 
 
@@ -42,12 +46,14 @@ class WorkflowService:
         cases: CaseService,
         *,
         dicom: DicomService | None = None,
+        notifications: NotificationService | None = None,
         tenant_isolation: bool = False,
         auth_users: dict[str, DemoUserRecord] | None = None,
     ) -> None:
         self._store = store
         self._cases = cases
         self._dicom = dicom
+        self._notifications = notifications
         self._tenant_isolation = tenant_isolation
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
         self._seed_managed_from_demo()
@@ -164,7 +170,17 @@ class WorkflowService:
             chief_complaint=payload.chief_complaint,
             clinical_notes=payload.clinical_notes,
         )
-        return self._store.save_submission(sub)
+        saved = self._store.save_submission(sub)
+        self._notify_clinic_vets(
+            clinic_id=saved.clinic_id,
+            kind="submission_created",
+            title="Yeni görüntüleme talebi",
+            body=f"{pet.name}: {saved.chief_complaint or 'Görüntüleme talebi'}",
+            link_path="/basvurular",
+            dedupe_key=f"submission_created:{saved.submission_id}",
+            submission_id=saved.submission_id,
+        )
+        return saved
 
     def list_submissions(
         self,
@@ -216,9 +232,21 @@ class WorkflowService:
             raise HTTPException(status_code=409, detail="Submission is locked after vet decision.")
         if principal.role == "owner" and sub.status == "needs_info":
             sub.status = "pending_verification"
+        prev_dicom = sub.dicom_ingest_id
         data = payload.model_dump(exclude_unset=True)
         sub = sub.model_copy(update={**data, "updated_at": _now()})
-        return self._store.save_submission(sub)
+        saved = self._store.save_submission(sub)
+        if saved.dicom_ingest_id and saved.dicom_ingest_id != prev_dicom:
+            self._notify_clinic_vets(
+                clinic_id=saved.clinic_id,
+                kind="submission_created",
+                title="DICOM eklendi",
+                body=f"Başvuru {saved.submission_id} için DICOM yüklendi",
+                link_path="/basvurular",
+                dedupe_key=f"dicom_uploaded:{saved.submission_id}:{saved.dicom_ingest_id}",
+                submission_id=saved.submission_id,
+            )
+        return saved
 
     def vet_action(
         self, submission_id: str, payload: SubmissionVetAction, *, principal: AuthPrincipal
@@ -234,7 +262,18 @@ class WorkflowService:
             sub.missing_info_request = payload.missing_info_request or payload.vet_notes
             sub.vet_notes = payload.vet_notes
             sub.updated_at = _now()
-            return self._store.save_submission(sub)
+            saved = self._store.save_submission(sub)
+            self._notify_one(
+                recipient=sub.pet_owner_subject,
+                kind="submission_needs_info",
+                title="Eksik bilgi istendi",
+                body=saved.missing_info_request or "Veteriner ek bilgi istedi",
+                link_path="/basvurular",
+                dedupe_key=f"submission_needs_info:{saved.submission_id}:{saved.updated_at.isoformat()}",
+                submission_id=saved.submission_id,
+                clinic_id=saved.clinic_id,
+            )
+            return saved
 
         if payload.action == "reject":
             sub.status = "rejected"
@@ -242,7 +281,18 @@ class WorkflowService:
             sub.verified_by = principal.subject
             sub.verified_at = _now()
             sub.updated_at = _now()
-            return self._store.save_submission(sub)
+            saved = self._store.save_submission(sub)
+            self._notify_one(
+                recipient=sub.pet_owner_subject,
+                kind="submission_rejected",
+                title="Başvuru reddedildi",
+                body=saved.vet_notes or "Veteriner başvuruyu reddetti",
+                link_path="/basvurular",
+                dedupe_key=f"submission_rejected:{saved.submission_id}",
+                submission_id=saved.submission_id,
+                clinic_id=saved.clinic_id,
+            )
+            return saved
 
         # accept → create case (clinical processing only after verification)
         pet = self.get_pet(sub.pet_id, principal=principal)
@@ -308,6 +358,18 @@ class WorkflowService:
             case.assigned_reviewer_id = payload.assigned_reviewer_id
         if sub.dicom_ingest_id and not case.dicom_ingest_id:
             case.dicom_ingest_id = sub.dicom_ingest_id
+        actor = principal.subject
+        append_activity(case, kind="submission_created", actor_subject=sub.pet_owner_subject, detail=sub.submission_id)
+        if sub.dicom_ingest_id:
+            append_activity(case, kind="dicom_uploaded", actor_subject=sub.pet_owner_subject, detail=sub.dicom_ingest_id)
+        append_activity(case, kind="vet_verified", actor_subject=actor, detail="accept")
+        if case.assigned_reviewer_id:
+            append_activity(
+                case,
+                kind="radiologist_assigned",
+                actor_subject=actor,
+                detail=case.assigned_reviewer_id,
+            )
         case.updated_at = _now()
         self._cases._repo.save_case(case)  # noqa: SLF001 — same process persistence
 
@@ -320,6 +382,30 @@ class WorkflowService:
         sub.updated_at = _now()
         self._store.save_submission(sub)
 
+        self._notify_one(
+            recipient=sub.pet_owner_subject,
+            kind="submission_verified",
+            title="Başvuru doğrulandı",
+            body=f"Vaka açıldı: {case.case_id}",
+            link_path=f"/vakalar/{case.case_id}",
+            dedupe_key=f"submission_verified:{sub.submission_id}",
+            case_id=case.case_id,
+            submission_id=sub.submission_id,
+            clinic_id=sub.clinic_id,
+        )
+        if case.assigned_reviewer_id:
+            urgent = case.priority in {"urgent", "stat"}
+            self._notify_one(
+                recipient=case.assigned_reviewer_id,
+                kind="urgent_assignment" if urgent else "radiologist_assigned",
+                title="STAT atama" if case.priority == "stat" else ("Acil atama" if urgent else "Radyolog ataması"),
+                body=f"{case.patient_name} · {case.case_id}",
+                link_path=f"/vakalar/{case.case_id}/calisma",
+                dedupe_key=f"radiologist_assigned:{case.case_id}:{case.assigned_reviewer_id}",
+                case_id=case.case_id,
+                clinic_id=case.clinic_id,
+            )
+
         if payload.run_analyze:
             try:
                 self._cases.analyze(case.case_id, principal=principal)
@@ -328,6 +414,151 @@ class WorkflowService:
                 # Case is still linked; analyze can be retried from UI.
                 pass
         return case
+
+    def pet_medical_history(self, pet_id: str, *, principal: AuthPrincipal) -> PetMedicalHistory:
+        pet = self.get_pet(pet_id, principal=principal)
+        entries: list[PetHistoryEntry] = []
+        if pet.medical_history:
+            entries.append(
+                PetHistoryEntry(
+                    at=pet.created_at,
+                    kind="clinical_history",
+                    title="Klinik öykü",
+                    detail=pet.medical_history,
+                )
+            )
+        for sub in self._store.list_submissions():
+            if sub.pet_id != pet_id:
+                continue
+            if principal.role == "owner" and sub.pet_owner_subject != principal.subject and principal.via == "jwt":
+                continue
+            entries.append(
+                PetHistoryEntry(
+                    at=sub.created_at,
+                    kind="submission",
+                    title=f"Görüntüleme talebi ({sub.status})",
+                    detail=sub.chief_complaint or sub.clinical_notes,
+                    submission_id=sub.submission_id,
+                    dicom_ingest_id=sub.dicom_ingest_id,
+                    case_id=sub.linked_case_id,
+                    link_path="/basvurular",
+                )
+            )
+            if sub.dicom_ingest_id:
+                entries.append(
+                    PetHistoryEntry(
+                        at=sub.updated_at,
+                        kind="dicom",
+                        title="DICOM incelemesi",
+                        detail=sub.dicom_ingest_id,
+                        submission_id=sub.submission_id,
+                        dicom_ingest_id=sub.dicom_ingest_id,
+                        case_id=sub.linked_case_id,
+                        link_path=f"/vakalar/{sub.linked_case_id}" if sub.linked_case_id else "/basvurular",
+                    )
+                )
+        for case in self._cases._repo.list_cases():  # noqa: SLF001
+            if case.pet_id != pet_id:
+                continue
+            if principal.via == "jwt" and not can_access_owned(
+                principal, case, isolation=self._tenant_isolation
+            ):
+                continue
+            if principal.role == "owner" and principal.via == "jwt" and case.status != CaseLifecycleStatus.APPROVED:
+                continue
+            approved = case.status == CaseLifecycleStatus.APPROVED
+            entries.append(
+                PetHistoryEntry(
+                    at=case.created_at,
+                    kind="case",
+                    title=f"Vaka {case.case_id}",
+                    detail=f"{case.modality.value} · {case.anatomical_region.value} · {case.status.value}",
+                    case_id=case.case_id,
+                    dicom_ingest_id=case.dicom_ingest_id,
+                    report_available=approved,
+                    link_path=f"/raporlar/{case.case_id}" if approved else f"/vakalar/{case.case_id}",
+                )
+            )
+            if approved:
+                entries.append(
+                    PetHistoryEntry(
+                        at=case.report_available_at or case.updated_at,
+                        kind="report",
+                        title="Onaylı rapor",
+                        detail=case.draft_report.reviewed_by if case.draft_report else None,
+                        case_id=case.case_id,
+                        report_available=True,
+                        link_path=f"/raporlar/{case.case_id}",
+                    )
+                )
+        entries.sort(key=lambda e: e.at, reverse=True)
+        return PetMedicalHistory(pet=pet, clinical_notes=pet.medical_history, timeline=entries)
+
+    def _notify_one(
+        self,
+        *,
+        recipient: str | None,
+        kind: str,
+        title: str,
+        body: str,
+        link_path: str,
+        dedupe_key: str,
+        case_id: str | None = None,
+        submission_id: str | None = None,
+        clinic_id: str | None = None,
+    ) -> None:
+        if self._notifications is None or not recipient:
+            return
+        self._notifications.notify(
+            recipient_subject=recipient,
+            kind=kind,  # type: ignore[arg-type]
+            title=title,
+            body=body,
+            link_path=link_path,
+            dedupe_key=dedupe_key,
+            case_id=case_id,
+            submission_id=submission_id,
+            clinic_id=clinic_id,
+        )
+
+    def _notify_clinic_vets(
+        self,
+        *,
+        clinic_id: str | None,
+        kind: str,
+        title: str,
+        body: str,
+        link_path: str,
+        dedupe_key: str,
+        submission_id: str | None = None,
+    ) -> None:
+        if self._notifications is None:
+            return
+        recipients: set[str] = set()
+        if self._auth_users:
+            for email, rec in self._auth_users.items():
+                if rec.role in {"vet", "clinic_owner", "admin"} and (
+                    not clinic_id or not rec.clinic_id or rec.clinic_id == clinic_id
+                ):
+                    recipients.add(email)
+        for u in self._store.list_users():
+            if u.active and u.role in {"vet", "clinic_owner", "admin"} and (
+                not clinic_id or not u.clinic_id or u.clinic_id == clinic_id
+            ):
+                recipients.add(u.email)
+        if not recipients:
+            recipients.add("vet@demo.local")
+        for email in recipients:
+            self._notifications.notify(
+                recipient_subject=email,
+                kind=kind,  # type: ignore[arg-type]
+                title=title,
+                body=body,
+                link_path=link_path,
+                dedupe_key=f"{dedupe_key}:{email}",
+                submission_id=submission_id,
+                clinic_id=clinic_id,
+            )
 
     # --- Admin users / clinic ---
 

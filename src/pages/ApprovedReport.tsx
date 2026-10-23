@@ -9,7 +9,7 @@ import { PageHeader } from '../components/PageHeader'
 import { ProvenanceBanner, provenanceKindFromSource } from '../components/ProvenanceBanner'
 import { Logo } from '../components/Logo'
 import { RagCitations } from '../components/RagCitations'
-import { getReportVersion, markReportViewed } from '../lib/backend'
+import { downloadApprovedReportPdf, getReportVersion, markReportViewed } from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import {
   canExportApprovedReport,
@@ -24,12 +24,13 @@ export default function ApprovedReport() {
   const [params] = useSearchParams()
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
-  const { getCase, role, user, hydrateBackendCase } = useApp()
+  const { getCase, role, user, hydrateBackendCase, pushToast } = useApp()
   const nav = useNavigate()
   const base = getCase(id)
   const [loading, setLoading] = useState(() => id.startsWith('case-') && !canExportApprovedReport(base))
   const [loadError, setLoadError] = useState<string | null>(null)
   const [versionDraft, setVersionDraft] = useState<BackendDraftReport | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -80,6 +81,35 @@ export default function ApprovedReport() {
     if (versionDraft) return caseWithDraftVersion(base, versionDraft)
     return base
   }, [base, versionDraft])
+
+  const downloadServerPdf = async () => {
+    const caseKey = c?.backendCaseId || c?.id || id
+    if (!caseKey.startsWith('case-')) {
+      window.print()
+      return
+    }
+    setPdfBusy(true)
+    try {
+      const blob = await downloadApprovedReportPdf(
+        caseKey,
+        selectedVersion && Number.isFinite(selectedVersion) ? selectedVersion : undefined,
+      )
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `vetmind-${caseKey}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      pushToast({
+        tone: 'error',
+        title: 'PDF indirilemedi',
+        body: e instanceof Error ? e.message : undefined,
+      })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -176,9 +206,18 @@ export default function ApprovedReport() {
                 Geri
               </Button>
               {import.meta.env.MODE !== 'share' && (
-                <Button icon={<Download className="h-4 w-4" />} onClick={() => window.print()} disabled={!sections.length}>
-                  PDF olarak indir
-                </Button>
+                <>
+                  <Button
+                    icon={<Download className="h-4 w-4" />}
+                    onClick={() => void downloadServerPdf()}
+                    disabled={!sections.length || pdfBusy}
+                  >
+                    {pdfBusy ? 'PDF hazırlanıyor…' : 'PDF indir'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => window.print()} disabled={!sections.length}>
+                    Yazdır
+                  </Button>
+                </>
               )}
             </div>
           }

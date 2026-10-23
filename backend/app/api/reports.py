@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 
 from app.api.deps import get_case_service
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
-from app.schemas.case import CaseRecord, ReportDraftUpdate, ReviewFeedback
+from app.schemas.case import CaseActivityEvent, CaseRecord, ReportDraftUpdate, ReviewFeedback
+from app.schemas.enums import CaseLifecycleStatus, ReportStatus
 from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
 from app.services.case_service import CaseService
+from app.services.pdf_report import build_approved_report_pdf
 
 router = APIRouter(prefix="/api/v1", tags=["reports"], dependencies=[Depends(require_auth)])
 
@@ -86,3 +89,49 @@ def submit_review(
     principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
 ) -> CaseRecord:
     return service.submit_review(case_id, payload, principal=principal)
+
+
+@router.get("/cases/{case_id}/report/pdf")
+def download_approved_report_pdf(
+    case_id: str,
+    version: int | None = Query(default=None, ge=1),
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> Response:
+    """Download a server-generated PDF of an immutable approved report version."""
+    case = service.get_case(case_id, principal=principal)
+    if case.status != CaseLifecycleStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PDF only for approved cases.")
+    if version is not None:
+        snap = service.get_report_version(case_id, version, principal=principal)
+        if not snap.immutable:
+            raise HTTPException(status_code=409, detail="Selected version is not an approved immutable snapshot.")
+        pdf = build_approved_report_pdf(case, snap)
+        ver = version
+    else:
+        report = case.draft_report
+        if report is None or not report.immutable or report.status != ReportStatus.APPROVED:
+            snaps = [v for v in case.report_versions if v.immutable]
+            if not snaps:
+                raise HTTPException(status_code=409, detail="No immutable approved report to export.")
+            snap = max(snaps, key=lambda s: s.version)
+            pdf = build_approved_report_pdf(case, snap)
+            ver = snap.version
+        else:
+            pdf = build_approved_report_pdf(case, report)
+            ver = report.version
+    filename = f"vetmind-{case_id}-v{ver}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/cases/{case_id}/activity", response_model=list[CaseActivityEvent])
+def list_case_activity(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> list[CaseActivityEvent]:
+    return service.list_activity(case_id, principal=principal)

@@ -23,6 +23,7 @@ import {
   BackendUnavailableError,
   fetchCaseDicomFiles,
   fetchDemoDicomFiles,
+  listCaseActivity,
   resolveDemoKindForCase,
 } from '../lib/backend'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
@@ -1029,6 +1030,17 @@ function ReportWorkspace({ c }: { c: VetCase }) {
 function CaseHistoryPanel({ c }: { c: VetCase }) {
   const nav = useNavigate()
   const versions = c.reportVersions ?? []
+  const [activity, setActivity] = useState<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>([])
+  useEffect(() => {
+    const key = c.backendCaseId || c.id
+    if (!key.startsWith('case-')) {
+      setActivity([])
+      return
+    }
+    void listCaseActivity(key)
+      .then(setActivity)
+      .catch(() => setActivity([]))
+  }, [c.backendCaseId, c.id])
   return (
     <div className="space-y-4">
       <Card>
@@ -1091,14 +1103,27 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
         </dl>
       </Card>
       <Card>
-        <CardHeader title="Vaka ilerleme zaman çizelgesi" icon={<History className="h-5 w-5" />} />
+        <CardHeader title="Vaka aktivite zaman çizelgesi" subtitle="Gerçek olaylar (sunucu)" icon={<History className="h-5 w-5" />} />
         <ul className="divide-y divide-slate-100 px-5 py-2 text-sm">
-          {c.timeline.length === 0 ? (
+          {activity.length === 0 && c.timeline.length === 0 ? (
             <li className="py-3 text-slate-500">Kayıt yok</li>
-          ) : (
+          ) : null}
+          {activity.map((e) => (
+            <li key={e.event_id} className="flex gap-3 py-2">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-600" />
+              <div>
+                <p className="font-medium text-navy-900">{e.kind}</p>
+                <p className="text-xs text-slate-500">
+                  {fmtDate(e.at)} · {e.actor_subject}
+                  {e.detail ? ` · ${e.detail}` : ''}
+                </p>
+              </div>
+            </li>
+          ))}
+          {activity.length === 0 &&
             c.timeline.map((t, i) => (
               <li key={`${t.date}-${i}`} className="flex gap-3 py-2">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-600" />
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                 <div>
                   <p className="font-medium text-navy-900">{t.label}</p>
                   <p className="text-xs text-slate-500">
@@ -1107,8 +1132,7 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
                   </p>
                 </div>
               </li>
-            ))
-          )}
+            ))}
         </ul>
       </Card>
     </div>

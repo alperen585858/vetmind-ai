@@ -918,3 +918,77 @@ export async function updateManagedUser(
     body: JSON.stringify(payload),
   })
 }
+
+// --- Phase 17 functional expansion ---
+
+export interface AppNotification {
+  notification_id: string
+  recipient_subject: string
+  kind: string
+  title: string
+  body: string
+  link_path: string
+  case_id?: string | null
+  submission_id?: string | null
+  clinic_id?: string | null
+  dedupe_key: string
+  created_at: string
+  read_at?: string | null
+}
+
+export async function listNotifications(unreadOnly = false) {
+  const q = unreadOnly ? '?unread_only=true' : ''
+  return request<{ items: AppNotification[]; unread_count: number }>(`/notifications${q}`)
+}
+
+export async function markNotificationRead(id: string) {
+  return request<AppNotification>(`/notifications/${id}/read`, { method: 'POST' })
+}
+
+export async function markAllNotificationsRead() {
+  return request<{ marked: number }>('/notifications/read-all', { method: 'POST' })
+}
+
+export interface PetHistoryEntry {
+  at: string
+  kind: string
+  title: string
+  detail?: string | null
+  case_id?: string | null
+  submission_id?: string | null
+  dicom_ingest_id?: string | null
+  report_available: boolean
+  link_path?: string | null
+}
+
+export async function getPetMedicalHistory(petId: string) {
+  return request<{
+    pet: import('../types').BackendPet
+    clinical_notes?: string | null
+    timeline: PetHistoryEntry[]
+  }>(`/pets/${petId}/medical-history`)
+}
+
+export async function downloadApprovedReportPdf(caseId: string, version?: number): Promise<Blob> {
+  const q = version != null ? `?version=${version}` : ''
+  const headers = new Headers()
+  const token = getBackendAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/cases/${caseId}/report/pdf${q}`, { headers })
+  } catch {
+    throw new BackendUnavailableError()
+  }
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(detail || 'PDF indirilemedi')
+  }
+  return res.blob()
+}
+
+export async function listCaseActivity(caseId: string) {
+  return request<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>(
+    `/cases/${caseId}/activity`,
+  )
+}

@@ -157,3 +157,27 @@ class ClinicStaffStats(BaseModel):
     approved: int = 0
     pending_submissions: int = 0
     staff: list[ManagedUser] = Field(default_factory=list)
+
+
+class PetHistoryEntry(BaseModel):
+    """One chronological medical/imaging event for a pet (derived from live records)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    at: datetime
+    kind: str
+    title: str
+    detail: Optional[str] = None
+    case_id: Optional[str] = None
+    submission_id: Optional[str] = None
+    dicom_ingest_id: Optional[str] = None
+    report_available: bool = False
+    link_path: Optional[str] = None
+
+
+class PetMedicalHistory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pet: PetRecord
+    clinical_notes: Optional[str] = None
+    timeline: list[PetHistoryEntry] = Field(default_factory=list)

@@ -135,6 +135,18 @@ class CaseAssignmentUpdate(BaseModel):
     priority: Optional[CasePriority] = None
 
 
+class CaseActivityEvent(BaseModel):
+    """Persistent case activity (never invented — only emitted on real actions)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(default_factory=lambda: f"act-{uuid4().hex[:12]}")
+    kind: str
+    actor_subject: str
+    at: datetime = Field(default_factory=utcnow)
+    detail: Optional[str] = None
+
+
 class CaseRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -184,6 +196,8 @@ class CaseRecord(BaseModel):
     pet_owner_subject: Optional[str] = None
     submission_id: Optional[str] = None
     vet_verified: bool = True
+    # Phase 17: append-only real activity events.
+    activity: list[CaseActivityEvent] = Field(default_factory=list)
 
 
 class CaseSummary(BaseModel):

@@ -12,6 +12,7 @@ from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_ow
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import (
+    CaseActivityEvent,
     CaseAssignmentUpdate,
     CaseCreate,
     CaseMessage,
@@ -23,6 +24,7 @@ from app.schemas.case import (
     ReportDraftUpdate,
     ReviewFeedback,
 )
+from app.services.activity import append_activity
 from app.schemas.enums import (
     CaseLifecycleStatus,
     ExpertReviewStatus,
@@ -69,6 +71,7 @@ class CaseService:
         audit: AuditLogger | None = None,
         max_concurrent_analyze: int = 8,
         analyze_gate_path: Path | None = None,
+        notifications: object | None = None,
     ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
@@ -78,6 +81,7 @@ class CaseService:
         self._jobs = job_backend or ThreadJobBackend(delay_ms=self._async_delay_ms)
         self._tenant_isolation = tenant_isolation
         self._audit_log = audit
+        self._notifications = notifications
         self._max_concurrent_analyze = max(1, max_concurrent_analyze)
         # Durable gate shared by sync + async (thread/RQ on same host).
         self._analyze_gate: AnalyzeGate = build_analyze_gate(
@@ -345,9 +349,30 @@ class CaseService:
             read_by=[author_id],
         )
         case.messages.append(msg)
+        append_activity(case, kind="case_message", actor_subject=author_id, detail=msg.message_id)
         case.updated_at = _now()
         self._repo.save_case(case)
         self._emit_audit("case.message", principal=principal, resource=case_id)
+        # Notify other authorized participants (not the author).
+        recipients = {
+            case.pet_owner_subject,
+            case.owner_subject,
+            case.assigned_reviewer_id,
+        }
+        # Clinic vets are notified via assigned/owner; also notify known vet subject if distinct.
+        for recipient in recipients:
+            if not recipient or recipient == author_id:
+                continue
+            self._notify(
+                recipient_subject=recipient,
+                kind="case_message",
+                title="Yeni vaka mesajı",
+                body=msg.body[:160],
+                link_path=f"/vakalar/{case.case_id}",
+                dedupe_key=f"case_message:{case.case_id}:{msg.message_id}:{recipient}",
+                case_id=case.case_id,
+                clinic_id=case.clinic_id,
+            )
         return CaseMessageView(
             message_id=msg.message_id,
             case_id=msg.case_id,
@@ -388,6 +413,8 @@ class CaseService:
             case.report_available_at = _now()
         if case.report_delivered_at is None:
             case.report_delivered_at = _now()
+            actor = principal.subject if principal else "system"
+            append_activity(case, kind="report_delivered", actor_subject=actor)
         case.updated_at = _now()
         saved = self._repo.save_case(case)
         self._emit_audit("report.delivered", principal=principal, resource=case_id)
@@ -422,14 +449,35 @@ class CaseService:
         principal: AuthPrincipal | None = None,
     ) -> CaseRecord:
         case = self.get_case(case_id, principal=principal)
+        prev_assignee = case.assigned_reviewer_id
         if payload.assigned_reviewer_id is not None:
             text = payload.assigned_reviewer_id.strip()
             case.assigned_reviewer_id = text or None
         if payload.priority is not None:
             case.priority = payload.priority
+        actor = principal.subject if principal else "system"
+        if case.assigned_reviewer_id and case.assigned_reviewer_id != prev_assignee:
+            append_activity(
+                case,
+                kind="radiologist_assigned",
+                actor_subject=actor,
+                detail=case.assigned_reviewer_id,
+            )
         case.updated_at = _now()
         saved = self._repo.save_case(case)
         self._emit_audit("case.assign", principal=principal, resource=case_id)
+        if saved.assigned_reviewer_id and saved.assigned_reviewer_id != prev_assignee:
+            urgent = saved.priority in {"urgent", "stat"}
+            self._notify(
+                recipient_subject=saved.assigned_reviewer_id,
+                kind="urgent_assignment" if urgent else "radiologist_assigned",
+                title="STAT atama" if saved.priority == "stat" else ("Acil atama" if urgent else "Radyolog ataması"),
+                body=f"{saved.patient_name} · {saved.case_id}",
+                link_path=f"/vakalar/{saved.case_id}/calisma",
+                dedupe_key=f"radiologist_assigned:{saved.case_id}:{saved.assigned_reviewer_id}",
+                case_id=saved.case_id,
+                clinic_id=saved.clinic_id,
+            )
         return saved
 
     def save_draft_report(
@@ -928,12 +976,32 @@ class CaseService:
                 case.status = CaseLifecycleStatus.REJECTED
             else:
                 case.status = CaseLifecycleStatus.REVISION_REQUESTED
+                append_activity(
+                    case,
+                    kind="revision_requested",
+                    actor_subject=feedback.reviewer_id,
+                    detail=feedback.comment,
+                )
 
             case.review_history.append(feedback)
             case.updated_at = _now()
             saved = self._repo.save_case(case)
             event = "review.reject" if feedback.action == ReviewAction.REJECT else "review.revision"
             self._emit_audit(event, principal=principal, resource=case_id)
+            if feedback.action == ReviewAction.REQUEST_REVISION:
+                for recipient in {saved.owner_subject, saved.pet_owner_subject, "vet@demo.local"}:
+                    if not recipient or recipient == feedback.reviewer_id:
+                        continue
+                    self._notify(
+                        recipient_subject=recipient,
+                        kind="revision_requested",
+                        title="Revizyon istendi",
+                        body=feedback.comment or f"Vaka {saved.case_id}",
+                        link_path=f"/vakalar/{saved.case_id}",
+                        dedupe_key=f"revision_requested:{saved.case_id}:{saved.updated_at.isoformat()}:{recipient}",
+                        case_id=saved.case_id,
+                        clinic_id=saved.clinic_id,
+                    )
             return saved
 
     def _approve_ai_draft(self, case: CaseRecord, feedback: ReviewFeedback) -> CaseRecord:
@@ -1003,9 +1071,41 @@ class CaseService:
         case.status = CaseLifecycleStatus.APPROVED
         if case.report_available_at is None:
             case.report_available_at = _now()
+        append_activity(
+            case,
+            kind="report_approved",
+            actor_subject=feedback.reviewer_id,
+            detail=f"v{report.version}",
+        )
         case.review_history.append(feedback)
         case.updated_at = _now()
-        return self._repo.save_case(case)
+        saved = self._repo.save_case(case)
+        for recipient in {saved.pet_owner_subject, saved.owner_subject, "vet@demo.local"}:
+            if not recipient or recipient == feedback.reviewer_id:
+                continue
+            self._notify(
+                recipient_subject=recipient,
+                kind="report_approved",
+                title="Rapor onaylandı",
+                body=f"{saved.patient_name} · {saved.case_id}",
+                link_path=f"/raporlar/{saved.case_id}",
+                dedupe_key=f"report_approved:{saved.case_id}:v{report.version}:{recipient}",
+                case_id=saved.case_id,
+                clinic_id=saved.clinic_id,
+            )
+        return saved
+
+    def _notify(self, **kwargs) -> None:
+        nsvc = self._notifications
+        if nsvc is None:
+            return
+        nsvc.notify(**kwargs)  # type: ignore[union-attr]
+
+    def list_activity(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> list[CaseActivityEvent]:
+        case = self.get_case(case_id, principal=principal)
+        return list(case.activity)
 
     @staticmethod
     def _apply_edits(report: DraftReport, feedback: ReviewFeedback) -> None:

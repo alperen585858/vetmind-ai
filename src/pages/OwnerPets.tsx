@@ -5,7 +5,8 @@ import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
-import { createPet, listPets } from '../lib/backend'
+import { createPet, getPetMedicalHistory, listPets, type PetHistoryEntry } from '../lib/backend'
+import { fmtDate } from '../lib/format'
 import type { BackendPet } from '../types'
 
 export default function OwnerPets() {
@@ -18,6 +19,9 @@ export default function OwnerPets() {
   const [age, setAge] = useState('')
   const [history, setHistory] = useState('')
   const [saving, setSaving] = useState(false)
+  const [historyPetId, setHistoryPetId] = useState<string | null>(null)
+  const [timeline, setTimeline] = useState<PetHistoryEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -30,6 +34,25 @@ export default function OwnerPets() {
   useEffect(() => {
     load()
   }, [])
+
+  const openHistory = async (petId: string) => {
+    if (historyPetId === petId) {
+      setHistoryPetId(null)
+      setTimeline([])
+      return
+    }
+    setHistoryPetId(petId)
+    setHistoryLoading(true)
+    try {
+      const h = await getPetMedicalHistory(petId)
+      setTimeline(h.timeline)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Tıbbi geçmiş yüklenemedi')
+      setTimeline([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const onCreate = async () => {
     if (!name.trim()) return
@@ -115,17 +138,56 @@ export default function OwnerPets() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {pets.map((p) => (
-                <li key={p.pet_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <div>
-                    <p className="font-semibold text-navy-900">{p.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {p.species} · {p.breed || '—'} · {p.age_years != null ? `${p.age_years} yaş` : 'yaş yok'}
-                    </p>
-                    {p.medical_history && <p className="mt-1 text-xs text-slate-600 line-clamp-2">{p.medical_history}</p>}
+                <li key={p.pet_id} className="px-5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-navy-900">{p.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {p.species} · {p.breed || '—'} · {p.age_years != null ? `${p.age_years} yaş` : 'yaş yok'}
+                      </p>
+                      {p.medical_history && <p className="mt-1 text-xs text-slate-600 line-clamp-2">{p.medical_history}</p>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-navy-800 hover:underline"
+                        onClick={() => void openHistory(p.pet_id)}
+                      >
+                        {historyPetId === p.pet_id ? 'Geçmişi kapat' : 'Tıbbi geçmiş'}
+                      </button>
+                      <Link to="/basvurular" className="text-xs font-semibold text-teal-700 hover:underline">
+                        Talep oluştur
+                      </Link>
+                    </div>
                   </div>
-                  <Link to="/basvurular" className="text-xs font-semibold text-teal-700 hover:underline">
-                    Talep oluştur
-                  </Link>
+                  {historyPetId === p.pet_id && (
+                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                      {historyLoading ? (
+                        <p className="flex items-center gap-2 text-xs text-slate-500">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Yükleniyor…
+                        </p>
+                      ) : timeline.length === 0 ? (
+                        <p className="text-xs text-slate-500">Kayıtlı görüntüleme / vaka yok.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {timeline.map((e, i) => (
+                            <li key={`${e.kind}-${e.at}-${i}`} className="text-xs">
+                              <p className="font-medium text-navy-900">
+                                {e.title}{' '}
+                                <span className="font-normal text-slate-400">· {fmtDate(e.at)}</span>
+                              </p>
+                              {e.detail && <p className="text-slate-600 line-clamp-2">{e.detail}</p>}
+                              {e.link_path && (
+                                <Link to={e.link_path} className="font-medium text-teal-700 hover:underline">
+                                  Aç
+                                </Link>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Check, ChevronDown, LogOut, Menu, RefreshCcw } from 'lucide-react'
+import { Check, ChevronDown, LogOut, Menu, RefreshCcw } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { DEMO_PASSWORD, demoEmailForRole, setBackendAccessToken } from '../lib/auth'
 import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS, USERS } from '../data/mock'
 import type { Role } from '../types'
+import { NotificationBell } from './NotificationBell'
 
 export const ROLE_BADGE: Record<Role, string> = {
   vet: 'bg-teal-50 text-teal-700 ring-teal-200',
@@ -16,7 +17,7 @@ export const ROLE_BADGE: Record<Role, string> = {
 }
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { role, setRole, signOut, user, cases, pushToast } = useApp()
+  const { role, setRole, signOut, user, pushToast } = useApp()
   const nav = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -28,7 +29,6 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }, [])
 
   if (!role || !user) return null
-  const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
 
   const switchRole = (r: Role) => {
     setOpen(false)
@@ -65,24 +65,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <span className="text-xs text-amber-700">Demo · mock veri</span>
       </div>
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
-        <button
-          type="button"
-          className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
-          aria-label={role === 'expert' && queue > 0 ? `Bildirimler · ${queue} bekleyen` : 'Bildirimler (demo)'}
-          title="Bildirimler (demo — işlevsel değil)"
-          onClick={() =>
-            pushToast({
-              tone: 'info',
-              title: 'Bildirimler',
-              body: role === 'expert' && queue > 0 ? `${queue} vaka inceleme bekliyor. İş listesine gidin.` : 'Demo: gerçek bildirim kanalı yok.',
-            })
-          }
-        >
-          <Bell className="h-5 w-5" aria-hidden />
-          {role === 'expert' && queue > 0 && (
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500" aria-hidden />
-          )}
-        </button>
+        <NotificationBell />
 
         <div className="relative" ref={ref}>
           <button
