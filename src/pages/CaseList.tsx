@@ -82,7 +82,8 @@ export default function CaseList() {
     <>
       <PageHeader
         title="Vakalar"
-        subtitle={`${cases.length} vaka · ${backendCount} backend · görüntüleme vaka yönetimi`}
+        subtitle={`${cases.length} vaka · ${backendCount} backend senkron · klinik iş akışı`}
+        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'Vakalar' }]}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -122,39 +123,49 @@ export default function CaseList() {
       )}
 
       <Card>
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-end">
+          <label className="relative block flex-1">
+            <span className="sr-only">Vaka ara</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
             <input
               className="input pl-9"
               placeholder="Hasta, vaka no, modalite, study UID…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-          </div>
-          <select className="input lg:w-48" value={status} onChange={(e) => setStatus(e.target.value as CaseStatus | '')}>
-            <option value="">Tüm durumlar</option>
-            {STATUS_ORDER.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_META[s].label}
-              </option>
-            ))}
-          </select>
-          <select className="input lg:w-36" value={species} onChange={(e) => setSpecies(e.target.value)}>
-            <option value="">Tüm türler</option>
-            <option>Köpek</option>
-            <option>Kedi</option>
-          </select>
-          <select
-            className="input lg:w-32"
-            value={modality}
-            onChange={(e) => setModality(e.target.value as BackendModality | '')}
-          >
-            <option value="">Modalite</option>
-            <option value="MR">MR</option>
-            <option value="CT">CT</option>
-            <option value="XR">XR</option>
-          </select>
+          </label>
+          <label className="block lg:w-48">
+            <span className="label">Durum</span>
+            <select className="input" value={status} onChange={(e) => setStatus(e.target.value as CaseStatus | '')}>
+              <option value="">Tüm durumlar</option>
+              {STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_META[s].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block lg:w-36">
+            <span className="label">Tür</span>
+            <select className="input" value={species} onChange={(e) => setSpecies(e.target.value)}>
+              <option value="">Tüm türler</option>
+              <option>Köpek</option>
+              <option>Kedi</option>
+            </select>
+          </label>
+          <label className="block lg:w-32">
+            <span className="label">Modalite</span>
+            <select
+              className="input"
+              value={modality}
+              onChange={(e) => setModality(e.target.value as BackendModality | '')}
+            >
+              <option value="">Tümü</option>
+              <option value="MR">MR</option>
+              <option value="CT">CT</option>
+              <option value="XR">XR</option>
+            </select>
+          </label>
         </div>
         <div className="flex flex-wrap gap-2 border-b border-slate-100 px-4 py-3">
           {STATUS_ORDER.map((s) => {

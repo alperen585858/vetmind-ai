@@ -5,6 +5,8 @@ import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { PageHeader } from '../components/PageHeader'
+import { ProvenanceBanner, provenanceKindFromSource } from '../components/ProvenanceBanner'
 import { Logo } from '../components/Logo'
 import { RagCitations } from '../components/RagCitations'
 import { getReportVersion, markReportViewed } from '../lib/backend'
@@ -147,19 +149,35 @@ export default function ApprovedReport() {
   const provenance = reportProvenance(c)
   const showDemoPatientExtras = !c.fromBackend
 
+  const provKind = provenanceKindFromSource(c.backendDraft?.generation?.source_kind ?? c.backendFindings?.source_kind, {
+    synthetic: c.backendDraft?.synthetic ?? true,
+  })
+
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => nav(-1)}>Geri</Button>
-        {import.meta.env.MODE !== 'share' && (
-          <Button
-            icon={<Download className="h-4 w-4" />}
-            onClick={() => window.print()}
-            disabled={!sections.length}
-          >
-            PDF olarak indir
-          </Button>
-        )}
+      <div className="no-print">
+        <PageHeader
+          title="Onaylı rapor"
+          subtitle={`${c.patient.name} · ${c.no}`}
+          crumbs={[
+            { label: role === 'owner' ? 'Raporlarım' : 'Vakalar', to: role === 'owner' ? '/raporlar' : '/vakalar' },
+            { label: c.no, to: `/vakalar/${c.id}` },
+            { label: 'Rapor' },
+          ]}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => nav(-1)}>
+                Geri
+              </Button>
+              {import.meta.env.MODE !== 'share' && (
+                <Button icon={<Download className="h-4 w-4" />} onClick={() => window.print()} disabled={!sections.length}>
+                  PDF olarak indir
+                </Button>
+              )}
+            </div>
+          }
+        />
+        <ProvenanceBanner kind={provKind} className="mb-4" compact />
       </div>
 
       {loadError && (

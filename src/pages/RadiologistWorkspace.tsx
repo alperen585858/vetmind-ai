@@ -42,7 +42,7 @@ export default function RadiologistWorkspace() {
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [loadingFrames, setLoadingFrames] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [modal, setModal] = useState<null | 'revizyon' | 'reddedildi'>(null)
+  const [modal, setModal] = useState<null | 'approve' | 'revizyon' | 'reddedildi'>(null)
   const [reason, setReason] = useState('')
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -217,40 +217,54 @@ export default function RadiologistWorkspace() {
   return (
     <>
       <PageHeader
-        title={`Çalışma alanı · ${c.no}`}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {c.patient.name}
+            <span className="text-base font-normal text-slate-500">{c.no}</span>
+          </span>
+        }
         subtitle={contextBits.join(' · ')}
+        crumbs={[
+          { label: 'İş Listesi', to: '/kuyruk' },
+          { label: c.no, to: `/vakalar/${c.id}` },
+          { label: 'Çalışma alanı' },
+        ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <PriorityBadge priority={c.priority} />
             <StatusBadge status={c.status} />
+            <Button variant="secondary" size="sm" onClick={() => nav(`/vakalar/${c.id}`)}>
+              Vaka özeti
+            </Button>
             <Button variant="secondary" size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={() => void onSaveDraft()} disabled={saving || immutable}>
               {saving ? 'Kaydediliyor…' : 'Taslak kaydet ⌘S'}
             </Button>
-            <Link to={`/vakalar/${c.id}/inceleme`} className="text-xs font-medium text-teal-700">
-              Klasik inceleme
-            </Link>
           </div>
         }
       />
 
       <div className="mb-4 grid gap-4 lg:grid-cols-4">
-        <div className="lg:col-span-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+        <Card className="lg:col-span-3 p-3 text-sm text-slate-700">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vaka bağlamı</p>
           <p className="mt-1">{c.clinical.history || c.clinical.complaint || 'Klinik öykü yok'}</p>
           {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
           {c.studyInstanceUid ? (
             <p className="mt-2 font-mono text-[11px] text-slate-500">Study UID: {c.studyInstanceUid}</p>
           ) : null}
-        </div>
+        </Card>
         <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="min-h-[520px] space-y-3">
-          {error && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{error}</p>}
-          <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[520px]" />
+        <div className="min-h-[420px] space-y-3 xl:min-h-[560px] xl:sticky xl:top-20 xl:self-start">
+          {error && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+              {error}
+            </p>
+          )}
+          <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[420px] xl:min-h-[560px]" />
           <p className="text-[11px] text-slate-500">
-            Kısayollar: W/L · P pan · Z zoom · M ölçüm · F tam ekran · C karşılaştır · ok tuşları dilim
+            Kısayollar: W/L · P pan · Z zoom · M ölçüm · F tam ekran · C karşılaştır · ok tuşları dilim · tablet/mobilde kaydırarak panelleri gezin
           </p>
         </div>
         <div className="space-y-3">
@@ -262,7 +276,7 @@ export default function RadiologistWorkspace() {
                 size="sm"
                 icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                 disabled={immutable}
-                onClick={() => void decide('approve')}
+                onClick={() => setModal('approve')}
               >
                 Onayla
               </Button>
@@ -273,6 +287,9 @@ export default function RadiologistWorkspace() {
                 Reddet
               </Button>
             </div>
+            {immutable && (
+              <p className="mt-2 text-xs text-emerald-800">Onaylı sürüm kilitli — içerik değiştirilemez.</p>
+            )}
           </Card>
           <Card className="p-4">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -298,13 +315,26 @@ export default function RadiologistWorkspace() {
         </div>
       </div>
 
-      <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'revizyon' ? 'Revizyon iste' : 'Reddet'}>
-        <textarea
-          className="min-h-[100px] w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          placeholder="Gerekçe"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
+      <Modal
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        title={modal === 'approve' ? 'Raporu onayla' : modal === 'revizyon' ? 'Revizyon iste' : 'Reddet'}
+      >
+        {modal === 'approve' ? (
+          <p className="text-sm text-slate-600">
+            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez.
+          </p>
+        ) : (
+          <label className="block">
+            <span className="label">Gerekçe</span>
+            <textarea
+              className="input min-h-[100px]"
+              placeholder="Klinik / teknik gerekçe"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+        )}
         <div className="mt-3 flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={() => setModal(null)}>
             İptal
@@ -312,9 +342,13 @@ export default function RadiologistWorkspace() {
           <Button
             size="sm"
             variant={modal === 'reddedildi' ? 'danger' : 'primary'}
-            onClick={() => void decide(modal === 'revizyon' ? 'request_revision' : 'reject')}
+            onClick={() =>
+              void decide(
+                modal === 'approve' ? 'approve' : modal === 'revizyon' ? 'request_revision' : 'reject',
+              )
+            }
           >
-            Onayla
+            {modal === 'approve' ? 'Onayı onayla' : 'Gönder'}
           </Button>
         </div>
       </Modal>

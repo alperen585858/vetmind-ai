@@ -37,13 +37,12 @@ import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
   { key: 'genel', label: 'Genel Bakış', icon: <LayoutGrid className="h-4 w-4" /> },
-  { key: 'bulgular', label: 'Bulgular', icon: <Brain className="h-4 w-4" /> },
+  { key: 'bulgular', label: 'AI Bulgular', icon: <Brain className="h-4 w-4" /> },
   { key: 'goruntu', label: 'Görüntüler', icon: <ImageIcon className="h-4 w-4" /> },
   { key: 'rapor', label: 'Rapor', icon: <ClipboardList className="h-4 w-4" /> },
   { key: 'mesajlar', label: 'Mesajlar', icon: <MessageSquare className="h-4 w-4" /> },
   { key: 'gecmis', label: 'İşlem Geçmişi', icon: <History className="h-4 w-4" /> },
   { key: 'belgeler', label: 'Belgeler', icon: <FileText className="h-4 w-4" /> },
-  { key: 'ai', label: 'AI Ön Değerlendirme', icon: <Microscope className="h-4 w-4" /> },
 ]
 
 function DetailSkeleton() {
@@ -67,7 +66,8 @@ export default function CaseDetail() {
   const c = getCase(id)
   const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [loadError, setLoadError] = useState<string | null>(null)
-  const tab = params.get('tab') ?? 'genel'
+  const rawTab = params.get('tab') ?? 'genel'
+  const tab = rawTab === 'ai' ? 'bulgular' : rawTab
 
   const reload = () => {
     if (!id.startsWith('case-')) return
@@ -142,12 +142,20 @@ export default function CaseDetail() {
   return (
     <>
       <PageHeader
-        breadcrumb={<Link to="/vakalar" className="hover:underline">Vakalar</Link>}
+        crumbs={[
+          { label: role === 'expert' ? 'İş Listesi' : 'Vakalar', to: role === 'expert' ? '/kuyruk' : '/vakalar' },
+          { label: c.no },
+        ]}
         title={
           <span className="flex flex-wrap items-center gap-3">
-            {c.patient.species === 'Kedi' ? '🐈' : '🐕'} {c.patient.name}
+            <span>{c.patient.name}</span>
             <StatusBadge status={c.status} />
             <PriorityBadge priority={c.priority} />
+            {c.unreadMessages && c.unreadMessages > 0 ? (
+              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                {c.unreadMessages} mesaj
+              </span>
+            ) : null}
           </span>
         }
         subtitle={`${c.no} · ${c.patient.species}, ${c.patient.breed} · ${c.module} · ${fmtDate(c.createdAt)}`}
@@ -156,11 +164,13 @@ export default function CaseDetail() {
             {(c.status === 'isleniyor' || (c.status === 'ai_analizi' && c.processingStartedAt)) && (
               <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>İşlem hattını izle</Button>
             )}
-            {role === 'expert' && c.status === 'uzman_incelemesinde' && (
-              <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>İncelemeye başla</Button>
+            {role === 'expert' && (c.status === 'uzman_incelemesinde' || c.status === 'revizyon' || c.status === 'manuel_inceleme') && (
+              <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/calisma`)}>Çalışma alanı</Button>
             )}
-            {role === 'expert' && c.status === 'manuel_inceleme' && (
-              <Button variant="secondary" icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>Manuel inceleme notları</Button>
+            {role === 'vet' && (
+              <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => setParams({ tab: 'mesajlar' }, { replace: true })}>
+                Mesajlar
+              </Button>
             )}
             {c.status === 'onaylandi' && (
               <Button variant="success" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>Onaylı raporu görüntüle</Button>
@@ -215,7 +225,6 @@ export default function CaseDetail() {
       {tab === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
       {tab === 'gecmis' && <CaseHistoryPanel c={c} />}
       {tab === 'belgeler' && <Documents c={c} />}
-      {tab === 'ai' && <AssessmentView c={c} />}
     </>
   )
 }

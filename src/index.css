@@ -15,6 +15,23 @@ body {
 .label {
   @apply mb-1.5 block text-sm font-medium text-navy-800;
 }
+
+/* App-wide keyboard focus (medical UI — visible rings required) */
+:where(a, button, [role='button'], summary):focus-visible {
+  @apply outline outline-2 outline-offset-2 outline-teal-600;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  @apply rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white outline outline-2 outline-offset-2 outline-white;
+}
 .th {
   @apply whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
 }

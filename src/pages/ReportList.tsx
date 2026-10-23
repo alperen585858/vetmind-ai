@@ -14,21 +14,26 @@ export default function ReportList() {
   const reports = cases.filter((c) => c.status === 'onaylandi' && (role !== 'owner' || c.patient.ownerName === user?.name))
   return (
     <>
-      <PageHeader title={role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar'} subtitle="Uzman veteriner hekim tarafından onaylanarak yayınlanan raporlar" />
+      <PageHeader
+        title={role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar'}
+        subtitle="Uzman onayı sonrası yayınlanan raporlar · yazdırılabilir PDF"
+        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar' }]}
+      />
       <Card>
         {reports.length ? (
           <ul className="divide-y divide-slate-100">
             {reports.map((c) => (
               <li key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                  <FileCheck2 className="h-5 w-5" />
+                  <FileCheck2 className="h-5 w-5" aria-hidden />
                 </div>
-                <div className="flex-1">
-                  <p className="flex items-center gap-2 font-semibold text-navy-900">
+                <div className="flex-1 min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 font-semibold text-navy-900">
                     <SpeciesIcon species={c.patient.species} /> {c.patient.name} — Nöroloji Değerlendirme Raporu
                   </p>
                   <p className="text-xs text-slate-500">
-                    {c.reportNo} · Onaylayan: {c.approvedBy} · {fmtDate(c.approvedAt)}
+                    {c.reportNo ?? c.no} · Onaylayan: {c.approvedBy ?? '—'} · {fmtDate(c.approvedAt)}
+                    {c.reportViewedAt ? ' · görüldü' : c.reportDeliveredAt ? ' · iletildi' : ''}
                   </p>
                 </div>
                 <Button variant="secondary" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>Raporu aç</Button>
@@ -36,7 +41,22 @@ export default function ReportList() {
             ))}
           </ul>
         ) : (
-          <EmptyState icon={<FileText className="h-6 w-6" />} title="Henüz onaylanmış rapor yok" />
+          <EmptyState
+            icon={<FileText className="h-6 w-6" />}
+            title="Henüz onaylanmış rapor yok"
+            text={role === 'owner' ? 'Rapor onaylandığında burada görünecek.' : 'İş listesinden onaylanan vakalar burada listelenir.'}
+            action={
+              role === 'vet' ? (
+                <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
+                  Yeni vaka oluştur
+                </Button>
+              ) : role === 'expert' ? (
+                <Button size="sm" onClick={() => nav('/kuyruk')}>
+                  İş listesine git
+                </Button>
+              ) : undefined
+            }
+          />
         )}
       </Card>
     </>

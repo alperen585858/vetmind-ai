@@ -105,10 +105,10 @@ function guessType(name: string): DocType {
 
 function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={className}>
-      <label className="label">{label}</label>
+    <label className={`block ${className}`}>
+      <span className="label">{label}</span>
       {children}
-    </div>
+    </label>
   )
 }
 
@@ -611,20 +611,42 @@ export default function NewCase() {
     <>
       <PageHeader
         title="Yeni Vaka"
-        subtitle="Nöroloji modülü · Kedi ve köpek"
-        breadcrumb="Vakalar / Yeni Vaka"
+        subtitle="Klinik öykü → görüntüleme → gönder · Nöroloji"
+        crumbs={[{ label: 'Vakalar', to: '/vakalar' }, { label: 'Yeni Vaka' }]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" icon={<Sparkles className="h-4 w-4 text-teal-600" />} onClick={fillSample}>Örnek vaka ile doldur</Button>
-            <Button variant="secondary" icon={<Brain className="h-4 w-4 text-teal-600" />} onClick={fillBrainBackend}>Sentetik Brain MRI</Button>
-            <Button variant="secondary" onClick={fillCervicalBackend}>Sentetik Cervical MRI</Button>
-            <Button variant="secondary" onClick={() => fillDicomDemo('brain_mri')}>DICOM demo · Brain</Button>
-            <Button variant="secondary" onClick={() => fillDicomDemo('cervical_mri')}>DICOM demo · Cervical</Button>
-            <Button variant="secondary" onClick={() => fillDicomDemo('brain_ct')}>DICOM demo · CT</Button>
-            <Button variant="secondary" onClick={() => fillDicomDemo('thorax_xr')}>DICOM demo · XR</Button>
+            <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
+              DICOM ile başla
+            </Button>
+            <Button variant="secondary" icon={<Sparkles className="h-4 w-4 text-teal-600" />} onClick={fillSample}>
+              Örnek doldur
+            </Button>
           </div>
         }
       />
+      <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium text-navy-800">Demo hızlı doldurma (sentetik / DICOM fixture)</summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" icon={<Brain className="h-3.5 w-3.5 text-teal-600" />} onClick={fillBrainBackend}>
+            Brain MRI
+          </Button>
+          <Button size="sm" variant="secondary" onClick={fillCervicalBackend}>
+            Cervical MRI
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('brain_mri')}>
+            DICOM · Brain
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('cervical_mri')}>
+            DICOM · Cervical
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('brain_ct')}>
+            DICOM · CT
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('thorax_xr')}>
+            DICOM · XR
+          </Button>
+        </div>
+      </details>
       <Card className="mb-6 p-5">
         <StepIndicator steps={STEPS} current={step} onSelect={setStep} />
       </Card>

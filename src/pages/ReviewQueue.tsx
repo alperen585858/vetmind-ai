@@ -4,6 +4,7 @@ import { Info, LayoutPanelLeft, Loader2, RefreshCw, Search, UserPlus } from 'luc
 import { useApp } from '../context/AppContext'
 import { Button } from '../components/Button'
 import { Card, CardHeader } from '../components/Card'
+import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { listBackendWorklist, updateCaseAssignment } from '../lib/backend'
@@ -60,7 +61,8 @@ export default function ReviewQueue() {
     <>
       <PageHeader
         title="Radyolog İş Listesi"
-        subtitle="Öncelik · modalite · durum · atama ile filtrelenebilir kuyruk"
+        subtitle="Öncelik · modalite · durum · atama · çalışma alanına açın"
+        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'İş Listesi' }]}
         actions={
           <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
             Yenile
@@ -70,12 +72,13 @@ export default function ReviewQueue() {
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="wl-q">
             Ara
-            <div className="mt-1 flex items-center gap-1 rounded-md border border-slate-200 px-2">
-              <Search className="h-3.5 w-3.5 text-slate-400" />
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
               <input
-                className="w-full py-1.5 text-sm outline-none"
+                id="wl-q"
+                className="input pl-9"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && load()}
@@ -83,9 +86,9 @@ export default function ReviewQueue() {
               />
             </div>
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="wl-status">
             Durum
-            <select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select id="wl-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">Tümü</option>
               <option value="awaiting_review">Uzman inceleme</option>
               <option value="revision_requested">Revizyon</option>
@@ -93,18 +96,18 @@ export default function ReviewQueue() {
               <option value="analyzing">Analiz</option>
             </select>
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="wl-modality">
             Modalite
-            <select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" value={modality} onChange={(e) => setModality(e.target.value)}>
+            <select id="wl-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
               <option value="">Tümü</option>
               <option value="MR">MR</option>
               <option value="CT">CT</option>
               <option value="XR">XR</option>
             </select>
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="wl-priority">
             Öncelik
-            <select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <select id="wl-priority" className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
               <option value="">Tümü</option>
               <option value="stat">STAT</option>
               <option value="urgent">Acil (URGENT)</option>
@@ -112,9 +115,9 @@ export default function ReviewQueue() {
               <option value="normal">Normal</option>
             </select>
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="wl-assigned">
             Atama
-            <select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+            <select id="wl-assigned" className="input mt-1" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
               <option value="">Tümü</option>
               <option value="unassigned">Atanmamış</option>
               <option value="expert-demo">expert-demo</option>
@@ -134,11 +137,21 @@ export default function ReviewQueue() {
           subtitle={error ? `API: ${error} · yerel kuyruk gösteriliyor` : 'Acil vakalar üstte'}
         />
         {loading ? (
-          <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+          <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> İş listesi yükleniyor…
           </p>
         ) : display.length === 0 ? (
-          <p className="px-5 pb-5 text-sm text-slate-500">Eşleşen vaka yok.</p>
+          <EmptyState
+            compact
+            icon={<LayoutPanelLeft className="h-5 w-5" />}
+            title="Eşleşen vaka yok"
+            text={error ? `API: ${error}. Filtreleri temizleyip yenileyin.` : 'Filtreleri genişletin veya yeni vaka bekleyin.'}
+            action={
+              <Button size="sm" variant="secondary" onClick={load}>
+                Yenile
+              </Button>
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100">

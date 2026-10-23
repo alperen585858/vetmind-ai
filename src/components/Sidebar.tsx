@@ -56,12 +56,17 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <Logo dark />
             <p className="mt-1.5 pl-[46px] text-[11px] text-navy-300">VRM Teknoloji iş birliğiyle</p>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-navy-300 hover:bg-navy-800 lg:hidden">
-            <X className="h-5 w-5" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Menüyü kapat"
+            className="rounded p-1 text-navy-300 hover:bg-navy-800 lg:hidden"
+          >
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
         <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-navy-400">Menü</p>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 space-y-1 px-3" aria-label="Ana menü">
           {items.map((it) => (
             <NavLink
               key={it.to}

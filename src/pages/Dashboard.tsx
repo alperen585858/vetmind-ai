@@ -71,26 +71,28 @@ function VetDashboard() {
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Aktif vakalar" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış" />
-        <StatCard label="İnceleme bekleyen" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="awaiting_review" />
+        <StatCard label="İnceleme bekleyen" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Uzman kuyruğunda" />
         <StatCard label="Acil / STAT" value={urgent} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli iş listesi" />
         <StatCard label="Tamamlanan rapor" value={approved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Onaylı teslimat" />
       </div>
       <Card className="mt-6">
         <CardHeader title="Klinik filtre" subtitle="Durum ve arama" />
         <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3">
-          <label className="text-xs text-slate-600 sm:col-span-2">
+          <label className="label sm:col-span-2" htmlFor="vet-dash-q">
             Ara
             <input
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              id="vet-dash-q"
+              className="input mt-1"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Hasta, vaka no, klinik…"
             />
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="label" htmlFor="vet-dash-status">
             Durum
             <select
-              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              id="vet-dash-status"
+              className="input mt-1"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -161,7 +163,9 @@ export function QueueList({ items }: { items: VetCase[] }) {
               </p>
             </div>
           </div>
-          <Button onClick={() => nav(`/vakalar/${c.id}/inceleme`)} icon={<Microscope className="h-4 w-4" />}>İncele</Button>
+          <Button onClick={() => nav(`/vakalar/${c.id}/calisma`)} icon={<Microscope className="h-4 w-4" />}>
+            Çalışma alanı
+          </Button>
         </li>
       ))}
     </ul>
@@ -170,37 +174,60 @@ export function QueueList({ items }: { items: VetCase[] }) {
 
 function ExpertDashboard() {
   const { cases, user } = useApp()
+  const nav = useNavigate()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde')
-  const weekApproved = 9 + cases.filter((c) => c.status === 'onaylandi' && (c.approvedAt ?? '') >= '2026-10-13').length
+  const approvedCount = cases.filter((c) => c.status === 'onaylandi').length
   const recent = cases.filter((c) => c.status === 'onaylandi' || c.status === 'revizyon' || c.status === 'reddedildi')
+  const urgentN = queue.filter((q) => q.priority === 'STAT' || q.priority === 'Acil').length
   return (
     <>
-      <PageHeader title={`Hoş geldiniz, ${user?.name}`} subtitle="VRM Teknoloji · Uzman inceleme paneli" />
+      <PageHeader
+        title={`Hoş geldiniz, ${user?.name}`}
+        subtitle="Radyolog paneli · iş listesi ve çalışma alanı"
+        actions={
+          <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav('/kuyruk')}>
+            İş listesine git
+          </Button>
+        }
+      />
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Onay bekleyen rapor" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${queue.filter((q) => q.priority === 'STAT' || q.priority === 'Acil').length} STAT/acil`} />
-        <StatCard label="Ortalama inceleme süresi" value="14 dk" icon={<Timer className="h-5 w-5" />} tone="teal" hint="AI taslağı olmadan ort. 48 dk" />
-        <StatCard label="Bu hafta onaylanan" value={weekApproved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="13–19 Ekim 2026" />
+        <StatCard label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${urgentN} STAT/acil`} />
+        <StatCard label="STAT / Acil kuyruk" value={urgentN} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli inceleme" />
+        <StatCard label="Onaylı rapor (oturum)" value={approvedCount} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yerel + senkron kayıtlar" />
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="Onay bekleyen raporlar" subtitle="Öncelik sırasına göre" icon={<Clock className="h-5 w-5" />} />
+          <CardHeader
+            title="Onay bekleyen raporlar"
+            subtitle="Öncelik sırasına göre · çalışma alanından açın"
+            icon={<Clock className="h-5 w-5" />}
+            action={
+              <Link to="/kuyruk" className="text-sm font-medium text-teal-700 hover:underline">
+                Tüm iş listesi
+              </Link>
+            }
+          />
           <QueueList items={queue} />
         </Card>
         <Card>
           <CardHeader title="Son kararlarınız" />
-          <ul className="divide-y divide-slate-100">
-            {recent.map((c) => (
-              <li key={c.id}>
-                <Link to={`/vakalar/${c.id}`} className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-slate-50">
-                  <div>
-                    <p className="text-sm font-medium text-navy-900">{c.patient.name}</p>
-                    <p className="text-xs text-slate-500">{c.no}</p>
-                  </div>
-                  <StatusBadge status={c.status} />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {recent.length === 0 ? (
+            <EmptyState compact icon={<CheckCircle2 className="h-5 w-5" />} title="Henüz karar yok" text="İş listesinden bir vaka üstlenin." />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recent.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/vakalar/${c.id}/calisma`} className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-slate-50">
+                    <div>
+                      <p className="text-sm font-medium text-navy-900">{c.patient.name}</p>
+                      <p className="text-xs text-slate-500">{c.no}</p>
+                    </div>
+                    <StatusBadge status={c.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </>
@@ -222,12 +249,27 @@ function OwnerDashboard() {
   const nav = useNavigate()
   const mine = cases.filter((c) => c.patient.ownerName === user?.name)
   const ready = mine.filter((c) => c.status === 'onaylandi')
+  const inProgress = mine.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
   return (
     <>
-      <PageHeader title={`Merhaba, ${user?.name}`} subtitle="Hayvanlarınızın vaka durumlarını ve onaylanmış raporlarını buradan takip edebilirsiniz." />
+      <PageHeader
+        title={`Merhaba, ${user?.name}`}
+        subtitle="Hayvanlarınızın vaka durumu ve onaylı raporlar"
+        actions={
+          ready.length > 0 ? (
+            <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
+              Raporlarım
+            </Button>
+          ) : undefined
+        }
+      />
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <StatCard label="Devam eden" value={inProgress} icon={<Clock className="h-5 w-5" />} tone="amber" hint="Klinik sürecinde" />
+        <StatCard label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Görüntülenebilir" />
+      </div>
       {ready.length > 0 && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
-          <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />
+          <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" aria-hidden />
           <p className="flex-1 text-sm text-emerald-900">
             <strong>{ready.length} onaylanmış raporunuz hazır.</strong> Raporlar uzman veteriner hekim tarafından incelenip onaylanmıştır.
           </p>
@@ -240,11 +282,13 @@ function OwnerDashboard() {
           return (
             <Card key={c.id} className="flex flex-col overflow-hidden">
               <div className="flex items-center gap-4 bg-gradient-to-br from-navy-900 to-navy-700 p-5 text-white">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-3xl">{c.patient.species === 'Kedi' ? '🐈' : '🐕'}</div>
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-lg font-semibold" aria-hidden>
+                  {c.patient.species === 'Kedi' ? 'K' : 'Kö'}
+                </div>
                 <div>
                   <p className="text-lg font-semibold">{c.patient.name}</p>
                   <p className="text-sm text-navy-200">
-                    {c.patient.breed} · {c.patient.age} yaş · {c.patient.weight} kg
+                    {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş
                   </p>
                 </div>
               </div>
@@ -299,16 +343,25 @@ export function GpuChart({ height = 180 }: { height?: number }) {
 
 function AdminDashboard() {
   const { kbSources, cases } = useApp()
+  const nav = useNavigate()
   const chunks = kbSources.reduce((s, k) => s + k.chunks, 0)
   const ok = SERVICES.filter((s) => s.status === 'ok').length
   return (
     <>
-      <PageHeader title="Sistem Özeti" subtitle="VetMind AI platform durumu (mock izleme verisi)" />
+      <PageHeader
+        title="Sistem Özeti"
+        subtitle="Platform durumu · demo izleme verisi (üretim metrikleri değil)"
+        actions={
+          <Button variant="secondary" onClick={() => nav('/sistem')}>
+            Sistem durumu
+          </Button>
+        }
+      />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="Nöroloji aktif · 4 modül planlanıyor" />
-        <StatCard label="Bilgi tabanı dokümanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça (chunk) indeksli`} />
-        <StatCard label="Toplam vaka" value={cases.length + 142} icon={<Database className="h-5 w-5" />} tone="violet" hint="Pilot dönem (demo)" />
-        <StatCard label="Servis sağlığı" value={`${ok}/${SERVICES.length}`} icon={<Activity className="h-5 w-5" />} tone="amber" hint="1 serviste yüksek yük" />
+        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="Nöroloji aktif" />
+        <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça indeksli`} />
+        <StatCard label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
+        <StatCard label="Servis sağlığı" value={`${ok}/${SERVICES.length}`} icon={<Activity className="h-5 w-5" />} tone="amber" hint="Mock health paneli" />
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">

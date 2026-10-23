@@ -1036,7 +1036,7 @@ export default function DicomUpload() {
       <PageHeader
         title="DICOM Yükleme"
         subtitle="Görüntüleme çalışma alanı · metadata sınıflandırma · demo AI ön değerlendirme"
-        breadcrumb="Vakalar / DICOM Yükle"
+        crumbs={[{ label: 'Vakalar', to: '/vakalar' }, { label: 'DICOM Yükle' }]}
         actions={
           <div className="flex items-center gap-2">
             <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 sm:inline">
