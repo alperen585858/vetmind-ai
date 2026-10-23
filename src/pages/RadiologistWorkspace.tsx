@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   FileSearch,
   History,
   Loader2,
@@ -23,14 +25,19 @@ import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { ReportEditor } from '../components/ReportEditor'
 import {
   BackendUnavailableError,
+  appendCaseInternalNote,
+  createCaseInfoRequest,
   fetchCaseDicomFiles,
+  getPetMedicalHistory,
+  listBackendWorklist,
   listReportVersions,
   saveBackendDraftReport,
   submitBackendReview,
+  type PetHistoryEntry,
 } from '../lib/backend'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
-import type { ReportSections } from '../types'
+import type { BackendCaseSummary, ReportSections } from '../types'
 
 export default function RadiologistWorkspace() {
   const { id = '' } = useParams()
@@ -46,6 +53,10 @@ export default function RadiologistWorkspace() {
   const [reason, setReason] = useState('')
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [worklist, setWorklist] = useState<BackendCaseSummary[]>([])
+  const [priorReports, setPriorReports] = useState<PetHistoryEntry[]>([])
+  const [internalNote, setInternalNote] = useState('')
+  const [infoAsk, setInfoAsk] = useState('')
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -103,6 +114,26 @@ export default function RadiologistWorkspace() {
   }, [c?.id, c?.backendCaseId, c?.status])
 
   useEffect(() => {
+    void listBackendWorklist({ assigned_to: 'expert@demo.local' })
+      .then(setWorklist)
+      .catch(() =>
+        listBackendWorklist()
+          .then(setWorklist)
+          .catch(() => setWorklist([])),
+      )
+  }, [id])
+
+  useEffect(() => {
+    if (!c?.petId) {
+      setPriorReports([])
+      return
+    }
+    void getPetMedicalHistory(c.petId)
+      .then((h) => setPriorReports(h.timeline.filter((e) => e.kind === 'report' || e.report_available).slice(0, 6)))
+      .catch(() => setPriorReports([]))
+  }, [c?.petId])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
@@ -124,6 +155,16 @@ export default function RadiologistWorkspace() {
       c.clinic,
     ].filter(Boolean) as string[]
   }, [c])
+
+  const worklistNav = useMemo(() => {
+    const caseKey = c?.backendCaseId || c?.id || id
+    const idx = worklist.findIndex((w) => w.case_id === caseKey)
+    return {
+      idx,
+      prev: idx > 0 ? worklist[idx - 1] : null,
+      next: idx >= 0 && idx < worklist.length - 1 ? worklist[idx + 1] : null,
+    }
+  }, [worklist, c?.backendCaseId, c?.id, id])
 
   if (hydrating) {
     return (
@@ -160,27 +201,35 @@ export default function RadiologistWorkspace() {
   const caseKey = caseRow.backendCaseId || caseRow.id
   const immutable = Boolean(caseRow.backendDraft?.immutable) || caseRow.status === 'onaylandi'
 
-  async function onSaveDraft() {
-    if (!text || immutable) return
+  async function onSaveDraft(opts?: { silent?: boolean }) {
+    if (!text || immutable) return false
     setSaving(true)
     try {
       if (caseKey.startsWith('case-')) {
         const draft = await saveBackendDraftReport(caseKey, text)
         updateCase(caseRow.id, { report: text, aiDraft: text, backendDraft: draft })
-        pushToast({ tone: 'success', title: 'Taslak kaydedildi' })
+        if (!opts?.silent) pushToast({ tone: 'success', title: 'Taslak kaydedildi' })
       } else {
         updateCase(caseRow.id, { report: text, aiDraft: text })
-        pushToast({ tone: 'success', title: 'Yerel taslak güncellendi' })
+        if (!opts?.silent) pushToast({ tone: 'success', title: 'Yerel taslak güncellendi' })
       }
+      return true
     } catch (err) {
       pushToast({
         tone: 'error',
         title: 'Taslak kaydedilemedi',
         body: err instanceof Error ? err.message : undefined,
       })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  async function goAssigned(target: BackendCaseSummary | null) {
+    if (!target) return
+    if (!immutable) await onSaveDraft({ silent: true })
+    nav(`/vakalar/${target.case_id}/calisma`)
   }
 
   async function decide(action: 'approve' | 'reject' | 'request_revision') {
@@ -233,6 +282,23 @@ export default function RadiologistWorkspace() {
           <div className="flex flex-wrap items-center gap-2">
             <PriorityBadge priority={c.priority} />
             <StatusBadge status={c.status} />
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ChevronLeft className="h-3.5 w-3.5" />}
+              disabled={!worklistNav.prev}
+              onClick={() => void goAssigned(worklistNav.prev)}
+            >
+              Önceki
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!worklistNav.next}
+              onClick={() => void goAssigned(worklistNav.next)}
+            >
+              Sonraki <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => nav(`/vakalar/${c.id}`)}>
               Vaka özeti
             </Button>
@@ -251,6 +317,26 @@ export default function RadiologistWorkspace() {
           {c.studyInstanceUid ? (
             <p className="mt-2 font-mono text-[11px] text-slate-500">Study UID: {c.studyInstanceUid}</p>
           ) : null}
+          {priorReports.length > 0 && (
+            <div className="mt-3 border-t border-slate-100 pt-2">
+              <p className="text-xs font-semibold text-slate-500">Önceki onaylı raporlar (aynı pet)</p>
+              <ul className="mt-1 space-y-1 text-xs">
+                {priorReports.map((r, i) => (
+                  <li key={`${r.case_id}-${i}`}>
+                    {r.title}
+                    {r.link_path ? (
+                      <>
+                        {' '}
+                        <Link className="text-teal-700 hover:underline" to={r.link_path}>
+                          aç
+                        </Link>
+                      </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </Card>
         <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
       </div>
@@ -312,6 +398,70 @@ export default function RadiologistWorkspace() {
               </ul>
             )}
           </Card>
+          {caseKey.startsWith('case-') && (
+            <Card className="space-y-3 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">İç not / klinik istek</p>
+              <label className="block text-xs text-slate-600">
+                İç inceleme notu (yalnız radyolog)
+                <textarea
+                  className="input mt-1 min-h-[56px] text-sm"
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!internalNote.trim() || saving}
+                onClick={() =>
+                  void appendCaseInternalNote(caseKey, internalNote.trim())
+                    .then(() => {
+                      setInternalNote('')
+                      pushToast({ tone: 'success', title: 'İç not kaydedildi' })
+                    })
+                    .catch((e) =>
+                      pushToast({
+                        tone: 'error',
+                        title: 'İç not kaydedilemedi',
+                        body: e instanceof Error ? e.message : undefined,
+                      }),
+                    )
+                }
+              >
+                İç not kaydet
+              </Button>
+              <label className="block text-xs text-slate-600">
+                Veterinerden ek klinik bilgi iste
+                <input
+                  className="input mt-1 text-sm"
+                  value={infoAsk}
+                  onChange={(e) => setInfoAsk(e.target.value)}
+                  placeholder="İstek metni"
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!infoAsk.trim()}
+                onClick={() =>
+                  void createCaseInfoRequest(caseKey, { body: infoAsk.trim(), to_role: 'vet' })
+                    .then(() => {
+                      setInfoAsk('')
+                      pushToast({ tone: 'info', title: 'Bilgi isteği açıldı (OPEN)' })
+                    })
+                    .catch((e) =>
+                      pushToast({
+                        tone: 'error',
+                        title: 'İstek açılamadı',
+                        body: e instanceof Error ? e.message : undefined,
+                      }),
+                    )
+                }
+              >
+                İstek gönder
+              </Button>
+            </Card>
+          )}
         </div>
       </div>
 

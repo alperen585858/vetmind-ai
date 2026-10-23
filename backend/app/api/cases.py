@@ -14,6 +14,12 @@ from app.schemas.case import (
     CaseSummary,
     ClinicDashboardStats,
 )
+from app.schemas.workflow import (
+    CaseDocumentAttach,
+    CaseNoteCreate,
+    InfoRequestCreate,
+    InfoRequestReply,
+)
 from app.schemas.model_input import ImagingModelInput
 from app.security.audit import AuditOutcome
 from app.services.case_service import CaseService
@@ -142,6 +148,82 @@ def update_assignment(
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assignment not allowed.")
     return service.update_assignment(case_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/clinical-notes", response_model=CaseRecord)
+def append_clinical_note(
+    case_id: str,
+    payload: CaseNoteCreate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    return service.append_clinical_note(case_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/internal-notes", response_model=CaseRecord)
+def append_internal_note(
+    case_id: str,
+    payload: CaseNoteCreate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> CaseRecord:
+    return service.append_internal_note(case_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/info-requests", response_model=CaseRecord, status_code=status.HTTP_201_CREATED)
+def create_case_info_request(
+    case_id: str,
+    payload: InfoRequestCreate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    return service.create_info_request(case_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/info-requests/{request_id}/reply", response_model=CaseRecord)
+def reply_case_info_request(
+    case_id: str,
+    request_id: str,
+    payload: InfoRequestReply,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW) or principal.role == "owner"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    return service.reply_info_request(case_id, request_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/info-requests/{request_id}/close", response_model=CaseRecord)
+def close_case_info_request(
+    case_id: str,
+    request_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    return service.close_info_request(case_id, request_id, principal=principal)
+
+
+@router.post("/{case_id}/documents", response_model=CaseRecord)
+def attach_case_document(
+    case_id: str,
+    payload: CaseDocumentAttach,
+    request: Request,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    """Attach quarantined document ingest to existing case — never creates a duplicate case."""
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    container = get_container(request)
+    return service.attach_document_ingest(
+        case_id, payload, principal=principal, documents_svc=container.documents
+    )
 
 
 @router.get("/{case_id}", response_model=CaseRecord)

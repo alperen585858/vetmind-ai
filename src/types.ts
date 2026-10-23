@@ -22,6 +22,39 @@ export type BackendSubmissionStatus =
   | 'rejected'
   | 'linked'
 
+export type InfoRequestStatus = 'OPEN' | 'ANSWERED' | 'CLOSED'
+
+export interface BackendInfoRequest {
+  request_id: string
+  status: InfoRequestStatus
+  from_role: string
+  from_subject: string
+  to_role: string
+  body: string
+  reply?: string | null
+  created_at: string
+  answered_at?: string | null
+  closed_at?: string | null
+}
+
+export interface BackendAttachmentRef {
+  attachment_id: string
+  kind: 'dicom' | 'document'
+  ingest_id: string
+  uploaded_by: string
+  created_at: string
+  label?: string | null
+}
+
+export interface BackendClinicalNoteEntry {
+  note_id: string
+  body: string
+  author_subject: string
+  author_role: string
+  created_at: string
+  kind: 'clinical' | 'internal'
+}
+
 export interface BackendImagingSubmission {
   submission_id: string
   pet_id: string
@@ -38,6 +71,8 @@ export interface BackendImagingSubmission {
   linked_case_id?: string | null
   verified_by?: string | null
   verified_at?: string | null
+  attachments?: BackendAttachmentRef[]
+  info_requests?: BackendInfoRequest[]
   created_at: string
   updated_at: string
 }
@@ -501,6 +536,10 @@ export interface BackendCaseRecord {
     instance_count?: number | null
     classification_confidence?: string | null
   }
+  clinical_notes_log?: BackendClinicalNoteEntry[]
+  internal_notes?: BackendClinicalNoteEntry[]
+  info_requests?: BackendInfoRequest[]
+  attachment_refs?: BackendAttachmentRef[]
 }
 
 export interface VetCase {

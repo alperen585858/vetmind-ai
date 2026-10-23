@@ -20,10 +20,87 @@ SubmissionStatus = Literal[
 ]
 
 ManagedRole = Literal["vet", "expert", "owner", "clinic_owner", "admin"]
+InfoRequestStatus = Literal["OPEN", "ANSWERED", "CLOSED"]
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class InfoRequest(BaseModel):
+    """Structured information request with OPEN / ANSWERED / CLOSED lifecycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(default_factory=lambda: f"irq-{uuid4().hex[:12]}")
+    status: InfoRequestStatus = "OPEN"
+    from_role: str = Field(min_length=1, max_length=40)
+    from_subject: str = Field(min_length=1, max_length=120)
+    to_role: str = Field(min_length=1, max_length=40)
+    body: str = Field(min_length=1, max_length=4000)
+    reply: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
+    answered_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+
+
+class AttachmentRef(BaseModel):
+    """Persistent DICOM/document reference on a submission or case."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    attachment_id: str = Field(default_factory=lambda: f"att-{uuid4().hex[:12]}")
+    kind: Literal["dicom", "document"]
+    ingest_id: str = Field(min_length=1, max_length=80)
+    uploaded_by: str = Field(min_length=1, max_length=120)
+    created_at: datetime = Field(default_factory=utcnow)
+    label: Optional[str] = None
+
+
+class ClinicalNoteEntry(BaseModel):
+    """Append-only clinical or internal note (never overwrites prior entries)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    note_id: str = Field(default_factory=lambda: f"note-{uuid4().hex[:12]}")
+    body: str = Field(min_length=1, max_length=8000)
+    author_subject: str = Field(min_length=1, max_length=120)
+    author_role: str = Field(min_length=1, max_length=40)
+    created_at: datetime = Field(default_factory=utcnow)
+    kind: Literal["clinical", "internal"] = "clinical"
+
+
+class InfoRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=4000)
+    to_role: Literal["vet", "owner", "expert"] = "vet"
+
+
+class InfoRequestReply(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reply: str = Field(min_length=1, max_length=4000)
+
+
+class SubmissionAttach(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["dicom", "document"]
+    ingest_id: str = Field(min_length=1, max_length=80)
+    label: Optional[str] = None
+
+
+class CaseNoteCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=8000)
+
+
+class CaseDocumentAttach(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ingest_id: str = Field(min_length=1, max_length=80)
 
 
 class PetRecord(BaseModel):
@@ -83,6 +160,9 @@ class ImagingSubmission(BaseModel):
     linked_case_id: Optional[str] = None
     verified_by: Optional[str] = None
     verified_at: Optional[datetime] = None
+    # Phase 18: multi-attach + structured info requests
+    attachments: list[AttachmentRef] = Field(default_factory=list)
+    info_requests: list[InfoRequest] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
     # For tenancy helpers (alias pet owner as owner_subject)

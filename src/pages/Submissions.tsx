@@ -7,14 +7,18 @@ import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import {
+  attachSubmission,
+  closeSubmissionInfoRequest,
   createSubmission,
   fetchIngestDicomFiles,
   getDicomIngestion,
   listPets,
   listSubmissions,
+  replySubmissionInfoRequest,
   updateSubmission,
   uploadDicomDemo,
   uploadDicomFiles,
+  uploadDocuments,
   vetSubmissionAction,
 } from '../lib/backend'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
@@ -56,6 +60,10 @@ export default function Submissions() {
   const folderInputRef = useRef<HTMLInputElement>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
   const [attachTargetId, setAttachTargetId] = useState<string | null>(null)
+  const [docAttachTargetId, setDocAttachTargetId] = useState<string | null>(null)
+  const docAttachInputRef = useRef<HTMLInputElement>(null)
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
+  const [infoRequestText, setInfoRequestText] = useState<Record<string, string>>({})
   const [detailIngestId, setDetailIngestId] = useState<string | null>(null)
   const [detail, setDetail] = useState<DicomIngestionRecord | null>(null)
   const [detailFrames, setDetailFrames] = useState<DicomFramePreview[]>([])
@@ -128,7 +136,23 @@ export default function Submissions() {
     if (dicom.blocked) {
       throw new Error(dicom.block_reason || 'DICOM karantinada engellendi.')
     }
-    return updateSubmission(sub.submission_id, { dicom_ingest_id: dicom.ingest_id })
+    return attachSubmission(sub.submission_id, { kind: 'dicom', ingest_id: dicom.ingest_id })
+  }
+
+  const uploadDocAndLink = async (sub: BackendImagingSubmission, files: File[]) => {
+    const pet = pets.find((p) => p.pet_id === sub.pet_id)
+    const patientName = pet?.name || 'Pet'
+    const species = petSpeciesLabel(pet?.species)
+    const doc = await uploadDocuments({
+      files,
+      patientName,
+      species,
+      breed: pet?.breed || undefined,
+      clinicalHistory: sub.chief_complaint || sub.clinical_notes || 'Owner document',
+    })
+    if (!doc.ingest_id) throw new Error('Belge yüklemesi ingest_id döndürmedi.')
+    if (doc.blocked) throw new Error(doc.block_reason || 'Belge engellendi.')
+    return attachSubmission(sub.submission_id, { kind: 'document', ingest_id: doc.ingest_id })
   }
 
   const create = async (useDemo: boolean) => {
@@ -212,6 +236,74 @@ export default function Submissions() {
     }
   }
 
+  const openDocAttachPicker = (id: string) => {
+    setDocAttachTargetId(id)
+    docAttachInputRef.current?.click()
+  }
+
+  const onAttachDocs = async (list: FileList | null) => {
+    const id = docAttachTargetId
+    setDocAttachTargetId(null)
+    const picked = collectFiles(list)
+    if (!id || !picked.length) return
+    const row = rows.find((r) => r.submission_id === id)
+    if (!row) return
+    setBusy(id)
+    try {
+      const linked = await uploadDocAndLink(row, picked)
+      pushToast({
+        tone: 'success',
+        title: 'Belge eklendi',
+        body: `Ingest ${linked.document_ingest_id || linked.attachments?.slice(-1)[0]?.ingest_id}`,
+      })
+      load()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'Belge eklenemedi', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const sendOwnerReply = async (s: BackendImagingSubmission) => {
+    const openReq = (s.info_requests || []).find((r) => r.status === 'OPEN')
+    const text = (replyDraft[s.submission_id] || '').trim()
+    if (!text) {
+      pushToast({ tone: 'error', title: 'Yanıt boş', body: 'Lütfen istenen bilgiyi yazın.' })
+      return
+    }
+    setBusy(s.submission_id)
+    try {
+      if (openReq) {
+        await replySubmissionInfoRequest(s.submission_id, openReq.request_id, text)
+      } else {
+        await updateSubmission(s.submission_id, { clinical_notes: text })
+      }
+      pushToast({ tone: 'success', title: 'Yanıt gönderildi', body: 'Veteriner tekrar inceleyecek.' })
+      setReplyDraft((prev) => ({ ...prev, [s.submission_id]: '' }))
+      load()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'Yanıt gönderilemedi', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const closeReq = async (submissionId: string, requestId: string) => {
+    setBusy(submissionId)
+    try {
+      await closeSubmissionInfoRequest(submissionId, requestId)
+      pushToast({ tone: 'info', title: 'Bilgi isteği kapatıldı' })
+      load()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'Kapatılamadı', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const canOwnerAttach = (s: BackendImagingSubmission) =>
+    isOwner && (s.status === 'pending_verification' || s.status === 'needs_info' || s.status === 'draft')
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setDrag(false)
@@ -265,7 +357,10 @@ export default function Submissions() {
     try {
       const result = await vetSubmissionAction(id, {
         action,
-        missing_info_request: action === 'request_info' ? 'Lütfen klinik öyküyü tamamlayın.' : undefined,
+        missing_info_request:
+          action === 'request_info'
+            ? infoRequestText[id]?.trim() || 'Lütfen klinik öyküyü tamamlayın.'
+            : undefined,
         assigned_reviewer_id: action === 'accept' ? 'expert@demo.local' : undefined,
         run_analyze: action === 'accept',
         vet_notes: action === 'accept' ? 'Klinik doğrulama tamam' : undefined,
@@ -453,6 +548,17 @@ export default function Submissions() {
           e.target.value = ''
         }}
       />
+      <input
+        ref={docAttachInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/*"
+        className="hidden"
+        onChange={(e) => {
+          void onAttachDocs(e.target.files)
+          e.target.value = ''
+        }}
+      />
 
       <Card>
         <CardHeader title="Başvuru listesi" icon={<ClipboardCheck className="h-5 w-5" />} />
@@ -464,7 +570,14 @@ export default function Submissions() {
           <EmptyState compact icon={<ClipboardCheck className="h-5 w-5" />} title="Başvuru yok" text="Henüz kayıt bulunmuyor." />
         ) : (
           <ul className="divide-y divide-slate-100">
-            {rows.map((s) => (
+            {rows.map((s) => {
+              const answeredReqs = (s.info_requests || []).filter((r) => r.status === 'ANSWERED')
+              const requiredActions: string[] = []
+              if (isOwner && s.status === 'needs_info') requiredActions.push('Veteriner bilgi istedi — yanıtlayın')
+              if (isOwner && canOwnerAttach(s) && !s.dicom_ingest_id) requiredActions.push('DICOM yükleyin')
+              if (isVet && s.status === 'pending_verification') requiredActions.push('Doğrula veya ek bilgi iste')
+              if (isVet && answeredReqs.length) requiredActions.push('Sahip yanıtını inceleyin')
+              return (
               <li key={s.submission_id} className="px-5 py-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm">
@@ -473,6 +586,10 @@ export default function Submissions() {
                       {s.submission_id} · pet {s.pet_id}
                       {s.pet_owner_subject ? ` · sahip ${s.pet_owner_subject}` : ''}
                       {s.dicom_ingest_id ? ' · DICOM ekli' : ' · DICOM yok'}
+                      {s.document_ingest_id || (s.attachments || []).some((a) => a.kind === 'document')
+                        ? ' · belge ekli'
+                        : ''}
+                      {(s.attachments || []).length > 1 ? ` · ${s.attachments!.length} ek` : ''}
                       {s.linked_case_id ? (
                         <>
                           {' '}
@@ -482,10 +599,46 @@ export default function Submissions() {
                           </Link>
                         </>
                       ) : null}
+                      {s.pet_id ? (
+                        <>
+                          {' '}
+                          ·{' '}
+                          <Link className="text-teal-700 hover:underline" to="/hayvanlar">
+                            geçmiş
+                          </Link>
+                        </>
+                      ) : null}
                     </p>
                     <p className="mt-1 text-slate-700">{s.chief_complaint || s.clinical_notes || '—'}</p>
                     {s.missing_info_request && (
                       <p className="mt-1 text-xs text-amber-800">Eksik: {s.missing_info_request}</p>
+                    )}
+                    {requiredActions.length > 0 && (
+                      <ul className="mt-2 space-y-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                        {requiredActions.map((a) => (
+                          <li key={a}>• {a}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {(s.info_requests || []).length > 0 && (
+                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                        {(s.info_requests || []).map((r) => (
+                          <li key={r.request_id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1">
+                            <span className="font-medium text-navy-800">{r.status}</span> · {r.body}
+                            {r.reply ? <span className="block text-teal-800">Yanıt: {r.reply}</span> : null}
+                            {isVet && r.status === 'ANSWERED' && (
+                              <button
+                                type="button"
+                                className="mt-1 text-teal-700 hover:underline"
+                                disabled={busy === s.submission_id}
+                                onClick={() => void closeReq(s.submission_id, r.request_id)}
+                              >
+                                Kapat
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -500,12 +653,10 @@ export default function Submissions() {
                         {detailIngestId === s.dicom_ingest_id ? 'Detayı kapat' : 'DICOM detay'}
                       </Button>
                     )}
-                    {isOwner &&
-                      !s.dicom_ingest_id &&
-                      (s.status === 'pending_verification' || s.status === 'needs_info' || s.status === 'draft') && (
+                    {canOwnerAttach(s) && (
                       <>
                         <Button size="sm" disabled={busy === s.submission_id} onClick={() => openAttachPicker(s.submission_id)}>
-                          {busy === s.submission_id ? 'Yükleniyor…' : 'DICOM dosya ekle'}
+                          {busy === s.submission_id ? 'Yükleniyor…' : s.dicom_ingest_id ? 'Ek DICOM' : 'DICOM dosya ekle'}
                         </Button>
                         <Button
                           size="sm"
@@ -514,6 +665,15 @@ export default function Submissions() {
                           onClick={() => void attachDemo(s.submission_id)}
                         >
                           Demo DICOM
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<FileText className="h-3.5 w-3.5" />}
+                          disabled={busy === s.submission_id}
+                          onClick={() => openDocAttachPicker(s.submission_id)}
+                        >
+                          Belge ekle
                         </Button>
                       </>
                     )}
@@ -532,6 +692,33 @@ export default function Submissions() {
                     )}
                   </div>
                 </div>
+                {isOwner && s.status === 'needs_info' && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                    <label className="block text-xs font-medium text-amber-950">
+                      Veteriner isteğine yanıt
+                      <textarea
+                        className="input mt-1 min-h-[72px] text-sm"
+                        value={replyDraft[s.submission_id] || ''}
+                        onChange={(e) => setReplyDraft((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
+                        placeholder="İstenen klinik bilgiyi yazın…"
+                      />
+                    </label>
+                    <Button size="sm" disabled={busy === s.submission_id} onClick={() => void sendOwnerReply(s)}>
+                      Yanıtı gönder
+                    </Button>
+                  </div>
+                )}
+                {isVet && (s.status === 'pending_verification' || s.status === 'needs_info') && (
+                  <label className="mt-3 block text-xs text-slate-600">
+                    Eksik bilgi metni (isteğe bağlı)
+                    <input
+                      className="input mt-1 text-sm"
+                      value={infoRequestText[s.submission_id] || ''}
+                      onChange={(e) => setInfoRequestText((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
+                      placeholder="Örn. Nöro muayene notu eksik"
+                    />
+                  </label>
+                )}
 
                 {s.dicom_ingest_id && detailIngestId === s.dicom_ingest_id && (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
@@ -641,7 +828,8 @@ export default function Submissions() {
                   </div>
                 )}
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </Card>

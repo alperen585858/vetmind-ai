@@ -19,6 +19,7 @@ from app.schemas.case import CaseRecord
 from app.schemas.workflow import (
     ClinicStaffStats,
     ImagingSubmission,
+    InfoRequestReply,
     ManagedUser,
     ManagedUserCreate,
     ManagedUserUpdate,
@@ -26,6 +27,7 @@ from app.schemas.workflow import (
     PetMedicalHistory,
     PetRecord,
     PetUpdate,
+    SubmissionAttach,
     SubmissionCreate,
     SubmissionUpdate,
     SubmissionVetAction,
@@ -147,6 +149,44 @@ def vet_action(
     if principal.role not in {"vet", "admin", "demo", "service"} and principal.via != "disabled":
         raise HTTPException(status_code=403, detail="Veterinarian verification required.")
     return service.vet_action(submission_id, payload, principal=principal)
+
+
+@router.post("/submissions/{submission_id}/attachments", response_model=ImagingSubmission)
+def attach_submission(
+    submission_id: str,
+    payload: SubmissionAttach,
+    principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
+    service=Depends(_workflow),
+) -> ImagingSubmission:
+    """Attach additional DICOM/document ingest to an open submission (no duplicate case)."""
+    return service.attach_submission(submission_id, payload, principal=principal)
+
+
+@router.post(
+    "/submissions/{submission_id}/info-requests/{request_id}/reply",
+    response_model=ImagingSubmission,
+)
+def reply_submission_info_request(
+    submission_id: str,
+    request_id: str,
+    payload: InfoRequestReply,
+    principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
+    service=Depends(_workflow),
+) -> ImagingSubmission:
+    return service.reply_info_request(submission_id, request_id, payload, principal=principal)
+
+
+@router.post(
+    "/submissions/{submission_id}/info-requests/{request_id}/close",
+    response_model=ImagingSubmission,
+)
+def close_submission_info_request(
+    submission_id: str,
+    request_id: str,
+    principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
+    service=Depends(_workflow),
+) -> ImagingSubmission:
+    return service.close_info_request(submission_id, request_id, principal=principal)
 
 
 @router.get("/clinic/stats", response_model=ClinicStaffStats)

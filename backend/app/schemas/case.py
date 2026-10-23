@@ -17,6 +17,7 @@ from app.schemas.enums import (
 from app.schemas.findings import StructuredFindings, StudyInfo
 from app.schemas.model_input import ImagingModelInput
 from app.schemas.report import DraftReport, ReportVersionSnapshot
+from app.schemas.workflow import AttachmentRef, ClinicalNoteEntry, InfoRequest
 
 # Phase 12: NORMAL / URGENT / STAT (+ legacy "high" retained for existing rows).
 CasePriority = Literal["normal", "high", "urgent", "stat"]
@@ -198,6 +199,11 @@ class CaseRecord(BaseModel):
     vet_verified: bool = True
     # Phase 17: append-only real activity events.
     activity: list[CaseActivityEvent] = Field(default_factory=list)
+    # Phase 18: append-only notes, attachments, structured info requests.
+    clinical_notes_log: list[ClinicalNoteEntry] = Field(default_factory=list)
+    internal_notes: list[ClinicalNoteEntry] = Field(default_factory=list)
+    info_requests: list[InfoRequest] = Field(default_factory=list)
+    attachment_refs: list[AttachmentRef] = Field(default_factory=list)
 
 
 class CaseSummary(BaseModel):

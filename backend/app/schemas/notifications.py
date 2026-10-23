@@ -18,6 +18,11 @@ NotificationKind = Literal[
     "revision_requested",
     "report_approved",
     "urgent_assignment",
+    "info_request_opened",
+    "info_request_answered",
+    "info_request_closed",
+    "attachment_added",
+    "clinical_history_updated",
 ]
 
 

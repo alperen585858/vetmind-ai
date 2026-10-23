@@ -14,8 +14,11 @@ from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality
 from app.schemas.findings import StudyInfo
 from app.schemas.workflow import (
+    AttachmentRef,
     ClinicStaffStats,
     ImagingSubmission,
+    InfoRequest,
+    InfoRequestReply,
     ManagedUser,
     ManagedUserCreate,
     ManagedUserUpdate,
@@ -24,6 +27,7 @@ from app.schemas.workflow import (
     PetMedicalHistory,
     PetRecord,
     PetUpdate,
+    SubmissionAttach,
     SubmissionCreate,
     SubmissionUpdate,
     SubmissionVetAction,
@@ -230,22 +234,211 @@ class WorkflowService:
         sub = self.get_submission(submission_id, principal=principal)
         if sub.status in {"verified", "linked", "rejected"}:
             raise HTTPException(status_code=409, detail="Submission is locked after vet decision.")
-        if principal.role == "owner" and sub.status == "needs_info":
+        answering = principal.role == "owner" and sub.status == "needs_info"
+        if answering:
             sub.status = "pending_verification"
+            # Answer all OPEN info requests when owner updates clinical notes.
+            now = _now()
+            answered_ids: list[str] = []
+            updated_reqs: list[InfoRequest] = []
+            for irq in sub.info_requests:
+                if irq.status == "OPEN":
+                    reply_body = payload.clinical_notes or payload.chief_complaint or "Yanıtlandı"
+                    updated_reqs.append(
+                        irq.model_copy(
+                            update={
+                                "status": "ANSWERED",
+                                "reply": reply_body,
+                                "answered_at": now,
+                            }
+                        )
+                    )
+                    answered_ids.append(irq.request_id)
+                else:
+                    updated_reqs.append(irq)
+            sub.info_requests = updated_reqs
+            for rid in answered_ids:
+                self._notify_clinic_vets(
+                    clinic_id=sub.clinic_id,
+                    kind="info_request_answered",
+                    title="Eksik bilgi yanıtlandı",
+                    body=f"Başvuru {sub.submission_id}",
+                    link_path="/basvurular",
+                    dedupe_key=f"info_request_answered:{sub.submission_id}:{rid}",
+                    submission_id=sub.submission_id,
+                )
         prev_dicom = sub.dicom_ingest_id
+        prev_doc = sub.document_ingest_id
         data = payload.model_dump(exclude_unset=True)
-        sub = sub.model_copy(update={**data, "updated_at": _now()})
+        # Preserve primary ids when already set; extras go via attach_submission.
+        if prev_dicom and data.get("dicom_ingest_id") and data["dicom_ingest_id"] != prev_dicom:
+            att = AttachmentRef(
+                kind="dicom",
+                ingest_id=data.pop("dicom_ingest_id"),
+                uploaded_by=principal.subject,
+            )
+            sub.attachments = [*sub.attachments, att]
+            self._notify_clinic_vets(
+                clinic_id=sub.clinic_id,
+                kind="attachment_added",
+                title="Ek DICOM yüklendi",
+                body=f"Başvuru {sub.submission_id}",
+                link_path="/basvurular",
+                dedupe_key=f"attachment_added:{sub.submission_id}:{att.attachment_id}",
+                submission_id=sub.submission_id,
+            )
+        if prev_doc and data.get("document_ingest_id") and data["document_ingest_id"] != prev_doc:
+            att = AttachmentRef(
+                kind="document",
+                ingest_id=data.pop("document_ingest_id"),
+                uploaded_by=principal.subject,
+            )
+            sub.attachments = [*sub.attachments, att]
+            self._notify_clinic_vets(
+                clinic_id=sub.clinic_id,
+                kind="attachment_added",
+                title="Ek belge yüklendi",
+                body=f"Başvuru {sub.submission_id}",
+                link_path="/basvurular",
+                dedupe_key=f"attachment_added:{sub.submission_id}:{att.attachment_id}",
+                submission_id=sub.submission_id,
+            )
+        sub = sub.model_copy(update={**data, "updated_at": _now(), "info_requests": sub.info_requests, "attachments": sub.attachments, "status": sub.status})
         saved = self._store.save_submission(sub)
         if saved.dicom_ingest_id and saved.dicom_ingest_id != prev_dicom:
             self._notify_clinic_vets(
                 clinic_id=saved.clinic_id,
-                kind="submission_created",
+                kind="attachment_added",
                 title="DICOM eklendi",
                 body=f"Başvuru {saved.submission_id} için DICOM yüklendi",
                 link_path="/basvurular",
                 dedupe_key=f"dicom_uploaded:{saved.submission_id}:{saved.dicom_ingest_id}",
                 submission_id=saved.submission_id,
             )
+        return saved
+
+    def attach_submission(
+        self, submission_id: str, payload: SubmissionAttach, *, principal: AuthPrincipal
+    ) -> ImagingSubmission:
+        """Add DICOM/document to an open submission without orphaning prior ingests."""
+        sub = self.get_submission(submission_id, principal=principal)
+        if sub.status in {"verified", "linked", "rejected"}:
+            raise HTTPException(status_code=409, detail="Submission is locked after vet decision.")
+        if principal.role not in {"owner", "vet", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
+            raise HTTPException(status_code=403, detail="Not allowed to attach files.")
+        existing_ids = {a.ingest_id for a in sub.attachments}
+        if sub.dicom_ingest_id:
+            existing_ids.add(sub.dicom_ingest_id)
+        if sub.document_ingest_id:
+            existing_ids.add(sub.document_ingest_id)
+        if payload.ingest_id in existing_ids:
+            return sub
+        att = AttachmentRef(
+            kind=payload.kind,
+            ingest_id=payload.ingest_id,
+            uploaded_by=principal.subject,
+            label=payload.label,
+        )
+        if payload.kind == "dicom" and not sub.dicom_ingest_id:
+            sub.dicom_ingest_id = payload.ingest_id
+        elif payload.kind == "document" and not sub.document_ingest_id:
+            sub.document_ingest_id = payload.ingest_id
+        sub.attachments = [*sub.attachments, att]
+        sub.updated_at = _now()
+        saved = self._store.save_submission(sub)
+        self._notify_clinic_vets(
+            clinic_id=saved.clinic_id,
+            kind="attachment_added",
+            title="Dosya eklendi" if payload.kind == "document" else "DICOM eklendi",
+            body=f"Başvuru {saved.submission_id}",
+            link_path="/basvurular",
+            dedupe_key=f"attachment_added:{saved.submission_id}:{att.attachment_id}",
+            submission_id=saved.submission_id,
+        )
+        return saved
+
+    def reply_info_request(
+        self,
+        submission_id: str,
+        request_id: str,
+        payload: InfoRequestReply,
+        *,
+        principal: AuthPrincipal,
+    ) -> ImagingSubmission:
+        sub = self.get_submission(submission_id, principal=principal)
+        if principal.role == "owner" and sub.pet_owner_subject != principal.subject and principal.via == "jwt":
+            raise HTTPException(status_code=403, detail="Not allowed.")
+        found = False
+        updated: list[InfoRequest] = []
+        for irq in sub.info_requests:
+            if irq.request_id == request_id:
+                if irq.status == "CLOSED":
+                    raise HTTPException(status_code=409, detail="Info request is closed.")
+                found = True
+                updated.append(
+                    irq.model_copy(
+                        update={
+                            "status": "ANSWERED",
+                            "reply": payload.reply,
+                            "answered_at": _now(),
+                        }
+                    )
+                )
+            else:
+                updated.append(irq)
+        if not found:
+            raise HTTPException(status_code=404, detail="Info request not found.")
+        sub.info_requests = updated
+        if sub.status == "needs_info":
+            sub.status = "pending_verification"
+        if payload.reply and not (sub.clinical_notes or "").strip():
+            sub.clinical_notes = payload.reply
+        elif payload.reply:
+            sub.clinical_notes = f"{(sub.clinical_notes or '').rstrip()}\n\n[Yanıt] {payload.reply}".strip()
+        sub.updated_at = _now()
+        saved = self._store.save_submission(sub)
+        self._notify_clinic_vets(
+            clinic_id=saved.clinic_id,
+            kind="info_request_answered",
+            title="Bilgi isteği yanıtlandı",
+            body=payload.reply[:200],
+            link_path="/basvurular",
+            dedupe_key=f"info_request_answered:{saved.submission_id}:{request_id}",
+            submission_id=saved.submission_id,
+        )
+        return saved
+
+    def close_info_request(
+        self, submission_id: str, request_id: str, *, principal: AuthPrincipal
+    ) -> ImagingSubmission:
+        if principal.role not in {"vet", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
+            raise HTTPException(status_code=403, detail="Only veterinarians can close info requests.")
+        sub = self.get_submission(submission_id, principal=principal)
+        found = False
+        updated: list[InfoRequest] = []
+        for irq in sub.info_requests:
+            if irq.request_id == request_id:
+                found = True
+                updated.append(
+                    irq.model_copy(update={"status": "CLOSED", "closed_at": _now()})
+                )
+            else:
+                updated.append(irq)
+        if not found:
+            raise HTTPException(status_code=404, detail="Info request not found.")
+        sub.info_requests = updated
+        sub.updated_at = _now()
+        saved = self._store.save_submission(sub)
+        self._notify_one(
+            recipient=saved.pet_owner_subject,
+            kind="info_request_closed",
+            title="Bilgi isteği kapatıldı",
+            body=f"Başvuru {saved.submission_id}",
+            link_path="/basvurular",
+            dedupe_key=f"info_request_closed:{saved.submission_id}:{request_id}",
+            submission_id=saved.submission_id,
+            clinic_id=saved.clinic_id,
+        )
         return saved
 
     def vet_action(
@@ -258,9 +451,18 @@ class WorkflowService:
             raise HTTPException(status_code=409, detail=f"Cannot act on submission in status '{sub.status}'.")
 
         if payload.action == "request_info":
+            body = (payload.missing_info_request or payload.vet_notes or "Lütfen eksik bilgileri tamamlayın.").strip()
             sub.status = "needs_info"
-            sub.missing_info_request = payload.missing_info_request or payload.vet_notes
+            sub.missing_info_request = body
             sub.vet_notes = payload.vet_notes
+            irq = InfoRequest(
+                status="OPEN",
+                from_role=principal.role,
+                from_subject=principal.subject,
+                to_role="owner",
+                body=body,
+            )
+            sub.info_requests = [*sub.info_requests, irq]
             sub.updated_at = _now()
             saved = self._store.save_submission(sub)
             self._notify_one(
@@ -269,7 +471,17 @@ class WorkflowService:
                 title="Eksik bilgi istendi",
                 body=saved.missing_info_request or "Veteriner ek bilgi istedi",
                 link_path="/basvurular",
-                dedupe_key=f"submission_needs_info:{saved.submission_id}:{saved.updated_at.isoformat()}",
+                dedupe_key=f"submission_needs_info:{saved.submission_id}:{irq.request_id}",
+                submission_id=saved.submission_id,
+                clinic_id=saved.clinic_id,
+            )
+            self._notify_one(
+                recipient=sub.pet_owner_subject,
+                kind="info_request_opened",
+                title="Bilgi isteği açıldı",
+                body=body[:200],
+                link_path="/basvurular",
+                dedupe_key=f"info_request_opened:{saved.submission_id}:{irq.request_id}",
                 submission_id=saved.submission_id,
                 clinic_id=saved.clinic_id,
             )
@@ -358,6 +570,20 @@ class WorkflowService:
             case.assigned_reviewer_id = payload.assigned_reviewer_id
         if sub.dicom_ingest_id and not case.dicom_ingest_id:
             case.dicom_ingest_id = sub.dicom_ingest_id
+        # Carry forward submission attachments / answered info context (no new case).
+        if sub.attachments:
+            case.attachment_refs = [*case.attachment_refs, *sub.attachments]
+        if sub.document_ingest_id and case.document_context is None:
+            # Document remains quarantined until explicitly attached to case via documents API.
+            case.attachment_refs = [
+                *case.attachment_refs,
+                AttachmentRef(
+                    kind="document",
+                    ingest_id=sub.document_ingest_id,
+                    uploaded_by=sub.pet_owner_subject,
+                    label="submission_document",
+                ),
+            ]
         actor = principal.subject
         append_activity(case, kind="submission_created", actor_subject=sub.pet_owner_subject, detail=sub.submission_id)
         if sub.dicom_ingest_id:

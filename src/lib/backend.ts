@@ -872,6 +872,30 @@ export async function updateSubmission(
   })
 }
 
+export async function attachSubmission(
+  id: string,
+  payload: { kind: 'dicom' | 'document'; ingest_id: string; label?: string },
+) {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}/attachments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function replySubmissionInfoRequest(id: string, requestId: string, reply: string) {
+  return request<import('../types').BackendImagingSubmission>(
+    `/submissions/${id}/info-requests/${requestId}/reply`,
+    { method: 'POST', body: JSON.stringify({ reply }) },
+  )
+}
+
+export async function closeSubmissionInfoRequest(id: string, requestId: string) {
+  return request<import('../types').BackendImagingSubmission>(
+    `/submissions/${id}/info-requests/${requestId}/close`,
+    { method: 'POST' },
+  )
+}
+
 export async function vetSubmissionAction(
   id: string,
   payload: {
@@ -886,6 +910,51 @@ export async function vetSubmissionAction(
     `/submissions/${id}/vet-action`,
     { method: 'POST', body: JSON.stringify(payload) },
   )
+}
+
+export async function appendCaseClinicalNote(caseId: string, body: string) {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/clinical-notes`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export async function appendCaseInternalNote(caseId: string, body: string) {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/internal-notes`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export async function createCaseInfoRequest(
+  caseId: string,
+  payload: { body: string; to_role?: 'vet' | 'owner' | 'expert' },
+) {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/info-requests`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function replyCaseInfoRequest(caseId: string, requestId: string, reply: string) {
+  return request<import('../types').BackendCaseRecord>(
+    `/cases/${caseId}/info-requests/${requestId}/reply`,
+    { method: 'POST', body: JSON.stringify({ reply }) },
+  )
+}
+
+export async function closeCaseInfoRequest(caseId: string, requestId: string) {
+  return request<import('../types').BackendCaseRecord>(
+    `/cases/${caseId}/info-requests/${requestId}/close`,
+    { method: 'POST' },
+  )
+}
+
+export async function attachCaseDocument(caseId: string, ingestId: string) {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/documents`, {
+    method: 'POST',
+    body: JSON.stringify({ ingest_id: ingestId }),
+  })
 }
 
 export async function getClinicStats() {

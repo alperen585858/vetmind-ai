@@ -21,11 +21,21 @@ import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
 import {
   BackendUnavailableError,
+  appendCaseClinicalNote,
+  attachCaseDocument,
+  closeCaseInfoRequest,
+  createCaseInfoRequest,
   fetchCaseDicomFiles,
   fetchDemoDicomFiles,
+  getBackendCase,
+  getPetMedicalHistory,
   listCaseActivity,
+  replyCaseInfoRequest,
   resolveDemoKindForCase,
+  uploadDocuments,
+  type PetHistoryEntry,
 } from '../lib/backend'
+import type { BackendCaseRecord } from '../types'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
 import {
   MAX_VIEWER_FRAMES,
@@ -240,9 +250,114 @@ function Row({ k, v }: { k: string; v: ReactNode }) {
 }
 
 function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
+  const { role, pushToast, hydrateBackendCase } = useApp()
+  const isVet = role === 'vet' || role === 'clinic_owner'
+  const isExpert = role === 'expert'
   const p = c.patient
   const n = c.neuro
   const loc = localize(n, c.clinical)
+  const caseKey = c.backendCaseId || c.id
+  const [note, setNote] = useState('')
+  const [infoBody, setInfoBody] = useState('')
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
+  const [history, setHistory] = useState<PetHistoryEntry[]>([])
+  const [busy, setBusy] = useState(false)
+  const docInputRef = useRef<HTMLInputElement>(null)
+  const [backendExtras, setBackendExtras] = useState<Pick<
+    BackendCaseRecord,
+    'info_requests' | 'clinical_notes_log'
+  > | null>(null)
+  const [extrasTick, setExtrasTick] = useState(0)
+
+  useEffect(() => {
+    if (!c.petId || !c.fromBackend) return
+    void getPetMedicalHistory(c.petId)
+      .then((h) => setHistory(h.timeline.slice(0, 8)))
+      .catch(() => setHistory([]))
+  }, [c.petId, c.fromBackend, extrasTick])
+
+  useEffect(() => {
+    if (!c.fromBackend || !caseKey.startsWith('case-')) {
+      setBackendExtras(null)
+      return
+    }
+    let cancelled = false
+    void getBackendCase(caseKey)
+      .then((rec) => {
+        if (cancelled) return
+        setBackendExtras({
+          info_requests: rec.info_requests,
+          clinical_notes_log: rec.clinical_notes_log,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setBackendExtras(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [caseKey, c.fromBackend, extrasTick])
+
+  const refresh = async () => {
+    if (caseKey.startsWith('case-')) await hydrateBackendCase(caseKey)
+    setExtrasTick((t) => t + 1)
+  }
+
+  const addNote = async () => {
+    if (!note.trim() || !caseKey.startsWith('case-')) return
+    setBusy(true)
+    try {
+      await appendCaseClinicalNote(caseKey, note.trim())
+      setNote('')
+      pushToast({ tone: 'success', title: 'Klinik not eklendi' })
+      await refresh()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'Not eklenemedi', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const askInfo = async () => {
+    if (!infoBody.trim() || !caseKey.startsWith('case-')) return
+    setBusy(true)
+    try {
+      await createCaseInfoRequest(caseKey, {
+        body: infoBody.trim(),
+        to_role: isExpert ? 'vet' : 'owner',
+      })
+      setInfoBody('')
+      pushToast({ tone: 'info', title: 'Bilgi isteği açıldı' })
+      await refresh()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'İstek açılamadı', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onDocFiles = async (list: FileList | null) => {
+    if (!list?.length || !caseKey.startsWith('case-')) return
+    setBusy(true)
+    try {
+      const files = Array.from(list)
+      const up = await uploadDocuments({
+        files,
+        patientName: c.patient.name,
+        species: c.patient.species,
+        breed: c.patient.breed,
+        clinicalHistory: c.clinical.history || c.clinical.complaint,
+      })
+      await attachCaseDocument(caseKey, up.ingest_id)
+      pushToast({ tone: 'success', title: 'Belge vakaya eklendi', body: 'Yeni vaka oluşturulmadı.' })
+      await refresh()
+    } catch (e) {
+      pushToast({ tone: 'error', title: 'Belge eklenemedi', body: e instanceof Error ? e.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-3">
       <div className="space-y-6 xl:col-span-2">
@@ -275,8 +390,139 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               <Row k="Klinik geçmiş" v={c.clinical.history || '—'} />
               <Row k="İlaçlar" v={c.clinical.medications || '—'} />
             </dl>
+            {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
+              <div className="space-y-2 border-t border-slate-100 px-5 py-3">
+                <label className="block text-xs text-slate-600">
+                  Klinik not ekle (önceki öykü korunur)
+                  <textarea
+                    className="input mt-1 min-h-[64px] text-sm"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </label>
+                <Button size="sm" disabled={busy || !note.trim()} onClick={() => void addNote()}>
+                  Not kaydet
+                </Button>
+                {(backendExtras?.clinical_notes_log || []).length > 0 && (
+                  <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-slate-600">
+                    {backendExtras!.clinical_notes_log!.map((n) => (
+                      <li key={n.note_id}>
+                        {new Date(n.created_at).toLocaleString('tr-TR')} · {n.author_subject}: {n.body}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </Card>
         </div>
+        {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
+          <Card>
+            <CardHeader title="Bilgi istekleri & belgeler" icon={<Info className="h-5 w-5" />} />
+            <div className="space-y-3 px-5 pb-5">
+              <label className="block text-xs text-slate-600">
+                {isExpert ? 'Veterinerden ek klinik bilgi iste' : 'Sahipten / radyologdan bilgi iste'}
+                <input
+                  className="input mt-1 text-sm"
+                  value={infoBody}
+                  onChange={(e) => setInfoBody(e.target.value)}
+                  placeholder="İstek metni"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" disabled={busy || !infoBody.trim()} onClick={() => void askInfo()}>
+                  İstek aç (OPEN)
+                </Button>
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => docInputRef.current?.click()}>
+                  Belge ekle (mevcut vaka)
+                </Button>
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    void onDocFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              <ul className="space-y-2 text-xs">
+                {(backendExtras?.info_requests || []).map((r) => (
+                  <li key={r.request_id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                    <p className="font-medium text-navy-900">
+                      {r.status} · → {r.to_role} · {r.body}
+                    </p>
+                    {r.reply ? <p className="text-teal-800">Yanıt: {r.reply}</p> : null}
+                    {r.status === 'OPEN' && (
+                      <div className="mt-2 flex flex-wrap items-end gap-2">
+                        <input
+                          className="input flex-1 text-sm"
+                          placeholder="Yanıt"
+                          value={replyDraft[r.request_id] || ''}
+                          onChange={(e) => setReplyDraft((prev) => ({ ...prev, [r.request_id]: e.target.value }))}
+                        />
+                        <Button
+                          size="sm"
+                          disabled={busy || !(replyDraft[r.request_id] || '').trim()}
+                          onClick={() =>
+                            void replyCaseInfoRequest(caseKey, r.request_id, replyDraft[r.request_id].trim())
+                              .then(() => refresh())
+                              .then(() => pushToast({ tone: 'success', title: 'Yanıt kaydedildi' }))
+                              .catch((e) =>
+                                pushToast({
+                                  tone: 'error',
+                                  title: 'Yanıt başarısız',
+                                  body: e instanceof Error ? e.message : undefined,
+                                }),
+                              )
+                          }
+                        >
+                          Yanıtla
+                        </Button>
+                      </div>
+                    )}
+                    {(r.status === 'ANSWERED' || r.status === 'OPEN') && (
+                      <button
+                        type="button"
+                        className="mt-1 text-teal-700 hover:underline"
+                        onClick={() =>
+                          void closeCaseInfoRequest(caseKey, r.request_id)
+                            .then(() => refresh())
+                            .then(() => pushToast({ tone: 'info', title: 'İstek kapatıldı' }))
+                        }
+                      >
+                        Kapat (CLOSED)
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Card>
+        )}
+        {c.petId && history.length > 0 && (
+          <Card>
+            <CardHeader title="Pet görüntüleme geçmişi" icon={<History className="h-5 w-5" />} />
+            <ul className="divide-y divide-slate-50 px-5 pb-3 text-sm">
+              {history.map((h, i) => (
+                <li key={`${h.kind}-${h.at}-${i}`} className="py-2">
+                  <p className="font-medium text-navy-900">{h.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {new Date(h.at).toLocaleString('tr-TR')}
+                    {h.detail ? ` · ${h.detail}` : ''}
+                  </p>
+                  {h.link_path ? (
+                    <Link className="text-xs text-teal-700 hover:underline" to={h.link_path}>
+                      Aç
+                    </Link>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         <Card>
           <CardHeader title="Görüntüleme & sınıflandırma" icon={<ImageIcon className="h-5 w-5" />} />
           <dl className="divide-y divide-slate-50 px-5 py-2">

@@ -85,3 +85,5 @@ class CaseDocumentContext(BaseModel):
     documents: list[ExtractedDocument] = Field(default_factory=list)
     combined_text_preview: Optional[str] = None
     note: str = "Document context only. Does not constitute imaging findings."
+    # Phase 18: additional ingests merged onto an existing case (no new case).
+    additional_ingest_ids: list[str] = Field(default_factory=list)
