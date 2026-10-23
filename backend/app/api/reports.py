@@ -10,6 +10,26 @@ from app.services.case_service import CaseService
 router = APIRouter(prefix="/api/v1", tags=["reports"], dependencies=[Depends(require_auth)])
 
 
+@router.post("/cases/{case_id}/report/deliver", response_model=CaseRecord)
+def mark_report_delivered(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> CaseRecord:
+    """Mark approved report as delivered to clinic (does not alter report content)."""
+    return service.mark_report_delivered(case_id, principal=principal)
+
+
+@router.post("/cases/{case_id}/report/viewed", response_model=CaseRecord)
+def mark_report_viewed(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> CaseRecord:
+    """Record first clinic/viewer open of an approved report (immutable content preserved)."""
+    return service.mark_report_viewed(case_id, principal=principal)
+
+
 @router.get("/cases/{case_id}/report", response_model=DraftReport)
 def get_report(
     case_id: str,

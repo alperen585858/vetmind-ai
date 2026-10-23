@@ -93,6 +93,7 @@ function basePatient(name: string, species: Species, breed?: string | null): Pat
 
 /** Lightweight row for list views (from CaseSummary). */
 function priorityFromBackend(p?: string | null): VetCase['priority'] {
+  if (p === 'stat') return 'STAT'
   if (p === 'urgent') return 'Acil'
   if (p === 'high') return 'Yüksek'
   return 'Normal'
@@ -130,6 +131,10 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     seriesCount: s.series_count ?? undefined,
     instanceCount: s.instance_count ?? undefined,
     assignedReviewerId: s.assigned_reviewer_id ?? undefined,
+    unreadMessages: s.unread_messages ?? 0,
+    reportAvailableAt: s.report_available_at ?? undefined,
+    reportDeliveredAt: s.report_delivered_at ?? undefined,
+    reportViewedAt: s.report_viewed_at ?? undefined,
   }
 }
 
@@ -232,11 +237,23 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     report,
     assignedReviewerId: r.assigned_reviewer_id ?? undefined,
     handoffNotes: structured?.handoff_notes ?? undefined,
+    reportAvailableAt: r.report_available_at ?? undefined,
+    reportDeliveredAt: r.report_delivered_at ?? undefined,
+    reportViewedAt: r.report_viewed_at ?? undefined,
     corrections: [],
     timeline: [
-      { date: r.created_at, label: 'Backend vakası', by: 'api' },
+      { date: r.created_at, label: 'Vaka oluşturuldu', by: 'api' },
       ...(r.latest_job_id ? [{ date: r.updated_at, label: `Son job: ${r.latest_job_id}`, by: 'backend' }] : []),
       ...reviewEvents,
+      ...(r.report_available_at
+        ? [{ date: r.report_available_at, label: 'Onaylı rapor hazır', by: 'delivery' }]
+        : []),
+      ...(r.report_delivered_at
+        ? [{ date: r.report_delivered_at, label: 'Rapor kliniklere iletildi', by: 'delivery' }]
+        : []),
+      ...(r.report_viewed_at
+        ? [{ date: r.report_viewed_at, label: 'Rapor görüntülendi', by: 'delivery' }]
+        : []),
     ],
     backendCaseId: r.case_id,
     backendJobId: r.latest_job_id ?? undefined,

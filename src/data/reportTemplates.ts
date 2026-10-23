@@ -2,6 +2,7 @@ import type { ReportSections } from '../types'
 
 export type ReportTemplateId = 'neuro_mr' | 'neuro_ct' | 'thorax_xr' | 'blank'
 
+/** Professional radiology skeletons — headings only; no fabricated clinical findings. */
 export const REPORT_TEMPLATES: {
   id: ReportTemplateId
   label: string
@@ -20,35 +21,88 @@ export const REPORT_TEMPLATES: {
   },
   {
     id: 'neuro_mr',
-    label: 'Nöro MRI iskeleti',
+    label: 'Nöro MRI — yapılandırılmış rapor',
     sections: {
-      klinikOzet: 'Multiplanar MR; sekanslar klinik protokole göre. Klinik korelasyon gerekir.',
-      bulgular: '—\n\n(Yapılandırılmış bulgular buraya yazılır. AI çıktısı klinik tanı değildir.)',
-      degerlendirme: '—\n\nİzlenimler uzman yorumudur; klinik bağlam ile birleştirilmelidir.',
-      ayiriciTanilar: '—',
-      oneriler: 'Klinik korelasyon; gerekirse ek görüntüleme / takip.',
+      klinikOzet:
+        'TEKNİK\n' +
+        'Multiplanar MR; sekanslar klinik protokole göre kaydedilir.\n' +
+        'Kontrast: [uygulandı / uygulanmadı]\n' +
+        'Klinik endikasyon: [serbest metin]\n\n' +
+        'Not: Şablon iskeletidir; AI çıktısı klinik tanı değildir.',
+      bulgular:
+        'BULGULAR (Findings)\n' +
+        '— Beyin parankimi:\n' +
+        '— Ventriküler sistem / ekstraksiyel boşluklar:\n' +
+        '— Kraniyal sinirler / meninksler:\n' +
+        '— Servikal / ilgili omurga (varsa):\n' +
+        '— Diğer:',
+      degerlendirme:
+        'YORUM / İZLENİM (Interpretation & Impression)\n' +
+        '1. [Birincil izlenim — uzman yazar]\n' +
+        '2. [İkincil / sınırlı bulgular]\n\n' +
+        'Klinik korelasyon zorunludur.',
+      ayiriciTanilar: '',
+      oneriler:
+        'ÖNERİLER (Recommendations)\n' +
+        '— Klinik korelasyon\n' +
+        '— Gerekirse ek sekans / kontrast / takip görüntüleme\n' +
+        '— Klinik hekim ile vaka tartışması (isteğe bağlı)',
     },
   },
   {
     id: 'neuro_ct',
-    label: 'Nöro CT iskeleti',
+    label: 'Nöro CT — yapılandırılmış rapor',
     sections: {
-      klinikOzet: 'Helikal CT; pencere ayarları klinik protokole göre.',
-      bulgular: '—',
-      degerlendirme: '—',
-      ayiriciTanilar: '—',
-      oneriler: 'Klinik korelasyon önerilir.',
+      klinikOzet:
+        'TEKNİK\n' +
+        'Helikal CT; pencere ayarları klinik protokole göre.\n' +
+        'Kontrast: [uygulandı / uygulanmadı]\n' +
+        'Klinik endikasyon: [serbest metin]',
+      bulgular:
+        'BULGULAR (Findings)\n' +
+        '— Parankim / densite:\n' +
+        '— Kemik / sinüsler / bulla:\n' +
+        '— Kanama / kitle etkisi (varsa tanımlayın):\n' +
+        '— Diğer:',
+      degerlendirme:
+        'YORUM / İZLENİM (Interpretation & Impression)\n' +
+        '1. [Birincil izlenim]\n' +
+        '2. [Sınırlılıklar — CT çözünürlüğü / artefakt]\n\n' +
+        'Klinik korelasyon zorunludur.',
+      ayiriciTanilar: '',
+      oneriler:
+        'ÖNERİLER (Recommendations)\n' +
+        '— Klinik korelasyon\n' +
+        '— Gerekirse MR ile tamamlayıcı değerlendirme\n' +
+        '— Acil klinik yönetim klinik hekimin sorumluluğundadır',
     },
   },
   {
     id: 'thorax_xr',
-    label: 'Toraks XR iskeleti',
+    label: 'Toraks XR — yapılandırılmış rapor',
     sections: {
-      klinikOzet: 'Toraks radyografisi; projeksiyon klinik protokole göre.',
-      bulgular: '—',
-      degerlendirme: '—',
-      ayiriciTanilar: '—',
-      oneriler: 'Klinik korelasyon; gerekirse ek projeksiyon / CT.',
+      klinikOzet:
+        'TEKNİK\n' +
+        'Toraks radyografisi; projeksiyon(lar): [VD/DV / lateral].\n' +
+        'Klinik endikasyon: [serbest metin]',
+      bulgular:
+        'BULGULAR (Findings)\n' +
+        '— Kardiyak siluet / vaskülarizasyon:\n' +
+        '— Pulmoner parankim / plevra:\n' +
+        '— Mediasten / hilus:\n' +
+        '— Diyafram / ekstra-torasik yapılar:\n' +
+        '— Diğer:',
+      degerlendirme:
+        'YORUM / İZLENİM (Interpretation & Impression)\n' +
+        '1. [Birincil izlenim]\n' +
+        '2. [Teknik sınırlılıklar]\n\n' +
+        'Klinik korelasyon zorunludur.',
+      ayiriciTanilar: '',
+      oneriler:
+        'ÖNERİLER (Recommendations)\n' +
+        '— Klinik korelasyon\n' +
+        '— Gerekirse ek projeksiyon / toraks CT\n' +
+        '— Takip görüntüleme endikasyonu klinik karara bağlıdır',
     },
   },
 ]

@@ -335,7 +335,14 @@ export default function NewCase() {
   const submit = async () => {
     const stamp = nowStamp()
     const loc = localize(neuro, clinical)
-    const priority: Priority = neuro.gait === 'Pleji' || neuro.deepPain === 'Yok' ? 'Acil' : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık' ? 'Yüksek' : 'Normal'
+    const priority: Priority =
+      neuro.deepPain === 'Yok'
+        ? 'STAT'
+        : neuro.gait === 'Pleji'
+          ? 'Acil'
+          : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
+            ? 'Yüksek'
+            : 'Normal'
 
     let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp)
     let backendCaseId: string | undefined
@@ -429,11 +436,13 @@ export default function NewCase() {
             scenario: pipeline,
             patientAgeYears: patient.age || undefined,
             priority:
-              neuro.gait === 'Pleji' || neuro.deepPain === 'Yok'
-                ? 'urgent'
-                : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
-                  ? 'high'
-                  : 'normal',
+              neuro.deepPain === 'Yok'
+                ? 'stat'
+                : neuro.gait === 'Pleji'
+                  ? 'urgent'
+                  : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
+                    ? 'high'
+                    : 'normal',
             clinicalHistoryStructured: {
               complaint: clinical.complaint || undefined,
               onset: clinical.onset || undefined,

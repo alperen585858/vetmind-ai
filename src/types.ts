@@ -14,7 +14,7 @@ export type CaseStatus =
   | 'manuel_inceleme'
 
 export type Species = 'Köpek' | 'Kedi'
-export type Priority = 'Acil' | 'Yüksek' | 'Normal'
+export type Priority = 'STAT' | 'Acil' | 'Yüksek' | 'Normal'
 export type Severity = 'Yüksek' | 'Orta' | 'Düşük'
 export type DocType = 'MR Raporu' | 'BT Raporu' | 'Laboratuvar Sonucu' | 'Önceki Rapor'
 
@@ -296,7 +296,25 @@ export interface DicomUploadResponse {
   note: string
 }
 
-export type BackendCasePriority = 'normal' | 'high' | 'urgent'
+export type BackendCasePriority = 'normal' | 'high' | 'urgent' | 'stat'
+
+export interface BackendCaseMessage {
+  message_id: string
+  case_id: string
+  author_id: string
+  author_role: string
+  body: string
+  created_at: string
+  unread: boolean
+}
+
+export interface ClinicDashboardStats {
+  active_cases: number
+  awaiting_review: number
+  urgent_cases: number
+  completed_reports: number
+  unread_messages: number
+}
 
 export interface BackendStructuredClinicalHistory {
   complaint?: string | null
@@ -328,6 +346,10 @@ export interface BackendCaseSummary {
   owner_subject?: string | null
   clinic_id?: string | null
   referring_clinic?: string | null
+  unread_messages?: number
+  report_available_at?: string | null
+  report_delivered_at?: string | null
+  report_viewed_at?: string | null
 }
 
 export interface BackendCaseRecord {
@@ -361,6 +383,10 @@ export interface BackendCaseRecord {
   report_versions?: Array<BackendReportVersionSummary | BackendReportVersionSnapshot>
   current_report_version?: number | null
   review_history?: BackendReviewFeedback[]
+  messages?: BackendCaseMessage[]
+  report_available_at?: string | null
+  report_delivered_at?: string | null
+  report_viewed_at?: string | null
   dicom_study?: DicomStudyMeta | null
   dicom_ingest_id?: string | null
   study: {
@@ -409,6 +435,10 @@ export interface VetCase {
   handoffNotes?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number
+  unreadMessages?: number
+  reportAvailableAt?: string
+  reportDeliveredAt?: string
+  reportViewedAt?: string
   /** True when this row was loaded/synced from FastAPI (SQLite). */
   fromBackend?: boolean
   /** Demo fixture kind used at ingest — for case-detail viewer reload (display only). */

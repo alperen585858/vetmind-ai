@@ -5,7 +5,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
-from app.schemas.case import CaseAssignmentUpdate, CaseCreate, CaseRecord, CaseSummary
+from app.schemas.case import (
+    CaseAssignmentUpdate,
+    CaseCreate,
+    CaseMessageCreate,
+    CaseMessageView,
+    CaseRecord,
+    CaseSummary,
+    ClinicDashboardStats,
+)
 from app.schemas.model_input import ImagingModelInput
 from app.security.audit import AuditOutcome
 from app.services.case_service import CaseService
@@ -71,6 +79,52 @@ def list_worklist(
         assigned_to=assigned_to,
         q=q,
     )
+
+
+@router.get("/dashboard", response_model=ClinicDashboardStats)
+def clinic_dashboard(
+    status: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> ClinicDashboardStats:
+    """Clinic dashboard counters (active / awaiting / urgent+STAT / completed)."""
+    return service.clinic_dashboard(principal=principal, status=status, q=q)
+
+
+@router.get("/{case_id}/messages", response_model=list[CaseMessageView])
+def list_messages(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> list[CaseMessageView]:
+    return service.list_messages(case_id, principal=principal)
+
+
+@router.post(
+    "/{case_id}/messages",
+    response_model=CaseMessageView,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_message(
+    case_id: str,
+    payload: CaseMessageCreate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseMessageView:
+    """Vet (cases:write) or radiologist (review) may post; tenant isolation via CaseService."""
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Messaging not allowed for this role.")
+    return service.post_message(case_id, payload, principal=principal)
+
+
+@router.post("/{case_id}/messages/read", response_model=list[CaseMessageView])
+def mark_messages_read(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> list[CaseMessageView]:
+    return service.mark_messages_read(case_id, principal=principal)
 
 
 @router.patch("/{case_id}/assignment", response_model=CaseRecord)

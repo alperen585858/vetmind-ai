@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, LayoutGrid, Loader2, Microscope, Stethoscope, UploadCloud, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, LayoutGrid, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
@@ -14,6 +14,8 @@ import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
 import { CaseProgressTracker } from '../components/CaseProgressTracker'
+import { CaseMessaging } from '../components/CaseMessaging'
+import { ReportVersionCompare } from '../components/ReportVersionCompare'
 import { DicomViewer } from '../components/DicomViewer'
 import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
@@ -38,6 +40,7 @@ const TABS = [
   { key: 'bulgular', label: 'Bulgular', icon: <Brain className="h-4 w-4" /> },
   { key: 'goruntu', label: 'Görüntüler', icon: <ImageIcon className="h-4 w-4" /> },
   { key: 'rapor', label: 'Rapor', icon: <ClipboardList className="h-4 w-4" /> },
+  { key: 'mesajlar', label: 'Mesajlar', icon: <MessageSquare className="h-4 w-4" /> },
   { key: 'gecmis', label: 'İşlem Geçmişi', icon: <History className="h-4 w-4" /> },
   { key: 'belgeler', label: 'Belgeler', icon: <FileText className="h-4 w-4" /> },
   { key: 'ai', label: 'AI Ön Değerlendirme', icon: <Microscope className="h-4 w-4" /> },
@@ -209,6 +212,7 @@ export default function CaseDetail() {
       {tab === 'bulgular' && <AssessmentView c={c} />}
       {tab === 'goruntu' && <Imaging c={c} />}
       {tab === 'rapor' && <ReportWorkspace c={c} />}
+      {tab === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
       {tab === 'gecmis' && <CaseHistoryPanel c={c} />}
       {tab === 'belgeler' && <Documents c={c} />}
       {tab === 'ai' && <AssessmentView c={c} />}
@@ -1052,19 +1056,40 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
           </ul>
         )}
       </Card>
+      {c.fromBackend ? <ReportVersionCompare caseId={c.id} versions={versions} /> : null}
       <Card>
-        <CardHeader title="İnceleme olayları" icon={<ClipboardList className="h-5 w-5" />} />
+        <CardHeader title="İlerleme / teslimat" icon={<ClipboardList className="h-5 w-5" />} />
+        <dl className="grid gap-2 px-5 py-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-slate-500">Rapor hazır</dt>
+            <dd className="font-medium text-navy-900">{c.reportAvailableAt ? fmtDate(c.reportAvailableAt) : '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">İletildi</dt>
+            <dd className="font-medium text-navy-900">{c.reportDeliveredAt ? fmtDate(c.reportDeliveredAt) : '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">Görüntülendi</dt>
+            <dd className="font-medium text-navy-900">{c.reportViewedAt ? fmtDate(c.reportViewedAt) : '—'}</dd>
+          </div>
+        </dl>
+      </Card>
+      <Card>
+        <CardHeader title="Vaka ilerleme zaman çizelgesi" icon={<History className="h-5 w-5" />} />
         <ul className="divide-y divide-slate-100 px-5 py-2 text-sm">
           {c.timeline.length === 0 ? (
             <li className="py-3 text-slate-500">Kayıt yok</li>
           ) : (
             c.timeline.map((t, i) => (
-              <li key={`${t.date}-${i}`} className="py-2">
-                <p className="font-medium text-navy-900">{t.label}</p>
-                <p className="text-xs text-slate-500">
-                  {t.date}
-                  {t.by ? ` · ${t.by}` : ''}
-                </p>
+              <li key={`${t.date}-${i}`} className="flex gap-3 py-2">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-600" />
+                <div>
+                  <p className="font-medium text-navy-900">{t.label}</p>
+                  <p className="text-xs text-slate-500">
+                    {t.date}
+                    {t.by ? ` · ${t.by}` : ''}
+                  </p>
+                </div>
               </li>
             ))
           )}

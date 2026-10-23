@@ -181,11 +181,11 @@ export const SAMPLE_FORM = {
 export const EMPTY_NEURO = normalNeuro
 
 export const SECTION_LABELS: Record<keyof ReportSections, string> = {
-  klinikOzet: 'Klinik Özet',
-  bulgular: 'Bulgular',
-  degerlendirme: 'Değerlendirme',
-  ayiriciTanilar: 'Ayırıcı Tanılar',
-  oneriler: 'Öneriler',
+  klinikOzet: 'Teknik / Klinik özet',
+  bulgular: 'Bulgular (Findings)',
+  degerlendirme: 'Yorum / İzlenim (Interpretation & Impression)',
+  ayiriciTanilar: 'Ayırıcı tanılar (opsiyonel)',
+  oneriler: 'Öneriler (Recommendations)',
 }
 
 // --- Yönetici / izleme verileri ---

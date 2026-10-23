@@ -106,7 +106,8 @@ export default function ReviewQueue() {
             Öncelik
             <select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" value={priority} onChange={(e) => setPriority(e.target.value)}>
               <option value="">Tümü</option>
-              <option value="urgent">Acil</option>
+              <option value="stat">STAT</option>
+              <option value="urgent">Acil (URGENT)</option>
               <option value="high">Yüksek</option>
               <option value="normal">Normal</option>
             </select>
@@ -186,7 +187,13 @@ export default function ReviewQueue() {
                             void updateCaseAssignment(c.backendCaseId || c.id, {
                               assigned_reviewer_id: 'expert-demo',
                               priority:
-                                c.priority === 'Acil' ? 'urgent' : c.priority === 'Yüksek' ? 'high' : 'normal',
+                                c.priority === 'STAT'
+                                  ? 'stat'
+                                  : c.priority === 'Acil'
+                                    ? 'urgent'
+                                    : c.priority === 'Yüksek'
+                                      ? 'high'
+                                      : 'normal',
                             })
                               .then(() => {
                                 pushToast({ tone: 'success', title: 'Vaka size atandı' })

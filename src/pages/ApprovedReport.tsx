@@ -7,7 +7,7 @@ import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Logo } from '../components/Logo'
 import { RagCitations } from '../components/RagCitations'
-import { getReportVersion } from '../lib/backend'
+import { getReportVersion, markReportViewed } from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import {
   canExportApprovedReport,
@@ -62,6 +62,9 @@ export default function ApprovedReport() {
         }
       } else {
         setVersionDraft(null)
+      }
+      if (mapped?.status === 'onaylandi' && mapped.fromBackend) {
+        void markReportViewed(id).then(() => hydrateBackendCase(id)).catch(() => undefined)
       }
       setLoading(false)
     })()
@@ -279,6 +282,34 @@ export default function ApprovedReport() {
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">İnceleme</dt>
                 <dd className="text-navy-900">{provenance.reviewStatus}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-28 text-slate-500">Radyolog</dt>
+                <dd className="text-navy-900">{c.approvedBy || c.backendDraft?.reviewed_by || '—'}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-28 text-slate-500">Onay tarihi</dt>
+                <dd className="text-navy-900">
+                  {c.approvedAt
+                    ? fmtDate(c.approvedAt)
+                    : c.reportAvailableAt
+                      ? fmtDate(c.reportAvailableAt)
+                      : c.backendDraft?.updated_at
+                        ? fmtDate(c.backendDraft.updated_at)
+                        : '—'}
+                </dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-28 text-slate-500">Teslimat</dt>
+                <dd className="text-navy-900">
+                  {c.reportViewedAt
+                    ? `Görüldü · ${fmtDate(c.reportViewedAt)}`
+                    : c.reportDeliveredAt
+                      ? `İletildi · ${fmtDate(c.reportDeliveredAt)}`
+                      : c.reportAvailableAt
+                        ? 'Hazır'
+                        : '—'}
+                </dd>
               </div>
             </dl>
           </div>

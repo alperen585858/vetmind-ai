@@ -3,6 +3,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import {
   Activity, BookOpen, CheckCircle2, ChevronRight, Clock, Cpu, Database, FilePlus2, FileText, FolderOpen, Hourglass, Layers, Loader2, Microscope, PawPrint, Timer, UploadCloud,
 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
@@ -10,9 +11,11 @@ import { Button } from '../components/Button'
 import { CaseTable, SpeciesIcon } from '../components/CaseTable'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
+import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
+import { getClinicDashboard } from '../lib/backend'
 import { fmtDate } from '../lib/format'
-import type { VetCase } from '../types'
+import type { ClinicDashboardStats, VetCase } from '../types'
 
 export default function Dashboard() {
   const { role } = useApp()
@@ -23,18 +26,42 @@ export default function Dashboard() {
 }
 
 function VetDashboard() {
-  const { cases, user } = useApp()
+  const { cases, user, refreshBackendCases } = useApp()
   const nav = useNavigate()
-  const open = cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
-  const processing = cases.filter((c) => c.status === 'isleniyor' || c.status === 'ai_analizi').length
-  const review = cases.filter((c) => c.status === 'uzman_incelemesinde').length
-  const approved = cases.filter((c) => c.status === 'onaylandi').length
+  const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [stats, setStats] = useState<ClinicDashboardStats | null>(null)
+
+  useEffect(() => {
+    void refreshBackendCases()
+    void getClinicDashboard({ q: q || undefined })
+      .then(setStats)
+      .catch(() => setStats(null))
+  }, [refreshBackendCases, q])
+
+  const filtered = useMemo(() => {
+    const ql = q.trim().toLowerCase()
+    return cases.filter((c) => {
+      if (statusFilter && c.status !== statusFilter) return false
+      if (!ql) return true
+      const hay = `${c.patient.name} ${c.no} ${c.id} ${c.clinic}`.toLowerCase()
+      return hay.includes(ql)
+    })
+  }, [cases, q, statusFilter])
+
+  const open = stats?.active_cases ?? cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
+  const review = stats?.awaiting_review ?? cases.filter((c) => c.status === 'uzman_incelemesinde').length
+  const urgent =
+    stats?.urgent_cases ??
+    cases.filter((c) => (c.priority === 'STAT' || c.priority === 'Acil') && !['onaylandi', 'reddedildi'].includes(c.status))
+      .length
+  const approved = stats?.completed_reports ?? cases.filter((c) => c.status === 'onaylandi').length
 
   return (
     <>
       <PageHeader
         title={`Hoş geldiniz, ${user?.name}`}
-        subtitle={`${user?.org} · Nöroloji modülü`}
+        subtitle={`${user?.org} · Klinik vaka panosu`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button size="lg" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>DICOM Yükle</Button>
@@ -43,15 +70,63 @@ function VetDashboard() {
         }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Açık vaka" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış tüm vakalar" />
-        <StatCard label="AI işleniyor" value={processing} icon={<Loader2 className="h-5 w-5" />} tone="violet" hint="Belge işleme + AI analizi" />
-        <StatCard label="Uzman incelemesinde" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="VRM uzman kuyruğunda" />
-        <StatCard label="Onaylandı" value={approved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Rapor yayınlandı" />
+        <StatCard label="Aktif vakalar" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış" />
+        <StatCard label="İnceleme bekleyen" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="awaiting_review" />
+        <StatCard label="Acil / STAT" value={urgent} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli iş listesi" />
+        <StatCard label="Tamamlanan rapor" value={approved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Onaylı teslimat" />
       </div>
       <Card className="mt-6">
-        <CardHeader title="Son vakalar" subtitle="Kliniğinize ait en son oluşturulan vakalar" action={<Link to="/vakalar" className="text-sm font-medium text-teal-700 hover:underline">Tümünü gör</Link>} />
-        <CaseTable cases={cases.slice(0, 6)} />
+        <CardHeader title="Klinik filtre" subtitle="Durum ve arama" />
+        <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3">
+          <label className="text-xs text-slate-600 sm:col-span-2">
+            Ara
+            <input
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Hasta, vaka no, klinik…"
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            Durum
+            <select
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Tümü</option>
+              <option value="taslak">Taslak</option>
+              <option value="ai_analizi">AI analizi</option>
+              <option value="uzman_incelemesinde">Uzman incelemesi</option>
+              <option value="onaylandi">Onaylandı</option>
+              <option value="revizyon">Revizyon</option>
+            </select>
+          </label>
+        </div>
       </Card>
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            title="Aktif vakalar"
+            subtitle={`${filtered.length} kayıt`}
+            action={<Link to="/vakalar" className="text-sm font-medium text-teal-700 hover:underline">Tümünü gör</Link>}
+          />
+          <CaseTable cases={filtered.slice(0, 8)} />
+        </Card>
+        <Card>
+          <CardHeader title="İlerleme özeti" subtitle="Seçili ilk vaka" />
+          <div className="px-5 pb-5">
+            {filtered[0] ? (
+              <CaseProgressTracker status={filtered[0].status} handoffNotes={filtered[0].handoffNotes} />
+            ) : (
+              <EmptyState icon={<FolderOpen className="h-6 w-6" />} title="Vaka yok" text="Filtreyi temizleyin veya yeni vaka oluşturun." />
+            )}
+            {stats && stats.unread_messages > 0 && (
+              <p className="mt-3 text-xs font-medium text-amber-800">{stats.unread_messages} okunmamış vaka mesajı</p>
+            )}
+          </div>
+        </Card>
+      </div>
     </>
   )
 }
@@ -63,7 +138,7 @@ function waitText(c: VetCase) {
 export function QueueList({ items }: { items: VetCase[] }) {
   const nav = useNavigate()
   if (!items.length) return <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title="Kuyruk boş" text="Onay bekleyen rapor bulunmuyor." />
-  const order = { Acil: 0, Yüksek: 1, Normal: 2 }
+  const order = { STAT: 0, Acil: 1, Yüksek: 2, Normal: 3 }
   return (
     <ul className="divide-y divide-slate-100">
       {[...items].sort((a, b) => order[a.priority] - order[b.priority]).map((c) => (
@@ -102,7 +177,7 @@ function ExpertDashboard() {
     <>
       <PageHeader title={`Hoş geldiniz, ${user?.name}`} subtitle="VRM Teknoloji · Uzman inceleme paneli" />
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Onay bekleyen rapor" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${queue.filter((q) => q.priority === 'Acil').length} acil vaka`} />
+        <StatCard label="Onay bekleyen rapor" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${queue.filter((q) => q.priority === 'STAT' || q.priority === 'Acil').length} STAT/acil`} />
         <StatCard label="Ortalama inceleme süresi" value="14 dk" icon={<Timer className="h-5 w-5" />} tone="teal" hint="AI taslağı olmadan ort. 48 dk" />
         <StatCard label="Bu hafta onaylanan" value={weekApproved} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="13–19 Ekim 2026" />
       </div>

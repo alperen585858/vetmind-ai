@@ -14,8 +14,12 @@ from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import (
     CaseAssignmentUpdate,
     CaseCreate,
+    CaseMessage,
+    CaseMessageCreate,
+    CaseMessageView,
     CaseRecord,
     CaseSummary,
+    ClinicDashboardStats,
     ReportDraftUpdate,
     ReviewFeedback,
 )
@@ -160,6 +164,45 @@ class CaseService:
         self._repo.save_case(case)
         return case.model_input
 
+    def _unread_for(self, case: CaseRecord, principal: AuthPrincipal | None) -> int:
+        if principal is None or principal.via == "disabled":
+            return 0
+        subject = principal.subject
+        return sum(1 for m in case.messages if subject not in m.read_by and m.author_id != subject)
+
+    def _to_summary(self, c: CaseRecord, *, principal: AuthPrincipal | None = None) -> CaseSummary:
+        return CaseSummary(
+            case_id=c.case_id,
+            patient_name=c.patient_name,
+            species=c.species,
+            breed=c.breed,
+            patient_age_years=c.patient_age_years,
+            modality=c.modality,
+            anatomical_region=c.anatomical_region,
+            status=c.status,
+            priority=getattr(c, "priority", None) or "normal",
+            assigned_reviewer_id=c.assigned_reviewer_id,
+            scenario=c.scenario,
+            created_at=c.created_at,
+            latest_job_id=c.latest_job_id,
+            classification_confirmed=c.classification_confirmed,
+            study_instance_uid=c.study.study_instance_uid
+            or (c.dicom_study.study_instance_uid if c.dicom_study else None),
+            series_count=c.study.series_count
+            if c.study.series_count is not None
+            else (c.dicom_study.series_count if c.dicom_study else None),
+            instance_count=c.study.instance_count
+            if c.study.instance_count is not None
+            else (c.dicom_study.instance_count if c.dicom_study else None),
+            owner_subject=c.owner_subject,
+            clinic_id=c.clinic_id,
+            referring_clinic=c.referring_clinic,
+            unread_messages=self._unread_for(c, principal),
+            report_available_at=getattr(c, "report_available_at", None),
+            report_delivered_at=getattr(c, "report_delivered_at", None),
+            report_viewed_at=getattr(c, "report_viewed_at", None),
+        )
+
     def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
         summaries: list[CaseSummary] = []
         for c in self._repo.list_cases():
@@ -167,35 +210,7 @@ class CaseService:
                 principal, c, isolation=self._tenant_isolation
             ):
                 continue
-            summaries.append(
-                CaseSummary(
-                    case_id=c.case_id,
-                    patient_name=c.patient_name,
-                    species=c.species,
-                    breed=c.breed,
-                    patient_age_years=c.patient_age_years,
-                    modality=c.modality,
-                    anatomical_region=c.anatomical_region,
-                    status=c.status,
-                    priority=getattr(c, "priority", None) or "normal",
-                    assigned_reviewer_id=c.assigned_reviewer_id,
-                    scenario=c.scenario,
-                    created_at=c.created_at,
-                    latest_job_id=c.latest_job_id,
-                    classification_confirmed=c.classification_confirmed,
-                    study_instance_uid=c.study.study_instance_uid
-                    or (c.dicom_study.study_instance_uid if c.dicom_study else None),
-                    series_count=c.study.series_count
-                    if c.study.series_count is not None
-                    else (c.dicom_study.series_count if c.dicom_study else None),
-                    instance_count=c.study.instance_count
-                    if c.study.instance_count is not None
-                    else (c.dicom_study.instance_count if c.dicom_study else None),
-                    owner_subject=c.owner_subject,
-                    clinic_id=c.clinic_id,
-                    referring_clinic=c.referring_clinic,
-                )
-            )
+            summaries.append(self._to_summary(c, principal=principal))
         return summaries
 
     def list_worklist(
@@ -242,7 +257,8 @@ class CaseService:
                     return False
             return True
 
-        priority_rank = {"urgent": 0, "high": 1, "normal": 2}
+        # STAT > URGENT > high (legacy) > NORMAL
+        priority_rank = {"stat": 0, "urgent": 1, "high": 2, "normal": 3}
         matched = [s for s in rows if _match(s)]
         matched.sort(
             key=lambda s: (
@@ -251,6 +267,140 @@ class CaseService:
             )
         )
         return matched
+
+    def clinic_dashboard(
+        self,
+        *,
+        principal: AuthPrincipal | None = None,
+        q: str | None = None,
+        status: str | None = None,
+    ) -> ClinicDashboardStats:
+        """Clinic board counters — reuses list_cases tenancy; no duplicate assignment logic."""
+        rows = self.list_worklist(principal=principal, status=status, q=q)
+        terminal = {
+            CaseLifecycleStatus.APPROVED,
+            CaseLifecycleStatus.REJECTED,
+        }
+        active = sum(1 for s in rows if s.status not in terminal)
+        awaiting = sum(1 for s in rows if s.status == CaseLifecycleStatus.AWAITING_REVIEW)
+        urgent = sum(1 for s in rows if (s.priority or "normal") in {"urgent", "stat"})
+        completed = sum(1 for s in rows if s.status == CaseLifecycleStatus.APPROVED)
+        unread = sum(s.unread_messages for s in rows)
+        return ClinicDashboardStats(
+            active_cases=active,
+            awaiting_review=awaiting,
+            urgent_cases=urgent,
+            completed_reports=completed,
+            unread_messages=unread,
+        )
+
+    def list_messages(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> list[CaseMessageView]:
+        case = self.get_case(case_id, principal=principal)
+        subject = principal.subject if principal and principal.via != "disabled" else ""
+        views: list[CaseMessageView] = []
+        for m in case.messages:
+            unread = bool(subject and subject not in m.read_by and m.author_id != subject)
+            views.append(
+                CaseMessageView(
+                    message_id=m.message_id,
+                    case_id=m.case_id or case.case_id,
+                    author_id=m.author_id,
+                    author_role=m.author_role,
+                    body=m.body,
+                    created_at=m.created_at,
+                    unread=unread,
+                )
+            )
+        return views
+
+    def post_message(
+        self,
+        case_id: str,
+        payload: CaseMessageCreate,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseMessageView:
+        case = self.get_case(case_id, principal=principal)
+        author_id = principal.subject if principal and principal.via != "disabled" else "demo"
+        author_role = principal.role if principal else "demo"
+        msg = CaseMessage(
+            case_id=case.case_id,
+            author_id=author_id,
+            author_role=author_role,
+            body=payload.body.strip(),
+            read_by=[author_id],
+        )
+        case.messages.append(msg)
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        self._emit_audit("case.message", principal=principal, resource=case_id)
+        return CaseMessageView(
+            message_id=msg.message_id,
+            case_id=msg.case_id,
+            author_id=msg.author_id,
+            author_role=msg.author_role,
+            body=msg.body,
+            created_at=msg.created_at,
+            unread=False,
+        )
+
+    def mark_messages_read(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> list[CaseMessageView]:
+        case = self.get_case(case_id, principal=principal)
+        if principal is None or principal.via == "disabled":
+            return self.list_messages(case_id, principal=principal)
+        subject = principal.subject
+        changed = False
+        for m in case.messages:
+            if m.author_id != subject and subject not in m.read_by:
+                m.read_by.append(subject)
+                changed = True
+        if changed:
+            case.updated_at = _now()
+            self._repo.save_case(case)
+        return self.list_messages(case_id, principal=principal)
+
+    def mark_report_delivered(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> CaseRecord:
+        case = self.get_case(case_id, principal=principal)
+        if case.status != CaseLifecycleStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Report can only be marked delivered after approval.",
+            )
+        if case.report_available_at is None:
+            case.report_available_at = _now()
+        if case.report_delivered_at is None:
+            case.report_delivered_at = _now()
+        case.updated_at = _now()
+        saved = self._repo.save_case(case)
+        self._emit_audit("report.delivered", principal=principal, resource=case_id)
+        return saved
+
+    def mark_report_viewed(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> CaseRecord:
+        case = self.get_case(case_id, principal=principal)
+        if case.status != CaseLifecycleStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Report can only be marked viewed after approval.",
+            )
+        # Never mutates approved report content — only delivery metadata on the case.
+        if case.report_available_at is None:
+            case.report_available_at = _now()
+        if case.report_delivered_at is None:
+            case.report_delivered_at = _now()
+        if case.report_viewed_at is None:
+            case.report_viewed_at = _now()
+        case.updated_at = _now()
+        saved = self._repo.save_case(case)
+        self._emit_audit("report.viewed", principal=principal, resource=case_id)
+        return saved
 
     def update_assignment(
         self,
@@ -828,6 +978,8 @@ class CaseService:
             notes=feedback.comment,
         )
         case.status = CaseLifecycleStatus.APPROVED
+        if case.report_available_at is None:
+            case.report_available_at = _now()
         case.review_history.append(feedback)
         case.updated_at = _now()
         return self._repo.save_case(case)

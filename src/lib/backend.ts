@@ -213,7 +213,7 @@ export async function createAndAnalyzeCase(input: {
   clinicalHistory: string
   scenario: BackendScenario
   patientAgeYears?: number
-  priority?: 'normal' | 'high' | 'urgent'
+  priority?: 'normal' | 'high' | 'urgent' | 'stat'
   clinicalHistoryStructured?: {
     complaint?: string
     onset?: string
@@ -545,12 +545,53 @@ export async function listBackendWorklist(filters?: {
 
 export async function updateCaseAssignment(
   caseId: string,
-  payload: { assigned_reviewer_id?: string | null; priority?: 'normal' | 'high' | 'urgent' },
+  payload: { assigned_reviewer_id?: string | null; priority?: 'normal' | 'high' | 'urgent' | 'stat' },
 ): Promise<BackendCaseRecord> {
   return request(`/cases/${caseId}/assignment`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+}
+
+export async function getClinicDashboard(filters?: {
+  status?: string
+  q?: string
+}): Promise<import('../types').ClinicDashboardStats> {
+  const params = new URLSearchParams()
+  if (filters?.status) params.set('status', filters.status)
+  if (filters?.q) params.set('q', filters.q)
+  const qs = params.toString()
+  return request(`/cases/dashboard${qs ? `?${qs}` : ''}`)
+}
+
+export async function listCaseMessages(
+  caseId: string,
+): Promise<import('../types').BackendCaseMessage[]> {
+  return request(`/cases/${caseId}/messages`)
+}
+
+export async function postCaseMessage(
+  caseId: string,
+  body: string,
+): Promise<import('../types').BackendCaseMessage> {
+  return request(`/cases/${caseId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export async function markCaseMessagesRead(
+  caseId: string,
+): Promise<import('../types').BackendCaseMessage[]> {
+  return request(`/cases/${caseId}/messages/read`, { method: 'POST' })
+}
+
+export async function markReportDelivered(caseId: string): Promise<BackendCaseRecord> {
+  return request(`/cases/${caseId}/report/deliver`, { method: 'POST' })
+}
+
+export async function markReportViewed(caseId: string): Promise<BackendCaseRecord> {
+  return request(`/cases/${caseId}/report/viewed`, { method: 'POST' })
 }
 
 export async function saveBackendDraftReport(

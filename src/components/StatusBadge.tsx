@@ -35,8 +35,17 @@ export function StatusBadge({ status }: { status: CaseStatus }) {
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
-  const cls = { Acil: 'bg-rose-600 text-white', Yüksek: 'bg-orange-100 text-orange-800', Normal: 'bg-slate-100 text-slate-600' }[priority]
-  return <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${cls}`}>{priority}</span>
+  const cls = {
+    STAT: 'bg-rose-800 text-white ring-1 ring-rose-900',
+    Acil: 'bg-rose-600 text-white',
+    Yüksek: 'bg-orange-100 text-orange-800',
+    Normal: 'bg-slate-100 text-slate-600',
+  }[priority]
+  return (
+    <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${cls}`}>
+      {priority}
+    </span>
+  )
 }
 
 export function SeverityBadge({ severity }: { severity: Severity }) {
