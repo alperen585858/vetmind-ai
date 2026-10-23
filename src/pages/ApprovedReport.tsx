@@ -124,7 +124,13 @@ export default function ApprovedReport() {
   }
 
   // Seed owner gate: match owner name. Backend cases rely on route Gate roles.
-  if (!c || (role === 'owner' && !c.fromBackend && c.patient.ownerName !== user?.name)) {
+  if (
+    !c ||
+    (role === 'owner' &&
+      !c.fromBackend &&
+      c.patient.ownerName !== user?.name &&
+      c.petOwnerSubject !== user?.email)
+  ) {
     return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title="Rapor bulunamadı" /></Card>
   }
 

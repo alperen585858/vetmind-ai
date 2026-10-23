@@ -77,7 +77,12 @@ function emptyClinical(history?: string | null): ClinicalInfo {
   }
 }
 
-function basePatient(name: string, species: Species, breed?: string | null): Patient {
+function basePatient(
+  name: string,
+  species: Species,
+  breed?: string | null,
+  ownerLabel?: string | null,
+): Patient {
   return {
     name,
     species,
@@ -86,9 +91,13 @@ function basePatient(name: string, species: Species, breed?: string | null): Pat
     neutered: false,
     age: 0,
     weight: 0,
-    ownerName: '—',
+    ownerName: ownerLabel?.trim() || '—',
     ownerPhone: '',
   }
+}
+
+function ownerLabelFromBackend(ownerSubject?: string | null, petOwnerSubject?: string | null): string {
+  return (petOwnerSubject || ownerSubject || '').trim()
 }
 
 /** Lightweight row for list views (from CaseSummary). */
@@ -103,7 +112,8 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
   const species = speciesFromBackend(s.species)
   const status = caseStatusFromLifecycle(s.status)
   const created = s.created_at.slice(0, 10)
-  const patient = basePatient(s.patient_name, species, s.breed)
+  const owner = ownerLabelFromBackend(s.owner_subject, s.pet_owner_subject)
+  const patient = basePatient(s.patient_name, species, s.breed, owner)
   if (s.patient_age_years != null) patient.age = s.patient_age_years
   return {
     id: s.case_id,
@@ -135,6 +145,9 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     reportAvailableAt: s.report_available_at ?? undefined,
     reportDeliveredAt: s.report_delivered_at ?? undefined,
     reportViewedAt: s.report_viewed_at ?? undefined,
+    petOwnerSubject: s.pet_owner_subject ?? undefined,
+    petId: s.pet_id ?? undefined,
+    submissionId: s.submission_id ?? undefined,
   }
 }
 
@@ -159,7 +172,8 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     clinical.medications = structured.medications || clinical.medications
     clinical.history = structured.relevant_history || clinical.history
   }
-  const patient = basePatient(r.patient_name, species, r.breed)
+  const owner = ownerLabelFromBackend(r.owner_subject, r.pet_owner_subject)
+  const patient = basePatient(r.patient_name, species, r.breed, owner)
   if (r.patient_age_years != null) patient.age = r.patient_age_years
   const created = r.created_at.slice(0, 10)
 
@@ -295,6 +309,9 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
       r.study?.instance_count ??
       r.dicom_study?.series?.reduce((n, s) => n + s.instances.length, 0) ??
       undefined,
+    petOwnerSubject: r.pet_owner_subject ?? undefined,
+    petId: r.pet_id ?? undefined,
+    submissionId: r.submission_id ?? undefined,
   }
 }
 

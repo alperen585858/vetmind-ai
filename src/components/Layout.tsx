@@ -12,12 +12,12 @@ export function Layout() {
         İçeriğe atla
       </a>
       <Sidebar open={menu} onClose={() => setMenu(false)} />
-      <div className="lg:pl-64 print:pl-0">
+      <div className="lg:pl-60 print:pl-0">
         <Topbar onMenu={() => setMenu(true)} />
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 print:p-0"
+          className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 print:p-0"
         >
           <Outlet />
         </main>

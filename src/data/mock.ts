@@ -17,11 +17,11 @@ import type {
 import { buildAssessment, makeDocument, type TemplateKey } from './templates'
 
 export const USERS: Record<Role, User> = {
-  vet: { name: 'Dr. Elif Kaya', title: 'Veteriner Hekim', org: 'Örnek Veteriner Kliniği (demo)', initials: 'EK' },
-  expert: { name: 'Prof. Dr. Ahmet Demir', title: 'Uzman Veteriner Nörolog', org: 'VRM Teknoloji', initials: 'AD' },
-  owner: { name: 'Mehmet Yılmaz', title: 'Hayvan Sahibi', org: '', initials: 'MY' },
-  clinic_owner: { name: 'Klinik Yöneticisi', title: 'Klinik Sahibi', org: 'Örnek Veteriner Kliniği (demo)', initials: 'KY' },
-  admin: { name: 'Admin', title: 'Sistem Yöneticisi', org: 'VetMind AI', initials: 'SY' },
+  vet: { name: 'Dr. Elif Kaya', title: 'Veteriner Hekim', org: 'Örnek Veteriner Kliniği (demo)', initials: 'EK', email: 'vet@demo.local' },
+  expert: { name: 'Prof. Dr. Ahmet Demir', title: 'Uzman Veteriner Nörolog', org: 'VRM Teknoloji', initials: 'AD', email: 'expert@demo.local' },
+  owner: { name: 'Mehmet Yılmaz', title: 'Hayvan Sahibi', org: '', initials: 'MY', email: 'owner@demo.local' },
+  clinic_owner: { name: 'Klinik Yöneticisi', title: 'Klinik Sahibi', org: 'Örnek Veteriner Kliniği (demo)', initials: 'KY', email: 'clinic-owner@demo.local' },
+  admin: { name: 'Admin', title: 'Sistem Yöneticisi', org: 'VetMind AI', initials: 'SY', email: 'admin@demo.local' },
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

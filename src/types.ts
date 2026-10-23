@@ -83,6 +83,8 @@ export interface User {
   title: string
   org: string
   initials: string
+  /** Demo / backend subject (e.g. owner@demo.local) when known. */
+  email?: string
 }
 
 export interface Patient {
@@ -356,6 +358,37 @@ export interface DicomUploadResponse {
   note: string
 }
 
+export interface DicomQuarantineFileRef {
+  original_filename: string
+  stored_filename: string
+  relative_path: string
+  size_bytes: number
+  sha256: string
+  content_kind: string
+}
+
+/** Full ingest record from GET /dicom/ingestions/{id} (owner-readable when owned). */
+export interface DicomIngestionRecord {
+  ingest_id: string
+  created_at: string
+  patient_name: string
+  species: string
+  breed?: string | null
+  clinical_history?: string | null
+  referring_clinic?: string | null
+  owner_subject?: string | null
+  clinic_id?: string | null
+  study: DicomStudyMeta | null
+  issues: DicomValidationIssue[]
+  classification: ClassificationSuggestion | null
+  accepted: boolean
+  case_id?: string | null
+  blocked: boolean
+  block_reason?: string | null
+  quarantine_dir?: string | null
+  quarantined_files: DicomQuarantineFileRef[]
+}
+
 export type BackendCasePriority = 'normal' | 'high' | 'urgent' | 'stat'
 
 export interface BackendCaseMessage {
@@ -410,6 +443,10 @@ export interface BackendCaseSummary {
   report_available_at?: string | null
   report_delivered_at?: string | null
   report_viewed_at?: string | null
+  pet_id?: string | null
+  pet_owner_subject?: string | null
+  submission_id?: string | null
+  vet_verified?: boolean
 }
 
 export interface BackendCaseRecord {
@@ -434,6 +471,10 @@ export interface BackendCaseRecord {
   clinic_id?: string | null
   classification_confirmed: boolean
   latest_job_id?: string | null
+  pet_id?: string | null
+  pet_owner_subject?: string | null
+  submission_id?: string | null
+  vet_verified?: boolean
   structured_findings?: BackendFindings | null
   draft_report?: BackendDraftReport | null
   /**
@@ -510,6 +551,10 @@ export interface VetCase {
   studyInstanceUid?: string
   seriesCount?: number
   instanceCount?: number
+  /** Phase 14 — pet owner subject (email) for ACL / Sahip display. */
+  petOwnerSubject?: string
+  petId?: string
+  submissionId?: string
 }
 
 export interface KbSource {

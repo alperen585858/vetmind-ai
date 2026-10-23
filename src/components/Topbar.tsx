@@ -56,13 +56,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
-      <div className="hidden min-w-0 text-sm text-slate-500 md:block">
-        <span className="text-slate-400">Modül</span>{' '}
+      <div className="hidden min-w-0 text-sm md:block">
         <span className="font-medium text-navy-800">Veteriner Nöroloji</span>
-        <span className="mx-2 text-slate-300" aria-hidden>
-          ·
-        </span>
-        <span className="text-xs text-amber-700">Demo · mock veri</span>
       </div>
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         <button

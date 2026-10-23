@@ -158,6 +158,7 @@ class AppContainer:
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
+            dicom=self.dicom,
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
         )

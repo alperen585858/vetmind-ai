@@ -209,3 +209,121 @@ def test_clinic_owner_stats(tmp_path: Path) -> None:
     stats = client.get("/api/v1/clinic/stats", headers=_hdr(co))
     assert stats.status_code == 200
     assert stats.json()["clinic_id"] == "clinic-demo-a"
+
+
+def test_owner_can_attach_dicom_but_cannot_confirm_case(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    owner = _token(client, "owner@demo.local")
+
+    pet = client.post(
+        "/api/v1/pets",
+        json={"name": "Pax", "species": "canine"},
+        headers=_hdr(owner),
+    ).json()
+    sub = client.post(
+        "/api/v1/submissions",
+        json={"pet_id": pet["pet_id"], "chief_complaint": "Öksürük"},
+        headers=_hdr(owner),
+    ).json()
+    assert sub.get("dicom_ingest_id") in (None, "")
+
+    dicom = client.post(
+        "/api/v1/dicom/demo/brain_mri",
+        data={"patient_name": "Pax", "species": "canine", "clinical_history": "Owner attach"},
+        headers=_hdr(owner),
+    )
+    assert dicom.status_code == 201, dicom.text
+    ingest_id = dicom.json()["ingest_id"]
+
+    linked = client.patch(
+        f"/api/v1/submissions/{sub['submission_id']}",
+        json={"dicom_ingest_id": ingest_id},
+        headers=_hdr(owner),
+    )
+    assert linked.status_code == 200
+    assert linked.json()["dicom_ingest_id"] == ingest_id
+    assert linked.json()["pet_owner_subject"] == "owner@demo.local"
+
+    # Owner can inspect their own ingest metadata + quarantine files.
+    meta = client.get(f"/api/v1/dicom/ingestions/{ingest_id}", headers=_hdr(owner))
+    assert meta.status_code == 200, meta.text
+    assert meta.json()["ingest_id"] == ingest_id
+    assert meta.json()["owner_subject"] == "owner@demo.local"
+    assert meta.json()["study"] is not None
+
+    listing = client.get(f"/api/v1/dicom/ingestions/{ingest_id}/files", headers=_hdr(owner))
+    assert listing.status_code == 200, listing.text
+    assert len(listing.json()["files"]) >= 1
+    dl = client.get(f"/api/v1/dicom/ingestions/{ingest_id}/files/0", headers=_hdr(owner))
+    assert dl.status_code == 200
+    assert len(dl.content) > 100
+
+    # Owners must not open a clinical case via confirm (vet verification required).
+    denied = client.post(
+        f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
+        json={
+            "accept_suggestion": True,
+            "imaging_source_permission_verified": True,
+            "imaging_analysis_consent_verified": True,
+        },
+        headers=_hdr(owner),
+    )
+    assert denied.status_code == 403
+
+
+def test_vet_accept_binds_owner_dicom_via_confirm(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    owner = _token(client, "owner@demo.local")
+    vet = _token(client, "vet@demo.local")
+
+    pet = client.post(
+        "/api/v1/pets",
+        json={"name": "Duman", "species": "canine", "breed": "Golden"},
+        headers=_hdr(owner),
+    ).json()
+    sub = client.post(
+        "/api/v1/submissions",
+        json={"pet_id": pet["pet_id"], "chief_complaint": "Ataksi"},
+        headers=_hdr(owner),
+    ).json()
+
+    dicom = client.post(
+        "/api/v1/dicom/demo/brain_mri",
+        data={
+            "patient_name": "Duman",
+            "species": "canine",
+            "clinical_history": "Owner upload",
+            "referring_clinic": "clinic-demo-a",
+        },
+        headers=_hdr(owner),
+    )
+    assert dicom.status_code == 201, dicom.text
+    ingest_id = dicom.json()["ingest_id"]
+    assert ingest_id
+    assert dicom.json()["blocked"] is False
+
+    linked = client.patch(
+        f"/api/v1/submissions/{sub['submission_id']}",
+        json={"dicom_ingest_id": ingest_id},
+        headers=_hdr(owner),
+    )
+    assert linked.status_code == 200
+    assert linked.json()["dicom_ingest_id"] == ingest_id
+
+    accepted = client.post(
+        f"/api/v1/submissions/{sub['submission_id']}/vet-action",
+        json={"action": "accept", "run_analyze": False, "assigned_reviewer_id": "expert@demo.local"},
+        headers=_hdr(vet),
+    )
+    assert accepted.status_code == 200, accepted.text
+    case = accepted.json()
+    assert case["dicom_ingest_id"] == ingest_id
+    assert case["dicom_study"] is not None
+    assert case["classification_confirmed"] is True
+    assert case["pet_owner_subject"] == "owner@demo.local"
+    assert case["owner_subject"] == "owner@demo.local"
+    assert case["modality"] in {"MR", "CT", "XR"}
+
+    files = client.get(f"/api/v1/cases/{case['case_id']}/dicom/files", headers=_hdr(vet))
+    assert files.status_code == 200
+    assert len(files.json()["files"]) >= 1

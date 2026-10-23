@@ -10,6 +10,7 @@ from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord
 from app.auth.tenancy import assert_case_access, can_access_owned
 from app.schemas.case import CaseCreate, CaseRecord
+from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality
 from app.schemas.findings import StudyInfo
 from app.schemas.workflow import (
@@ -26,6 +27,7 @@ from app.schemas.workflow import (
     SubmissionVetAction,
 )
 from app.services.case_service import CaseService
+from app.services.dicom_service import DicomService
 from app.services.workflow_store import WorkflowStore
 
 
@@ -39,11 +41,13 @@ class WorkflowService:
         store: WorkflowStore,
         cases: CaseService,
         *,
+        dicom: DicomService | None = None,
         tenant_isolation: bool = False,
         auth_users: dict[str, DemoUserRecord] | None = None,
     ) -> None:
         self._store = store
         self._cases = cases
+        self._dicom = dicom
         self._tenant_isolation = tenant_isolation
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
         self._seed_managed_from_demo()
@@ -251,29 +255,59 @@ class WorkflowService:
                 payload.vet_notes,
             ]
             if x
-        )
-        case = self._cases.create_case(
-            CaseCreate(
-                patient_name=pet.name,
-                species=pet.species,
-                breed=pet.breed,
-                patient_age_years=pet.age_years,
-                modality=Modality.OTHER,
-                anatomical_region=AnatomicalRegion.UNKNOWN,
-                clinical_history=history or "Owner imaging request (vet verified).",
-                priority="normal",
-                assigned_reviewer_id=payload.assigned_reviewer_id,
-                study=StudyInfo(dicom_available=bool(sub.dicom_ingest_id)),
-                referring_clinic=sub.clinic_id,
-            ),
-            principal=principal,
-        )
+        ) or "Owner imaging request (vet verified)."
+
+        # Prefer proper DICOM confirm so quarantine study + modality bind to the case.
+        if sub.dicom_ingest_id and self._dicom is not None:
+            try:
+                case = self._dicom.confirm(
+                    sub.dicom_ingest_id,
+                    ConfirmClassificationRequest(
+                        accept_suggestion=True,
+                        patient_name=pet.name,
+                        clinical_history=history,
+                        imaging_source_permission_verified=True,
+                        imaging_analysis_consent_verified=True,
+                    ),
+                    principal=principal,
+                )
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Owner DICOM could not be confirmed onto a case: {exc}",
+                ) from exc
+        else:
+            case = self._cases.create_case(
+                CaseCreate(
+                    patient_name=pet.name,
+                    species=pet.species,
+                    breed=pet.breed,
+                    patient_age_years=pet.age_years,
+                    modality=Modality.OTHER,
+                    anatomical_region=AnatomicalRegion.UNKNOWN,
+                    clinical_history=history,
+                    priority="normal",
+                    assigned_reviewer_id=payload.assigned_reviewer_id,
+                    study=StudyInfo(dicom_available=False),
+                    referring_clinic=sub.clinic_id,
+                ),
+                principal=principal,
+            )
+
         case.pet_id = pet.pet_id
         case.pet_owner_subject = sub.pet_owner_subject
+        # Keep case ownership on the pet owner (not the verifying vet) for ACL + UI "Sahip".
+        case.owner_subject = sub.pet_owner_subject or case.owner_subject
         case.submission_id = sub.submission_id
         case.vet_verified = True
-        case.dicom_ingest_id = sub.dicom_ingest_id
-        case.status = CaseLifecycleStatus.CREATED
+        case.patient_age_years = pet.age_years
+        case.breed = pet.breed or case.breed
+        if payload.assigned_reviewer_id:
+            case.assigned_reviewer_id = payload.assigned_reviewer_id
+        if sub.dicom_ingest_id and not case.dicom_ingest_id:
+            case.dicom_ingest_id = sub.dicom_ingest_id
         case.updated_at = _now()
         self._cases._repo.save_case(case)  # noqa: SLF001 — same process persistence
 
@@ -286,18 +320,12 @@ class WorkflowService:
         sub.updated_at = _now()
         self._store.save_submission(sub)
 
-        if payload.run_analyze and sub.dicom_ingest_id is None:
-            # Analyze synthetic/metadata case when no DICOM — allowed for demo
+        if payload.run_analyze:
             try:
                 self._cases.analyze(case.case_id, principal=principal)
                 case = self._cases.get_case(case.case_id, principal=principal)
-            except Exception:
-                pass
-        elif payload.run_analyze:
-            try:
-                self._cases.analyze(case.case_id, principal=principal)
-                case = self._cases.get_case(case.case_id, principal=principal)
-            except Exception:
+            except HTTPException:
+                # Case is still linked; analyze can be retried from UI.
                 pass
         return case
 

@@ -58,9 +58,9 @@ export default function OwnerPets() {
   return (
     <>
       <PageHeader
-        title="Pet profilleri"
-        subtitle="Tür, ırk, yaş ve tıbbi öykü — görüntüleme taleplerine bağlanır"
-        crumbs={[{ label: 'Panel', to: '/' }, { label: 'Petler' }]}
+        title="Hayvanlarım"
+        subtitle="Pet profili ekleyin — DICOM taleplerine bağlanır"
+        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'Hayvanlarım' }]}
         actions={
           <Button size="sm" variant="secondary" onClick={() => void load()} disabled={loading}>
             Yenile

@@ -253,7 +253,14 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               <Row k="Tür / Irk" v={`${p.species} · ${p.breed}`} />
               <Row k="Cinsiyet" v={`${p.sex}, ${p.neutered ? 'kısırlaştırılmış' : 'kısırlaştırılmamış'}`} />
               <Row k="Yaş / Kilo" v={`${p.age} yaş · ${p.weight} kg`} />
-              <Row k="Sahip" v={`${p.ownerName} · ${p.ownerPhone}`} />
+              <Row
+                k="Sahip"
+                v={
+                  c.petOwnerSubject || p.ownerName !== '—'
+                    ? `${c.petOwnerSubject || p.ownerName}${p.ownerPhone ? ` · ${p.ownerPhone}` : ''}`
+                    : '—'
+                }
+              />
               <Row k="Klinik / Hekim" v={`${c.clinic} · ${c.vetName}`} />
               <Row k="Öncelik / Atama" v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>

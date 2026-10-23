@@ -11,13 +11,21 @@ import { fmtDate } from '../lib/format'
 export default function ReportList() {
   const { cases, role, user } = useApp()
   const nav = useNavigate()
-  const reports = cases.filter((c) => c.status === 'onaylandi' && (role !== 'owner' || c.patient.ownerName === user?.name))
+  const reports = cases.filter((c) => {
+    if (c.status !== 'onaylandi') return false
+    if (role !== 'owner') return true
+    // Backend cases: ACL already scoped; match by pet owner subject or legacy display name.
+    if (c.fromBackend) {
+      return !c.petOwnerSubject || c.petOwnerSubject === user?.email || c.patient.ownerName === user?.email
+    }
+    return c.patient.ownerName === user?.name
+  })
   return (
     <>
       <PageHeader
-        title={role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar'}
-        subtitle="Uzman onayı sonrası yayınlanan raporlar · yazdırılabilir PDF"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar' }]}
+        title={role === 'owner' ? 'Raporlarım' : 'Onaylı raporlar'}
+        subtitle="Onaylanmış, yazdırılabilir raporlar"
+        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: role === 'owner' ? 'Raporlarım' : 'Raporlar' }]}
       />
       <Card>
         {reports.length ? (

@@ -12,6 +12,7 @@ import type {
   BackendScenario,
   BackendSpecies,
   DicomDemoKind,
+  DicomIngestionRecord,
   DicomUploadResponse,
 } from '../types'
 
@@ -668,6 +669,45 @@ export interface CaseDicomFileList {
   ingest_id?: string | null
   files: { index: number; filename: string; size_bytes: number; content_kind: string }[]
   note: string
+}
+
+/** Ingest metadata the uploader (incl. pet owner) can read. */
+export async function getDicomIngestion(ingestId: string): Promise<DicomIngestionRecord> {
+  return request<DicomIngestionRecord>(`/dicom/ingestions/${ingestId}`)
+}
+
+export interface IngestDicomFileList {
+  ingest_id: string
+  files: { index: number; filename: string; size_bytes: number; content_kind: string }[]
+  note: string
+}
+
+export async function listIngestDicomFiles(ingestId: string): Promise<IngestDicomFileList> {
+  return request<IngestDicomFileList>(`/dicom/ingestions/${ingestId}/files`)
+}
+
+/** Download quarantined DICOM bytes for owner/clinic preview of an ingest. */
+export async function fetchIngestDicomFiles(ingestId: string, maxFiles = MAX_VIEWER_FRAMES): Promise<File[]> {
+  const listing = await listIngestDicomFiles(ingestId)
+  if (!listing.files.length) return []
+  const headers = new Headers()
+  const token = getBackendAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const out: File[] = []
+  const limit = Math.min(listing.files.length, maxFiles)
+  for (let i = 0; i < limit; i++) {
+    const meta = listing.files[i]
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/dicom/ingestions/${ingestId}/files/${meta.index}`, { headers })
+    } catch {
+      throw new BackendUnavailableError()
+    }
+    if (!res.ok) throw new Error(`DICOM indirilemedi (#${meta.index})`)
+    const blob = await res.blob()
+    out.push(new File([blob], meta.filename || `instance_${i + 1}.dcm`, { type: 'application/dicom' }))
+  }
+  return out
 }
 
 /** List quarantined DICOM files for a backend case (user upload, not synthetic fixtures). */

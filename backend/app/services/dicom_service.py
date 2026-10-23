@@ -171,6 +171,19 @@ class DicomService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> CaseRecord:
+        # Pet owners may quarantine-upload only; clinical case binding requires vet (or demo/service).
+        if (
+            principal is not None
+            and principal.via == "jwt"
+            and principal.role == "owner"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Pet owners attach DICOM to imaging submissions; "
+                    "a veterinarian must verify and open the clinical case."
+                ),
+            )
         record = self.get_ingestion(ingest_id, principal=principal)
         if record.blocked:
             raise HTTPException(
