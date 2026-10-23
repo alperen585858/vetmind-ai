@@ -56,3 +56,83 @@ def metadata_only_contract(model_id: str, *, version: str = "1.0.0") -> Preproce
         output_tensor_layout="none",
         notes="Metadata-only contract — pixels must not be decoded.",
     )
+
+
+def pixel_2d_contract(
+    model_id: str,
+    *,
+    version: str = "1.0.0",
+    modalities: frozenset[Modality] | None = None,
+    regions: frozenset[AnatomicalRegion] | None = None,
+    species: frozenset[Species] | None = None,
+    transfer_syntaxes: frozenset[str] | None = None,
+) -> PreprocessingContract:
+    """Future 2D Vision contract. Still requires pixel authorization at runtime."""
+    from app.imaging.pixel_ops import (
+        TRANSFORM_EXTRACT_PIXELS,
+        TRANSFORM_HU_WINDOW,
+        TRANSFORM_MONOCHROME_INVERT,
+        TRANSFORM_NORMALIZE,
+        TRANSFORM_PREPARE_2D,
+    )
+
+    return PreprocessingContract(
+        contract_id=f"pixel-2d:{model_id}",
+        model_id=model_id,
+        model_version=version,
+        modalities=modalities or frozenset(),
+        regions=regions or frozenset(),
+        species=species,
+        requires_pixels=True,
+        allowed_transfer_syntaxes=transfer_syntaxes or frozenset(),
+        allowed_transforms=(
+            TRANSFORM_EXTRACT_PIXELS,
+            TRANSFORM_MONOCHROME_INVERT,
+            TRANSFORM_HU_WINDOW,
+            TRANSFORM_NORMALIZE,
+            TRANSFORM_PREPARE_2D,
+        ),
+        output_tensor_layout="chw",
+        notes="2D pixel contract — decode only after authorization.",
+    )
+
+
+def pixel_3d_contract(
+    model_id: str,
+    *,
+    version: str = "1.0.0",
+    modalities: frozenset[Modality] | None = None,
+    regions: frozenset[AnatomicalRegion] | None = None,
+    species: frozenset[Species] | None = None,
+    transfer_syntaxes: frozenset[str] | None = None,
+) -> PreprocessingContract:
+    """Future MRI/CT volume contract. Still requires pixel authorization at runtime."""
+    from app.imaging.pixel_ops import (
+        TRANSFORM_APPLY_SPACING,
+        TRANSFORM_EXTRACT_PIXELS,
+        TRANSFORM_MONOCHROME_INVERT,
+        TRANSFORM_NORMALIZE,
+        TRANSFORM_ORDER_SLICES,
+        TRANSFORM_PREPARE_3D,
+    )
+
+    return PreprocessingContract(
+        contract_id=f"pixel-3d:{model_id}",
+        model_id=model_id,
+        model_version=version,
+        modalities=modalities or frozenset(),
+        regions=regions or frozenset(),
+        species=species,
+        requires_pixels=True,
+        allowed_transfer_syntaxes=transfer_syntaxes or frozenset(),
+        allowed_transforms=(
+            TRANSFORM_EXTRACT_PIXELS,
+            TRANSFORM_MONOCHROME_INVERT,
+            TRANSFORM_ORDER_SLICES,
+            TRANSFORM_APPLY_SPACING,
+            TRANSFORM_NORMALIZE,
+            TRANSFORM_PREPARE_3D,
+        ),
+        output_tensor_layout="dhw",
+        notes="3D volume contract — assemble/order only after authorization.",
+    )

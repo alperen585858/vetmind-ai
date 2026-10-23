@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, AlertTriangle, ListOrdered, Server, RefreshCw } from 'lucide-react'
+import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, AlertTriangle, ListOrdered, Server, RefreshCw, BrainCircuit } from 'lucide-react'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { DEPLOYMENTS, SERVICES } from '../data/mock'
 import { GpuChart } from './Dashboard'
 import { fmtDate } from '../lib/format'
-import { BackendUnavailableError, fetchBackendHealth, type BackendHealth } from '../lib/backend'
+import {
+  BackendUnavailableError,
+  fetchBackendHealth,
+  fetchModelReadiness,
+  type BackendHealth,
+  type BackendModelReadiness,
+} from '../lib/backend'
 
 export default function SystemStatus() {
   const vramUsed = 29.4
@@ -14,26 +20,45 @@ export default function SystemStatus() {
   const [health, setHealth] = useState<BackendHealth | null>(null)
   const [healthError, setHealthError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [readiness, setReadiness] = useState<BackendModelReadiness | null>(null)
+  const [readinessError, setReadinessError] = useState<string | null>(null)
 
   const loadHealth = () => {
     setLoading(true)
     setHealthError(null)
-    void fetchBackendHealth()
-      .then((h) => {
-        setHealth(h)
-        setHealthError(null)
-      })
-      .catch((err) => {
-        setHealth(null)
-        setHealthError(
-          err instanceof BackendUnavailableError
-            ? err.message
-            : err instanceof Error
+    setReadinessError(null)
+    void Promise.all([
+      fetchBackendHealth()
+        .then((h) => {
+          setHealth(h)
+          setHealthError(null)
+        })
+        .catch((err) => {
+          setHealth(null)
+          setHealthError(
+            err instanceof BackendUnavailableError
               ? err.message
-              : 'Health alınamadı',
-        )
-      })
-      .finally(() => setLoading(false))
+              : err instanceof Error
+                ? err.message
+                : 'Health alınamadı',
+          )
+        }),
+      fetchModelReadiness()
+        .then((r) => {
+          setReadiness(r)
+          setReadinessError(null)
+        })
+        .catch((err) => {
+          setReadiness(null)
+          setReadinessError(
+            err instanceof BackendUnavailableError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : 'Model readiness alınamadı',
+          )
+        }),
+    ]).finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -99,6 +124,75 @@ export default function SystemStatus() {
               <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs text-slate-500">note</dt><dd className="text-slate-600">{health.note}</dd></div>
             ) : null}
           </dl>
+        )}
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader
+          title="AI Model Readiness"
+          subtitle="Configured adapters · capabilities · availability (no real inference loaded)"
+          icon={<BrainCircuit className="h-5 w-5" />}
+        />
+        {loading && !readiness && !readinessError && (
+          <p className="px-5 pb-5 text-sm text-slate-500">Model registry sorgulanıyor…</p>
+        )}
+        {readinessError && <p className="px-5 pb-5 text-sm text-amber-800">{readinessError}</p>}
+        {readiness && (
+          <>
+            <p className="px-5 pb-3 text-xs text-slate-500">
+              {readiness.enabled_count}/{readiness.model_count} enabled · pixel_default=
+              {String(readiness.pixel_analysis_default)} · {readiness.note}
+            </p>
+            <div className="overflow-x-auto px-2 pb-4">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50/70">
+                  <tr>
+                    <th className="th">Model</th>
+                    <th className="th">Kind</th>
+                    <th className="th">Modalities / Regions</th>
+                    <th className="th">Capabilities</th>
+                    <th className="th">Availability</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {readiness.models.map((m) => (
+                    <tr key={m.model_id}>
+                      <td className="td">
+                        <p className="font-mono text-xs font-medium text-navy-900">{m.model_id}</p>
+                        <p className="text-[11px] text-slate-500">v{m.version} · {m.source_kind}{m.enabled ? '' : ' · disabled'}</p>
+                      </td>
+                      <td className="td font-mono text-xs">{m.adapter_kind}</td>
+                      <td className="td text-xs text-slate-600">
+                        {(m.modalities.length ? m.modalities.join(', ') : '—') +
+                          ' / ' +
+                          (m.body_regions.length ? m.body_regions.join(', ') : '—')}
+                      </td>
+                      <td className="td text-xs text-slate-600">
+                        {m.task_capabilities.join(', ') || '—'}
+                        <span className="mt-0.5 block text-[11px] text-slate-400">
+                          in: {m.input_requirements.join(', ') || '—'}
+                          {m.allows_pixel_analysis ? ' · pixels allowed' : ' · pixels deny'}
+                        </span>
+                      </td>
+                      <td className="td">
+                        <span
+                          className={
+                            m.availability === 'available' || m.availability === 'configured'
+                              ? 'text-emerald-700'
+                              : m.availability === 'synthetic'
+                                ? 'text-slate-600'
+                                : 'text-amber-800'
+                          }
+                        >
+                          {m.availability}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Card>
 

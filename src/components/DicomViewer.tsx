@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import {
   ChevronLeft,
   ChevronRight,
+  Columns2,
   Contrast,
   ImageOff,
+  Maximize2,
+  Minimize2,
   Move,
+  Ruler,
   RotateCcw,
   ZoomIn,
 } from 'lucide-react'
 import { autoWindow, renderFrameToCanvas, type DicomFramePreview } from '../lib/dicomPreview'
 
-type Tool = 'wwwl' | 'pan' | 'zoom'
+type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure'
 
 const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
   { id: 'auto', label: 'Auto', wc: 0, ww: 0 },
@@ -75,7 +79,14 @@ export function DicomViewer({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [wc, setWc] = useState(0)
   const [ww, setWw] = useState(400)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [compare, setCompare] = useState(false)
+  const [compareIndex, setCompareIndex] = useState(0)
+  const [measurePts, setMeasurePts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [measureLabel, setMeasureLabel] = useState<string | null>(null)
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
+  const measureStartRef = useRef<{ x: number; y: number } | null>(null)
+  const compareCanvasRef = useRef<HTMLCanvasElement>(null)
 
   const safeIndex = Math.min(index, Math.max(0, viewable.length - 1))
   const frame = viewable[safeIndex]
@@ -115,6 +126,30 @@ export function DicomViewer({
     paint()
   }, [paint])
 
+  const compareFrame = viewable[Math.min(compareIndex, Math.max(0, viewable.length - 1))]
+  useEffect(() => {
+    const canvas = compareCanvasRef.current
+    if (!compare || !canvas || !compareFrame) return
+    renderFrameToCanvas(canvas, compareFrame, { windowCenter: wc, windowWidth: ww, invert })
+  }, [compare, compareFrame, wc, ww, invert])
+
+  useEffect(() => {
+    const onFs = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    const el = viewportRef.current
+    if (!el) return
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await el.requestFullscreen()
+    } catch {
+      /* browser may block; ignore */
+    }
+  }
+
   const goSlice = useCallback(
     (delta: number) => {
       setIndex((i) => Math.max(0, Math.min(viewable.length - 1, i + delta)))
@@ -132,12 +167,38 @@ export function DicomViewer({
     goSlice(e.deltaY > 0 ? 1 : -1)
   }
 
+  const canvasLocalPoint = (e: PointerEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * (frame?.cols ?? 1)
+    const y = ((e.clientY - rect.top) / Math.max(1, rect.height)) * (frame?.rows ?? 1)
+    return { x, y }
+  }
+
   const onPointerDown = (e: PointerEvent) => {
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    if (tool === 'measure') {
+      const pt = canvasLocalPoint(e)
+      measureStartRef.current = pt
+      setMeasurePts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
+      setMeasureLabel(null)
+      return
+    }
     dragRef.current = { x: e.clientX, y: e.clientY, wc, ww, panX: pan.x, panY: pan.y, zoom }
   }
 
   const onPointerMove = (e: PointerEvent) => {
+    if (tool === 'measure' && measureStartRef.current) {
+      const pt = canvasLocalPoint(e)
+      setMeasurePts({
+        x0: measureStartRef.current.x,
+        y0: measureStartRef.current.y,
+        x1: pt.x,
+        y1: pt.y,
+      })
+      return
+    }
     const d = dragRef.current
     if (!d) return
     const dx = e.clientX - d.x
@@ -153,6 +214,19 @@ export function DicomViewer({
   }
 
   const onPointerUp = () => {
+    if (tool === 'measure' && measurePts && frame) {
+      const dx = measurePts.x1 - measurePts.x0
+      const dy = measurePts.y1 - measurePts.y0
+      const pxDist = Math.hypot(dx, dy)
+      if (frame.pixelSpacingMm) {
+        const [rowMm, colMm] = frame.pixelSpacingMm
+        const mm = Math.hypot(dx * colMm, dy * rowMm)
+        setMeasureLabel(`${mm.toFixed(1)} mm`)
+      } else {
+        setMeasureLabel(`${pxDist.toFixed(1)} px (spacing yok)`)
+      }
+    }
+    measureStartRef.current = null
     dragRef.current = null
   }
 
@@ -182,6 +256,13 @@ export function DicomViewer({
       setTool('pan')
     } else if (e.key === 'z' || e.key === 'Z') {
       setTool('zoom')
+    } else if (e.key === 'm' || e.key === 'M') {
+      setTool('measure')
+    } else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault()
+      void toggleFullscreen()
+    } else if (e.key === 'c' || e.key === 'C') {
+      setCompare((v) => !v)
     }
   }
 
@@ -238,7 +319,7 @@ export function DicomViewer({
 
   return (
     <div
-      className={`flex flex-col overflow-hidden rounded-xl border border-[#12233a] bg-[#071B30] shadow-soft ${className}`}
+      className={`flex flex-col overflow-hidden rounded-xl border border-[#12233a] bg-[#071B30] shadow-soft ${fullscreen ? 'h-full' : ''} ${className}`}
       tabIndex={0}
       ref={viewportRef}
       onKeyDown={onKeyDown}
@@ -259,12 +340,21 @@ export function DicomViewer({
         <ToolButton active={tool === 'zoom'} title="Zoom (Z)" onClick={() => setTool('zoom')}>
           <ZoomIn className="h-3.5 w-3.5" /> Zoom
         </ToolButton>
+        <ToolButton active={tool === 'measure'} title="Ölçüm (M)" onClick={() => setTool('measure')}>
+          <Ruler className="h-3.5 w-3.5" /> Ölç
+        </ToolButton>
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
         <ToolButton active={invert} title="Invert (I)" onClick={() => setInvert((v) => !v)}>
           Invert
         </ToolButton>
         <ToolButton title="Reset (R)" onClick={resetView}>
           <RotateCcw className="h-3.5 w-3.5" /> Reset
+        </ToolButton>
+        <ToolButton active={compare} title="Karşılaştır (C)" onClick={() => setCompare((v) => !v)}>
+          <Columns2 className="h-3.5 w-3.5" /> Compare
+        </ToolButton>
+        <ToolButton title="Tam ekran (F)" onClick={() => void toggleFullscreen()}>
+          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </ToolButton>
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
         {PRESETS.map((p) => (
@@ -280,12 +370,13 @@ export function DicomViewer({
         ))}
         <span className="ml-auto font-mono text-[10px] tabular-nums text-slate-400">
           W:{Math.round(ww)} L:{Math.round(wc)} · {Math.round(zoom * 100)}% · {safeIndex + 1}/{viewable.length}
+          {measureLabel ? ` · ${measureLabel}` : ''}
         </span>
       </div>
 
       {/* Viewport */}
       <div
-        className="relative flex min-h-[min(62vh,640px)] flex-1 cursor-crosshair items-center justify-center overflow-hidden bg-black select-none"
+        className={`relative flex min-h-[min(62vh,640px)] flex-1 cursor-crosshair items-center justify-center overflow-hidden bg-black select-none ${compare ? 'gap-1' : ''}`}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -294,13 +385,46 @@ export function DicomViewer({
         onClick={() => viewportRef.current?.focus()}
       >
         <div
+          className={`relative flex items-center justify-center ${compare ? 'w-1/2' : 'w-full'}`}
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: 'center center',
           }}
         >
           <canvas ref={canvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
+          {measurePts && frame?.cols && frame.rows && (
+            <svg
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              viewBox={`0 0 ${frame.cols} ${frame.rows}`}
+              preserveAspectRatio="none"
+            >
+              <line
+                x1={measurePts.x0}
+                y1={measurePts.y0}
+                x2={measurePts.x1}
+                y2={measurePts.y1}
+                stroke="#5eead4"
+                strokeWidth={Math.max(1, frame.cols / 400)}
+              />
+            </svg>
+          )}
         </div>
+        {compare && (
+          <div className="flex w-1/2 flex-col items-center justify-center border-l border-white/10">
+            <canvas ref={compareCanvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
+            {viewable.length > 1 && (
+              <input
+                type="range"
+                min={0}
+                max={viewable.length - 1}
+                value={Math.min(compareIndex, viewable.length - 1)}
+                onChange={(e) => setCompareIndex(Number(e.target.value))}
+                className="mt-2 w-4/5 accent-[#0D827B]"
+                aria-label="Karşılaştırma dilimi"
+              />
+            )}
+          </div>
+        )}
 
         <div className="pointer-events-none absolute left-3 top-3 font-mono text-[10px] leading-relaxed text-teal-200/90">
           {frame.modality && <p>{frame.modality}</p>}

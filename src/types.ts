@@ -296,14 +296,28 @@ export interface DicomUploadResponse {
   note: string
 }
 
+export type BackendCasePriority = 'normal' | 'high' | 'urgent'
+
+export interface BackendStructuredClinicalHistory {
+  complaint?: string | null
+  onset?: string | null
+  course?: string | null
+  medications?: string | null
+  relevant_history?: string | null
+  handoff_notes?: string | null
+}
+
 export interface BackendCaseSummary {
   case_id: string
   patient_name: string
   species: BackendSpecies
   breed?: string | null
+  patient_age_years?: number | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
   status: string
+  priority?: BackendCasePriority
+  assigned_reviewer_id?: string | null
   scenario?: string | null
   created_at: string
   latest_job_id?: string | null
@@ -313,6 +327,7 @@ export interface BackendCaseSummary {
   instance_count?: number | null
   owner_subject?: string | null
   clinic_id?: string | null
+  referring_clinic?: string | null
 }
 
 export interface BackendCaseRecord {
@@ -323,9 +338,13 @@ export interface BackendCaseRecord {
   patient_name: string
   species: BackendSpecies
   breed?: string | null
+  patient_age_years?: number | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
   clinical_history?: string | null
+  clinical_history_structured?: BackendStructuredClinicalHistory | null
+  priority?: BackendCasePriority
+  assigned_reviewer_id?: string | null
   scenario?: string | null
   referring_clinic?: string | null
   /** Phase 5 ownership — null in demo / legacy rows. */
@@ -386,6 +405,8 @@ export interface VetCase {
   backendOutcome?: BackendPipelineResult['outcome']
   backendFindings?: BackendFindings
   backendDraft?: BackendDraftReport
+  assignedReviewerId?: string
+  handoffNotes?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number
   /** True when this row was loaded/synced from FastAPI (SQLite). */

@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.cases import router as cases_router
 from app.api.dicom import router as dicom_router
 from app.api.documents import router as documents_router
+from app.api.models import router as models_router
 from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
 from app.container import AppContainer
@@ -41,6 +42,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(reports_router)
     app.include_router(dicom_router)
     app.include_router(documents_router)
+    app.include_router(models_router)
     app.include_router(rag_router)
 
     @app.get("/api/v1/health")

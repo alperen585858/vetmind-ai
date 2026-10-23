@@ -150,8 +150,43 @@ export type BackendHealth = {
   note?: string
 }
 
+export type BackendModelReadinessEntry = {
+  model_id: string
+  version: string
+  species: string[]
+  modalities: string[]
+  body_regions: string[]
+  input_requirements: string[]
+  task_capabilities: string[]
+  availability: string
+  source_kind: string
+  allows_pixel_analysis: boolean
+  adapter_kind: string
+  enabled: boolean
+  adapter_registered: boolean
+  description: string
+  resource_hint: string
+  timeout_s: number
+  preprocessing_contract_id?: string | null
+  input_contract_id: string
+  output_schema_version: string
+}
+
+export type BackendModelReadiness = {
+  schema_version: string
+  model_count: number
+  enabled_count: number
+  pixel_analysis_default: boolean
+  note: string
+  models: BackendModelReadinessEntry[]
+}
+
 export async function fetchBackendHealth(): Promise<BackendHealth> {
   return request('/health')
+}
+
+export async function fetchModelReadiness(): Promise<BackendModelReadiness> {
+  return request('/models/readiness')
 }
 
 /**
@@ -177,6 +212,16 @@ export async function createAndAnalyzeCase(input: {
   breed: string
   clinicalHistory: string
   scenario: BackendScenario
+  patientAgeYears?: number
+  priority?: 'normal' | 'high' | 'urgent'
+  clinicalHistoryStructured?: {
+    complaint?: string
+    onset?: string
+    course?: string
+    medications?: string
+    relevant_history?: string
+    handoff_notes?: string
+  }
 }): Promise<BackendPipelineResult> {
   const { modality, anatomical_region } = scenarioRouting(input.scenario)
   const created = await request<{ case_id: string }>('/cases', {
@@ -185,9 +230,12 @@ export async function createAndAnalyzeCase(input: {
       patient_name: input.patientName,
       species: toBackendSpecies(input.species),
       breed: input.breed || null,
+      patient_age_years: input.patientAgeYears ?? null,
       modality,
       anatomical_region,
       clinical_history: input.clinicalHistory || 'Synthetic demo case. Not a real patient.',
+      clinical_history_structured: input.clinicalHistoryStructured ?? null,
+      priority: input.priority ?? 'normal',
       scenario: input.scenario,
       referring_clinic: 'Ornek Veteriner Klinigi (demo)',
     }),
@@ -476,6 +524,51 @@ export async function confirmDicomAndAnalyze(input: {
 
 export async function listBackendCases(): Promise<BackendCaseSummary[]> {
   return request<BackendCaseSummary[]>('/cases')
+}
+
+export async function listBackendWorklist(filters?: {
+  status?: string
+  modality?: string
+  priority?: string
+  assigned_to?: string
+  q?: string
+}): Promise<BackendCaseSummary[]> {
+  const params = new URLSearchParams()
+  if (filters?.status) params.set('status', filters.status)
+  if (filters?.modality) params.set('modality', filters.modality)
+  if (filters?.priority) params.set('priority', filters.priority)
+  if (filters?.assigned_to) params.set('assigned_to', filters.assigned_to)
+  if (filters?.q) params.set('q', filters.q)
+  const qs = params.toString()
+  return request<BackendCaseSummary[]>(`/cases/worklist${qs ? `?${qs}` : ''}`)
+}
+
+export async function updateCaseAssignment(
+  caseId: string,
+  payload: { assigned_reviewer_id?: string | null; priority?: 'normal' | 'high' | 'urgent' },
+): Promise<BackendCaseRecord> {
+  return request(`/cases/${caseId}/assignment`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function saveBackendDraftReport(
+  caseId: string,
+  sections: ReportSections,
+  note?: string,
+): Promise<BackendDraftReport> {
+  return request(`/cases/${caseId}/report/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      editor_id: 'expert-demo',
+      technique: sections.klinikOzet,
+      findings: sections.bulgular,
+      impression: sections.degerlendirme,
+      recommendations: sections.oneriler,
+      note: note || undefined,
+    }),
+  })
 }
 
 export async function getBackendCase(caseId: string, signal?: AbortSignal): Promise<BackendCaseRecord> {

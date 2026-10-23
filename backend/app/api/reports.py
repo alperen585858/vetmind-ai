@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import get_case_service
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
-from app.schemas.case import CaseRecord, ReviewFeedback
+from app.schemas.case import CaseRecord, ReportDraftUpdate, ReviewFeedback
 from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
 from app.services.case_service import CaseService
 
@@ -18,6 +18,17 @@ def get_report(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> DraftReport:
     return service.get_report(case_id, version=version, principal=principal)
+
+
+@router.put("/cases/{case_id}/report/draft", response_model=DraftReport)
+def save_draft_report(
+    case_id: str,
+    payload: ReportDraftUpdate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> DraftReport:
+    """Save draft sections without approve/reject. Approved reports remain immutable."""
+    return service.save_draft_report(case_id, payload, principal=principal)
 
 
 @router.get(

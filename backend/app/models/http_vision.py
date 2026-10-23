@@ -329,3 +329,29 @@ def build_optional_http_vision(
         timeout_s=timeout_s,
         version=version,
     )
+
+
+def build_http_vision_entrypoint(
+    *,
+    endpoint: str,
+    model_id: str = "remote-vision-v1",
+    api_key: str | None = None,
+    timeout_s: float = 30.0,
+    version: str = "0.1.0-http",
+    transmit_pixels: bool = False,
+):
+    """Phase 9 entrypoint contract wrapper around the HTTP adapter (pixels off by default)."""
+    from app.models.bridge_resources import ResourceLimits
+    from app.models.entrypoint import HttpVisionEntrypoint
+
+    return HttpVisionEntrypoint(
+        model_id=model_id,
+        version=version,
+        endpoint=endpoint,
+        api_key=api_key,
+        timeout_s=timeout_s,
+        limits=ResourceLimits(
+            inference_timeout_s=timeout_s,
+            transmit_pixels_over_http=transmit_pixels,
+        ),
+    )

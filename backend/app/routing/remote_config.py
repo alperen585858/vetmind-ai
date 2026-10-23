@@ -105,6 +105,12 @@ def remote_capability_from_settings(settings: Settings) -> ModelCapability | Non
     if priority < 0:
         raise VisionConfigError("vision_priority must be >= 0.")
 
+    from app.routing.capabilities import (
+        AVAILABILITY_CONFIGURED,
+        INPUT_METADATA_ONLY,
+        TASK_STRUCTURED_FINDINGS,
+    )
+
     return ModelCapability(
         model_id=model_id,
         modalities=modalities,
@@ -121,4 +127,8 @@ def remote_capability_from_settings(settings: Settings) -> ModelCapability | Non
         output_schema_version="1.1.0",
         timeout_s=float(getattr(settings, "vision_timeout_s", 30.0) or 30.0),
         resource_hint="remote",
+        task_capabilities=frozenset({TASK_STRUCTURED_FINDINGS}),
+        input_requirements=frozenset({INPUT_METADATA_ONLY}),
+        availability=AVAILABILITY_CONFIGURED,
+        adapter_kind="http",
     )

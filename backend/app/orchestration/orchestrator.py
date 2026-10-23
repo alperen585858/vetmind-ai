@@ -173,7 +173,9 @@ class AIOrchestrator:
                 except ImagingAdapterError as exc:
                     msg = str(exc)
                     failures.append(msg)
-                    if "timed out" in msg.lower():
+                    from app.models.errors import InferenceTimeoutError
+
+                    if isinstance(exc, InferenceTimeoutError) or "timed out" in msg.lower():
                         job.status = JobStatus.TIMED_OUT
                 except Exception as exc:  # noqa: BLE001 — convert unexpected adapter crashes
                     failures.append(f"Adapter {model_id} raised {type(exc).__name__}.")

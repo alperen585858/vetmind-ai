@@ -34,6 +34,10 @@ class Settings:
     vision_source_kind: str = "real"
     vision_timeout_s: float = 30.0
     vision_model_version: str = "0.1.0-http"
+    # Phase 9 bridge resource limits (prep/inference; pixel egress still default-deny).
+    vision_max_instances: int = 512
+    vision_max_tensor_bytes: int = 256 * 1024 * 1024
+    vision_transmit_pixels: bool = False
     # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe).
     llm_provider: str = "mock"
     llm_endpoint: str | None = None
@@ -164,6 +168,19 @@ def load_settings() -> Settings:
     vision_model_version = (
         os.getenv("VETMIND_VISION_MODEL_VERSION", "0.1.0-http").strip() or "0.1.0-http"
     )
+    try:
+        vision_max_instances = int(os.getenv("VETMIND_VISION_MAX_INSTANCES", "512"))
+    except ValueError:
+        vision_max_instances = 512
+    vision_max_instances = max(1, min(vision_max_instances, 4096))
+    try:
+        vision_max_tensor_bytes = int(
+            os.getenv("VETMIND_VISION_MAX_TENSOR_BYTES", str(256 * 1024 * 1024))
+        )
+    except ValueError:
+        vision_max_tensor_bytes = 256 * 1024 * 1024
+    vision_max_tensor_bytes = max(1024 * 1024, vision_max_tensor_bytes)
+    vision_transmit_pixels = _env_bool("VETMIND_VISION_TRANSMIT_PIXELS", False)
 
     llm_provider = os.getenv("VETMIND_LLM_PROVIDER", "mock").strip().lower() or "mock"
     llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
@@ -252,6 +269,9 @@ def load_settings() -> Settings:
         vision_source_kind=vision_source_kind,
         vision_timeout_s=max(1.0, vision_timeout_s),
         vision_model_version=vision_model_version,
+        vision_max_instances=vision_max_instances,
+        vision_max_tensor_bytes=vision_max_tensor_bytes,
+        vision_transmit_pixels=vision_transmit_pixels,
         llm_provider=llm_provider,
         llm_endpoint=llm_endpoint,
         llm_provider_id=llm_provider_id,

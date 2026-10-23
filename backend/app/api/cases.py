@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM
-from app.schemas.case import CaseCreate, CaseRecord, CaseSummary
+from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
+from app.schemas.case import CaseAssignmentUpdate, CaseCreate, CaseRecord, CaseSummary
 from app.schemas.model_input import ImagingModelInput
 from app.security.audit import AuditOutcome
 from app.services.case_service import CaseService
@@ -50,6 +50,37 @@ def list_cases(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> list[CaseSummary]:
     return service.list_cases(principal=principal)
+
+
+@router.get("/worklist", response_model=list[CaseSummary])
+def list_worklist(
+    status: str | None = Query(default=None),
+    modality: str | None = Query(default=None),
+    priority: str | None = Query(default=None),
+    assigned_to: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
+) -> list[CaseSummary]:
+    """Radiologist worklist with search/filter (tenant-scoped)."""
+    return service.list_worklist(
+        principal=principal,
+        status=status,
+        modality=modality,
+        priority=priority,
+        assigned_to=assigned_to,
+        q=q,
+    )
+
+
+@router.patch("/{case_id}/assignment", response_model=CaseRecord)
+def update_assignment(
+    case_id: str,
+    payload: CaseAssignmentUpdate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> CaseRecord:
+    return service.update_assignment(case_id, payload, principal=principal)
 
 
 @router.get("/{case_id}", response_model=CaseRecord)

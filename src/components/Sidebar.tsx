@@ -27,7 +27,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     ],
     expert: [
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
-      { to: '/kuyruk', label: 'Onay Kuyruğu', icon: <ClipboardCheck className={ic} />, badge: queue },
+      { to: '/kuyruk', label: 'İş Listesi', icon: <ClipboardCheck className={ic} />, badge: queue },
       { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
     ],
     owner: [

@@ -329,6 +329,8 @@ class ManualReviewStub:
 
 def default_model_registry() -> dict[str, ImagingModel]:
     """Injectable adapter registry. Keys are model_id strings used by the router."""
+    from app.models.synthetic_simulator import SYNTHETIC_MODEL_ID, build_synthetic_simulator
+
     registry: dict[str, ImagingModel] = {
         MockBrainMriModel.model_id: MockBrainMriModel(),
         MockBrainMriAltModel.model_id: MockBrainMriAltModel(),
@@ -337,5 +339,7 @@ def default_model_registry() -> dict[str, ImagingModel]:
         MockXrVisionModel.model_id: MockXrVisionModel(),
         MockMultimodalVlmModel.model_id: MockMultimodalVlmModel(),
         ManualReviewStub.model_id: ManualReviewStub(),
+        # Disabled in default_capabilities — registered for readiness / direct probe only.
+        SYNTHETIC_MODEL_ID: build_synthetic_simulator(),
     }
     return registry

@@ -27,6 +27,8 @@ export interface DicomFramePreview {
   /** Default window from DICOM tags when present. */
   defaultWindowCenter?: number
   defaultWindowWidth?: number
+  /** Row/col spacing in mm when PixelSpacing present (calibrated measure). */
+  pixelSpacingMm?: [number, number]
   /** Cached thumbnail data URL (auto window). */
   thumbUrl?: string
 }
@@ -174,6 +176,15 @@ export async function buildDicomPreview(file: File): Promise<DicomFramePreview> 
       pixelMax = 1
     }
 
+    const spacingRaw = tag(dataSet, 'x00280030')
+    let pixelSpacingMm: [number, number] | undefined
+    if (spacingRaw) {
+      const parts = spacingRaw.split('\\').map((p) => Number(p))
+      if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[0]! > 0 && parts[1]! > 0) {
+        pixelSpacingMm = [parts[0]!, parts[1]!]
+      }
+    }
+
     const frame: DicomFramePreview = {
       fileName: file.name,
       relativePath: file.webkitRelativePath || undefined,
@@ -192,6 +203,7 @@ export async function buildDicomPreview(file: File): Promise<DicomFramePreview> 
       pixelMax,
       defaultWindowCenter: firstNumber(dataSet, 'x00281050'),
       defaultWindowWidth: firstNumber(dataSet, 'x00281051'),
+      pixelSpacingMm,
     }
     frame.thumbUrl = makeThumb(frame)
     return frame

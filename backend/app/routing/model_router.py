@@ -1,6 +1,13 @@
 from dataclasses import dataclass
 
-from app.routing.capabilities import ModelCapability, default_capabilities
+from app.routing.capabilities import (
+    AVAILABILITY_NOT_CONFIGURED,
+    INPUT_METADATA_ONLY,
+    INPUT_PIXELS_2D,
+    INPUT_PIXELS_3D,
+    ModelCapability,
+    default_capabilities,
+)
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Modality, Species
 
@@ -19,7 +26,8 @@ class RouteDecision:
 class ModelRouter:
     """Capability-based router. No LLM. No MockScenario. No concrete adapter imports.
 
-    Matches case modality, anatomical region, and species against ModelCapability entries.
+    Matches case modality, anatomical region, species, input requirements, and
+    preprocessing/pixel constraints against ModelCapability entries.
     """
 
     def __init__(self, capabilities: list[ModelCapability] | None = None) -> None:
@@ -32,10 +40,10 @@ class ModelRouter:
         return list(self._capabilities)
 
     def route(self, case: CaseRecord) -> RouteDecision:
-        matches = [cap for cap in self._capabilities if self._matches(cap, case)]
-        matches.sort(key=lambda c: (c.priority, c.model_id))
+        anatomy_matches = [cap for cap in self._capabilities if self._matches_anatomy(cap, case)]
+        anatomy_matches.sort(key=lambda c: (c.priority, c.model_id))
 
-        if not matches:
+        if not anatomy_matches:
             return RouteDecision(
                 supported=False,
                 model_ids=[MANUAL_REVIEW_MODEL],
@@ -47,7 +55,21 @@ class ModelRouter:
                 rule_id="fallback.manual_review",
             )
 
-        model_ids = list(dict.fromkeys(c.model_id for c in matches))
+        compatible = [cap for cap in anatomy_matches if self._input_compatible(cap, case)]
+        if not compatible:
+            ids = ", ".join(c.model_id for c in anatomy_matches)
+            return RouteDecision(
+                supported=False,
+                model_ids=[MANUAL_REVIEW_MODEL],
+                reason=(
+                    f"Models matched anatomy ({ids}) but input/preprocessing requirements "
+                    "are unsupported for this case. Routed to manual review."
+                ),
+                rule_id="fallback.manual_review.unsupported_input",
+                matched_capabilities=tuple(c.model_id for c in anatomy_matches),
+            )
+
+        model_ids = list(dict.fromkeys(c.model_id for c in compatible))
         return RouteDecision(
             supported=True,
             model_ids=model_ids,
@@ -56,12 +78,14 @@ class ModelRouter:
                 f"{case.modality.value} + {case.anatomical_region.value} + {case.species.value}."
             ),
             rule_id=f"capability.{case.modality.value}.{case.anatomical_region.value}",
-            matched_capabilities=tuple(c.model_id for c in matches),
+            matched_capabilities=tuple(c.model_id for c in compatible),
         )
 
     @staticmethod
-    def _matches(cap: ModelCapability, case: CaseRecord) -> bool:
+    def _matches_anatomy(cap: ModelCapability, case: CaseRecord) -> bool:
         if not cap.enabled:
+            return False
+        if cap.availability == AVAILABILITY_NOT_CONFIGURED:
             return False
         if case.modality not in cap.modalities:
             return False
@@ -70,6 +94,22 @@ class ModelRouter:
         if cap.species is not None and case.species not in cap.species:
             return False
         return True
+
+    @staticmethod
+    def _input_compatible(cap: ModelCapability, case: CaseRecord) -> bool:
+        """Reject pixel-requiring models when authorization/policy cannot satisfy them."""
+        # Lazy import: avoids capabilities ↔ pixel_authorization ↔ router cycle.
+        from app.models.pixel_authorization import evaluate_pixel_access
+
+        reqs = cap.input_requirements or frozenset({INPUT_METADATA_ONLY})
+        needs_pixels = bool(reqs & {INPUT_PIXELS_2D, INPUT_PIXELS_3D})
+        if not needs_pixels:
+            return True
+        # Required pixel path: capability flag + policy authorization.
+        if not cap.allows_pixel_analysis:
+            return False
+        decision = evaluate_pixel_access(case, model_id=cap.model_id, capability=cap)
+        return decision.authorized
 
 
 # Backward-compatible alias used by older tests/docs naming.

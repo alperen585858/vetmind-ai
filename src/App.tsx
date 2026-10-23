@@ -17,6 +17,7 @@ import DicomUpload from './pages/DicomUpload'
 import Processing from './pages/Processing'
 import CaseDetail from './pages/CaseDetail'
 import ExpertReview from './pages/ExpertReview'
+import RadiologistWorkspace from './pages/RadiologistWorkspace'
 import ReviewQueue from './pages/ReviewQueue'
 import ReportList from './pages/ReportList'
 import ApprovedReport from './pages/ApprovedReport'
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="vakalar/:id" element={<Gate roles={['vet', 'expert']}><CaseDetail /></Gate>} />
             <Route path="vakalar/:id/isleme" element={<Gate roles={['vet', 'expert']}><Processing /></Gate>} />
             <Route path="vakalar/:id/inceleme" element={<Gate roles={['expert']}><ExpertReview /></Gate>} />
+            <Route path="vakalar/:id/calisma" element={<Gate roles={['expert']}><RadiologistWorkspace /></Gate>} />
             <Route path="kuyruk" element={<Gate roles={['expert']}><ReviewQueue /></Gate>} />
             <Route path="raporlar" element={<Gate roles={['vet', 'owner', 'expert']}><ReportList /></Gate>} />
             <Route path="raporlar/:id" element={<Gate roles={['vet', 'owner', 'expert']}><ApprovedReport /></Gate>} />

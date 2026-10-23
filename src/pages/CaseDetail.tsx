@@ -13,6 +13,7 @@ import { AIDisclaimer } from '../components/AIDisclaimer'
 import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
+import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DicomViewer } from '../components/DicomViewer'
 import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
@@ -241,6 +242,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               <Row k="Yaş / Kilo" v={`${p.age} yaş · ${p.weight} kg`} />
               <Row k="Sahip" v={`${p.ownerName} · ${p.ownerPhone}`} />
               <Row k="Klinik / Hekim" v={`${c.clinic} · ${c.vetName}`} />
+              <Row k="Öncelik / Atama" v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>
           </Card>
           <Card>
@@ -327,6 +329,8 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
           </div>
         </Card>
       </div>
+      <div className="space-y-6">
+      <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
       <Card>
         <CardHeader title="Durum Zaman Çizelgesi" />
         <ol className="relative px-5 py-4">
@@ -345,6 +349,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
           })}
         </ol>
       </Card>
+      </div>
     </div>
   )
 }

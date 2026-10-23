@@ -92,22 +92,30 @@ function basePatient(name: string, species: Species, breed?: string | null): Pat
 }
 
 /** Lightweight row for list views (from CaseSummary). */
+function priorityFromBackend(p?: string | null): VetCase['priority'] {
+  if (p === 'urgent') return 'Acil'
+  if (p === 'high') return 'Yüksek'
+  return 'Normal'
+}
+
 export function summaryToVetCase(s: BackendCaseSummary): VetCase {
   const species = speciesFromBackend(s.species)
   const status = caseStatusFromLifecycle(s.status)
   const created = s.created_at.slice(0, 10)
+  const patient = basePatient(s.patient_name, species, s.breed)
+  if (s.patient_age_years != null) patient.age = s.patient_age_years
   return {
     id: s.case_id,
     no: s.case_id.replace(/^case-/, 'VM-').toUpperCase(),
-    patient: basePatient(s.patient_name, species, s.breed),
+    patient,
     clinical: emptyClinical(),
     neuro: EMPTY_NEURO,
     documents: [],
     status,
     module: 'Nöroloji',
-    priority: 'Normal',
+    priority: priorityFromBackend(s.priority),
     createdAt: created,
-    clinic: CLINIC,
+    clinic: s.referring_clinic || s.clinic_id || CLINIC,
     vetName: 'Backend',
     corrections: [],
     timeline: [{ date: s.created_at, label: 'Backend’den yüklendi', by: 'sync' }],
@@ -121,6 +129,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     studyInstanceUid: s.study_instance_uid ?? undefined,
     seriesCount: s.series_count ?? undefined,
     instanceCount: s.instance_count ?? undefined,
+    assignedReviewerId: s.assigned_reviewer_id ?? undefined,
   }
 }
 
@@ -128,8 +137,25 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
 export function recordToVetCase(r: BackendCaseRecord): VetCase {
   const species = speciesFromBackend(r.species)
   const status = caseStatusFromLifecycle(r.status)
+  const structured = r.clinical_history_structured
   const clinical = emptyClinical(r.clinical_history)
+  if (structured) {
+    clinical.complaint = structured.complaint || clinical.complaint
+    if (structured.onset === 'Akut' || structured.onset === 'Kronik') {
+      clinical.onset = structured.onset
+    }
+    if (
+      structured.course === 'Progresif' ||
+      structured.course === 'Stabil' ||
+      structured.course === 'İyileşen'
+    ) {
+      clinical.course = structured.course
+    }
+    clinical.medications = structured.medications || clinical.medications
+    clinical.history = structured.relevant_history || clinical.history
+  }
   const patient = basePatient(r.patient_name, species, r.breed)
+  if (r.patient_age_years != null) patient.age = r.patient_age_years
   const created = r.created_at.slice(0, 10)
 
   let ai = undefined
@@ -197,13 +223,15 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     documents: docs,
     status,
     module: 'Nöroloji',
-    priority: 'Normal',
+    priority: priorityFromBackend(r.priority),
     createdAt: created,
     clinic: r.referring_clinic || CLINIC,
     vetName: 'Backend',
     ai,
     aiDraft,
     report,
+    assignedReviewerId: r.assigned_reviewer_id ?? undefined,
+    handoffNotes: structured?.handoff_notes ?? undefined,
     corrections: [],
     timeline: [
       { date: r.created_at, label: 'Backend vakası', by: 'api' },

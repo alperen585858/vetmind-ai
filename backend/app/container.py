@@ -2,8 +2,10 @@ from app.auth.security import DEMO_USERS, AuthSettings
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
+from app.models.bridge_resources import ResourceLimits
 from app.models.http_vision import build_optional_http_vision
 from app.models.mock_vision import default_model_registry
+from app.models.registry import ModelRegistry
 from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.retriever import LexicalRagRetriever
@@ -88,6 +90,13 @@ class AppContainer:
 
         # F8: fail fast if enabled capabilities lack adapters or IDs conflict.
         validate_registry_capabilities(capabilities, self.models)
+        self.model_registry_view = ModelRegistry(capabilities, self.models)
+        self.vision_resource_limits = ResourceLimits(
+            max_instances=self.settings.vision_max_instances,
+            max_tensor_bytes=self.settings.vision_max_tensor_bytes,
+            inference_timeout_s=self.settings.vision_timeout_s,
+            transmit_pixels_over_http=self.settings.vision_transmit_pixels,
+        )
 
         self.vision_execution_mode = parse_vision_execution_mode(
             self.settings.vision_execution_policy

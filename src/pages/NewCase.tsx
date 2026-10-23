@@ -427,6 +427,21 @@ export default function NewCase() {
             breed: patient.breed,
             clinicalHistory: history,
             scenario: pipeline,
+            patientAgeYears: patient.age || undefined,
+            priority:
+              neuro.gait === 'Pleji' || neuro.deepPain === 'Yok'
+                ? 'urgent'
+                : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
+                  ? 'high'
+                  : 'normal',
+            clinicalHistoryStructured: {
+              complaint: clinical.complaint || undefined,
+              onset: clinical.onset || undefined,
+              course: clinical.course || undefined,
+              medications: clinical.medications || undefined,
+              relevant_history: clinical.history || undefined,
+              handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'}`,
+            },
           })
         }
         backendCaseId = result.job.case_id

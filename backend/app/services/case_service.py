@@ -11,7 +11,14 @@ from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
-from app.schemas.case import CaseCreate, CaseRecord, CaseSummary, ReviewFeedback
+from app.schemas.case import (
+    CaseAssignmentUpdate,
+    CaseCreate,
+    CaseRecord,
+    CaseSummary,
+    ReportDraftUpdate,
+    ReviewFeedback,
+)
 from app.schemas.enums import (
     CaseLifecycleStatus,
     ExpertReviewStatus,
@@ -32,6 +39,8 @@ from app.services.report_versioning import (
     freeze_approved,
     get_version,
     list_version_summaries,
+    snapshot_from_draft,
+    upsert_version_snapshot,
 )
 from app.services.repository import CaseRepository
 from app.validation.report_validator import ReportValidator
@@ -103,14 +112,30 @@ class CaseService:
         )
 
     def create_case(self, payload: CaseCreate, *, principal: AuthPrincipal | None = None) -> CaseRecord:
+        history = payload.clinical_history
+        structured = payload.clinical_history_structured
+        if structured is not None and not history:
+            parts = [
+                structured.complaint,
+                structured.onset,
+                structured.course,
+                structured.medications,
+                structured.relevant_history,
+                structured.handoff_notes,
+            ]
+            history = "\n".join(p for p in parts if p) or None
         case = CaseRecord(
             case_id=f"case-{uuid4().hex[:12]}",
             patient_name=payload.patient_name.strip(),
             species=payload.species,
             breed=payload.breed,
+            patient_age_years=payload.patient_age_years,
             modality=payload.modality,
             anatomical_region=payload.anatomical_region,
-            clinical_history=payload.clinical_history,
+            clinical_history=history,
+            clinical_history_structured=structured,
+            priority=payload.priority or "normal",
+            assigned_reviewer_id=payload.assigned_reviewer_id,
             scenario=payload.scenario,
             study=payload.study,
             referring_clinic=payload.referring_clinic,
@@ -148,9 +173,12 @@ class CaseService:
                     patient_name=c.patient_name,
                     species=c.species,
                     breed=c.breed,
+                    patient_age_years=c.patient_age_years,
                     modality=c.modality,
                     anatomical_region=c.anatomical_region,
                     status=c.status,
+                    priority=getattr(c, "priority", None) or "normal",
+                    assigned_reviewer_id=c.assigned_reviewer_id,
                     scenario=c.scenario,
                     created_at=c.created_at,
                     latest_job_id=c.latest_job_id,
@@ -165,9 +193,136 @@ class CaseService:
                     else (c.dicom_study.instance_count if c.dicom_study else None),
                     owner_subject=c.owner_subject,
                     clinic_id=c.clinic_id,
+                    referring_clinic=c.referring_clinic,
                 )
             )
         return summaries
+
+    def list_worklist(
+        self,
+        *,
+        principal: AuthPrincipal | None = None,
+        status: str | None = None,
+        modality: str | None = None,
+        priority: str | None = None,
+        assigned_to: str | None = None,
+        q: str | None = None,
+    ) -> list[CaseSummary]:
+        """Radiologist worklist: tenant-filtered summaries with optional filters."""
+        rows = self.list_cases(principal=principal)
+        status_l = (status or "").strip().lower()
+        modality_l = (modality or "").strip().upper()
+        priority_l = (priority or "").strip().lower()
+        assigned = (assigned_to or "").strip()
+        query = (q or "").strip().lower()
+
+        def _match(s: CaseSummary) -> bool:
+            if status_l and s.status.value != status_l:
+                return False
+            if modality_l and s.modality.value != modality_l:
+                return False
+            if priority_l and (s.priority or "normal") != priority_l:
+                return False
+            if assigned == "unassigned":
+                if s.assigned_reviewer_id:
+                    return False
+            elif assigned and (s.assigned_reviewer_id or "") != assigned:
+                return False
+            if query:
+                hay = " ".join(
+                    [
+                        s.case_id,
+                        s.patient_name,
+                        s.breed or "",
+                        s.referring_clinic or "",
+                        s.clinic_id or "",
+                    ]
+                ).lower()
+                if query not in hay:
+                    return False
+            return True
+
+        priority_rank = {"urgent": 0, "high": 1, "normal": 2}
+        matched = [s for s in rows if _match(s)]
+        matched.sort(
+            key=lambda s: (
+                priority_rank.get(s.priority or "normal", 9),
+                s.created_at,
+            )
+        )
+        return matched
+
+    def update_assignment(
+        self,
+        case_id: str,
+        payload: CaseAssignmentUpdate,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseRecord:
+        case = self.get_case(case_id, principal=principal)
+        if payload.assigned_reviewer_id is not None:
+            text = payload.assigned_reviewer_id.strip()
+            case.assigned_reviewer_id = text or None
+        if payload.priority is not None:
+            case.priority = payload.priority
+        case.updated_at = _now()
+        saved = self._repo.save_case(case)
+        self._emit_audit("case.assign", principal=principal, resource=case_id)
+        return saved
+
+    def save_draft_report(
+        self,
+        case_id: str,
+        payload: ReportDraftUpdate,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> DraftReport:
+        """Persist editable draft sections. Refuses immutable/approved reports."""
+        case = self.get_case(case_id, principal=principal)
+        if case.draft_report is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No draft report to save.",
+            )
+        report = case.draft_report.model_copy(deep=True)
+        try:
+            assert_mutable_for_edit(report)
+        except (PermissionError, ValueError) as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        if report.status == ReportStatus.APPROVED or report.immutable:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Approved reports are immutable and cannot be edited in place.",
+            )
+        if payload.technique is not None:
+            report.technique.text = payload.technique
+        if payload.findings is not None:
+            report.findings.text = payload.findings
+        if payload.impression is not None:
+            report.impression.text = payload.impression
+        if payload.recommendations is not None:
+            report.recommendations.text = payload.recommendations
+        if payload.note:
+            report.revision_notes = payload.note
+        report.updated_at = _now()
+        case.draft_report = report
+        try:
+            upsert_version_snapshot(
+                case,
+                snapshot_from_draft(
+                    case,
+                    report,
+                    author_or_source=payload.editor_id,
+                    revision_notes=payload.note,
+                    immutable=False,
+                ),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        self._emit_audit("report.draft_save", principal=principal, resource=case_id)
+        return report
 
     def get_case(self, case_id: str, *, principal: AuthPrincipal | None = None) -> CaseRecord:
         case = self._repo.get_case(case_id)
