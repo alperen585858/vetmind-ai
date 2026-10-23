@@ -134,7 +134,12 @@ class AppContainer:
             audit=self.audit,
             malware_scanner=self.malware_scanner,
         )
-        self.documents = DocumentService(self.repo, self.quarantine)
+        self.documents = DocumentService(
+            self.repo,
+            self.quarantine,
+            capabilities=capabilities,
+            tenant_isolation=self.settings.tenant_isolation,
+        )
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,
             api_key=self.settings.auth_api_key,

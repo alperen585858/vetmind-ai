@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -56,8 +57,27 @@ class AIOrchestrator:
     def validator(self) -> ReportValidator:
         return self._validator
 
-    def run(self, case: CaseRecord, job: AnalysisJob) -> PipelineResult:
-        if job.cancel_requested or job.status == JobStatus.CANCEL_REQUESTED:
+    def run(
+        self,
+        case: CaseRecord,
+        job: AnalysisJob,
+        *,
+        cancel_probe: Callable[[], bool] | None = None,
+    ) -> PipelineResult:
+        def _cancelled() -> bool:
+            if job.cancel_requested or job.status == JobStatus.CANCEL_REQUESTED:
+                return True
+            if cancel_probe is None:
+                return False
+            try:
+                if cancel_probe():
+                    job.cancel_requested = True
+                    return True
+            except Exception:  # noqa: BLE001 — probe must never crash the pipeline
+                return False
+            return False
+
+        if _cancelled():
             job.status = JobStatus.CANCELLED
             job.outcome = PipelineOutcome.FAILED
             job.error_message = "Cancelled before start (cooperative cancel)."
@@ -116,7 +136,7 @@ class AIOrchestrator:
             messages.append(decision.reason)
             messages.append(f"analysis_mode={job.analysis_mode}")
 
-            if job.cancel_requested:
+            if _cancelled():
                 job.status = JobStatus.CANCELLED
                 job.outcome = PipelineOutcome.FAILED
                 job.error_message = "Cancelled after routing (before adapters)."
@@ -132,7 +152,7 @@ class AIOrchestrator:
             outputs: list[StructuredFindings] = []
             failures: list[str] = []
             for model_id in decision.model_ids:
-                if job.cancel_requested:
+                if _cancelled():
                     job.status = JobStatus.CANCELLED
                     job.outcome = PipelineOutcome.FAILED
                     job.error_message = "Cancelled during adapter loop."

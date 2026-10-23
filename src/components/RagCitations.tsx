@@ -27,7 +27,9 @@ export function RagCitations({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-navy-900">
                   [{c.source_id}] {c.title}
-                  <span className="ml-2 font-mono text-[11px] text-slate-400">score={c.score}</span>
+                  <span className="ml-2 font-mono text-[11px] text-slate-400" title="Retrieval similarity only — not clinical confidence">
+                    retrieval_score={c.score}
+                  </span>
                 </p>
                 <p className="text-xs text-slate-500">{c.section}</p>
                 <p className="mt-1 text-sm leading-relaxed text-navy-800">{c.passage}</p>

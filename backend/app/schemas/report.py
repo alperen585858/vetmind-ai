@@ -57,8 +57,8 @@ class DraftReport(BaseModel):
     reviewer_comment: Optional[str] = None
     rag_citations: list[RagPassage] = Field(default_factory=list)
     rag_note: str = (
-        "Optional RAG citations are demo lexical matches only. "
-        "They are not clinical evidence and do not validate findings."
+        "Optional RAG citations list retrieved demo passages (retrieval similarity score only). "
+        "Score is not clinical confidence. Citations are not clinical evidence and do not validate findings."
     )
     # Phase 4 versioning (defaults keep older persisted payloads valid).
     version: int = 1

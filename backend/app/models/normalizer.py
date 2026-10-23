@@ -25,14 +25,38 @@ def _location_key(location: str) -> str:
     return " ".join(location.strip().lower().split())
 
 
+def _primary_series_uid(finding: Finding) -> str | None:
+    """Best-effort DICOM series anchor from evidence refs (F9)."""
+    for ref in finding.evidence_references:
+        if ref.series_instance_uid:
+            return ref.series_instance_uid
+    return None
+
+
+def _conflict_group_key(finding: Finding) -> str:
+    """Group by normalized location + series UID when both sides have anchors.
+
+    Findings with different series UIDs are not auto-conflicted solely on
+    free-text location (reduces false positives across series). Missing series
+    UIDs still fall back to location-only grouping for mock demos.
+    """
+    loc = _location_key(finding.anatomical_location)
+    series = _primary_series_uid(finding)
+    return f"{loc}|series:{series}" if series else loc
+
+
 def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflict]:
-    """Generic conflict flags. Findings are never dropped or auto-resolved."""
-    by_loc: dict[str, list[Finding]] = defaultdict(list)
+    """Generic conflict flags. Findings are never dropped or auto-resolved.
+
+    Uses location + optional series_instance_uid; never auto-resolves. Finding
+    codes and statuses decide incompatibility within a group.
+    """
+    by_key: dict[str, list[Finding]] = defaultdict(list)
     for finding in findings:
-        by_loc[_location_key(finding.anatomical_location)].append(finding)
+        by_key[_conflict_group_key(finding)].append(finding)
 
     conflicts: list[PotentialConflict] = []
-    for idx, (loc_key, group) in enumerate(sorted(by_loc.items())):
+    for idx, (group_key, group) in enumerate(sorted(by_key.items())):
         if len(group) < 2:
             continue
         models = {f.source_model for f in group}
@@ -56,15 +80,19 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
         if opposing_status or soft_status:
             reason_parts.append(f"distinct statuses={[s.value for s in statuses]}")
         reason_parts.append(f"models={sorted(models)}")
+        series_uids = {s for s in (_primary_series_uid(f) for f in group) if s}
+        if series_uids:
+            reason_parts.append(f"series_uids={sorted(series_uids)}")
 
         for finding in group:
             finding.conflict_group_id = conflict_id
 
+        loc_key = _location_key(group[0].anatomical_location)
         conflicts.append(
             PotentialConflict(
                 conflict_id=conflict_id,
                 finding_ids=[f.finding_id for f in group],
-                anatomical_location_key=loc_key,
+                anatomical_location_key=loc_key if group_key == loc_key else group_key,
                 reason="POTENTIAL CONFLICT PRESERVED: " + "; ".join(reason_parts),
             )
         )

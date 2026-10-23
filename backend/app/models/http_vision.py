@@ -127,9 +127,10 @@ class HttpRemoteVisionModel:
             "note": "Remote Vision request. Server must not invent clinical certainty.",
         }
         policy = vision_http_policy(self._timeout_s)
+        # No POST retries. Separate connect vs read (total) timeout.
+        timeout = httpx.Timeout(policy.timeout_s, connect=min(5.0, policy.timeout_s))
         try:
-            with httpx.Client(timeout=policy.timeout_s) as client:
-                # POST is never auto-retried (non-idempotent inference).
+            with httpx.Client(timeout=timeout) as client:
                 res = client.post(self._endpoint, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
             raise ImagingAdapterError(

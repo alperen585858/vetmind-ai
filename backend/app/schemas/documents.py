@@ -47,6 +47,9 @@ class DocumentIngestionRecord(BaseModel):
     case_id: Optional[str] = None
     blocked: bool = False
     block_reason: Optional[str] = None
+    # Tenancy (Phase 7): mirror DICOM ingest ownership for isolation / IDOR prevention.
+    owner_subject: Optional[str] = None
+    clinic_id: Optional[str] = None
 
 
 class DocumentUploadResponse(BaseModel):

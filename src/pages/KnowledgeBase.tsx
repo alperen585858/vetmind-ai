@@ -141,7 +141,10 @@ export default function KnowledgeBase() {
                         <span className={`font-mono text-xs font-semibold ${pass ? 'text-teal-700' : 'text-slate-500'}`}>{h.score.toFixed(2)}</span>
                       </div>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">{h.source.section}{!pass && ' · eşik (0.78) altında — bağlama eklenmez'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {h.source.section}
+                      {!pass && ' · retrieval benzerlik eşiği (0.78) altında — klinik güven değil'}
+                    </p>
                     <p className="mt-2 text-sm leading-relaxed text-navy-800">{h.source.passage}</p>
                   </li>
                 )

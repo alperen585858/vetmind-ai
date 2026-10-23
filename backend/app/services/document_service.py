@@ -6,9 +6,12 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
+from app.auth.principal import AuthPrincipal
+from app.auth.tenancy import assert_case_access, can_access_owned
 from app.ingest.documents import extract_document_text
 from app.ingest.filetype import detect_file_kind
 from app.models.model_input_builder import build_imaging_model_input
+from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
 from app.schemas.dicom import QuarantineObjectRef
 from app.schemas.documents import (
@@ -32,9 +35,20 @@ from app.storage.quarantine import QuarantineStore
 
 
 class DocumentService:
-    def __init__(self, repo: CaseRepository, quarantine: QuarantineStore) -> None:
+    def __init__(
+        self,
+        repo: CaseRepository,
+        quarantine: QuarantineStore,
+        *,
+        capabilities: list[ModelCapability] | None = None,
+        tenant_isolation: bool = False,
+    ) -> None:
         self._repo = repo
         self._quarantine = quarantine
+        self._capabilities = (
+            list(capabilities) if capabilities is not None else list(default_capabilities())
+        )
+        self._tenant_isolation = tenant_isolation
 
     def upload(
         self,
@@ -47,7 +61,11 @@ class DocumentService:
         referring_clinic: str | None = None,
         modality_hint: Modality = Modality.OTHER,
         anatomical_region_hint: AnatomicalRegion = AnatomicalRegion.UNKNOWN,
+        principal: AuthPrincipal | None = None,
     ) -> DocumentUploadResponse:
+        owner = principal.subject if principal and principal.via != "disabled" else None
+        clinic = principal.clinic_id if principal and principal.via != "disabled" else None
+
         if not files:
             ingest_id = f"doc-{uuid4().hex[:12]}"
             record = DocumentIngestionRecord(
@@ -61,6 +79,8 @@ class DocumentService:
                 anatomical_region_hint=anatomical_region_hint,
                 blocked=True,
                 block_reason="No documents uploaded.",
+                owner_subject=owner,
+                clinic_id=clinic,
             )
             self._repo.save_document_ingestion(record)
             return DocumentUploadResponse(
@@ -88,6 +108,8 @@ class DocumentService:
             ingest_id,
             files,
             content_kinds=[k.value for k in kinds],
+            owner_subject=owner,
+            clinic_id=clinic,
         )
         documents: list[ExtractedDocument] = []
         for (filename, data), kind, ref in zip(files, kinds, stored, strict=True):
@@ -127,6 +149,8 @@ class DocumentService:
             documents=documents,
             quarantined_files=q_refs,
             quarantine_dir=quarantine_dir,
+            owner_subject=owner,
+            clinic_id=clinic,
         )
         self._repo.save_document_ingestion(record)
         return DocumentUploadResponse(
@@ -137,14 +161,30 @@ class DocumentService:
             quarantined_file_count=len(q_refs),
         )
 
-    def get_ingestion(self, ingest_id: str) -> DocumentIngestionRecord:
+    def get_ingestion(
+        self, ingest_id: str, *, principal: AuthPrincipal | None = None
+    ) -> DocumentIngestionRecord:
         record = self._repo.get_document_ingestion(ingest_id)
         if record is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document ingestion not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document ingestion not found."
+            )
+        if principal is not None and not can_access_owned(
+            principal, record, isolation=self._tenant_isolation
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document ingestion not found."
+            )
         return record
 
-    def confirm(self, ingest_id: str, payload: ConfirmDocumentRequest) -> CaseRecord:
-        record = self.get_ingestion(ingest_id)
+    def confirm(
+        self,
+        ingest_id: str,
+        payload: ConfirmDocumentRequest,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseRecord:
+        record = self.get_ingestion(ingest_id, principal=principal)
         if record.blocked:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -153,6 +193,8 @@ class DocumentService:
         if record.accepted and record.case_id:
             existing = self._repo.get_case(record.case_id)
             if existing is not None:
+                if principal is not None:
+                    assert_case_access(principal, existing, isolation=self._tenant_isolation)
                 return existing
         if not record.documents:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No documents to confirm.")
@@ -190,6 +232,10 @@ class DocumentService:
             anatomical_region=region,
             clinical_history=" ".join(history_bits),
             referring_clinic=record.referring_clinic,
+            owner_subject=record.owner_subject
+            or (principal.subject if principal and principal.via != "disabled" else None),
+            clinic_id=record.clinic_id
+            or (principal.clinic_id if principal and principal.via != "disabled" else None),
             scenario=MockScenario.DOCUMENT_CONTEXT,
             study=StudyInfo(
                 description="Document-context case (PDF/JPG/PNG/text). No DICOM study.",
@@ -201,7 +247,8 @@ class DocumentService:
             classification_confirmed=True,
             status=CaseLifecycleStatus.CREATED,
         )
-        case.model_input = build_imaging_model_input(case)
+        # F4: live capabilities so prepared_for_models includes remote Vision when registered.
+        case.model_input = build_imaging_model_input(case, capabilities=self._capabilities)
         saved = self._repo.save_case(case)
         record.accepted = True
         record.case_id = saved.case_id

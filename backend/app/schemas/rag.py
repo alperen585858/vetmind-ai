@@ -12,6 +12,7 @@ class RagPassage(BaseModel):
     title: str
     section: str
     passage: str
+    # Retrieval similarity / overlap only — never clinical confidence.
     score: float = Field(ge=0.0, le=1.0)
     keywords: list[str] = Field(default_factory=list)
 

@@ -13,6 +13,7 @@ from uuid import uuid4
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.http_policy import llm_http_policy
 from app.llm.interfaces import (
     LLMErrorKind,
     LLMMalformedResponseError,
@@ -24,6 +25,15 @@ from app.llm.interfaces import (
 )
 from app.schemas.enums import ReportStatus, SourceKind
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
+
+
+def _report_provenance_from_findings(findings_kind: SourceKind) -> tuple[SourceKind, bool]:
+    """HTTP LLM must not label a report REAL when imaging findings are mock/mixed."""
+    if findings_kind == SourceKind.REAL:
+        return SourceKind.REAL, False
+    if findings_kind == SourceKind.MIXED:
+        return SourceKind.MIXED, True
+    return SourceKind.MOCK, True
 
 
 class HttpLLMWireResponse(BaseModel):
@@ -74,11 +84,16 @@ class HttpLLMProvider:
                 "Not a guarantee of OpenAI/Anthropic/etc. compatibility."
             ),
         }
+        policy = llm_http_policy(self._timeout_s)
+        # No POST retries (non-idempotent). Separate connect vs read timeouts.
+        timeout = httpx.Timeout(policy.timeout_s, connect=min(5.0, policy.timeout_s))
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with httpx.Client(timeout=timeout) as client:
                 res = client.post(self._endpoint, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
-            raise LLMTimeoutError("LLM HTTP provider timed out.") from exc
+            raise LLMTimeoutError(
+                f"LLM HTTP provider timed out after {policy.timeout_s}s."
+            ) from exc
         except httpx.HTTPError as exc:
             raise LLMUnavailableError(
                 f"LLM HTTP provider unavailable: {type(exc).__name__}"
@@ -105,6 +120,9 @@ class HttpLLMProvider:
             ) from exc
 
         cited = list(wire.cited_finding_ids) or [f.finding_id for f in request.generation.findings]
+        report_kind, synthetic = _report_provenance_from_findings(
+            request.generation.findings_source_kind
+        )
         report = DraftReport(
             report_id=wire.report_id or f"http-rpt-{uuid4().hex[:12]}",
             case_id=request.generation.case_id,
@@ -113,15 +131,15 @@ class HttpLLMProvider:
                 provider_id=self.provider_id,
                 model_id=self.model_id,
                 model_version=self.model_version,
-                source_kind=SourceKind.REAL,
-                synthetic=False,
+                source_kind=report_kind,
+                synthetic=synthetic,
                 clinically_validated=False,
             ),
             technique=ReportSection(text=wire.technique, cited_finding_ids=[]),
             findings=ReportSection(text=wire.findings, cited_finding_ids=cited),
             impression=ReportSection(text=wire.impression, cited_finding_ids=cited),
             recommendations=ReportSection(text=wire.recommendations, cited_finding_ids=[]),
-            synthetic=False,
+            synthetic=synthetic,
             clinically_validated=False,
             rag_citations=list(request.generation.rag_passages),
         )

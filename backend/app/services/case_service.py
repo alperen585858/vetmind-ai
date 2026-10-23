@@ -11,7 +11,14 @@ from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_ow
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import CaseCreate, CaseRecord, CaseSummary, ReviewFeedback
-from app.schemas.enums import CaseLifecycleStatus, ExpertReviewStatus, JobStatus, ReportStatus, ReviewAction
+from app.schemas.enums import (
+    CaseLifecycleStatus,
+    ExpertReviewStatus,
+    JobStatus,
+    PipelineOutcome,
+    ReportStatus,
+    ReviewAction,
+)
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
@@ -204,23 +211,117 @@ class CaseService:
                 detail=f"Too many concurrent analyses (max {self._max_concurrent_analyze}).",
             )
         try:
-            result = self._orchestrator.run(case, job)
+            # Deep copy so orchestrator cannot mutate the repository's live case object
+            # (InMemoryCaseRepository returns the same reference — approve-race safety).
+            working = case.model_copy(deep=True)
+            result = self._orchestrator.run(
+                working, job, cancel_probe=lambda: self._job_cancel_requested(job.job_id)
+            )
         finally:
             self._analyze_gate.release()
-        with self._lock:
-            self._apply_report_versioning(case, result)
-            self._repo.save_job(result.job)
-            self._repo.save_case(case)
+        result = self._persist_pipeline_result(case_id, working, result)
         self._emit_audit("analysis.run", principal=principal, resource=case_id)
         return result
 
-    def _apply_report_versioning(self, case: CaseRecord, result: PipelineResult) -> None:
-        """Attach version metadata when the pipeline produced a draft report."""
-        if result.report is None:
-            return
-        # Reload versions from the in-memory case object mutated by the orchestrator.
-        attach_pipeline_draft(case, result.report)
-        result.report = case.draft_report
+    def _job_cancel_requested(self, job_id: str) -> bool:
+        """Reload cancel flag from durable storage (SQLite/Postgres workers hold copies)."""
+        stored = self._repo.get_job(job_id)
+        return bool(
+            stored is not None
+            and (
+                stored.cancel_requested
+                or stored.status
+                in {JobStatus.CANCEL_REQUESTED, JobStatus.CANCELLED}
+            )
+        )
+
+    def _persist_pipeline_result(
+        self, case_id: str, working: CaseRecord, result: PipelineResult
+    ) -> PipelineResult:
+        """Merge pipeline outputs under lock; never clobber an approved immutable report."""
+        with self._lock:
+            latest = self._repo.get_case(case_id)
+            if latest is None:
+                self._repo.save_job(result.job)
+                return result
+            approved = latest.status == CaseLifecycleStatus.APPROVED or (
+                latest.draft_report is not None and latest.draft_report.immutable
+            )
+            if approved and result.job.status not in {
+                JobStatus.CANCELLED,
+                JobStatus.FAILED,
+                JobStatus.TIMED_OUT,
+            }:
+                # P0: in-flight analyze must not overwrite concurrent expert approval.
+                result.job.status = JobStatus.FAILED
+                result.job.outcome = PipelineOutcome.FAILED
+                result.job.error_message = (
+                    "Analysis discarded: case was approved while analysis was in flight. "
+                    "Approved immutable report was preserved."
+                )
+                result.job.completed_at = _now()
+                self._repo.save_job(result.job)
+                return result
+            if approved:
+                # Cancel/fail path after approval — still do not mutate the approved case.
+                self._repo.save_job(result.job)
+                return result
+
+            latest.structured_findings = working.structured_findings
+            latest.status = working.status
+            latest.latest_job_id = working.latest_job_id
+            latest.updated_at = working.updated_at
+            latest.model_input = working.model_input
+            if result.report is not None:
+                attach_pipeline_draft(latest, result.report)
+                result.report = latest.draft_report
+            else:
+                latest.draft_report = working.draft_report
+            self._repo.save_job(result.job)
+            self._repo.save_case(latest)
+            return result
+
+    def run_queued_analyze(self, case_id: str, job_id: str) -> None:
+        """Thread/RQ worker entry: cancel-while-queued, cancel probe, approve-race guard."""
+        with self._lock:
+            current = self._repo.get_case(case_id)
+            queued = self._repo.get_job(job_id)
+            if current is None or queued is None:
+                return
+            if queued.cancel_requested or queued.status == JobStatus.CANCELLED:
+                queued.status = JobStatus.CANCELLED
+                queued.outcome = PipelineOutcome.FAILED
+                queued.error_message = queued.error_message or "Cancelled while queued."
+                queued.completed_at = queued.completed_at or _now()
+                if current.status == CaseLifecycleStatus.ANALYZING and current.latest_job_id == job_id:
+                    current.status = CaseLifecycleStatus.FAILED
+                    current.updated_at = _now()
+                    self._repo.save_case(current)
+                self._repo.save_job(queued)
+                return
+            # Approved while queued (or before worker start): discard without mutating case.
+            if current.status == CaseLifecycleStatus.APPROVED or (
+                current.draft_report is not None and current.draft_report.immutable
+            ):
+                queued.status = JobStatus.FAILED
+                queued.outcome = PipelineOutcome.FAILED
+                queued.error_message = (
+                    "Analysis discarded: case was approved while analysis was in flight. "
+                    "Approved immutable report was preserved."
+                )
+                queued.completed_at = _now()
+                self._repo.save_job(queued)
+                return
+            working = current.model_copy(deep=True)
+            job_working = queued.model_copy(deep=True)
+        result = self._orchestrator.run(
+            working,
+            job_working,
+            cancel_probe=lambda: self._job_cancel_requested(job_id),
+        )
+        # Preserve job_id identity for persistence (copy may diverge on cancel flags).
+        result.job.job_id = job_id
+        self._persist_pipeline_result(case_id, working, result)
 
     def enqueue_analyze(
         self,
@@ -271,38 +372,7 @@ class CaseService:
             self._repo.save_job(job)
 
         def _worker() -> None:
-            with self._lock:
-                current = self._repo.get_case(case_id)
-                queued = self._repo.get_job(job.job_id)
-                if current is None or queued is None:
-                    return
-                # Reload cancel flag if set while queued.
-                if queued.cancel_requested:
-                    queued.status = JobStatus.CANCELLED
-                    queued.outcome = None
-                    queued.error_message = "Cancelled while queued."
-                    queued.completed_at = _now()
-                    current.status = CaseLifecycleStatus.FAILED
-                    current.updated_at = _now()
-                    self._repo.save_job(queued)
-                    self._repo.save_case(current)
-                    return
-            result = self._orchestrator.run(current, queued)
-            with self._lock:
-                # Re-load under lock: keep history from disk, apply pipeline outputs + versioning.
-                latest = self._repo.get_case(case_id) or current
-                latest.structured_findings = current.structured_findings
-                latest.status = current.status
-                latest.latest_job_id = current.latest_job_id
-                latest.updated_at = current.updated_at
-                latest.model_input = current.model_input
-                if result.report is not None:
-                    attach_pipeline_draft(latest, result.report)
-                    result.report = latest.draft_report
-                else:
-                    latest.draft_report = current.draft_report
-                self._repo.save_job(result.job)
-                self._repo.save_case(latest)
+            self.run_queued_analyze(case_id, job.job_id)
 
         self._jobs.enqueue_analyze(case_id, job.job_id, _worker)
         return job

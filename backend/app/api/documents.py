@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.deps import get_document_service
 from app.auth.deps import require_auth, require_capability
+from app.auth.principal import AuthPrincipal
 from app.auth.rbac import CAP_DOCUMENTS
 from app.schemas.case import CaseRecord
 from app.schemas.documents import (
@@ -33,6 +34,7 @@ async def upload_documents(
     modality_hint: Modality = Form(default=Modality.OTHER),
     anatomical_region_hint: AnatomicalRegion = Form(default=AnatomicalRegion.UNKNOWN),
     service: DocumentService = Depends(get_document_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> DocumentUploadResponse:
     if len(files) > _MAX_FILES:
         raise HTTPException(
@@ -57,6 +59,7 @@ async def upload_documents(
         referring_clinic=referring_clinic,
         modality_hint=modality_hint,
         anatomical_region_hint=anatomical_region_hint,
+        principal=principal,
     )
 
 
@@ -64,8 +67,9 @@ async def upload_documents(
 def get_document_ingestion(
     ingest_id: str,
     service: DocumentService = Depends(get_document_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> DocumentIngestionRecord:
-    return service.get_ingestion(ingest_id)
+    return service.get_ingestion(ingest_id, principal=principal)
 
 
 @router.post("/ingestions/{ingest_id}/confirm", response_model=CaseRecord)
@@ -73,5 +77,6 @@ def confirm_document_ingestion(
     ingest_id: str,
     payload: ConfirmDocumentRequest,
     service: DocumentService = Depends(get_document_service),
+    principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
-    return service.confirm(ingest_id, payload)
+    return service.confirm(ingest_id, payload, principal=principal)
