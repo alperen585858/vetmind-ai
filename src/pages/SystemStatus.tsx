@@ -140,7 +140,8 @@ export default function SystemStatus() {
         {readiness && (
           <>
             <p className="px-5 pb-3 text-xs text-slate-500">
-              {readiness.enabled_count}/{readiness.model_count} enabled · pixel_default=
+              {readiness.enabled_count}/{readiness.model_count} enabled · blockers=
+              {readiness.models_with_blockers ?? 0} · pixel_default=
               {String(readiness.pixel_analysis_default)} · {readiness.note}
             </p>
             <div className="overflow-x-auto px-2 pb-4">
@@ -152,6 +153,7 @@ export default function SystemStatus() {
                     <th className="th">Modalities / Regions</th>
                     <th className="th">Capabilities</th>
                     <th className="th">Availability</th>
+                    <th className="th">Blockers</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -187,11 +189,24 @@ export default function SystemStatus() {
                           {m.availability}
                         </span>
                       </td>
+                      <td className="td text-[11px] text-amber-900">
+                        {(m.blockers || []).length ? (m.blockers || []).join(', ') : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {(readiness.remaining_steps_to_first_real_model || []).length > 0 && (
+              <div className="border-t border-slate-100 px-5 py-3">
+                <p className="text-xs font-semibold text-navy-900">İlk gerçek modele kalan adımlar</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-[11px] text-slate-600">
+                  {readiness.remaining_steps_to_first_real_model!.slice(0, 6).map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </>
         )}
       </Card>

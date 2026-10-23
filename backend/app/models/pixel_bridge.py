@@ -180,31 +180,69 @@ class AuthorizedPixelBridge:
 
 
 def _collect_frame_refs(case: CaseRecord) -> list[dict[str, Any]]:
+    """Collect frames for prep — prefer ImagingModelInput selection (Phase 20)."""
+    from app.imaging.series_selection import select_series_for_modality
+
     refs: list[dict[str, Any]] = []
     mi = case.model_input
     if mi is not None:
-        for series in mi.series:
-            for fr in series.frames:
-                refs.append(
-                    {
-                        "quarantine_relative_path": fr.quarantine_relative_path,
-                        "image_position_patient": fr.image_position_patient,
-                        "instance_number": fr.instance_number,
-                        "sop_instance_uid": fr.sop_instance_uid,
-                    }
-                )
+        selected_uids = set(mi.selection.series_instance_uids) if mi.selection else set()
+        series_list = list(mi.series)
+        if selected_uids:
+            series_list = [s for s in series_list if s.series_instance_uid in selected_uids]
+        if not series_list:
+            series_list = list(mi.series)
+        selection = select_series_for_modality(series_list, case.modality)
+        frames = selection.frames or tuple(
+            fr for s in series_list for fr in s.frames
+        )
+        for fr in frames:
+            refs.append(
+                {
+                    "quarantine_relative_path": fr.quarantine_relative_path,
+                    "image_position_patient": fr.image_position_patient,
+                    "instance_number": fr.instance_number,
+                    "sop_instance_uid": fr.sop_instance_uid,
+                    "ingest_id": fr.ingest_id,
+                }
+            )
         return refs
     if case.dicom_study is not None:
+        from app.schemas.model_input import ModelInputFrameRef, ModelInputSeriesRef
+
+        series_refs = []
         for series in case.dicom_study.series:
-            for inst in series.instances:
-                refs.append(
-                    {
-                        "quarantine_relative_path": inst.quarantine_relative_path,
-                        "image_position_patient": inst.image_position_patient,
-                        "instance_number": inst.instance_number,
-                        "sop_instance_uid": inst.sop_instance_uid,
-                    }
+            frames = [
+                ModelInputFrameRef(
+                    sop_instance_uid=inst.sop_instance_uid,
+                    series_instance_uid=series.series_instance_uid,
+                    instance_number=inst.instance_number,
+                    has_pixel_data=inst.has_pixel_data,
+                    quarantine_relative_path=inst.quarantine_relative_path,
+                    image_position_patient=inst.image_position_patient,
+                    ingest_id=inst.ingest_id,
                 )
+                for inst in series.instances
+            ]
+            series_refs.append(
+                ModelInputSeriesRef(
+                    series_instance_uid=series.series_instance_uid,
+                    modality=series.modality,
+                    frame_count=len(frames),
+                    frames=frames,
+                )
+            )
+        selection = select_series_for_modality(series_refs, case.modality)
+        for fr in selection.frames:
+            refs.append(
+                {
+                    "quarantine_relative_path": fr.quarantine_relative_path,
+                    "image_position_patient": fr.image_position_patient,
+                    "instance_number": fr.instance_number,
+                    "sop_instance_uid": fr.sop_instance_uid,
+                    "ingest_id": fr.ingest_id,
+                }
+            )
     return refs
 
 

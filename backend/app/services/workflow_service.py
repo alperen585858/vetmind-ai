@@ -598,6 +598,13 @@ class WorkflowService:
                 )
             )
         case.attachment_refs = merged_atts
+        # Phase 20: merge all linked DICOM study metadata for AI packaging / IntegrationBridge.
+        try:
+            from app.models.dicom_study_merge import merge_case_dicom_attachments
+
+            case = merge_case_dicom_attachments(case, self._cases._repo)  # noqa: SLF001
+        except Exception:
+            pass
         actor = principal.subject
         append_activity(case, kind="submission_created", actor_subject=sub.pet_owner_subject, detail=sub.submission_id)
         if sub.dicom_ingest_id:

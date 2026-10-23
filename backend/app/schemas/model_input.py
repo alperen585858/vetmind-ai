@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.enums import AnatomicalRegion, ClassificationConfidence, Modality, Species
 
+# Keep 1.0.0 wire version; selection fields are additive with defaults.
 IMAGING_MODEL_INPUT_VERSION = "1.0.0"
 
 
@@ -47,6 +48,7 @@ class ModelInputFrameRef(BaseModel):
     slice_thickness: Optional[str] = None
     image_orientation_patient: Optional[str] = None
     image_position_patient: Optional[str] = None
+    ingest_id: Optional[str] = None
     note: str = "Frame reference only. Real adapters may load pixels via quarantine/secure store."
 
 
@@ -59,6 +61,21 @@ class ModelInputSeriesRef(BaseModel):
     body_part_examined: Optional[str] = None
     frame_count: int = 0
     frames: list[ModelInputFrameRef] = Field(default_factory=list)
+    selected_for_model: bool = False
+
+
+class ModelInputSelectionSummary(BaseModel):
+    """Provenance for which series/instances feed prep (deterministic, tag-based)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: str = "none"
+    profile_hint: str = "metadata_only"
+    series_instance_uids: list[str] = Field(default_factory=list)
+    selected_instance_count: int = 0
+    spatial_instance_count: int = 0
+    linked_ingest_ids: list[str] = Field(default_factory=list)
+    reason: str = ""
 
 
 class ImagingModelInput(BaseModel):
@@ -85,6 +102,9 @@ class ImagingModelInput(BaseModel):
     quarantined_instance_count: int = 0
     prepared_for_models: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Phase 20: selection + multi-ingest provenance for IntegrationBridge.
+    selection: ModelInputSelectionSummary = Field(default_factory=ModelInputSelectionSummary)
+    preprocessing_profile_hint: Optional[str] = None
     note: str = (
         "Structured model input. Mock adapters do not diagnose from pixels. "
         "pixel_analysis_authorized reflects policy only; this package does not embed pixel tensors."

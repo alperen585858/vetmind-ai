@@ -60,6 +60,8 @@ class DicomInstanceMeta(BaseModel):
     has_pixel_data: bool = False
     pixel_data_analyzed: bool = False
     quarantine_relative_path: Optional[str] = None
+    # Phase 20: which quarantine ingest produced this instance (multi-series AI package).
+    ingest_id: Optional[str] = None
 
 
 class DicomSeriesMeta(BaseModel):

@@ -311,3 +311,63 @@ def run_synthetic_bridge_e2e(
 
 def build_synthetic_bridge_entrypoint(**kwargs: Any) -> SyntheticBridgeEntrypoint:
     return SyntheticBridgeEntrypoint(**kwargs)
+
+
+def run_synthetic_integration_walkthrough(
+    *,
+    modality: Modality = Modality.MR,
+    quarantine_root: Path | None = None,
+) -> dict[str, Any]:
+    """Deterministic DICOM → selection → profile prep → bridge → findings → draft.
+
+    Proves connectivity without real model inference or fabricated clinical scores.
+    Uses stub LLM (not mock clinical findings fallback).
+    """
+    from app.llm.stub_provider import DeterministicStubLLMProvider
+    from app.llm.gateway import LLMGateway
+    from app.imaging.series_selection import select_series_for_modality
+
+    findings = run_synthetic_bridge_e2e(modality=modality, quarantine_root=quarantine_root)
+    # Rebuild case package for draft + selection provenance assertions
+    if modality == Modality.MR:
+        files = brain_mri_study_files(3)
+        region = AnatomicalRegion.BRAIN
+    elif modality == Modality.CT:
+        files = brain_ct_study_files(3)
+        region = AnatomicalRegion.BRAIN
+    else:
+        files = thorax_xr_study_files(1)
+        region = AnatomicalRegion.THORAX
+        modality = Modality.XR
+
+    case, _blobs = _case_from_files(modality=modality, region=region, files=files, quarantine=None)
+    cap = synthetic_pixel_capability(modality=modality)
+    case.model_input = build_imaging_model_input(case, capabilities=[cap])
+    case.structured_findings = findings
+    selection = select_series_for_modality(case.model_input.series, modality)
+
+    gateway = LLMGateway(DeterministicStubLLMProvider())
+    draft = gateway.generate_draft(case, findings)
+
+    return {
+        "modality": modality.value,
+        "profile_hint": case.model_input.preprocessing_profile_hint,
+        "selection_mode": selection.mode,
+        "selected_series": list(selection.series_instance_uids),
+        "selected_frames": len(selection.frames),
+        "findings_model_id": findings.source_model_id,
+        "findings_model_version": findings.source_model_version,
+        "findings_source_kind": findings.source_kind.value,
+        "prep_contract": findings.processing_metadata.get("prep_contract"),
+        "bridge": findings.processing_metadata.get("bridge"),
+        "draft_report_id": draft.report_id,
+        "draft_provider": draft.generation.source_kind.value if draft.generation else None,
+        "draft_technique_preview": (draft.technique.text or "")[:80],
+        "no_fake_clinical_scores": all(
+            getattr(f, "model_confidence", None) is None for f in (findings.findings or [])
+        ),
+        "note": (
+            "Synthetic integration walkthrough only. "
+            "Not clinical validation. Pixel access remains policy-gated."
+        ),
+    }

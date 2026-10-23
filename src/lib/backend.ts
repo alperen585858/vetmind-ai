@@ -171,15 +171,19 @@ export type BackendModelReadinessEntry = {
   preprocessing_contract_id?: string | null
   input_contract_id: string
   output_schema_version: string
+  blockers?: string[]
+  ready_for_real_integration?: boolean
 }
 
 export type BackendModelReadiness = {
   schema_version: string
   model_count: number
   enabled_count: number
+  models_with_blockers?: number
   pixel_analysis_default: boolean
   note: string
   models: BackendModelReadinessEntry[]
+  remaining_steps_to_first_real_model?: string[]
 }
 
 export async function fetchBackendHealth(): Promise<BackendHealth> {

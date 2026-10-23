@@ -171,7 +171,11 @@ class CaseService:
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> ImagingModelInput:
         """Build/refresh the AI-facing ImagingModelInput package for a case."""
+        from app.models.dicom_study_merge import merge_case_dicom_attachments
+
         case = self.get_case(case_id, principal=principal)
+        # Phase 20: merge Phase 19 multi-ingest study metadata before packaging.
+        case = merge_case_dicom_attachments(case, self._repo)
         caps = self._orchestrator._router.list_capabilities()  # noqa: SLF001
         case.model_input = build_imaging_model_input(case, capabilities=caps)
         case.updated_at = _now()

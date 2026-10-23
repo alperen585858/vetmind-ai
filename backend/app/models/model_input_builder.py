@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from app.imaging.pixel_ops import parse_image_position
+from app.imaging.profiles import profile_for_modality
+from app.imaging.series_selection import select_series_for_modality
+from app.models.dicom_study_merge import linked_dicom_ingest_ids
 from app.models.interfaces import ImagingAdapterError
 from app.models.pixel_authorization import summarize_pixel_authorization
 from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
-from app.schemas.enums import ClassificationConfidence
+from app.schemas.enums import ClassificationConfidence, Modality
 from app.schemas.model_input import (
     ImagingModelInput,
     ModelInputFrameRef,
+    ModelInputSelectionSummary,
     ModelInputSeriesRef,
 )
 
@@ -18,11 +23,13 @@ def build_imaging_model_input(
     case: CaseRecord,
     *,
     capabilities: list[ModelCapability] | None = None,
+    preferred_series_uids: list[str] | None = None,
 ) -> ImagingModelInput:
     """Create the AI-facing study package. Safe for mock: metadata_only=True.
 
-    Does not mutate ``case``. Orchestrator/services attach the result when persisting.
-    Pixel authorization is evaluated separately from any pixel loading (none here).
+    Uses Phase 19 multi-ingest study metadata on ``case.dicom_study`` (after merge)
+    and selects XR 2D / MRI·CT 3D series via spatial tags when present.
+    Does not mutate ``case``. Pixel authorization is policy-only (no decode).
     """
     caps = list(capabilities if capabilities is not None else default_capabilities())
     warnings: list[str] = [
@@ -32,6 +39,7 @@ def build_imaging_model_input(
     series_refs: list[ModelInputSeriesRef] = []
     total = 0
     quarantined = 0
+    ingest_ids = linked_dicom_ingest_ids(case)
 
     if case.dicom_study is not None:
         for series in case.dicom_study.series:
@@ -51,6 +59,7 @@ def build_imaging_model_input(
                     slice_thickness=inst.slice_thickness,
                     image_orientation_patient=inst.image_orientation_patient,
                     image_position_patient=inst.image_position_patient,
+                    ingest_id=inst.ingest_id or case.dicom_ingest_id,
                 )
                 for inst in series.instances
             ]
@@ -66,19 +75,44 @@ def build_imaging_model_input(
                     frames=frames,
                 )
             )
+        if len(ingest_ids) > 1:
+            warnings.append(
+                f"Multi-ingest DICOM package: {len(ingest_ids)} linked ingest(s) "
+                f"merged into study metadata for AI selection."
+            )
     else:
         warnings.append(
             "No dicom_study on case; model input is modality/region routing stub only "
             "(synthetic CaseCreate or document path)."
         )
 
-    if case.quarantine_dir:
-        warnings.append("Quarantine directory attached (path omitted from authorization summary).")
-    if case.document_context is not None:
-        warnings.append(
-            f"Document context attached ({len(case.document_context.documents)} file(s)); "
-            "multimodal stub may use extracted text only."
-        )
+    selection = select_series_for_modality(
+        series_refs,
+        case.modality,
+        preferred_series_uids=preferred_series_uids,
+    )
+    selected_set = set(selection.series_instance_uids)
+    if selected_set:
+        series_refs = [
+            s.model_copy(update={"selected_for_model": s.series_instance_uid in selected_set})
+            for s in series_refs
+        ]
+    spatial_n = sum(1 for f in selection.frames if parse_image_position(f.image_position_patient))
+    warnings.append(selection.reason)
+
+    profile_hint = selection.profile_hint
+    try:
+        if case.modality in {Modality.MR, Modality.CT, Modality.XR}:
+            contract = profile_for_modality(
+                case.modality,
+                model_id="__profile_probe__",
+                regions=frozenset({case.anatomical_region}),
+                species=frozenset({case.species}),
+            )
+            warnings.append(f"preprocessing_profile={contract.contract_id}")
+            profile_hint = selection.profile_hint
+    except Exception:  # noqa: BLE001 — other modalities have no profile
+        pass
 
     prepared: list[str] = []
     for cap in caps:
@@ -113,6 +147,16 @@ def build_imaging_model_input(
             "no pixel tensors are attached and no decoding is performed in this phase."
         )
 
+    sel_summary = ModelInputSelectionSummary(
+        mode=selection.mode,
+        profile_hint=profile_hint,
+        series_instance_uids=list(selection.series_instance_uids),
+        selected_instance_count=len(selection.frames),
+        spatial_instance_count=spatial_n,
+        linked_ingest_ids=ingest_ids,
+        reason=selection.reason,
+    )
+
     return ImagingModelInput(
         case_id=case.case_id,
         study_instance_uid=case.study.study_instance_uid or (
@@ -132,6 +176,8 @@ def build_imaging_model_input(
         quarantined_instance_count=quarantined,
         prepared_for_models=prepared,
         warnings=warnings,
+        selection=sel_summary,
+        preprocessing_profile_hint=profile_hint,
     )
 
 

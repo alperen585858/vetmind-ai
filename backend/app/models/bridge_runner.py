@@ -132,6 +132,12 @@ class IntegrationBridge:
             if isinstance(result, StructuredFindings):
                 findings = result
             elif isinstance(result, ModelTaskOutputs):
+                from app.models.schema_validation import validate_model_task_outputs
+
+                try:
+                    result = validate_model_task_outputs(result)
+                except ValueError as exc:
+                    raise InferenceFailedError(str(exc)) from exc
                 findings = map_task_outputs_to_findings(case, result)
             else:
                 raise InferenceFailedError(
@@ -143,12 +149,26 @@ class IntegrationBridge:
                 **findings.processing_metadata,
                 "bridge": "integration_bridge/1.0.0",
                 "requires_pixels": "true" if config.requires_pixels else "false",
+                "model_id": config.model_id,
+                "model_version": config.version,
             }
+            if case.model_input is not None and case.model_input.selection:
+                sel = case.model_input.selection
+                meta["selection_mode"] = sel.mode
+                meta["profile_hint"] = sel.profile_hint
+                meta["selected_series"] = ",".join(sel.series_instance_uids)
+                meta["linked_ingests"] = ",".join(sel.linked_ingest_ids)
             if prepared is not None:
                 meta["prep_contract"] = prepared.provenance.contract_id
                 meta["tensor_shape"] = "x".join(str(x) for x in prepared.tensor_shape)
                 meta["pixels_loaded"] = "true" if prepared.provenance.pixels_loaded else "false"
             findings.processing_metadata = meta
+            # Never silently replace failed real outputs with mock findings.
+            if findings.source_kind and str(findings.source_kind.value) == "real":
+                if not findings.source_model_id:
+                    findings.source_model_id = config.model_id
+                if not findings.source_model_version:
+                    findings.source_model_version = config.version
             return findings
         finally:
             if workspace is not None:
