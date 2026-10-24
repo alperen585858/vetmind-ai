@@ -66,7 +66,10 @@ def _history_block(gen: LLMGenerationInput) -> str:
         return "Clinical history: not provided."
     if len(text) > MAX_HISTORY_CHARS:
         text = text[:MAX_HISTORY_CHARS] + " …[truncated]"
-    return f"<clinical_history>\n{text}\n</clinical_history>"
+    note = ""
+    if gen.redaction_counts:
+        note = "\n(Bracketed placeholders such as [HASTA] or [TELEFON] are redacted personal data; do not guess them.)"
+    return f"<clinical_history>\n{text}\n</clinical_history>{note}"
 
 
 def _findings_block(gen: LLMGenerationInput, aliases: CitationAliases) -> str:
@@ -111,7 +114,9 @@ def build_user_prompt(
         source += f", model={gen.findings_model_id} {gen.findings_model_version or ''}".rstrip()
     context = [
         "CASE CONTEXT",
-        f"- Species: {gen.species.value}",
+        f"- Species: {gen.species.value}"
+        + (f", breed: {gen.breed}" if gen.breed else "")
+        + (f", age: {gen.patient_age_years:g} years" if gen.patient_age_years is not None else ""),
         f"- Modality: {gen.modality.value}",
         f"- Anatomical region: {gen.anatomical_region.value}",
         f"- Imaging analysis status: {gen.execution_status.value} (findings source: {source})",

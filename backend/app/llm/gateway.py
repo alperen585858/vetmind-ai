@@ -6,6 +6,7 @@ from app.llm.interfaces import (
     LLMRequest,
     LLMResponse,
 )
+from app.llm.privacy import redact_personal_data
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
 from app.schemas.findings import StructuredFindings
@@ -28,6 +29,26 @@ def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
     return " ".join(p for p in parts if p)
 
 
+_STRUCTURED_HISTORY_LABELS = (
+    ("complaint", "Şikâyet"),
+    ("onset", "Başlangıç"),
+    ("course", "Seyir"),
+    ("medications", "İlaçlar"),
+    ("relevant_history", "İlgili öykü"),
+)
+
+
+def _compose_history(case: CaseRecord) -> str:
+    parts = [case.clinical_history.strip()] if case.clinical_history and case.clinical_history.strip() else []
+    structured = case.clinical_history_structured
+    if structured is not None:
+        for attr, label in _STRUCTURED_HISTORY_LABELS:
+            value = getattr(structured, attr)
+            if value and value.strip():
+                parts.append(f"{label}: {value.strip()}")
+    return "\n".join(parts)
+
+
 def build_generation_input(
     case: CaseRecord,
     findings: StructuredFindings,
@@ -38,12 +59,19 @@ def build_generation_input(
     doc_count = 0
     if case.document_context is not None:
         doc_count = len(case.document_context.documents)
+    redacted = redact_personal_data(
+        _compose_history(case),
+        known=[(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")],
+    )
     return LLMGenerationInput(
         case_id=case.case_id,
         species=case.species,
+        breed=case.breed,
+        patient_age_years=case.patient_age_years,
         modality=case.modality,
         anatomical_region=case.anatomical_region,
-        clinical_history=case.clinical_history,
+        clinical_history=redacted.text or None,
+        redaction_counts=redacted.counts,
         findings=[
             LLMFindingRef(
                 finding_id=f.finding_id,

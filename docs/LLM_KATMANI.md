@@ -12,7 +12,8 @@
 | Sağlayıcılar | `llm/chat_providers.py` | `OpenAICompatibleProvider`, `AnthropicProvider` |
 | Doğrulama katmanı | `llm/grounding.py` | Kaynaksız cümle, aşırı iddia, atlanan bulgu kontrolü |
 | Deneme komutu | `backend/scripts/llm_demo.py` | Örnek vakayı modele gönderip raporu yazdırır |
-| Testler | `tests/test_llm_chat_providers.py`, `tests/test_llm_grounding.py` | Ağ bağlantısı olmadan 25 test |
+| Kişisel veri maskeleme | `llm/privacy.py` | Telefon, e-posta, TC no, sahip/hasta adı → yer tutucu |
+| Testler | `tests/test_llm_chat_providers.py`, `test_llm_grounding.py`, `test_llm_privacy.py` | Ağ bağlantısı olmadan 28 test |
 
 Mevcut `mock` / `stub` / `http` sağlayıcıları **aynen duruyor**; varsayılan hâlâ `mock`.
 
@@ -20,7 +21,7 @@ Mevcut `mock` / `stub` / `http` sağlayıcıları **aynen duruyor**; varsayılan
 
 ```text
 StructuredFindings + RAG pasajları
-  → LLMGenerationInput (hasta adı, dosya yolu, kimlik bilgisi YOK)
+  → LLMGenerationInput (hasta adı, dosya yolu, kimlik bilgisi YOK; öykü maskelenmiş)
   → prompts.build_aliases        bulgular F1..Fn, pasajlar S1..Sn olarak kısaltılır
   → prompts.build_system_prompt  güvenlik kuralları + rapor dili
   → prompts.build_user_prompt    vaka bağlamı, öykü, bulgular, pasajlar
@@ -107,15 +108,31 @@ Aynı değişkenlerle `uvicorn app.main:app` çalıştırılırsa sistemin tamam
 
 Hiçbir hatada sessizce mock rapora düşülmez (mevcut orchestrator kuralı).
 
-## 8. Gizlilik notu
+## 8. Gizlilik (KVKK) — kişisel veri maskeleme
 
-Modele hasta adı, sahip bilgisi, dosya yolu gitmez. **Ancak klinik öykü metni olduğu gibi gider** —
-veteriner hekim öyküye sahip adı/telefon yazarsa bu bilgi harici API'ye ulaşır. Gerçek veride
-yerel model (Ollama / vLLM) tercih edilmeli veya öykü maskelemesi eklenmelidir (yapılacaklar listesinde).
+`llm/privacy.py`, öykü metni modele gitmeden **önce** `build_generation_input` içinde çalışır;
+böylece her sağlayıcı (mock, http, OpenAI, Claude, Ollama) yalnızca maskelenmiş metni görür.
+
+| Ne | Yerine |
+|----|--------|
+| Hasta adı (`patient_name`) | `[HASTA]` |
+| Sevk eden klinik (`referring_clinic`) | `[KLİNİK]` |
+| "Hasta sahibi: Ad Soyad", "Sahibi Ad Soyad" | `[SAHİP]` |
+| "Sayın / Bay / Bayan Ad", "Ad Bey / Hanım" | `[KİŞİ]` |
+| Telefon (cep / sabit, +90) | `[TELEFON]` |
+| E-posta | `[E-POSTA]` |
+| TC kimlik no (11 hane) | `[TC-KİMLİK]` |
+| IBAN | `[IBAN]` |
+
+Klinik sayılar korunur (L1-L2, ALT 245 U/L, 2.5 mg/kg, tarihler). Yapılandırılmış öykü alanları
+(şikâyet, başlangıç, seyir, ilaçlar, ilgili öykü) da eklenir; **devir notları (`handoff_notes`) hiç gönderilmez.**
+Kaç öğenin maskelendiği `redaction_counts` alanında saklanır (değerler değil, yalnızca sayılar).
+
+Sınır: kural tabanlıdır; serbest metinde ipucu kelimesi olmadan geçen bir isim yakalanmayabilir.
+Gerçek hasta verisinde yerel model (Ollama / vLLM) tercih edilmeli ve KVKK değerlendirmesi yapılmalıdır.
 
 ## 9. Sonraki adımlar
 
 - Buğra'nın test setiyle model/prompt karşılaştırması (doğru tanı ilk 3'te mi, kaynaksız cümle oranı)
 - Türkçe için model seçimi: Claude / GPT sınıfı API vs. yerel Qwen 2.5 14B+ / Llama 3.1 70B (vLLM)
-- Klinik öyküde kişisel veri maskeleme
 - Arayüzde `[S1]` atıflarını tıklanabilir kaynağa çevirme (`citation_map` hazır)
