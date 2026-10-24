@@ -105,7 +105,18 @@ def create_submission(
     principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
     service=Depends(_workflow),
 ) -> ImagingSubmission:
+    """Create a draft imaging request. Requires demo payment before finalize."""
     return service.create_submission(payload, principal=principal)
+
+
+@router.post("/submissions/{submission_id}/finalize", response_model=ImagingSubmission)
+def finalize_submission(
+    submission_id: str,
+    principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
+    service=Depends(_workflow),
+) -> ImagingSubmission:
+    """Finalize a draft after approved demo payment (idempotent)."""
+    return service.finalize_submission(submission_id, principal=principal)
 
 
 @router.get("/submissions", response_model=list[ImagingSubmission])
@@ -136,6 +147,16 @@ def update_submission(
     service=Depends(_workflow),
 ) -> ImagingSubmission:
     return service.update_submission(submission_id, payload, principal=principal)
+
+
+@router.delete("/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_submission(
+    submission_id: str,
+    principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),
+    service=Depends(_workflow),
+) -> None:
+    """Remove a submission from the list (blocked if already linked to a case)."""
+    service.delete_submission(submission_id, principal=principal)
 
 
 @router.post("/submissions/{submission_id}/vet-action", response_model=CaseRecord | ImagingSubmission)

@@ -26,6 +26,7 @@ import KnowledgeBase from './pages/KnowledgeBase'
 import SystemStatus from './pages/SystemStatus'
 import OwnerPets from './pages/OwnerPets'
 import Submissions from './pages/Submissions'
+import Messages from './pages/Messages'
 import AdminUsers from './pages/AdminUsers'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
@@ -63,6 +64,9 @@ export default function App() {
             <Route path="kuyruk" element={<Gate roles={['expert']}><ReviewQueue /></Gate>} />
             <Route path="hayvanlar" element={<Gate roles={['owner']}><OwnerPets /></Gate>} />
             <Route path="basvurular" element={<Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>} />
+            <Route path="basvurular/:submissionId" element={<Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>} />
+            <Route path="mesajlar" element={<Gate roles={['owner', 'expert', 'admin']}><Messages /></Gate>} />
+            <Route path="mesajlar/:threadId" element={<Gate roles={['owner', 'expert', 'admin']}><Messages /></Gate>} />
             <Route path="kullanicilar" element={<Gate roles={['admin']}><AdminUsers /></Gate>} />
             <Route path="raporlar" element={<Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ReportList /></Gate>} />
             <Route path="raporlar/:id" element={<Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ApprovedReport /></Gate>} />

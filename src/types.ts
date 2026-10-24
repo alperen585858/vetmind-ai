@@ -71,10 +71,34 @@ export interface BackendImagingSubmission {
   linked_case_id?: string | null
   verified_by?: string | null
   verified_at?: string | null
+  payment_id?: string | null
+  payment_status?: 'requires_confirmation' | 'approved' | 'failed' | null
   attachments?: BackendAttachmentRef[]
   info_requests?: BackendInfoRequest[]
   created_at: string
   updated_at: string
+}
+
+export interface BackendDemoPayment {
+  payment_id: string
+  submission_id: string
+  amount: number
+  currency: 'EUR'
+  mode: 'demo'
+  status: 'requires_confirmation' | 'approved' | 'failed'
+  owner_subject: string
+  clinic_id?: string | null
+  created_at: string
+  updated_at: string
+  approved_at?: string | null
+}
+
+export interface BackendDemoPaymentConfirmResponse {
+  payment: BackendDemoPayment
+  message: string
+  submission_finalized: boolean
+  submission_id?: string | null
+  submission_status?: string | null
 }
 
 export interface BackendManagedUser {
@@ -93,6 +117,39 @@ export interface BackendClinicStats {
   approved: number
   pending_submissions: number
   staff: BackendManagedUser[]
+}
+
+export type SupportMessageChannel = 'radiologist' | 'admin'
+
+export interface BackendSupportThreadSummary {
+  thread_id: string
+  channel: SupportMessageChannel
+  owner_subject: string
+  clinic_id?: string | null
+  subject: string
+  status: 'open' | 'closed'
+  related_case_id?: string | null
+  related_submission_id?: string | null
+  message_count: number
+  unread_count: number
+  last_message_preview?: string | null
+  last_message_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BackendSupportMessage {
+  message_id: string
+  author_subject: string
+  author_role: string
+  body: string
+  created_at: string
+  unread: boolean
+}
+
+export interface BackendSupportThreadDetail {
+  thread: BackendSupportThreadSummary
+  messages: BackendSupportMessage[]
 }
 
 export type CaseStatus =

@@ -24,6 +24,10 @@ from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
+from app.services.messaging_service import MessagingService
+from app.services.messaging_store import build_messaging_store
+from app.services.payment_service import PaymentService
+from app.services.payment_store import build_payment_store
 from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
 from app.settings import Settings, load_settings, validate_security_settings
@@ -160,6 +164,12 @@ class AppContainer:
         # Mutable login directory (admin can add/update users via WorkflowService).
         self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)
         self.workflow_store = build_workflow_store(self.settings)
+        self.payment_store = build_payment_store(self.settings)
+        self.payments = PaymentService(
+            self.payment_store,
+            audit=self.audit,
+            tenant_isolation=self.settings.tenant_isolation,
+        )
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -167,8 +177,17 @@ class AppContainer:
             notifications=self.notifications,
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
+            payments=self.payments,
         )
+        self.payments.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
+        self.messaging_store = build_messaging_store(self.settings)
+        self.messaging = MessagingService(
+            self.messaging_store,
+            notifications=self.notifications,
+            auth_users=self._auth_users,
+            tenant_isolation=self.settings.tenant_isolation,
+        )
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,
             api_key=self.settings.auth_api_key,

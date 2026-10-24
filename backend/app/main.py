@@ -11,6 +11,8 @@ from app.api.models import router as models_router
 from app.api.rag import router as rag_router
 from app.api.reports import router as reports_router
 from app.api.notifications import router as notifications_router
+from app.api.messaging import router as messaging_router
+from app.api.payments import router as payments_router
 from app.api.workflow import router as workflow_router
 from app.container import AppContainer
 
@@ -47,6 +49,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(models_router)
     app.include_router(rag_router)
     app.include_router(workflow_router)
+    app.include_router(payments_router)
+    app.include_router(messaging_router)
     app.include_router(notifications_router)
 
     @app.get("/api/v1/health")

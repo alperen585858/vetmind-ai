@@ -12,6 +12,7 @@ Bu belge, depo yapısını, hedef veri akışını, backend/frontend mimarisini,
 - [docs/audits/01_AI_ARCHITECTURE.md](docs/audits/01_AI_ARCHITECTURE.md) — AI audit bulguları (F1–F14)
 - [docs/audits/02_DICOM_PHASE1_AUDIT.md](docs/audits/02_DICOM_PHASE1_AUDIT.md) — Phase 1 DICOM workspace audit
 - [docs/PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) — Phase 1.1 stabilization + Phase 2 case management (no payment)
+- [docs/DEMO_PAYMENT_SUBMISSION_FLOW.md](docs/DEMO_PAYMENT_SUBMISSION_FLOW.md) — demo payment (100 EUR) before imaging submission finalize
 - [backend/README.md](backend/README.md) — backend env / API özeti
 - [backend/.env.example](backend/.env.example) — ortam değişkeni şablonu
 

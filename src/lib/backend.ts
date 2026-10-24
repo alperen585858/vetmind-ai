@@ -1,4 +1,4 @@
-import { getBackendAccessToken } from './auth'
+import { getBackendAccessToken, loadSession } from './auth'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, ReportSections, Species } from '../types'
 import type {
@@ -84,6 +84,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
+  // When auth is disabled, attribute support messages to the active demo session.
+  const session = loadSession()
+  if (session?.role && session?.email) {
+    if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
+    if (!headers.has('X-VetMind-Demo-Subject')) headers.set('X-VetMind-Demo-Subject', session.email)
+  }
 
   let res: Response
   try {
@@ -106,7 +112,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail)
   }
-  return res.json() as Promise<T>
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T
+  }
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 export function toBackendSpecies(species: Species): BackendSpecies {
@@ -870,6 +881,41 @@ export async function createSubmission(payload: {
   })
 }
 
+export async function deleteSubmission(id: string) {
+  await request<void>(`/submissions/${id}`, { method: 'DELETE' })
+}
+
+export async function finalizeSubmission(id: string) {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}/finalize`, {
+    method: 'POST',
+  })
+}
+
+export async function createDemoPaymentIntent(submissionId: string) {
+  return request<import('../types').BackendDemoPayment>('/payments/intents', {
+    method: 'POST',
+    body: JSON.stringify({ submission_id: submissionId }),
+  })
+}
+
+export async function getDemoPayment(paymentId: string) {
+  return request<import('../types').BackendDemoPayment>(`/payments/intents/${paymentId}`)
+}
+
+export async function getDemoPaymentBySubmission(submissionId: string) {
+  return request<import('../types').BackendDemoPayment>(`/payments/by-submission/${submissionId}`)
+}
+
+export async function confirmDemoPayment(
+  paymentId: string,
+  payload: { card_number: string; expiry: string; cvc: string },
+) {
+  return request<import('../types').BackendDemoPaymentConfirmResponse>(
+    `/payments/intents/${paymentId}/confirm-demo`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
 export async function updateSubmission(
   id: string,
   payload: Partial<{
@@ -1016,6 +1062,40 @@ export interface AppNotification {
   dedupe_key: string
   created_at: string
   read_at?: string | null
+}
+
+export async function listSupportThreads() {
+  return request<import('../types').BackendSupportThreadSummary[]>('/messages/threads')
+}
+
+export async function createSupportThread(payload: {
+  channel: 'radiologist' | 'admin'
+  subject: string
+  body: string
+  related_case_id?: string
+  related_submission_id?: string
+}) {
+  return request<import('../types').BackendSupportThreadDetail>('/messages/threads', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getSupportThread(threadId: string) {
+  return request<import('../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}`)
+}
+
+export async function postSupportMessage(threadId: string, body: string) {
+  return request<import('../types').BackendSupportMessage>(`/messages/threads/${threadId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export async function markSupportThreadRead(threadId: string) {
+  return request<import('../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}/read`, {
+    method: 'POST',
+  })
 }
 
 export async function listNotifications(unreadOnly = false) {

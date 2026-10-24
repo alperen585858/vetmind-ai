@@ -23,10 +23,26 @@ export default {
       keyframes: {
         'slide-in': { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
         'fade-up': { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        'pay-pop': {
+          '0%': { transform: 'scale(0.4)', opacity: '0' },
+          '55%': { transform: 'scale(1.12)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        'pay-ring': {
+          '0%': { transform: 'scale(0.7)', opacity: '0.55' },
+          '100%': { transform: 'scale(1.55)', opacity: '0' },
+        },
+        'pay-check': {
+          '0%': { strokeDashoffset: '72' },
+          '100%': { strokeDashoffset: '0' },
+        },
       },
       animation: {
         'slide-in': 'slide-in .25s ease-out',
         'fade-up': 'fade-up .3s ease-out both',
+        'pay-pop': 'pay-pop .55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'pay-ring': 'pay-ring 1.1s ease-out .1s both',
+        'pay-check': 'pay-check .5s ease-out .25s both',
       },
     },
   },

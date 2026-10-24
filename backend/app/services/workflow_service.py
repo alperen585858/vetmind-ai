@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 
@@ -38,6 +39,9 @@ from app.services.dicom_service import DicomService
 from app.services.notification_service import NotificationService
 from app.services.workflow_store import WorkflowStore
 
+if TYPE_CHECKING:
+    from app.services.payment_service import PaymentService
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -53,6 +57,7 @@ class WorkflowService:
         notifications: NotificationService | None = None,
         tenant_isolation: bool = False,
         auth_users: dict[str, DemoUserRecord] | None = None,
+        payments: PaymentService | None = None,
     ) -> None:
         self._store = store
         self._cases = cases
@@ -60,7 +65,11 @@ class WorkflowService:
         self._notifications = notifications
         self._tenant_isolation = tenant_isolation
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
+        self._payments = payments
         self._seed_managed_from_demo()
+
+    def bind_payments(self, payments: PaymentService) -> None:
+        self._payments = payments
 
     def _seed_managed_from_demo(self) -> None:
         if self._store.list_users():
@@ -161,6 +170,7 @@ class WorkflowService:
     # --- Submissions ---
 
     def create_submission(self, payload: SubmissionCreate, *, principal: AuthPrincipal) -> ImagingSubmission:
+        """Create a draft imaging request. Finalization requires demo payment approval."""
         pet = self.get_pet(payload.pet_id, principal=principal)
         owner = principal.subject if principal.via != "disabled" else pet.owner_subject
         if principal.role == "owner" and pet.owner_subject != owner and principal.via == "jwt":
@@ -170,9 +180,67 @@ class WorkflowService:
             pet_owner_subject=pet.owner_subject,
             owner_subject=pet.owner_subject,
             clinic_id=pet.clinic_id or principal.clinic_id,
-            status="pending_verification",
+            status="draft",
             chief_complaint=payload.chief_complaint,
             clinical_notes=payload.clinical_notes,
+        )
+        return self._store.save_submission(sub)
+
+    def link_payment(
+        self,
+        submission_id: str,
+        *,
+        payment_id: str,
+        payment_status: str,
+        principal: AuthPrincipal,
+    ) -> ImagingSubmission:
+        sub = self.get_submission(submission_id, principal=principal)
+        sub = sub.model_copy(
+            update={
+                "payment_id": payment_id,
+                "payment_status": payment_status,
+                "updated_at": _now(),
+            }
+        )
+        return self._store.save_submission(sub)
+
+    def finalize_submission(
+        self,
+        submission_id: str,
+        *,
+        principal: AuthPrincipal,
+        payment_id: str | None = None,
+    ) -> ImagingSubmission:
+        """Promote draft → pending_verification after approved demo payment (idempotent)."""
+        sub = self.get_submission(submission_id, principal=principal)
+        if principal.via == "jwt" and principal.role == "owner":
+            if sub.pet_owner_subject != principal.subject:
+                raise HTTPException(status_code=404, detail="Submission not found.")
+
+        # Already past draft — idempotent return (no duplicate notify / case).
+        if sub.status in {"pending_verification", "needs_info", "verified", "linked", "rejected"}:
+            return sub
+
+        if sub.status != "draft":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot finalize submission in status '{sub.status}'.",
+            )
+
+        if self._payments is None:
+            raise HTTPException(status_code=500, detail="Payment service not configured.")
+        payment = self._payments.assert_approved_for_submission(sub.submission_id)
+        if payment_id and payment.payment_id != payment_id:
+            raise HTTPException(status_code=409, detail="Payment does not match submission.")
+
+        pet = self.get_pet(sub.pet_id, principal=principal)
+        sub = sub.model_copy(
+            update={
+                "status": "pending_verification",
+                "payment_id": payment.payment_id,
+                "payment_status": payment.status,
+                "updated_at": _now(),
+            }
         )
         saved = self._store.save_submission(sub)
         self._notify_clinic_vets(
@@ -180,7 +248,7 @@ class WorkflowService:
             kind="submission_created",
             title="Yeni görüntüleme talebi",
             body=f"{pet.name}: {saved.chief_complaint or 'Görüntüleme talebi'}",
-            link_path="/basvurular",
+            link_path=f"/basvurular/{saved.submission_id}",
             dedupe_key=f"submission_created:{saved.submission_id}",
             submission_id=saved.submission_id,
         )
@@ -196,6 +264,13 @@ class WorkflowService:
         out: list[ImagingSubmission] = []
         for s in rows:
             if status_filter and s.status != status_filter:
+                continue
+            # Unpaid drafts stay private to the owner until demo payment finalizes.
+            if (
+                s.status == "draft"
+                and principal.via != "disabled"
+                and principal.role in {"vet", "clinic_owner", "expert"}
+            ):
                 continue
             if principal.via == "disabled":
                 out.append(s)
@@ -227,6 +302,23 @@ class WorkflowService:
         ):
             raise HTTPException(status_code=404, detail="Submission not found.")
         return sub
+
+    def delete_submission(self, submission_id: str, *, principal: AuthPrincipal) -> None:
+        """Remove a submission from the list. Linked clinical cases are kept; submission row is deleted."""
+        sub = self.get_submission(submission_id, principal=principal)
+        if principal.via == "jwt":
+            if principal.role == "owner":
+                if sub.pet_owner_subject != principal.subject:
+                    raise HTTPException(status_code=404, detail="Submission not found.")
+            elif principal.role not in {"vet", "clinic_owner", "admin", "demo", "service"}:
+                raise HTTPException(status_code=403, detail="Not allowed to delete submissions.")
+        if sub.status == "linked" and sub.linked_case_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete a submission already linked to a clinical case.",
+            )
+        if not self._store.delete_submission(submission_id):
+            raise HTTPException(status_code=404, detail="Submission not found.")
 
     def update_submission(
         self, submission_id: str, payload: SubmissionUpdate, *, principal: AuthPrincipal
@@ -346,15 +438,17 @@ class WorkflowService:
         sub.attachments = [*sub.attachments, att]
         sub.updated_at = _now()
         saved = self._store.save_submission(sub)
-        self._notify_clinic_vets(
-            clinic_id=saved.clinic_id,
-            kind="attachment_added",
-            title="Dosya eklendi" if payload.kind == "document" else "DICOM eklendi",
-            body=f"Başvuru {saved.submission_id}",
-            link_path="/basvurular",
-            dedupe_key=f"attachment_added:{saved.submission_id}:{att.attachment_id}",
-            submission_id=saved.submission_id,
-        )
+        # Draft uploads stay quiet until demo payment finalizes the request.
+        if saved.status != "draft":
+            self._notify_clinic_vets(
+                clinic_id=saved.clinic_id,
+                kind="attachment_added",
+                title="Dosya eklendi" if payload.kind == "document" else "DICOM eklendi",
+                body=f"Başvuru {saved.submission_id}",
+                link_path="/basvurular",
+                dedupe_key=f"attachment_added:{saved.submission_id}:{att.attachment_id}",
+                submission_id=saved.submission_id,
+            )
         return saved
 
     def reply_info_request(

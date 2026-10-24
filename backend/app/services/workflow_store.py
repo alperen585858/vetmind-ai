@@ -23,6 +23,8 @@ class WorkflowStore(Protocol):
 
     def list_submissions(self) -> list[ImagingSubmission]: ...
 
+    def delete_submission(self, submission_id: str) -> bool: ...
+
     def save_user(self, user: ManagedUser) -> ManagedUser: ...
 
     def get_user(self, email: str) -> Optional[ManagedUser]: ...
@@ -57,6 +59,9 @@ class InMemoryWorkflowStore:
 
     def list_submissions(self) -> list[ImagingSubmission]:
         return sorted(self._subs.values(), key=lambda s: s.created_at, reverse=True)
+
+    def delete_submission(self, submission_id: str) -> bool:
+        return self._subs.pop(submission_id, None) is not None
 
     def save_user(self, user: ManagedUser) -> ManagedUser:
         self._users[user.email.lower()] = user
@@ -138,6 +143,11 @@ class SqliteWorkflowStore:
     def list_submissions(self) -> list[ImagingSubmission]:
         rows = self._conn.execute("SELECT payload FROM submissions ORDER BY created_at DESC").fetchall()
         return [ImagingSubmission.model_validate_json(r["payload"]) for r in rows]
+
+    def delete_submission(self, submission_id: str) -> bool:
+        cur = self._conn.execute("DELETE FROM submissions WHERE submission_id=?", (submission_id,))
+        self._conn.commit()
+        return cur.rowcount > 0
 
     def save_user(self, user: ManagedUser) -> ManagedUser:
         self._conn.execute(

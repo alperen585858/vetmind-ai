@@ -10,6 +10,7 @@ from app.container import AppContainer
 from app.main import create_app
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
+from helpers_payment import approve_demo_payment
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -101,6 +102,8 @@ def test_submission_info_request_lifecycle_and_extra_attach(tmp_path: Path) -> N
     )
     assert again.status_code == 200
     assert len(again.json()["attachments"]) == len(body["attachments"])
+
+    approve_demo_payment(client, sid, _hdr(owner))
 
     req = client.post(
         f"/api/v1/submissions/{sid}/vet-action",

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, LayoutDashboard, Layers, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
+import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, LayoutDashboard, Layers, MessageSquare, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { Logo } from './Logo'
@@ -30,11 +30,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
       { to: '/kuyruk', label: 'İş Listesi', icon: <ClipboardCheck className={ic} />, badge: queue },
       { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
+      { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
     ],
     owner: [
       { to: '/', label: 'Hayvanlarım', icon: <PawPrint className={ic} /> },
       { to: '/hayvanlar', label: 'Pet profilleri', icon: <PawPrint className={ic} /> },
       { to: '/basvurular', label: 'Görüntüleme talepleri', icon: <UploadCloud className={ic} /> },
+      { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
       { to: '/raporlar', label: 'Raporlarım', icon: <FileText className={ic} /> },
     ],
     clinic_owner: [
@@ -45,6 +47,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     ],
     admin: [
       { to: '/', label: 'Sistem Özeti', icon: <LayoutDashboard className={ic} /> },
+      { to: '/mesajlar', label: 'İletişim / Destek', icon: <MessageSquare className={ic} /> },
       { to: '/kullanicilar', label: 'Kullanıcılar / roller', icon: <ShieldCheck className={ic} /> },
       { to: '/moduller', label: 'Uzmanlık Modülleri', icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: 'Bilgi Tabanı', icon: <BookOpen className={ic} /> },

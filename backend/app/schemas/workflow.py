@@ -160,6 +160,9 @@ class ImagingSubmission(BaseModel):
     linked_case_id: Optional[str] = None
     verified_by: Optional[str] = None
     verified_at: Optional[datetime] = None
+    # Demo payment gate (authoritative status lives on DemoPayment; mirrored for UI)
+    payment_id: Optional[str] = None
+    payment_status: Optional[Literal["requires_confirmation", "approved", "failed"]] = None
     # Phase 18: multi-attach + structured info requests
     attachments: list[AttachmentRef] = Field(default_factory=list)
     info_requests: list[InfoRequest] = Field(default_factory=list)

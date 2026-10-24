@@ -23,6 +23,7 @@ NotificationKind = Literal[
     "info_request_closed",
     "attachment_added",
     "clinical_history_updated",
+    "support_message",
 ]
 
 

@@ -16,6 +16,7 @@ CAP_PETS = "pets:write"
 CAP_SUBMISSIONS = "submissions:write"
 CAP_CLINIC_MANAGE = "clinic:manage"
 CAP_USERS_ADMIN = "users:admin"
+CAP_MESSAGES = "messages:write"
 
 ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
     "demo": frozenset({"*"}),
@@ -40,6 +41,7 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_REVIEW,
             CAP_RAG_SEARCH,
             CAP_DICOM,  # read/confirm path during review demos
+            CAP_MESSAGES,
         }
     ),
     "owner": frozenset(
@@ -50,6 +52,7 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_SUBMISSIONS,
             CAP_DICOM,  # owner upload into submission quarantine only (API-gated)
             CAP_DOCUMENTS,
+            CAP_MESSAGES,
         }
     ),
     "clinic_owner": frozenset(

@@ -10,6 +10,7 @@ from app.container import AppContainer
 from app.main import create_app
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
+from helpers_payment import approve_demo_payment
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -52,8 +53,9 @@ def test_notifications_submission_and_dedupe(tmp_path: Path) -> None:
         headers=_hdr(owner),
     )
     assert sub.status_code == 201
+    approve_demo_payment(client, sub.json()["submission_id"], _hdr(owner))
 
-    # Creating again same submission shouldn't duplicate; new submission creates new keys.
+    # Finalization notifies clinic vets once (dedupe_key per submission).
     ntf = client.get("/api/v1/notifications", headers=_hdr(vet))
     assert ntf.status_code == 200
     assert ntf.json()["unread_count"] >= 1
@@ -112,6 +114,7 @@ def test_pet_medical_history_and_activity_and_pdf(tmp_path: Path) -> None:
         json={"dicom_ingest_id": ingest_id},
         headers=_hdr(owner),
     )
+    approve_demo_payment(client, sub["submission_id"], _hdr(owner))
 
     accepted = client.post(
         f"/api/v1/submissions/{sub['submission_id']}/vet-action",

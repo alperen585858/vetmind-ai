@@ -36,14 +36,15 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
     setRole(r)
     void (async () => {
       try {
+        // Await JWT rebind so subsequent API calls (e.g. mesajlar) use the new role.
         const tokenRes = await backendLogin(demoEmailForRole(r), DEMO_PASSWORD)
         setBackendAccessToken(tokenRes.access_token)
       } catch {
-        /* backend down or auth disabled — UI role still switches */
+        /* backend down or auth disabled — UI role still switches; demo headers attribute actors */
       }
+      nav('/')
+      pushToast({ tone: 'info', title: `Rol değiştirildi: ${ROLE_LABELS[r]}`, body: USERS[r].name })
     })()
-    nav('/')
-    pushToast({ tone: 'info', title: `Rol değiştirildi: ${ROLE_LABELS[r]}`, body: USERS[r].name })
   }
 
   return (

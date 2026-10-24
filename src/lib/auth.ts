@@ -230,6 +230,7 @@ export function userFromSession(session: DemoSession): User {
     ...base,
     name: session.name,
     initials,
+    email: session.email,
   }
 }
 

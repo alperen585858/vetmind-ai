@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { KbSource, Role, User, VetCase } from '../types'
 import { KB_SOURCES, SEED_CASES, USERS } from '../data/mock'
-import { loadSession, logout as clearAuthSession, userFromSession, type DemoSession } from '../lib/auth'
+import {
+  demoEmailForRole,
+  loadSession,
+  logout as clearAuthSession,
+  userFromSession,
+  type DemoSession,
+} from '../lib/auth'
 import { BackendUnavailableError, getBackendCase, listBackendCases } from '../lib/backend'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
@@ -130,7 +136,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Always bind role-switch to seed demo emails so backend JWT matches RBAC.
       const demo: DemoSession = {
         accountId: `role-${r}`,
-        email: `${r}@demo.local`,
+        email: demoEmailForRole(r),
         role: r,
         name: USERS[r].name,
       }

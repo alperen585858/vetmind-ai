@@ -10,6 +10,7 @@ from app.container import AppContainer
 from app.main import create_app
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
+from helpers_payment import approve_demo_payment
 
 
 def _client(tmp_path: Path, *, isolation: bool = True) -> TestClient:
@@ -76,7 +77,11 @@ def test_owner_pet_submission_vet_accept_and_owner_report_acl(tmp_path: Path) ->
     )
     assert sub.status_code == 201, sub.text
     sub_id = sub.json()["submission_id"]
-    assert sub.json()["status"] == "pending_verification"
+    assert sub.json()["status"] == "draft"
+    approve_demo_payment(client, sub_id, _hdr(owner))
+    finalized = client.get(f"/api/v1/submissions/{sub_id}", headers=_hdr(owner))
+    assert finalized.status_code == 200
+    assert finalized.json()["status"] == "pending_verification"
 
     # Vet requests missing info
     need = client.post(
@@ -309,6 +314,8 @@ def test_vet_accept_binds_owner_dicom_via_confirm(tmp_path: Path) -> None:
     )
     assert linked.status_code == 200
     assert linked.json()["dicom_ingest_id"] == ingest_id
+
+    approve_demo_payment(client, sub["submission_id"], _hdr(owner))
 
     accepted = client.post(
         f"/api/v1/submissions/{sub['submission_id']}/vet-action",

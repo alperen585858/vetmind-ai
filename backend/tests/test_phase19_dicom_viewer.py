@@ -10,6 +10,7 @@ from app.container import AppContainer
 from app.main import create_app
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
+from helpers_payment import approve_demo_payment
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -84,6 +85,8 @@ def test_case_dicom_lists_all_linked_ingests(tmp_path: Path) -> None:
         ).status_code
         == 200
     )
+
+    approve_demo_payment(client, sid, _hdr(owner))
 
     accepted = client.post(
         f"/api/v1/submissions/{sid}/vet-action",

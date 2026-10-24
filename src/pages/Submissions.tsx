@@ -1,16 +1,33 @@
 import { useEffect, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
-import { Link } from 'react-router-dom'
-import { ClipboardCheck, Eye, FileText, FolderOpen, Loader2, UploadCloud, X } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  ArrowLeft,
+  ArrowRight,
+  ClipboardCheck,
+  Eye,
+  FileText,
+  FolderOpen,
+  Loader2,
+  Trash2,
+  UploadCloud,
+  X,
+} from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { StepIndicator } from '../components/StepIndicator'
+import { DEMO_PRICE_LABEL, DemoPaymentStep } from '../components/DemoPaymentStep'
 import {
   attachSubmission,
   closeSubmissionInfoRequest,
+  createDemoPaymentIntent,
   createSubmission,
+  deleteSubmission,
   fetchIngestDicomFiles,
+  getDemoPayment,
+  getDemoPaymentBySubmission,
   getDicomIngestion,
   listPets,
   listSubmissions,
@@ -22,7 +39,13 @@ import {
   vetSubmissionAction,
 } from '../lib/backend'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
-import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord, Species } from '../types'
+import type {
+  BackendDemoPayment,
+  BackendImagingSubmission,
+  BackendPet,
+  DicomIngestionRecord,
+  Species,
+} from '../types'
 
 const STATUS_TR: Record<string, string> = {
   draft: 'Taslak',
@@ -32,6 +55,10 @@ const STATUS_TR: Record<string, string> = {
   rejected: 'Reddedildi',
   linked: 'Vakaya bağlandı',
 }
+
+const WIZARD_STEPS = ['Hayvan ve klinik', 'DICOM seç', 'Talep özeti', 'Ödeme']
+
+const DRAFT_STORAGE_KEY = 'vetmind.submissionDraft'
 
 function petSpeciesLabel(species?: string | null): Species {
   return species === 'feline' ? 'Kedi' : 'Köpek'
@@ -44,6 +71,8 @@ function collectFiles(list: FileList | null): File[] {
 
 export default function Submissions() {
   const { role, pushToast } = useApp()
+  const navigate = useNavigate()
+  const { submissionId: routeSubmissionId } = useParams<{ submissionId?: string }>()
   const isOwner = role === 'owner'
   const isVet = role === 'vet' || role === 'clinic_owner'
   const [rows, setRows] = useState<BackendImagingSubmission[]>([])
@@ -54,8 +83,15 @@ export default function Submissions() {
   const [complaint, setComplaint] = useState('')
   const [notes, setNotes] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [useDemoDicom, setUseDemoDicom] = useState(false)
+  const [wizardStep, setWizardStep] = useState(0)
+  const [draftSub, setDraftSub] = useState<BackendImagingSubmission | null>(null)
+  const [payment, setPayment] = useState<BackendDemoPayment | null>(null)
+  const [paymentReady, setPaymentReady] = useState(false)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [submitLock, setSubmitLock] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
@@ -86,6 +122,12 @@ export default function Submissions() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role])
+
+  useEffect(() => {
+    if (!routeSubmissionId) return
+    const el = document.getElementById(`submission-${routeSubmissionId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [routeSubmissionId, rows])
 
   const addFiles = (incoming: File[]) => {
     if (!incoming.length) return
@@ -155,9 +197,93 @@ export default function Submissions() {
     return attachSubmission(sub.submission_id, { kind: 'document', ingest_id: doc.ingest_id })
   }
 
-  const create = async (useDemo: boolean) => {
-    if (!petId) return
-    if (!useDemo && files.length === 0) {
+  const resetWizard = () => {
+    setWizardStep(0)
+    setComplaint('')
+    setNotes('')
+    setFiles([])
+    setUseDemoDicom(false)
+    setDraftSub(null)
+    setPayment(null)
+    setPaymentReady(false)
+    setSubmitLock(false)
+    setPaymentSuccess(false)
+    try {
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Persist draft ids so refresh keeps an approved/in-progress demo payment. */
+  const persistDraftIds = (submissionId: string, paymentId?: string | null) => {
+    try {
+      sessionStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({ submissionId, paymentId: paymentId || null, petId, complaint, notes }),
+      )
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
+    if (!isOwner || pets.length === 0) return
+    try {
+      const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY)
+      if (!raw) return
+      const saved = JSON.parse(raw) as {
+        submissionId?: string
+        paymentId?: string | null
+        petId?: string
+        complaint?: string
+        notes?: string
+      }
+      if (!saved.submissionId) return
+      if (saved.petId) setPetId(saved.petId)
+      if (saved.complaint) setComplaint(saved.complaint)
+      if (saved.notes) setNotes(saved.notes)
+      void (async () => {
+        try {
+          const pay = saved.paymentId
+            ? await getDemoPayment(saved.paymentId)
+            : await getDemoPaymentBySubmission(saved.submissionId!)
+          setPayment(pay)
+          setDraftSub({
+            submission_id: saved.submissionId!,
+            pet_id: saved.petId || petId,
+            pet_owner_subject: '',
+            status: pay.status === 'approved' ? 'pending_verification' : 'draft',
+            created_at: '',
+            updated_at: '',
+            payment_id: pay.payment_id,
+            payment_status: pay.status,
+          })
+          setWizardStep(3)
+          setPaymentReady(true)
+          if (pay.status === 'approved') {
+            pushToast({
+              tone: 'success',
+              title: 'Demo Payment Approved',
+              body: 'Önceki onaylı demo ödeme korundu.',
+            })
+            navigate(`/basvurular/${saved.submissionId}`, { replace: true })
+            resetWizard()
+            load()
+          }
+        } catch {
+          /* stale draft — ignore */
+        }
+      })()
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, pets.length])
+
+  const preparePaymentStep = async () => {
+    if (!petId || submitLock) return
+    if (!useDemoDicom && files.length === 0) {
       pushToast({
         tone: 'error',
         title: 'DICOM seçilmedi',
@@ -165,25 +291,33 @@ export default function Submissions() {
       })
       return
     }
-    setBusy('create')
+    setBusy('prepare-pay')
+    setSubmitLock(true)
     try {
-      const sub = await createSubmission({
-        pet_id: petId,
-        chief_complaint: complaint || undefined,
-        clinical_notes: notes || undefined,
-      })
-      const linked = await uploadAndLink(sub, useDemo ? { demo: true } : { files })
-      pushToast({
-        tone: 'success',
-        title: useDemo ? 'Başvuru + demo DICOM gönderildi' : 'Başvuru + DICOM gönderildi',
-        body: `Ingest ${linked.dicom_ingest_id} · veteriner doğrulaması gerekir.`,
-      })
-      setComplaint('')
-      setNotes('')
-      setFiles([])
-      load()
+      let sub = draftSub
+      if (!sub || sub.status !== 'draft') {
+        sub = await createSubmission({
+          pet_id: petId,
+          chief_complaint: complaint || undefined,
+          clinical_notes: notes || undefined,
+        })
+        if (!sub.dicom_ingest_id) {
+          sub = await uploadAndLink(sub, useDemoDicom ? { demo: true } : { files })
+        }
+        setDraftSub(sub)
+      }
+      const intent = await createDemoPaymentIntent(sub.submission_id)
+      setPayment(intent)
+      persistDraftIds(sub.submission_id, intent.payment_id)
+      setPaymentReady(true)
+      setWizardStep(3)
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Başvuru/DICOM başarısız', body: e instanceof Error ? e.message : undefined })
+      setSubmitLock(false)
+      pushToast({
+        tone: 'error',
+        title: 'Ödeme adımı hazırlanamadı',
+        body: e instanceof Error ? e.message : undefined,
+      })
     } finally {
       setBusy(null)
     }
@@ -304,6 +438,32 @@ export default function Submissions() {
   const canOwnerAttach = (s: BackendImagingSubmission) =>
     isOwner && (s.status === 'pending_verification' || s.status === 'needs_info' || s.status === 'draft')
 
+  const canDelete = (s: BackendImagingSubmission) =>
+    (isOwner || isVet) && s.status !== 'linked' && !s.linked_case_id
+
+  const removeSubmission = async (s: BackendImagingSubmission) => {
+    if (!canDelete(s)) return
+    const ok = window.confirm(
+      `Bu başvuruyu silmek istediğinize emin misiniz?\n\n${s.submission_id}\n${s.chief_complaint || s.clinical_notes || 'Başvuru'}`,
+    )
+    if (!ok) return
+    setBusy(`del-${s.submission_id}`)
+    try {
+      await deleteSubmission(s.submission_id)
+      pushToast({ tone: 'success', title: 'Başvuru silindi', body: s.submission_id })
+      if (routeSubmissionId === s.submission_id) navigate('/basvurular', { replace: true })
+      load()
+    } catch (e) {
+      pushToast({
+        tone: 'error',
+        title: 'Silinemedi',
+        body: e instanceof Error ? e.message : undefined,
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setDrag(false)
@@ -393,7 +553,7 @@ export default function Submissions() {
         title={isOwner ? 'DICOM yükle' : 'Başvuru onayı'}
         subtitle={
           isOwner
-            ? 'Dosya seçin, talebi gönderin — veteriner onayından sonra işlem başlar'
+            ? `Hasta bilgileri → DICOM → özet → demo ödeme (${DEMO_PRICE_LABEL}) → radyoloji iş akışı`
             : 'Doğrula · radyoloğa ata · veya eksik bilgi iste'
         }
         crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: isOwner ? 'DICOM yükle' : 'Başvurular' }]}
@@ -404,7 +564,11 @@ export default function Submissions() {
 
       {isOwner && (
         <Card className="mb-6 p-5">
-          <CardHeader title="Yeni DICOM talebi" icon={<UploadCloud className="h-5 w-5" />} />
+          <CardHeader
+            title="Yeni görüntüleme talebi"
+            subtitle={`Demo ödeme (${DEMO_PRICE_LABEL}) sonrası radyoloji iş akışına gönderilir`}
+            icon={<UploadCloud className="h-5 w-5" />}
+          />
           {pets.length === 0 ? (
             <p className="px-1 text-sm text-slate-600">
               Önce{' '}
@@ -414,124 +578,273 @@ export default function Submissions() {
               oluşturun.
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="label">
-                Pet
-                <select className="input mt-1" value={petId} onChange={(e) => setPetId(e.target.value)}>
-                  {pets.map((p) => (
-                    <option key={p.pet_id} value={p.pet_id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="label">
-                Şikâyet
-                <input className="input mt-1" value={complaint} onChange={(e) => setComplaint(e.target.value)} />
-              </label>
-              <label className="label sm:col-span-2">
-                Klinik notlar
-                <textarea className="input mt-1 min-h-[72px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </label>
+            <div className="space-y-5">
+              <StepIndicator
+                steps={WIZARD_STEPS}
+                current={wizardStep}
+                onSelect={(i) => {
+                  if (i < wizardStep && !submitLock) setWizardStep(i)
+                }}
+              />
 
-              <div className="sm:col-span-2">
-                <p className="label mb-1.5">DICOM görüntüleme</p>
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDrag(true)
-                  }}
-                  onDragLeave={() => setDrag(false)}
-                  onDrop={onDrop}
-                  className={`rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
-                    drag
-                      ? 'border-teal-600 bg-teal-50'
-                      : 'border-slate-200 bg-slate-50/80 hover:border-teal-400'
-                  }`}
-                >
-                  <UploadCloud className={`mx-auto h-8 w-8 ${drag ? 'text-teal-700' : 'text-teal-600'}`} />
-                  <p className="mt-2 text-sm font-medium text-navy-900">
-                    {drag ? 'Dosyaları bırakın' : 'DICOM dosya veya klasör sürükleyin'}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">.dcm / DICOM Part-10 · birden fazla dosya seçilebilir</p>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {wizardStep === 0 && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="label">
+                    Pet
+                    <select className="input mt-1" value={petId} onChange={(e) => setPetId(e.target.value)}>
+                      {pets.map((p) => (
+                        <option key={p.pet_id} value={p.pet_id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="label">
+                    Şikâyet
+                    <input className="input mt-1" value={complaint} onChange={(e) => setComplaint(e.target.value)} />
+                  </label>
+                  <label className="label sm:col-span-2">
+                    Klinik notlar
+                    <textarea
+                      className="input mt-1 min-h-[72px]"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </label>
+                  <div className="flex justify-end sm:col-span-2">
                     <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      icon={<FileText className="h-3.5 w-3.5" />}
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setWizardStep(1)}
+                      disabled={!petId}
+                      icon={<ArrowRight className="h-4 w-4" />}
                     >
-                      Dosya seç
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      icon={<FolderOpen className="h-3.5 w-3.5" />}
-                      onClick={() => folderInputRef.current?.click()}
-                    >
-                      Klasör seç
+                      Devam · DICOM
                     </Button>
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".dcm,.dicom,application/dicom,*/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      addFiles(collectFiles(e.target.files))
-                      e.target.value = ''
-                    }}
-                  />
-                  <input
-                    ref={folderInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      addFiles(collectFiles(e.target.files))
-                      e.target.value = ''
-                    }}
-                    {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
-                  />
                 </div>
+              )}
 
-                {files.length > 0 && (
-                  <ul className="mt-3 max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-white px-3 py-2">
-                    {files.map((f) => (
-                      <li key={`${f.name}-${f.size}`} className="flex items-center justify-between gap-2 text-xs text-slate-700">
-                        <span className="truncate">
-                          {f.name}{' '}
-                          <span className="text-slate-400">({Math.max(1, Math.round(f.size / 1024))} KB)</span>
-                        </span>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-                          onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
-                          aria-label={`${f.name} kaldır`}
+              {wizardStep === 1 && (
+                <div className="space-y-3">
+                  <p className="label mb-1.5">DICOM görüntüleme</p>
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setDrag(true)
+                    }}
+                    onDragLeave={() => setDrag(false)}
+                    onDrop={onDrop}
+                    className={`rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                      drag
+                        ? 'border-teal-600 bg-teal-50'
+                        : 'border-slate-200 bg-slate-50/80 hover:border-teal-400'
+                    }`}
+                  >
+                    <UploadCloud className={`mx-auto h-8 w-8 ${drag ? 'text-teal-700' : 'text-teal-600'}`} />
+                    <p className="mt-2 text-sm font-medium text-navy-900">
+                      {drag ? 'Dosyaları bırakın' : 'DICOM dosya veya klasör sürükleyin'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">.dcm / DICOM Part-10 · birden fazla dosya seçilebilir</p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        icon={<FileText className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setUseDemoDicom(false)
+                          fileInputRef.current?.click()
+                        }}
+                      >
+                        Dosya seç
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        icon={<FolderOpen className="h-3.5 w-3.5" />}
+                        onClick={() => {
+                          setUseDemoDicom(false)
+                          folderInputRef.current?.click()
+                        }}
+                      >
+                        Klasör seç
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setUseDemoDicom(true)
+                          setFiles([])
+                        }}
+                      >
+                        Demo DICOM kullan
+                      </Button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept=".dcm,.dicom,application/dicom,*/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        setUseDemoDicom(false)
+                        addFiles(collectFiles(e.target.files))
+                        e.target.value = ''
+                      }}
+                    />
+                    <input
+                      ref={folderInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        setUseDemoDicom(false)
+                        addFiles(collectFiles(e.target.files))
+                        e.target.value = ''
+                      }}
+                      {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
+                    />
+                  </div>
+
+                  {useDemoDicom && (
+                    <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+                      Demo brain MRI DICOM kullanılacak (gerçek piksel analizi yok).
+                    </p>
+                  )}
+
+                  {files.length > 0 && (
+                    <ul className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-white px-3 py-2">
+                      {files.map((f) => (
+                        <li
+                          key={`${f.name}-${f.size}`}
+                          className="flex items-center justify-between gap-2 text-xs text-slate-700"
                         >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                          <span className="truncate">
+                            {f.name}{' '}
+                            <span className="text-slate-400">({Math.max(1, Math.round(f.size / 1024))} KB)</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                            onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
+                            aria-label={`${f.name} kaldır`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
-              <div className="flex flex-wrap gap-2 sm:col-span-2">
-                <Button onClick={() => void create(false)} disabled={!!busy || !petId || files.length === 0}>
-                  {busy === 'create' ? 'Gönderiliyor…' : `Talep + DICOM gönder${files.length ? ` (${files.length})` : ''}`}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => void create(true)}
-                  disabled={!!busy || !petId}
-                >
-                  Demo DICOM ile gönder
-                </Button>
-              </div>
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <Button
+                      variant="secondary"
+                      icon={<ArrowLeft className="h-4 w-4" />}
+                      onClick={() => setWizardStep(0)}
+                    >
+                      Geri
+                    </Button>
+                    <Button
+                      onClick={() => setWizardStep(2)}
+                      disabled={!useDemoDicom && files.length === 0}
+                      icon={<ArrowRight className="h-4 w-4" />}
+                    >
+                      Devam · Özet
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm">
+                    <p className="font-semibold text-navy-900">Talep özeti</p>
+                    <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <div>
+                        <dt className="text-xs text-slate-500">Pet</dt>
+                        <dd className="text-navy-900">{pets.find((p) => p.pet_id === petId)?.name || petId}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-slate-500">Ücret</dt>
+                        <dd className="font-semibold text-navy-900">{DEMO_PRICE_LABEL} (demo)</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="text-xs text-slate-500">Şikâyet / notlar</dt>
+                        <dd className="text-slate-800">{complaint || notes || '—'}</dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="text-xs text-slate-500">DICOM</dt>
+                        <dd className="text-slate-800">
+                          {useDemoDicom
+                            ? 'Demo brain MRI'
+                            : `${files.length} dosya (${files
+                                .slice(0, 3)
+                                .map((f) => f.name)
+                                .join(', ')}${files.length > 3 ? '…' : ''})`}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <Button
+                      variant="secondary"
+                      icon={<ArrowLeft className="h-4 w-4" />}
+                      onClick={() => setWizardStep(1)}
+                      disabled={!!busy}
+                    >
+                      Geri
+                    </Button>
+                    <Button
+                      onClick={() => void preparePaymentStep()}
+                      disabled={!!busy || !petId}
+                      icon={
+                        busy === 'prepare-pay' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="h-4 w-4" />
+                        )
+                      }
+                    >
+                      {busy === 'prepare-pay' ? 'Hazırlanıyor…' : 'Ödeme ekranına geç'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 3 && payment && paymentReady && (
+                <div className="space-y-4">
+                  <DemoPaymentStep
+                    payment={payment}
+                    disabled={busy === 'finalize' || paymentSuccess}
+                    onSuccessStart={() => setPaymentSuccess(true)}
+                    onApproved={(result) => {
+                      const sid = result.submission_id || draftSub?.submission_id
+                      pushToast({
+                        tone: 'success',
+                        title: 'Demo Payment Approved',
+                        body: 'Talep oluşturuldu ve radyoloji iş akışına gönderildi.',
+                      })
+                      resetWizard()
+                      load()
+                      if (sid) navigate(`/basvurular/${sid}`)
+                    }}
+                  />
+                  {!paymentSuccess && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSubmitLock(false)
+                        setWizardStep(2)
+                      }}
+                      disabled={busy === 'finalize'}
+                    >
+                      Özet’e dön
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </Card>
@@ -577,8 +890,13 @@ export default function Submissions() {
               if (isOwner && canOwnerAttach(s) && !s.dicom_ingest_id) requiredActions.push('DICOM yükleyin')
               if (isVet && s.status === 'pending_verification') requiredActions.push('Doğrula veya ek bilgi iste')
               if (isVet && answeredReqs.length) requiredActions.push('Sahip yanıtını inceleyin')
+              const highlighted = routeSubmissionId === s.submission_id
               return (
-              <li key={s.submission_id} className="px-5 py-4">
+              <li
+                id={`submission-${s.submission_id}`}
+                key={s.submission_id}
+                className={`px-5 py-4 ${highlighted ? 'bg-teal-50/70 ring-1 ring-inset ring-teal-200' : ''}`}
+              >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm">
                     <p className="font-semibold text-navy-900">{STATUS_TR[s.status] ?? s.status}</p>
@@ -689,6 +1007,17 @@ export default function Submissions() {
                           Reddet
                         </Button>
                       </>
+                    )}
+                    {canDelete(s) && (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        icon={<Trash2 className="h-3.5 w-3.5" />}
+                        disabled={busy === s.submission_id || busy === `del-${s.submission_id}`}
+                        onClick={() => void removeSubmission(s)}
+                      >
+                        {busy === `del-${s.submission_id}` ? 'Siliniyor…' : 'Sil'}
+                      </Button>
                     )}
                   </div>
                 </div>
