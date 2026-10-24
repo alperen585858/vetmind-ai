@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, LayoutDashboard, Layers, MessageSquare, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
+import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, Gauge, LayoutDashboard, Layers, MessageSquare, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { Logo } from './Logo'
@@ -52,6 +52,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       { to: '/moduller', label: 'Uzmanlık Modülleri', icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: 'Bilgi Tabanı', icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: 'Sistem Durumu', icon: <Activity className={ic} /> },
+      { to: '/model-performansi', label: 'Model Performansı', icon: <Gauge className={ic} /> },
     ],
   }
   const items = role ? menus[role] : []

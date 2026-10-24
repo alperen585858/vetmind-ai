@@ -205,6 +205,67 @@ export async function fetchModelReadiness(): Promise<BackendModelReadiness> {
   return request('/models/readiness')
 }
 
+// --- LLM layer: active model, expert feedback, offline evaluation (admin) ---
+
+export interface LlmStatus {
+  kind: string
+  provider_id: string
+  model_id: string
+  model_version: string
+  prompt_version: string | null
+  report_language: string
+}
+
+export interface LlmFeedbackSummary {
+  reviews: number
+  by_decision: Record<string, number>
+  sections: Record<string, { edited_rate: number | null; mean_similarity: number | null }>
+  models: Record<string, { reviews: number; approved_rate: number; approved_unedited_rate: number; mean_similarity: number }>
+  note: string
+}
+
+export interface LlmEvalCase {
+  case_id: string
+  ok: boolean
+  error: string
+  score: number | null
+  latency_s: number
+}
+
+export interface LlmEvalRun {
+  label: string
+  provider_id: string
+  model_id: string
+  prompt_version: string
+  summary: Record<string, number | null>
+  cases: LlmEvalCase[]
+}
+
+export interface LlmEvalResult {
+  file: string
+  set: string
+  set_version: number
+  runs: LlmEvalRun[]
+}
+
+export async function fetchLlmStatus(): Promise<LlmStatus> {
+  return request('/llm/status')
+}
+
+export async function fetchLlmFeedback(): Promise<LlmFeedbackSummary> {
+  return request('/llm/feedback')
+}
+
+/** Latest scripts/llm_eval.py result, or null when none has been run yet. */
+export async function fetchLatestLlmEval(): Promise<LlmEvalResult | null> {
+  try {
+    return await request<LlmEvalResult>('/llm/eval/latest')
+  } catch (err) {
+    if (err instanceof BackendUnavailableError) throw err
+    return null
+  }
+}
+
 /**
  * Create a synthetic case and run mock analysis synchronously.
  * The analyze endpoint blocks until the pipeline finishes; job_id is a run id, not a queue ticket.

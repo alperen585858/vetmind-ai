@@ -80,3 +80,24 @@ def test_feedback_requires_admin(tmp_path: Path) -> None:
 def test_similarity() -> None:
     assert similarity("a b c", " a b c ") == 1.0
     assert 0 < similarity("meningiom olası", "meningiom olası değil") < 1
+
+
+def test_llm_status_and_latest_eval(tmp_path: Path, monkeypatch) -> None:
+    import app.api.llm_feedback as api
+
+    client = _client(tmp_path)
+    status = client.get("/api/v1/llm/status").json()
+    assert status["kind"] == "mock" and status["prompt_version"] is None
+
+    monkeypatch.setattr(api, "EVAL_RESULTS_DIR", tmp_path / "none")
+    assert client.get("/api/v1/llm/eval/latest").status_code == 404
+
+    results = tmp_path / "results"
+    results.mkdir()
+    run = {"label": "m", "summary": {"score": 50.0}, "cases": [{"case_id": "c1", "score": 50.0, "sections": {"x": "y"}}]}
+    (results / "20260101-000000.json").write_text(json.dumps({"set": "old", "runs": []}))
+    (results / "20260102-000000.json").write_text(json.dumps({"set": "new", "runs": [run]}))
+    monkeypatch.setattr(api, "EVAL_RESULTS_DIR", results)
+    latest = client.get("/api/v1/llm/eval/latest").json()
+    assert latest["file"] == "20260102-000000.json" and latest["set"] == "new"
+    assert "sections" not in latest["runs"][0]["cases"][0]

@@ -196,6 +196,10 @@ için orijinal AI metni kayboluyordu.)
 Benzerlik kelime bazlıdır (1.0 = hiç değişmedi). Bekleyen (incelenmemiş) vakalar dahil edilmez.
 Dışa aktarılan metinlerde hasta adı ve klinik adı maskelenir.
 
+Yönetici panelindeki **Model Performansı** sayfası (`/model-performansi`) bu verileri ve son
+çevrimdışı değerlendirmeyi (`GET /api/v1/llm/eval/latest`) tek ekranda gösterir; aktif model ve prompt
+sürümü `GET /api/v1/llm/status` ile gelir.
+
 **Tez için:** "Uzman, model taslaklarının %X'ini düzeltmeden onayladı; en çok düzeltilen bölüm Yorum (impression)"
 gibi cümleler doğrudan `/llm/feedback` çıktısından gelir.
 

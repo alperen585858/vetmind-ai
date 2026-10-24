@@ -24,6 +24,7 @@ import ApprovedReport from './pages/ApprovedReport'
 import Modules from './pages/Modules'
 import KnowledgeBase from './pages/KnowledgeBase'
 import SystemStatus from './pages/SystemStatus'
+import ModelPerformance from './pages/ModelPerformance'
 import OwnerPets from './pages/OwnerPets'
 import Submissions from './pages/Submissions'
 import Messages from './pages/Messages'
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="moduller" element={<Gate roles={['admin']}><Modules /></Gate>} />
             <Route path="bilgi-tabani" element={<Gate roles={['admin']}><KnowledgeBase /></Gate>} />
             <Route path="sistem" element={<Gate roles={['admin']}><SystemStatus /></Gate>} />
+            <Route path="model-performansi" element={<Gate roles={['admin']}><ModelPerformance /></Gate>} />
             <Route path="giris" element={<Navigate to="/" replace />} />
             <Route path="kayit" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
