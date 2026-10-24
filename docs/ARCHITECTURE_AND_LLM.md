@@ -240,6 +240,10 @@ StructuredFindings
 | `mock` (default) | `MockLLMProvider` | Şablon taslak; `source_kind=MOCK` |
 | `stub` / `deterministic` | `DeterministicStubLLMProvider` | Deterministik test çıktısı |
 | `http` | `HttpLLMProvider` | `VETMIND_LLM_ENDPOINT` zorunlu; VetMind wire contract |
+| `openai` / `ollama` / `vllm` / … | `OpenAICompatibleProvider` | Gerçek model, Chat Completions + JSON şema |
+| `anthropic` | `AnthropicProvider` | Gerçek model (Claude), zorunlu tool call |
+
+Gerçek sağlayıcılar, prompt ve grounding doğrulaması: [LLM_KATMANI.md](LLM_KATMANI.md).
 
 **Güvenlik tasarımı (F11/F12):**
 
@@ -342,13 +346,14 @@ Kaynak: `backend/app/settings.py`
 
 | Env | Açıklama |
 |-----|----------|
-| `VETMIND_LLM_PROVIDER` | `mock` \| `stub` \| `http` |
+| `VETMIND_LLM_PROVIDER` | `mock` \| `stub` \| `http` \| `openai` \| `ollama` \| `anthropic` |
 | `VETMIND_LLM_ENDPOINT` | `http` için zorunlu |
 | `VETMIND_LLM_PROVIDER_ID` | Wire metadata |
 | `VETMIND_LLM_MODEL_ID` | Wire metadata |
 | `VETMIND_LLM_MODEL_VERSION` | Wire metadata |
 | `VETMIND_LLM_API_KEY` | Opsiyonel |
 | `VETMIND_LLM_TIMEOUT_S` | Default `30` |
+| `VETMIND_LLM_REPORT_LANGUAGE` / `_TEMPERATURE` / `_MAX_TOKENS` / `_JSON_MODE` | Bkz. [LLM_KATMANI.md](LLM_KATMANI.md) |
 
 ### RAG / Jobs / Storage / Auth
 

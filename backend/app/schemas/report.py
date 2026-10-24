@@ -23,6 +23,8 @@ class GenerationMetadata(BaseModel):
     generated_at: datetime = Field(default_factory=utcnow)
     synthetic: bool = True
     clinically_validated: bool = False
+    # Set by prompt-based providers; enables grounding checks in ReportValidator.
+    prompt_version: Optional[str] = None
 
 
 class ReportSection(BaseModel):
@@ -56,6 +58,8 @@ class DraftReport(BaseModel):
     clinically_validated: bool = False
     reviewer_comment: Optional[str] = None
     rag_citations: list[RagPassage] = Field(default_factory=list)
+    # Inline citation alias → id, e.g. {"F1": finding_id, "S1": rag source_id}.
+    citation_map: dict[str, str] = Field(default_factory=dict)
     rag_note: str = (
         "Optional RAG citations list retrieved demo passages (retrieval similarity score only). "
         "Score is not clinical confidence. Citations are not clinical evidence and do not validate findings."

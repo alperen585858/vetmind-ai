@@ -38,7 +38,8 @@ class Settings:
     vision_max_instances: int = 512
     vision_max_tensor_bytes: int = 256 * 1024 * 1024
     vision_transmit_pixels: bool = False
-    # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe).
+    # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe)
+    # | openai (any OpenAI-compatible API) | ollama | anthropic.
     llm_provider: str = "mock"
     llm_endpoint: str | None = None
     llm_provider_id: str = "http-llm"
@@ -46,6 +47,10 @@ class Settings:
     llm_model_version: str = "0.1.0"
     llm_api_key: str | None = None
     llm_timeout_s: float = 30.0
+    llm_report_language: str = "tr"  # tr | en — language of generated report text
+    llm_temperature: float | None = 0.2
+    llm_max_tokens: int = 2048
+    llm_json_mode: str = "schema"  # schema | object | none (OpenAI-compatible only)
     auth_enabled: bool = False
     auth_api_key: str | None = None
     jwt_secret: str = DEFAULT_JWT_SECRET
@@ -192,6 +197,17 @@ def load_settings() -> Settings:
         llm_timeout_s = float(os.getenv("VETMIND_LLM_TIMEOUT_S", "30"))
     except ValueError:
         llm_timeout_s = 30.0
+    llm_report_language = os.getenv("VETMIND_LLM_REPORT_LANGUAGE", "tr").strip().lower() or "tr"
+    llm_temperature_raw = os.getenv("VETMIND_LLM_TEMPERATURE", "0.2").strip().lower()
+    try:
+        llm_temperature = None if llm_temperature_raw in {"", "none"} else float(llm_temperature_raw)
+    except ValueError:
+        llm_temperature = 0.2
+    try:
+        llm_max_tokens = int(os.getenv("VETMIND_LLM_MAX_TOKENS", "2048"))
+    except ValueError:
+        llm_max_tokens = 2048
+    llm_json_mode = os.getenv("VETMIND_LLM_JSON_MODE", "schema").strip().lower() or "schema"
 
     auth_enabled = _env_bool("VETMIND_AUTH_ENABLED", False)
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
@@ -279,6 +295,10 @@ def load_settings() -> Settings:
         llm_model_version=llm_model_version,
         llm_api_key=llm_api_key,
         llm_timeout_s=llm_timeout_s,
+        llm_report_language=llm_report_language,
+        llm_temperature=llm_temperature,
+        llm_max_tokens=max(256, llm_max_tokens),
+        llm_json_mode=llm_json_mode,
         auth_enabled=auth_enabled,
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,
