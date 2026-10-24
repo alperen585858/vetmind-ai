@@ -1,0 +1,367 @@
+{
+  "metadata": {
+    "domain": "Veterinary Diagnostic Radiology - Craniometry, Neuro-Radiology and Maxillofacial  Trauma",
+    "nomenclature_standard": "Nomina Anatomica Veterinaria (NAV)",
+    "species_covered": [
+      "Canis lupus familiaris",
+      "Felis catus"
+    ],
+    "primary_references": [
+      "Thrall's Textbook of Veterinary Diagnostic Radiology (8th Ed.)",
+      "Kealy's Diagnostic Radiology and Ultrasonography of the Dog and Cat",
+      "Regodon et al. (1993) Ann Anat - Craniofacial angle in dolicho-, meso- and brachycephalic  dogs",
+      "Koch et al. / Brehm et al. - Radiological S-Index and LW-Index skull conformation studies",
+      "Schmidt et al. (2022) Sci Rep - Closure times of neurocranial sutures and synchondroses in  Persian compared to DSH cats",
+      "Farke, Staszyk, Schmidt et al. (2019, 2025/2026) - CT/MRI sensitivity/specificity and cranial  suture closure in dogs"
+    ],
+    "units": {
+      "cephalic_index": "percentage_ratio (width / length * 100)",
+      "craniofacial_angle": "degrees",
+      "suture_closure": "months"
+    }
+  },
+  "cranial_morphotypes": {
+    "dogs": {
+      "Brachycephalic": {
+        "description": "Kısa ve geniş kafatası yapısı (Brachycephaly). Fasiyal iskeletin (viscerocranium)  selektif olarak kısalması (SMOC2 gen varyasyonu ve kafa tabanı sinkondrozislerinin erken  kapanması), sert damağın kafa tabanına göre dorsal rotasyonu (airorhynchy) ve kubbe şeklinde  kalvaryum ile karakterizedir. S-indeksi <= 1.25, LW-indeksi < 1.44 ve kraniofasiyal oran (CFR) < 0.50  (ekstrem vakalarda < 0.30) olarak ölçülür.",
+        "cephalic_index_range": [
+          60.0,
+          89.4
+        ],
+        "craniofacial_angle_range": [
+          9.0,
+          22.0
+        ],
+        "representative_breeds": [
+          "Pug",
+          "French Bulldog",
+          "English Bulldog",
+          "Pekingese",
+          "Cavalier King Charles Spaniel",
+          "Chihuahua",
+          "Shih Tzu",
+          "Boston Terrier",
+          "Boxer",
+          "Dogue de Bordeaux",
+          "Affenpinscher",
+          "Griffon Bruxellois",
+          "Bullmastiff",
+          "Staffordshire Bull Terrier"
+        ],
+        "clinical_notes": "Regodon ve ark. (1993) klasik brakisefalik CFA aralığını 9-14 derece (Pekingese  9-10, CKCS 10, Pug 12, French/English Bulldog 14 derece) olarak tanımlarken, genişletilmiş radyolojik  serilerde Bordeaux Mastiff 16, Boxer 18 ve Staffordshire Bullterrier 19 dereceye kadar çıkmaktadır.  Klinik MRG çalışmalarında brakisefalik grubun ortanca kranial indeksi 79.2 (aralık: 67.0-89.4) iken,  Boxer ırkı sutura sagittalis'in erken kapanmasına bağlı skafosefali (scaphocephaly) nedeniyle  ortanca 64.0 (aralık: 52.0-75.0) değer gösterir. Kafatası uzunluğunun genişliğe göre kısaldığı her 1  mm için serebral hemisferlerin ön kutbu ventrale 0.43 derece eğilir (ortalama beyin ekseni açısı 9.83  derece, bulbus olfactorius defleksiyonu 31.8 derece). Yüksek kranial indeks (ortanca 74.7),  ventrikülomegali, Chiari-benzeri malformasyon (CM), siringomiyeli (SM), persistan fontanel  (molera), Sınıf III maloklüzyon, sığ orbita (ekzoftalmus) ve Brakisefalik Obstrüktif Havayolu  Sendromu (BOAS) ile doğrudan ilişkilidir."
+      },
+      "Mesaticephalic": {
+        "description": "Orta uzunluk ve genişlikte, dengeli nörokraniyum ve visserokraniyum oranına  sahip kafatası yapısı (Mesaticephaly / Mesocephaly). S-indeksi > 1.25 (tipik olarak 1.32-1.96) ve  LW-indeksi >= 1.44 (tipik olarak 1.53-1.85) aralığındadır.",
+        "cephalic_index_range": [
+          55.6,
+          79.9
+        ],
+        "craniofacial_angle_range": [
+          19.0,
+          28.0
+        ],
+        "representative_breeds": [
+          "Labrador Retriever",
+          "Golden Retriever",
+          "Beagle",
+          "German Shepherd Dog",
+          "Rottweiler",
+          "Australian Shepherd",
+          "Border Collie",
+          "Dalmatian",
+          "German Shorthaired Pointer",
+          "Alaskan Malamute",
+          "Siberian Husky",
+          "Miniature Schnauzer",
+          "Bernese Mountain Dog",
+          "Jack Russell Terrier"
+        ],
+        "clinical_notes": "Antropolojik sınıflandırmada 75.0-79.9 aralığı baz alınırken, veteriner MRG  kohortlarında mezosefalik kontrol grubunun ortanca kranial indeksi 65.6 (genel dağılım 55.6-96.5)  olarak ölçülmüştür. Kraniofasiyal açı Rottweiler ve Dalmatian'da 20 derece, German Shepherd'da  20-24 derece, Beagle ve Golden Retriever'da 24 derece, Labrador Retriever'da 25 derece ve Jack  Russell Terrier ile Kuvasz'da 28 derecedir. Nazal kavite, frontal sinüsler ve timpanik bullalar standart  radyografik projeksiyonlarda minimal geometrik distorsiyon sergiler; lateral oblik TMJ ve bulla  görüntülemesinde 10-30 derece rotasyon açısı optimaldir."
+      },
+      "Dolichocephalic": {
+        "description": "Uzun ve dar kafatası yapısı (Dolichocephaly). Visserokraniyumun (fasiyal ve nazal  kemiklerin) nörokraniyuma kıyasla belirgin şekilde uzaması, yüksek S-indeksi (1.92-1.96) ve yüksek  LW-indeksi (1.97-2.05) ile karakterizedir.",
+        "cephalic_index_range": [
+          42.2,
+          74.9
+        ],
+        "craniofacial_angle_range": [
+          25.0,
+          32.0
+        ],
+        "representative_breeds": [
+          "Greyhound",
+          "Borzoi",
+          "Whippet",
+          "Afghan Hound",
+          "Saluki",
+          "Doberman Pinscher",
+          "Rough Collie",
+          "Dachshund",
+          "Great Dane",
+          "Airedale Terrier",
+          "Irish Setter",
+          "English Setter"
+        ],
+        "clinical_notes": "Evcil köpeklerde en düşük sefalik indeks Greyhound ırkında (42.2) ölçülmüştür;  ata tür olan kurtta (Canis lupus) bu değer 50.9-51.9 aralığındadır. Deneysel kraniyometri  çalışmalarında düşük CI grubu 42.17-61.70 olarak tanımlanır. Kraniofasiyal açı Doberman'da 25  derece, Greyhound'da 32 derecedir. Serebral eksen rotasyonu minimaldir (ortalama LA eksen açısı  1.86 derece, bulbus olfactorius defleksiyon açısı 19.0 derece). Bull Terrier gibi bazı ırklarda fasiyal  eksenin kafa tabanına göre ventral rotasyonu (klinorhynchy) görülür. Geniş frontal sinüsler ve uzun  nazal pasajlar, intranazal neoplaziler ve fungal rinitlerin radyografik değerlendirmesinde geniş bir  inceleme alanı sunar."
+      }
+    },
+    "cats": {
+      "Brachycephalic": {
+        "description": "Yuvarlak ve geniş nörokraniyum, aşırı kısalmış burun kemikleri (brachyrhynchia)  ve maksillanın dorsal rotasyonu ile karakterize kedi kafatası morfotipi. Geleneksel 'doll-face' (orta  brakisefalik) ve ekstrem 'peke-face' (koronal kraniyosinostozis kaynaklı hiperbrakisefalik) olmak  üzere iki alt gruba ayrılır.",
+        "cephalic_index_range": [
+          64.2,
+          94.2
+        ],
+        "craniofacial_angle_range": [
+          6.76,
+          22.06
+        ],
+        "representative_breeds": [
+          "Persian (Peke-face)",
+          "Persian (Doll-face)",
+          "Exotic Shorthair",
+          "Himalayan",
+          "Burmese",
+          "British Shorthair",
+          "Scottish Fold"
+        ],
+        "clinical_notes": "İran kedilerinde ortalama kranial indeks (CrI) 79.2 +/- 15.04, kafatası indeksi (SI)  ise orta grupta 88.83 +/- 11.7 iken ekstrem grupta 99.5 +/- 7.4'e ulaşmaktadır. Ortalama CFA 14.41 +/-  7.65 derecedir; ancak ekstrem peke-face İran kedilerinde sert damağın şiddetli dorsal rotasyonu  nedeniyle baziler eksen ile fasiyal eksen kesişmez (ıraksar) ve CFA ölçülemez. Bu vakalarda maksiller  kanin diş ekseni ile sert damak arasındaki ventral açı kullanılır. Peke-face kedilerde yenidoğan  döneminde bilateral sutura coronalis sinostozisi, yüksek ventrikül/beyin oranı (0.159 +/- 0.14 vs  doll-face 0.015 +/- 0.01), genişlemiş relatif foramen magnum yüksekliği (0.56 +/- 0.06), mandibuler  mezioklüzyon ve aksesuar açıklıklarını kaybetmiş dikleşmiş nazolakrimal kanal (epifora) mevcuttur."
+      },
+      "Mesaticephalic": {
+        "description": "Standart evcil kedi kafatası konformasyonu. Dengeli kranial ve fasiyal oranlar,  paralel olmayan ancak kaudalde düzenli kesişen baziler ve fasiyal eksenler ile karakterizedir.",
+        "cephalic_index_range": [
+          75.0,
+          79.9
+        ],
+        "craniofacial_angle_range": [
+          15.0,
+          25.5
+        ],
+        "representative_breeds": [
+          "Domestic Shorthair (DSH)",
+          "Domestic Longhair (DLH)",
+          "European Shorthair",
+          "American Shorthair"
+        ],
+        "clinical_notes": "Domestic Shorthair (DSH) kedilerde ortalama kraniofasiyal açı 20.27 derecedir.  Relatif foramen magnum yüksekliği 0.42 +/- 0.02 olup serebellar herniasyon veya ventrikülomegali  eğilimi bulunmaz. Kalvaryal sütürler (sutura coronalis, sutura sagittalis, sutura interfrontalis) yaşam  boyu açık kalma eğilimindedir."
+      },
+      "Dolichocephalic": {
+        "description": "Uzun, kama şeklinde (wedge-shaped) dar visserokraniyum ve ince  maksillofasiyal kemik mimarisi ile karakterize kedi kafatası yapısı.",
+        "cephalic_index_range": [
+          65.0,
+          74.9
+        ],
+        "craniofacial_angle_range": null,
+        "representative_breeds": [
+          "Siamese",
+          "Oriental Shorthair",
+          "Balinese",
+          "Sphynx"
+        ],
+        "clinical_notes": "Kafatası uzunluğu genişliğinden belirgin şekilde fazladır. Epidemiyolojik  çalışmalarda dolikosefalik kedilerin ortanca yaşam süresi 14.00 yıl olup mezatisefalik (14.55 yıl) ve  brakisefalik (14.79 yıl) kedilere kıyasla hafifçe daha düşüktür. İnce maksilla ve mandibula korteksleri  nedeniyle maksillofasiyal travmalarda fiksasyon implantlarının uygulanması dikkat gerektirir."
+      }
+    }
+  },
+  "suture_closure_rules_months": {
+    "structures": {
+      "Fonticulus frontoparietalis (Bregmatic Fontanelle / Molera)": {
+        "dogs": [
+          1.0,
+          6.0
+        ],
+        "cats": [
+          0.5,
+          3.0
+        ]
+      },
+      "Synchondrosis sphenooccipitalis (Normal / Mesaticephalic)": {
+        "dogs": [
+          12.0,
+          18.0
+        ],
+        "cats": [
+          18.0,
+          29.0
+        ]
+      },
+      "Synchondrosis sphenooccipitalis (Brachycephalic / Persian)": {
+        "dogs": [
+          6.0,
+          9.0
+        ],
+        "cats": [
+          10.0,
+          14.0
+        ]
+      },
+      "Synchondrosis sphenoethmoidalis": {
+        "dogs": [
+          7.0,
+          12.0
+        ],
+        "cats": [
+          10.0,
+          14.0
+        ]
+      },
+      "Synchondrosis intersphenoidalis (Normal / Doll-face Persian)": {
+        "dogs": [
+          12.0,
+          18.0
+        ],
+        "cats": [
+          10.0,
+          14.0
+        ]
+      },
+      "Synchondrosis intersphenoidalis (Peke-face Persian)": {
+        "dogs": null,
+        "cats": [
+          86.0,
+          108.0
+        ]
+      },
+      "Sutura coronalis (Normal / Peke-face Persian Neonatal Synostosis in Cats)": {
+        "dogs": [
+          4.0,
+          12.0
+        ],
+        "cats": [
+          0.0,
+          0.3
+        ]
+      },
+      "Sutura lambdoidea": {
+        "dogs": [
+          4.0,
+          12.0
+        ],
+        "cats": [
+          86.0,
+          108.0
+        ]
+      },
+      "Sutura interfrontalis (Metopic Suture)": {
+        "dogs": [
+          3.0,
+          9.0
+        ],
+        "cats": null
+      },
+      "Sutura sagittalis": {
+        "dogs": [
+          4.0,
+          12.0
+        ],
+        "cats": null
+      },
+      "Symphysis mandibulae / Specific Cranial Physes (Thrall Reference)": {
+        "dogs": [
+          7.0,
+          10.0
+        ],
+        "cats": [
+          7.0,
+          16.0
+        ]
+      },
+      "Apex radicis dentis canini (Canine Tooth Root Closure)": {
+        "dogs": [
+          7.0,
+          12.0
+        ],
+        "cats": [
+          8.0,
+          12.0
+        ]
+      }
+    }
+  },
+  "anatomical_pitfalls": [
+    {
+      "id": "pitfall_001",
+      "structure": "Fonticulus frontoparietalis (Persistent Bregmatic Fontanelle / Molera)",
+      "description": "Frontal ve parietal kemiklerin orta hat birleşim yerinde (bregma) ve komşu  interfrontal/sagittal/koronal sütür hatlarında izlenen, kemikleşmemiş fibröz membranöz açıklık.",
+      "misinterpretation_risk": "Akut kafa travması radyografilerinde ve BT kesitlerinde kalvaryal çökme  kırığı, travmatik kemik defekti veya osteolitik lezyon olarak yanlış yorumlanma riski taşır.",
+      "affected_breeds": [
+        "Chihuahua",
+        "Pomeranian",
+        "Yorkshire Terrier",
+        "Maltese",
+        "Pug",
+        "Pekingese",
+        "Boston Terrier",
+        "English Bulldog",
+        "Persian (Peke-face)"
+      ],
+      "resolution": "Anatomik olarak tam bregma kavşağında veya sütür hatları üzerinde yer alması,  sınırlarının pürüzsüz ve sklerotik/kortikal olması, komşu yumuşak dokuda akut şişlik/hematom veya  serbest kemik fragmanı bulunmaması ile kırıklardan ayırt edilir. BT 3B hacimsel rekonstrüksiyon ile  doğrulanmalıdır."
+    },
+    {
+      "id": "pitfall_002",
+      "structure": "Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et  sphenoethmoidalis)",
+      "description": "Kafa tabanında (basis cranii) presfenoid, bazisfenoid ve bazioksipital kemikler  arasında yer alan, endokondral kemikleşmeden sorumlu hyalin kıkırdak büyüme plakları.",
+      "misinterpretation_risk": "Genç köpeklerde (< 9-18 ay) ve kedilerde (< 10-29 ay, peke-face  intersphenoidal için < 108 ay) lateral radyografilerde ve mid-sagittal BT kesitlerinde kafa tabanını  dikey kesen keskin radyolüsent bantlar olarak görülür ve baziler kafatası kırığı (basilar skull fracture)  sanılabilir.",
+      "affected_breeds": [
+        "All immature canine and feline breeds"
+      ],
+      "resolution": "Sabit ve öngörülebilir anatomik lokalizasyon (örneğin bazioksipital ile bazisfenoid  birleşimi), düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden (endokranial) ventrale  (ektokranial) doğru ilerleyen fizyolojik kapanma paterni ve klinik BT/MRG'de yüksek özgüllük (%86.4  BT, %72.7 MRG) ile kırıklardan ayrılır."
+    },
+    {
+      "id": "pitfall_003",
+      "structure": "Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis)",
+      "description": "Sağ ve sol mandibula gövdelerini (corpus mandibulae) rostral orta hatta  birleştiren fibrokartilajinöz eklem.",
+      "misinterpretation_risk": "Yaşam boyu tam kemikleşmeden kaldığı için DV/VD ve intraoral rostral  mandibula radyografilerinde orta hatta belirgin bir radyolüsent çizgi oluşturur; rostral mandibula  kırığı veya travmatik simfizis ayrılması ile karıştırılabilir.",
+      "affected_breeds": [
+        "All canine and feline breeds (wider lucency in small dogs and cats, narrower in large breed  dogs)"
+      ],
+      "resolution": "Normal simfiziste sağ ve sol kesici dişler (dentes incisivi) tam simetriktir, kemik  konturlarında basamaklaşma (step defect) yoktur ve fiziksel muayenede hemimandibulalar arasında  bağımsız hareket/instabilite saptanmaz."
+    },
+    {
+      "id": "pitfall_004",
+      "structure": "Fissura palatina (Palatine / Incisive Fissure) & Chevron Lucencies",
+      "description": "Sert damağın rostralinde os incisivum ve maxilla arasında yer alan çift taraflı  paramedian açıklıklar (kedilerde küçük ve oval) ile kesici/kanin diş apeksleri üzerindeki V-şekilli kemik  incelme alanları (chevron lucencies).",
+      "misinterpretation_risk": "İntraoral ve DV radyografilerde konjenital veya travmatik damak yarığı  (palatoschisis), rostral maksilla kırığı veya endodontik kökenli periapikal osteolizis/apse lezyonu  olarak yanlış teşhis edilebilir.",
+      "affected_breeds": [
+        "All canine and feline breeds"
+      ],
+      "resolution": "Fissura palatina'nın tam bilateral simetrisi ve sağlam kortikal sınırları kontrol edilir.  Periapikal chevron lüsensilerini gerçek endodontik lezyonlardan ayırt etmek için X-ışını tüpü  lateralden mediale veya ventrale kaydırılarak (tube shift / SLOB tekniği) süperpoze olan kemik  yapıları kök ucundan uzaklaştırılır."
+    },
+    {
+      "id": "pitfall_005",
+      "structure": "Cartilago nasi & Labial Soft Tissue Superimposition",
+      "description": "Rostral maksilla radyografilerinde burun kıkırdağı ve dudak yumuşak doku  sınırlarının maksiller kesici diş kökleri üzerine süperpoze olması.",
+      "misinterpretation_risk": "Kesici diş köklerini (dentes incisivi) oblik veya yatay olarak kesen keskin  radyolüsent/radyoopak çizgiler oluşturarak travmatik diş kökü kırığı (oblique root fracture)  görüntüsü verir.",
+      "affected_breeds": [
+        "All canine and feline breeds"
+      ],
+      "resolution": "Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını  aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı  ikinci bir radyografi ile doğrulanır."
+    },
+    {
+      "id": "pitfall_006",
+      "structure": "Bulla tympanica & Articulatio temporomandibularis (TMJ) Positional  Superimposition",
+      "description": "Lateral ve DV/VD kafa radyografilerinde çift taraflı timpanik bullalar,  temporomandibuler eklemler, mandibuler ramuslar ve atlas kanatlarının üst üste binmesi ve X-ışını  diverjansına bağlı geometrik distorsiyon.",
+      "misinterpretation_risk": "Özellikle geniş kafataslı brakisefalik köpek ve İran kedilerinde hafif  rotasyon bile üstteki TMJ'nin timpanik bulla üzerine düşmesine, nazal septumun deviye  görünmesine ve bulla kırığı, TMJ çıkığı veya otitis media/interna yanılgısına yol açar.",
+      "affected_breeds": [
+        "Persian",
+        "Exotic Shorthair",
+        "Pug",
+        "French Bulldog",
+        "English Bulldog",
+        "Boxer",
+        "All trauma patients with suboptimal positioning"
+      ],
+      "resolution": "Standart lateral görünümde her iki bulla ve mandibula tam süperpoze olmalıdır.  Bulla ve TMJ'leri birbirinden ayırmak için mezatisefalik/dolikosefaliklerde 10-30 derece,  brakisefaliklerde 20-30 derece lateral oblik projeksiyonlar, rostral 10 derece ventral-kaudodorsal  (skyline) görünüm veya süperpozisyonu tamamen kaldıran BT (Computed Tomography)  kullanılmalıdır."
+    },
+    {
+      "id": "pitfall_007",
+      "structure": "Suturae capitis & False Foramina / Fissures (Sphenopalatine, Orbital, Lacerum)",
+      "description": "Kalvaryal kemikler arasındaki dar fibröz sütürler (Tip B sütürler > 7 ay) ve kafa  tabanında iki komşu kemiğin kenarları arasında oluşan doğal anatomik yarıklar (yalancı foramenler).",
+      "misinterpretation_risk": "Açık sütürler ve kemikler arası fissürler radyografide lineer kafatası  kırığı sanılabilirken; klinik BT (%40.4 özgüllük) ve MRG'de (%19.3 özgüllük) kısmi hacim artefaktı  nedeniyle açık olan kalvaryal sütürler 'kapalı' (kraniyosinostozis) olarak yanlış raporlanabilir.",
+      "affected_breeds": [
+        "Boxer",
+        "Brachycephalic and Mesaticephalic canine and feline breeds"
+      ],
+      "resolution": "Gerçek kafa tabanı kırıkları iki kemik arasındaki doğal 'yalancı' foramenleri takip  etmek yerine tek bir kemiğin içinden geçen 'gerçek' foramenleri ve korteksi kırar. Kalvaryal sütür  açıklığının kesin değerlendirmesinde standart klinik BT/MRG'nin düşük özgüllüğü göz önünde  bulundurulmalı, 3B yüzey rekonstrüksiyonu ve kafatası şekil deformiteleri (örn. Boxer'da skafosefali)  birlikte değerlendirilmelidir."
+    }
+  ]
+}
