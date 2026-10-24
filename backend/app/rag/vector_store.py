@@ -6,7 +6,8 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from app.rag.corpus import SEED_CORPUS, CorpusDoc
+from app.rag.breed_morphotypes import load_default_rag_corpus
+from app.rag.corpus import CorpusDoc
 from app.rag.embeddings import EmbeddingBackend, HashEmbeddingBackend
 
 
@@ -50,6 +51,16 @@ class JsonVectorStore:
         ]
         if not self._docs:
             self.reindex_seed(persist=True)
+            return
+
+        existing_ids = {doc.source_id for doc in self._docs}
+        missing_seed_docs = [
+            doc for doc in load_default_rag_corpus() if doc.source_id not in existing_ids
+        ]
+        for doc in missing_seed_docs:
+            self.add_corpus_doc(doc, persist=False)
+        if missing_seed_docs:
+            self.save()
 
     def save(self) -> None:
         if self.path is None:
@@ -67,7 +78,7 @@ class JsonVectorStore:
 
     def reindex_seed(self, *, persist: bool = True) -> int:
         self._docs = []
-        for doc in SEED_CORPUS:
+        for doc in load_default_rag_corpus():
             self.add_corpus_doc(doc, persist=False)
         if persist:
             self.save()
