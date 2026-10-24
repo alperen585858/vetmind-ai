@@ -67,14 +67,16 @@ class ModelExecutionPolicy:
         if self._mode == VisionExecutionMode.MIXED or not real_ids:
             return decision
 
-        # Exclusive real: when any REAL capability matched, drop MOCK overlaps.
-        filtered = list(dict.fromkeys([*real_ids, *unknown_ids]))
-        dropped = [m for m in mock_ids if m not in filtered]
+        # Exclusive real: when any REAL capability matched, drop MOCK overlaps
+        # and unknown ids (not declared in the capability table) — fail-closed.
+        filtered = list(dict.fromkeys(real_ids))
+        dropped = [m for m in [*mock_ids, *unknown_ids] if m not in filtered]
         reason = decision.reason
         if dropped:
             reason = (
                 f"{decision.reason} Execution policy=exclusive_real retained "
-                f"real model(s) {real_ids} and excluded overlapping mock(s) {dropped}."
+                f"real model(s) {real_ids} and excluded overlapping mock(s)/unknown "
+                f"{dropped}."
             )
         return RouteDecision(
             supported=True,

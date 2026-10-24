@@ -12,6 +12,16 @@ from app.schemas.dicom import (
 )
 from app.schemas.enums import DicomValidationCode, DicomValidationSeverity
 
+# Codes that alone make an upload non-confirmable when they dominate the result.
+# Confirm gating still uses ValidationResult.blocked as the authoritative flag.
+_HARD_BLOCK_CODES = frozenset(
+    {
+        DicomValidationCode.EMPTY_UPLOAD,
+        DicomValidationCode.INCONSISTENT_STUDY,
+        DicomValidationCode.UNSUPPORTED_MODALITY,
+    }
+)
+
 
 class DicomIngestResult:
     def __init__(
@@ -28,6 +38,11 @@ class DicomIngestResult:
         self.classification = classification
         self.blocked = blocked
         self.block_reason = block_reason
+
+    @property
+    def confirmable(self) -> bool:
+        """True when a case may be created after explicit classification confirmation."""
+        return not self.blocked and self.study is not None and self.classification is not None
 
 
 def ingest_dicom_files(files: list[tuple[str, bytes]]) -> DicomIngestResult:
@@ -61,8 +76,23 @@ def ingest_dicom_files(files: list[tuple[str, bytes]]) -> DicomIngestResult:
     )
 
 
-def has_blocking_errors(issues: list[DicomValidationIssue]) -> bool:
-    return any(i.severity == DicomValidationSeverity.ERROR for i in issues)
+def has_blocking_errors(
+    issues: list[DicomValidationIssue],
+    *,
+    blocked: bool | None = None,
+) -> bool:
+    """Whether ingest must not create a case.
+
+    Prefer passing ``blocked=ValidationResult.blocked``. When omitted, falls back to
+    hard-block ERROR codes (empty / inconsistent study / unsupported modality).
+    Soft exclusions (duplicate SOP, incomplete UIDs, mixed modality) are advisory.
+    """
+    if blocked is not None:
+        return blocked
+    return any(
+        i.severity == DicomValidationSeverity.ERROR and i.code in _HARD_BLOCK_CODES
+        for i in issues
+    )
 
 
 def issue_codes(issues: list[DicomValidationIssue]) -> set[DicomValidationCode]:

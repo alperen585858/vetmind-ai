@@ -26,6 +26,38 @@ class RouteDecision:
     matched_capabilities: tuple[str, ...] = ()
 
 
+def list_routable_capabilities(
+    case: CaseRecord,
+    capabilities: list[ModelCapability],
+) -> list[ModelCapability]:
+    """Capabilities that would be selected by ModelRouter (anatomy + input-compatible).
+
+    Shared with ImagingModelInput.prepared_for_models so readiness UI cannot overstate
+    runnable adapters relative to the orchestrator route.
+    """
+    anatomy = [
+        cap
+        for cap in capabilities
+        if ModelRouter._matches_anatomy(cap, case)  # noqa: SLF001 — shared pure filter
+    ]
+    anatomy.sort(key=lambda c: (c.priority, c.model_id))
+    return [
+        cap
+        for cap in anatomy
+        if ModelRouter._input_compatible(cap, case)  # noqa: SLF001
+    ]
+
+
+def list_routable_model_ids(
+    case: CaseRecord,
+    capabilities: list[ModelCapability],
+) -> list[str]:
+    """Deduplicated model_ids from list_routable_capabilities (stable order)."""
+    return list(
+        dict.fromkeys(c.model_id for c in list_routable_capabilities(case, capabilities))
+    )
+
+
 class ModelRouter:
     """Capability-based router. No LLM. No MockScenario. No concrete adapter imports.
 

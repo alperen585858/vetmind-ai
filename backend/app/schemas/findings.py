@@ -89,6 +89,10 @@ class StudyInfo(BaseModel):
     instance_count: Optional[int] = None
     metadata_only: bool = True
     classification_confidence: Optional[str] = None
+    # Phase-1 hardening: persist how classification was confirmed (backward-compatible).
+    classification_status: Optional[str] = None
+    classification_override: bool = False
+    classification_rationale: list[str] = Field(default_factory=list)
 
 
 class StructuredFindings(BaseModel):

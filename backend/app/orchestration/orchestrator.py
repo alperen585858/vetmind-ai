@@ -118,6 +118,8 @@ class AIOrchestrator:
             )
             job.routed_model_ids = decision.model_ids
             job.route_reason = decision.reason
+            job.route_rule_id = decision.rule_id
+            job.matched_capabilities = list(decision.matched_capabilities or decision.model_ids)
             cap_by_id = {c.model_id: c for c in caps}
             job.routed_model_versions = [
                 cap_by_id[m].model_version for m in decision.model_ids if m in cap_by_id
@@ -134,6 +136,13 @@ class AIOrchestrator:
                 if timeouts:
                     job.timeout_s = max(timeouts)
             messages.append(decision.reason)
+            if decision.rule_id:
+                messages.append(f"route_rule_id={decision.rule_id}")
+            if model_input.selection is not None:
+                messages.append(
+                    f"series_selection={model_input.selection.mode}:"
+                    f"{len(model_input.selection.series_instance_uids)} series"
+                )
             messages.append(f"analysis_mode={job.analysis_mode}")
 
             if _cancelled():

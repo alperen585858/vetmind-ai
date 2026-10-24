@@ -38,6 +38,10 @@ def build_synthetic_instance(
     series_number: int = 1,
     include_pixels: bool = True,
     sop_class_uid: str = MRImageStorage,
+    image_position_patient: str | None = None,
+    image_orientation_patient: str | None = None,
+    slice_thickness: str | None = None,
+    pixel_spacing: str | None = None,
 ) -> bytes:
     """Return DICOM file bytes with synthetic UIDs and labels."""
     study_uid = study_uid or generate_uid()
@@ -78,6 +82,14 @@ def build_synthetic_instance(
     ds.BitsStored = 16
     ds.HighBit = 15
     ds.PixelRepresentation = 0
+    if image_position_patient is not None:
+        ds.ImagePositionPatient = [float(x) for x in image_position_patient.split("\\")]
+    if image_orientation_patient is not None:
+        ds.ImageOrientationPatient = [float(x) for x in image_orientation_patient.split("\\")]
+    if slice_thickness is not None:
+        ds.SliceThickness = slice_thickness
+    if pixel_spacing is not None:
+        ds.PixelSpacing = [float(x) for x in pixel_spacing.split("\\")]
 
     if include_pixels:
         # Synthetic gradient raster — not clinical imagery.
@@ -186,3 +198,111 @@ def inconsistent_study_files() -> list[tuple[str, bytes]]:
     a = build_synthetic_instance(study_description="SYNTHETIC BRAIN MRI A", body_part="BRAIN")
     b = build_synthetic_instance(study_description="SYNTHETIC BRAIN MRI B", body_part="BRAIN")
     return [("study_a.dcm", a), ("study_b.dcm", b)]
+
+
+def brain_mri_multisequence_files(
+    *,
+    t2_instances: int = 3,
+    flair_instances: int = 2,
+) -> list[tuple[str, bytes]]:
+    """One study with two MR sequences and monotonic ImagePositionPatient tags."""
+    study_uid = generate_uid()
+    t2_series = generate_uid()
+    flair_series = generate_uid()
+    orientation = "1\\0\\0\\0\\1\\0"
+    spacing = "0.5\\0.5"
+    files: list[tuple[str, bytes]] = []
+    for i in range(1, t2_instances + 1):
+        z = float(i - 1) * 3.0
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=t2_series,
+            modality="MR",
+            study_description="SYNTHETIC CANINE BRAIN MRI",
+            series_description="SYNTHETIC AXIAL T2 BRAIN",
+            body_part="BRAIN",
+            instance_number=i,
+            series_number=1,
+            image_position_patient=f"0\\0\\{z}",
+            image_orientation_patient=orientation,
+            slice_thickness="3.0",
+            pixel_spacing=spacing,
+        )
+        files.append((f"brain_t2_{i}.dcm", data))
+    for i in range(1, flair_instances + 1):
+        z = float(i - 1) * 3.0
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=flair_series,
+            modality="MR",
+            study_description="SYNTHETIC CANINE BRAIN MRI",
+            series_description="SYNTHETIC AXIAL FLAIR BRAIN",
+            body_part="BRAIN",
+            instance_number=i,
+            series_number=2,
+            image_position_patient=f"0\\0\\{z}",
+            image_orientation_patient=orientation,
+            slice_thickness="3.0",
+            pixel_spacing=spacing,
+        )
+        files.append((f"brain_flair_{i}.dcm", data))
+    return files
+
+
+def mixed_modality_study_files() -> list[tuple[str, bytes]]:
+    """Same StudyInstanceUID with both MR and CT series (conflicting metadata)."""
+    study_uid = generate_uid()
+    mr = build_synthetic_instance(
+        study_uid=study_uid,
+        series_uid=generate_uid(),
+        modality="MR",
+        study_description="SYNTHETIC MIXED MODALITY STUDY",
+        series_description="SYNTHETIC MR BRAIN",
+        body_part="BRAIN",
+        series_number=1,
+    )
+    ct = build_synthetic_instance(
+        study_uid=study_uid,
+        series_uid=generate_uid(),
+        modality="CT",
+        study_description="SYNTHETIC MIXED MODALITY STUDY",
+        series_description="SYNTHETIC CT BRAIN",
+        body_part="BRAIN",
+        series_number=2,
+        sop_class_uid=CTImageStorage,
+    )
+    return [("mixed_mr.dcm", mr), ("mixed_ct.dcm", ct)]
+
+
+def ambiguous_region_study_files() -> list[tuple[str, bytes]]:
+    """Brain + cervical tokens in the same study descriptions."""
+    study_uid = generate_uid()
+    data = build_synthetic_instance(
+        study_uid=study_uid,
+        series_uid=generate_uid(),
+        modality="MR",
+        study_description="SYNTHETIC BRAIN AND CERVICAL MRI",
+        series_description="SYNTHETIC BRAIN C-SPINE SURVEY",
+        body_part="BRAIN",
+    )
+    return [("ambiguous_region.dcm", data)]
+
+
+def missing_uid_partial_files() -> list[tuple[str, bytes]]:
+    """One valid brain MR instance plus a sibling missing SeriesInstanceUID."""
+    from pydicom import dcmread
+    from io import BytesIO
+
+    good = brain_mri_study_files(1)[0]
+    bad_bytes = build_synthetic_instance(
+        study_uid=generate_uid(),
+        series_uid=generate_uid(),
+        modality="MR",
+        study_description="SYNTHETIC CANINE BRAIN MRI",
+        body_part="BRAIN",
+    )
+    ds = dcmread(BytesIO(bad_bytes))
+    delattr(ds, "SeriesInstanceUID")
+    buf = BytesIO()
+    ds.save_as(buf, enforce_file_format=True)
+    return [good, ("missing_series_uid.dcm", buf.getvalue())]

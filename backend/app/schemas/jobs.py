@@ -19,6 +19,8 @@ class AnalysisJob(BaseModel):
     routed_model_ids: list[str] = Field(default_factory=list)
     routed_model_versions: list[str] = Field(default_factory=list)
     route_reason: Optional[str] = None
+    route_rule_id: Optional[str] = None
+    matched_capabilities: list[str] = Field(default_factory=list)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     # Phase 3 job control — cancel is cooperative; FE poll abort ≠ cancel.

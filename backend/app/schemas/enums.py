@@ -143,3 +143,13 @@ class ClassificationConfidence(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
     UNKNOWN = "unknown"
+
+
+class ClassificationStatus(str, Enum):
+    """Deterministic metadata-classification outcome (not a clinical diagnosis)."""
+
+    READY = "ready"
+    AMBIGUOUS = "ambiguous"
+    UNSUPPORTED = "unsupported"
+    MISSING_METADATA = "missing_metadata"
+    CONFLICTING = "conflicting"

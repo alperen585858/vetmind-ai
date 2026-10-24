@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.enums import (
     AnatomicalRegion,
     ClassificationConfidence,
+    ClassificationStatus,
     DicomValidationCode,
     DicomValidationSeverity,
     Modality,
@@ -107,11 +108,16 @@ class ClassificationSuggestion(BaseModel):
     suggested_anatomical_region: AnatomicalRegion
     confidence: ClassificationConfidence
     needs_confirmation: bool = True
+    classification_status: ClassificationStatus = ClassificationStatus.AMBIGUOUS
+    suggested_species: Optional[Species] = None
+    species_confidence: ClassificationConfidence = ClassificationConfidence.UNKNOWN
     rationale: list[str] = Field(default_factory=list)
     source_tags: dict[str, Optional[str]] = Field(default_factory=dict)
     note: str = (
         "Classification is based on DICOM metadata heuristics only. "
-        "No pixel-based anatomical recognition was performed."
+        "No pixel-based anatomical recognition was performed. "
+        "Species is suggested only when DICOM text reliably indicates canine/feline; "
+        "missing species is never invented."
     )
 
 

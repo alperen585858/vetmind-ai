@@ -88,29 +88,31 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
         )
 
     for item in usable:
+        # Incomplete instances are excluded from the study tree. Emit WARNING (advisory)
+        # so confirm gating stays on ValidationResult.blocked (not "any ERROR").
         if not item.study_instance_uid:
             issues.append(
-                _error(
+                _warning(
                     DicomValidationCode.MISSING_STUDY_UID,
-                    "Missing StudyInstanceUID.",
+                    "Missing StudyInstanceUID; instance excluded from study tree.",
                     filename=item.filename,
                     sop=item.sop_instance_uid,
                 )
             )
         if not item.series_instance_uid:
             issues.append(
-                _error(
+                _warning(
                     DicomValidationCode.MISSING_SERIES_UID,
-                    "Missing SeriesInstanceUID.",
+                    "Missing SeriesInstanceUID; instance excluded from study tree.",
                     filename=item.filename,
                     sop=item.sop_instance_uid,
                 )
             )
         if not item.sop_instance_uid:
             issues.append(
-                _error(
+                _warning(
                     DicomValidationCode.MISSING_SOP_UID,
-                    "Missing SOPInstanceUID.",
+                    "Missing SOPInstanceUID; instance excluded from study tree.",
                     filename=item.filename,
                 )
             )
@@ -131,6 +133,7 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
         if i.study_instance_uid and i.series_instance_uid and i.sop_instance_uid
     ]
     if not complete:
+        # Promote incomplete-UID warnings to hard block when nothing usable remains.
         return ValidationResult(
             blocked=True,
             block_reason="No instances with complete Study/Series/SOP UIDs.",

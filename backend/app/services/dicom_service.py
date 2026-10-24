@@ -202,9 +202,14 @@ class DicomService:
                     assert_case_access(principal, existing, isolation=self._tenant_isolation)
                 return existing
 
+        classification = record.classification
+        override = False
         if payload.accept_suggestion:
-            modality = record.classification.suggested_modality
-            region = record.classification.suggested_anatomical_region
+            modality = classification.suggested_modality
+            region = classification.suggested_anatomical_region
+            confidence_value = classification.confidence.value
+            status_value = classification.classification_status.value
+            rationale = list(classification.rationale)
         else:
             if payload.modality is None or payload.anatomical_region is None:
                 raise HTTPException(
@@ -213,6 +218,17 @@ class DicomService:
                 )
             modality = payload.modality
             region = payload.anatomical_region
+            override = True
+            confidence_value = "unknown"
+            status_value = "ambiguous"
+            rationale = list(classification.rationale) + [
+                (
+                    f"Manual classification override: modality={modality.value}, "
+                    f"region={region.value} (suggestion was "
+                    f"{classification.suggested_modality.value}/"
+                    f"{classification.suggested_anatomical_region.value})."
+                )
+            ]
 
         if modality not in _ROUTABLE_MODALITIES:
             raise HTTPException(
@@ -241,7 +257,6 @@ class DicomService:
         patient_name = (payload.patient_name or record.patient_name).strip()
         clinical_history = payload.clinical_history if payload.clinical_history is not None else record.clinical_history
         study = record.study
-        classification = record.classification
 
         case = CaseRecord(
             case_id=f"case-{uuid4().hex[:12]}",
@@ -266,7 +281,10 @@ class DicomService:
                 series_count=study.series_count,
                 instance_count=study.instance_count,
                 metadata_only=True,
-                classification_confidence=classification.confidence.value,
+                classification_confidence=confidence_value,
+                classification_status=status_value,
+                classification_override=override,
+                classification_rationale=rationale,
             ),
             dicom_study=study,
             dicom_ingest_id=record.ingest_id,

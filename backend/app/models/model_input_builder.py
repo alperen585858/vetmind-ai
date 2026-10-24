@@ -9,6 +9,7 @@ from app.models.dicom_study_merge import linked_dicom_ingest_ids
 from app.models.interfaces import ImagingAdapterError
 from app.models.pixel_authorization import summarize_pixel_authorization
 from app.routing.capabilities import ModelCapability, default_capabilities
+from app.routing.model_router import list_routable_model_ids
 from app.schemas.case import CaseRecord
 from app.schemas.enums import ClassificationConfidence, Modality
 from app.schemas.model_input import (
@@ -114,17 +115,8 @@ def build_imaging_model_input(
     except Exception:  # noqa: BLE001 — other modalities have no profile
         pass
 
-    prepared: list[str] = []
-    for cap in caps:
-        if not cap.enabled:
-            continue
-        if case.modality not in cap.modalities:
-            continue
-        if case.anatomical_region not in cap.regions:
-            continue
-        if cap.species is not None and case.species not in cap.species:
-            continue
-        prepared.append(cap.model_id)
+    # Align with ModelRouter: anatomy + input compatibility + availability filters.
+    prepared = list_routable_model_ids(case, caps)
 
     confidence: ClassificationConfidence | None = None
     if case.study.classification_confidence:
