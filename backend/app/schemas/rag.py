@@ -25,6 +25,7 @@ class RagSearchResponse(BaseModel):
     hits: list[RagPassage]
     method: str = "lexical_token_overlap"
     note: str = (
-        "Demo RAG: keyword overlap over a seeded veterinary neurology corpus. "
+        "Demo RAG: keyword overlap over seeded veterinary neurology and breed morphology "
+        "references. "
         "Not embeddings, not Qdrant, not clinically validated evidence."
     )
