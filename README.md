@@ -365,6 +365,8 @@ Pixel: default-deny; bugün hiçbir capability `allows_pixel_analysis=True` değ
 | `mock` (default) | `MockLLMProvider` | Şablon taslak |
 | `stub` / `deterministic` | `DeterministicStubLLMProvider` | Test çıktısı |
 | `http` | `HttpLLMProvider` | `VETMIND_LLM_ENDPOINT` zorunlu |
+| `openai` / `ollama` / `vllm` | `OpenAICompatibleProvider` | Gerçek model; bkz. [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) |
+| `anthropic` | `AnthropicProvider` | Gerçek model (Claude) |
 
 Dışarıya tam `CaseRecord` gitmez → minimal `LLMGenerationInput` (opaque `case_id`, findings, RAG pasajları).
 

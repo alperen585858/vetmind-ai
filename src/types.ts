@@ -347,6 +347,8 @@ export interface BackendDraftReport {
     generated_at: string
     source_kind?: string
     synthetic?: boolean
+    /** Set when drafted by a real prompt-based LLM; enables grounding warnings. */
+    prompt_version?: string | null
   }
   technique: { text: string; cited_finding_ids: string[] }
   findings: { text: string; cited_finding_ids: string[] }
@@ -356,6 +358,10 @@ export interface BackendDraftReport {
   expert_review_status?: string
   reviewer_comment?: string | null
   rag_citations?: BackendRagCitation[]
+  /** Inline citation alias → id, e.g. { F1: finding_id, S1: rag source_id }. */
+  citation_map?: Record<string, string>
+  /** Model text per section at generation time; unchanged by expert edits. */
+  ai_sections?: Record<string, string>
   rag_note?: string
   version?: number
   created_at?: string

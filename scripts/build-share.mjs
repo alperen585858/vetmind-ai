@@ -1,4 +1,4 @@
-// dist-share çıktısını tek bir HTML parçasına (share/vetmind-ai.html) gömer; Claude Artifact olarak yayınlanır.
+// dist-share çıktısını tek bir, kendi kendine yeten HTML dosyasına (share/vetmind-ai.html) gömer.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const html = readFileSync('dist-share/index.html', 'utf8')

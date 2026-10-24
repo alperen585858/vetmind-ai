@@ -44,6 +44,8 @@ import {
 } from '../lib/dicomFolder'
 import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../lib/dicomCaseCache'
 import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
+import { CitedText } from '../components/CitedText'
+import { GroundingWarnings } from '../components/GroundingWarnings'
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
@@ -1159,7 +1161,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
               icon={<BookOpen className="h-5 w-5" />}
             />
             {c.backendDraft?.rag_citations?.length ? (
-              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} />
+              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} citationMap={c.backendDraft.citation_map} />
             ) : (
               <SourceList ids={sources} />
             )}
@@ -1242,14 +1244,8 @@ function ReportWorkspace({ c }: { c: VetCase }) {
             )}
           </div>
         </div>
-        {draft?.validation_warnings && draft.validation_warnings.length > 0 && (
-          <ul className="mt-3 list-disc space-y-1 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-950">
-            {draft.validation_warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        )}
       </Card>
+      <GroundingWarnings warnings={draft?.validation_warnings} checked={Boolean(draft?.generation.prompt_version)} />
       {(draft || c.report || c.aiDraft) && (
         <Card className="p-5">
           <dl className="space-y-4 text-sm">
@@ -1262,7 +1258,9 @@ function ReportWorkspace({ c }: { c: VetCase }) {
               text ? (
                 <div key={String(label)}>
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{label}</dt>
-                  <dd className="mt-1 whitespace-pre-line text-navy-900">{text}</dd>
+                  <dd className="mt-1">
+                    <CitedText text={String(text)} citationMap={draft?.citation_map} sources={draft?.rag_citations} className="text-navy-900" />
+                  </dd>
                 </div>
               ) : null,
             )}

@@ -75,9 +75,13 @@ class LLMGenerationInput(BaseModel):
 
     case_id: str
     species: Species
+    breed: Optional[str] = None
+    patient_age_years: Optional[float] = None
     modality: Modality
     anatomical_region: AnatomicalRegion
+    # Free text + structured history, personal data replaced by placeholders (app.llm.privacy).
     clinical_history: Optional[str] = None
+    redaction_counts: dict[str, int] = Field(default_factory=dict)
     findings: list[LLMFindingRef] = Field(default_factory=list)
     findings_source_kind: SourceKind = SourceKind.MOCK
     findings_model_id: Optional[str] = None

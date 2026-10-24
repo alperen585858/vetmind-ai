@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+from app.llm.grounding import check_grounding
 from app.schemas.enums import ModelExecutionStatus, ReportStatus, SourceKind
 from app.schemas.findings import FINDINGS_SCHEMA_VERSION, StructuredFindings
 from app.schemas.report import REPORT_SCHEMA_VERSION, DraftReport
@@ -55,6 +56,9 @@ class ReportValidator:
         unknown = sorted(cited - known_ids)
         if unknown:
             result.add_error(f"Invalid finding references: {', '.join(unknown)}.")
+
+        for warning in check_grounding(report):
+            result.add_warning(warning)
 
         if findings:
             if findings.schema_version != FINDINGS_SCHEMA_VERSION:
