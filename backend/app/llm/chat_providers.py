@@ -94,6 +94,7 @@ class _ChatProviderBase:
             model_id=self.model_id,
             model_version=self.model_version,
             prompt_version=PROMPT_VERSION,
+            language=self._language,
         )
         return LLMResponse(
             provider_id=self.provider_id,

@@ -8,6 +8,7 @@ inline citation markers. Produces warnings, never errors: a radiologist decides.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 
 from app.llm.structured_output import MARKER_GROUP_RE, extract_markers
 from app.schemas.report import DraftReport
@@ -64,11 +65,39 @@ def _short(sentence: str, n: int = 90) -> str:
     return sentence if len(sentence) <= n else sentence[: n - 1] + "…"
 
 
-def check_grounding(report: DraftReport) -> list[str]:
-    if not report.generation.prompt_version:
-        return []
-    warnings: list[str] = []
+@dataclass
+class GroundingStats:
+    """Raw grounding measurements; ``check_grounding`` turns them into warnings and
+    ``app.evaluation`` aggregates them into scores."""
+
+    claim_sentences: int = 0
+    uncited: dict[str, list[str]] = field(default_factory=dict)  # section -> sentences
+    unknown_refs: dict[str, list[str]] = field(default_factory=dict)  # section -> aliases
+    overclaims: list[tuple[str, str, str]] = field(default_factory=list)  # (section, label, text)
+    finding_aliases: list[str] = field(default_factory=list)
+    omitted_findings: list[str] = field(default_factory=list)
+
+    @property
+    def uncited_count(self) -> int:
+        return sum(len(v) for v in self.uncited.values())
+
+    @property
+    def citation_coverage(self) -> float:
+        """Share of claim sentences in findings/impression that carry a citation."""
+        if not self.claim_sentences:
+            return 1.0
+        return 1 - self.uncited_count / self.claim_sentences
+
+    @property
+    def finding_coverage(self) -> float:
+        if not self.finding_aliases:
+            return 1.0
+        return 1 - len(self.omitted_findings) / len(self.finding_aliases)
+
+
+def analyze_grounding(report: DraftReport) -> GroundingStats:
     known = report.citation_map
+    stats = GroundingStats(finding_aliases=[a for a in known if a.startswith("F")])
     cited_anywhere: set[str] = set()
 
     for name in SECTIONS:
@@ -77,33 +106,51 @@ def check_grounding(report: DraftReport) -> list[str]:
         cited_anywhere.update(markers)
         unknown = [m for m in markers if m not in known]
         if unknown:
-            warnings.append(
-                f"Grounding: {name} cites unknown reference(s) {', '.join(unknown)} — "
-                "not in the findings/passages given to the model."
-            )
+            stats.unknown_refs[name] = unknown
         for label, pattern in OVERCLAIM_PATTERNS:
             match = pattern.search(text)
             if match:
-                warnings.append(
-                    f"Grounding: {name} contains a {label} statement (\"{match.group(0)}\"); "
-                    "drafts must keep findings hedged."
-                )
+                stats.overclaims.append((name, label, match.group(0)))
 
     for name in CITED_SECTIONS:
-        uncited = [
-            s for s in _sentences(getattr(report, name).text)
-            if _is_claim(s) and not MARKER_GROUP_RE.search(s)
-        ]
+        claims = [s for s in _sentences(getattr(report, name).text) if _is_claim(s)]
+        stats.claim_sentences += len(claims)
+        uncited = [s for s in claims if not MARKER_GROUP_RE.search(s)]
+        if uncited:
+            stats.uncited[name] = uncited
+
+    stats.omitted_findings = [a for a in stats.finding_aliases if a not in cited_anywhere]
+    return stats
+
+
+def check_grounding(report: DraftReport) -> list[str]:
+    if not report.generation.prompt_version:
+        return []
+    stats = analyze_grounding(report)
+    known = report.citation_map
+    warnings: list[str] = []
+    for name in SECTIONS:
+        if name in stats.unknown_refs:
+            warnings.append(
+                f"Grounding: {name} cites unknown reference(s) {', '.join(stats.unknown_refs[name])} — "
+                "not in the findings/passages given to the model."
+            )
+        for section, label, text in stats.overclaims:
+            if section == name:
+                warnings.append(
+                    f"Grounding: {name} contains a {label} statement (\"{text}\"); "
+                    "drafts must keep findings hedged."
+                )
+    for name in CITED_SECTIONS:
+        uncited = stats.uncited.get(name)
         if uncited:
             listed = "; ".join(f'"{_short(s)}"' for s in uncited[:MAX_LISTED_PER_SECTION])
             more = f" (+{len(uncited) - MAX_LISTED_PER_SECTION} more)" if len(uncited) > MAX_LISTED_PER_SECTION else ""
             warnings.append(f"Grounding: {len(uncited)} uncited statement(s) in {name}: {listed}{more}.")
-
-    omitted = [a for a in known if a.startswith("F") and a not in cited_anywhere]
-    if omitted:
+    if stats.omitted_findings:
         warnings.append(
             "Grounding: imaging finding(s) not mentioned in the draft: "
-            + ", ".join(f"{a} ({known[a]})" for a in omitted)
+            + ", ".join(f"{a} ({known[a]})" for a in stats.omitted_findings)
             + "."
         )
     return warnings

@@ -13,7 +13,8 @@
 | Doğrulama katmanı | `llm/grounding.py` | Kaynaksız cümle, aşırı iddia, atlanan bulgu kontrolü |
 | Deneme komutu | `backend/scripts/llm_demo.py` | Örnek vakayı modele gönderip raporu yazdırır |
 | Kişisel veri maskeleme | `llm/privacy.py` | Telefon, e-posta, TC no, sahip/hasta adı → yer tutucu |
-| Testler | `tests/test_llm_chat_providers.py`, `test_llm_grounding.py`, `test_llm_privacy.py` | Ağ bağlantısı olmadan 28 test |
+| Değerlendirme | `evaluation/llm_eval.py`, `scripts/llm_eval.py`, `backend/eval/llm_eval_set.json` | Modelleri aynı vakalarda puanlar, karşılaştırma raporu yazar |
+| Testler | `tests/test_llm_*.py` | Ağ bağlantısı olmadan 34 test |
 
 Mevcut `mock` / `stub` / `http` sağlayıcıları **aynen duruyor**; varsayılan hâlâ `mock`.
 
@@ -131,7 +132,54 @@ Kaç öğenin maskelendiği `redaction_counts` alanında saklanır (değerler de
 Sınır: kural tabanlıdır; serbest metinde ipucu kelimesi olmadan geçen bir isim yakalanmayabilir.
 Gerçek hasta verisinde yerel model (Ollama / vLLM) tercih edilmeli ve KVKK değerlendirmesi yapılmalıdır.
 
-## 9. Sonraki adımlar
+## 9. Değerlendirme (model / prompt karşılaştırma)
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/llm_eval.py --provider ollama --models llama3.2:3b,phi3:mini
+VETMIND_LLM_API_KEY=sk-ant-... python scripts/llm_eval.py --provider anthropic
+```
+
+Çıktı: `backend/eval/results/<tarih>.md` (okunur tablo) ve `.json` (vaka bazında ham veri).
+
+**Set formatı** (`backend/eval/llm_eval_set.json`) — Buğra'nın test seti bu formatta eklenir:
+
+```json
+{
+  "id": "cervical-ivdd-01",
+  "species": "canine", "breed": "Dachshund", "age_years": 6,
+  "modality": "MR", "region": "CERVICAL",
+  "clinical_history": "Ani başlayan boyun ağrısı …",
+  "findings": [{"code": "…", "description": "…", "location": "C3-C4", "status": "suspected"}],
+  "expected": {
+    "differentials": ["disk ekstrüzyon|disc extrusion|IVDD"],
+    "must_mention": ["C3-C4"],
+    "forbidden": ["kesin tanı"]
+  }
+}
+```
+
+`|` eş anlamlıları ayırır; Türkçe karakterler karşılaştırmada sadeleştirilir (ü=u, ı=i …).
+İsteğe bağlı: `"execution_status": "failed"`, `"no_findings_returned": true`.
+
+**Metrikler**
+
+| Metrik | Nasıl ölçülür |
+|--------|---------------|
+| Kaynaklı cümle oranı | findings + impression'daki klinik cümlelerin atıf taşıyan oranı |
+| Bulgu kapsama | Verilen bulguların (F#) raporda atıf alan oranı |
+| Beklenen tanı yakalama | `expected.differentials` girdilerinin impression'da geçme oranı |
+| Zorunlu içerik | `must_mention` girdilerinin raporda geçme oranı |
+| Aşırı iddia / yasak ifade | Vaka sayısı (grounding kalıpları + `forbidden`) |
+| Geçersiz atıf | Modele verilmemiş F#/S# atıf sayısı |
+| İngilizce kelime oranı | Türkçe raporda yaygın İngilizce kelime payı (dil karışması) |
+| Toplam skor | Uygulanabilir kontrollerin eşit ağırlıklı ortalaması × 100; üretim hatası = 0 |
+
+Toplam skorun bileşenleri: kaynaklı cümle, bulgu kapsama, tanı yakalama, zorunlu içerik,
+aşırı iddia/geçersiz atıf yok (1/0), yasak ifade yok (1/0), `1 − min(1, 4 × İngilizce oranı)`.
+Bu skorlar **atıf ve güvenlik davranışını** ölçer; klinik doğruluk için uzman puanlaması gerekir.
+
+## 10. Sonraki adımlar
 
 - Buğra'nın test setiyle model/prompt karşılaştırması (doğru tanı ilk 3'te mi, kaynaksız cümle oranı)
 - Türkçe için model seçimi: Claude / GPT sınıfı API vs. yerel Qwen 2.5 14B+ / Llama 3.1 70B (vLLM)

@@ -12,7 +12,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMMalformedResponseError, LLMRequest
@@ -39,20 +39,51 @@ MARKER_GROUP_RE = re.compile(r"\[\s*([FS]\d+(?:\s*[,;]\s*[FS]\d+)*)\s*\]")
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 
+# Used when a model leaves a section blank (typical for no-findings / failed analysis).
+# Blank sections must never read as "nothing abnormal".
+EMPTY_SECTION_TEXT = {
+    "tr": {
+        "technique": "Teknik bilgi model tarafından üretilmedi.",
+        "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. "
+        "Bu, çalışmanın normal olduğu anlamına gelmez.",
+        "impression": "Otomatik yorum üretilmedi; tüm çalışmanın uzman radyolog tarafından manuel incelenmesi gerekir.",
+        "recommendations": "Görüntülerin uzman veteriner radyolog tarafından tam olarak incelenmesi gereklidir.",
+    },
+    "en": {
+        "technique": "Technique was not provided by the model.",
+        "findings": "Automated image analysis returned no reportable structured findings. "
+        "This does not mean the study is normal.",
+        "impression": "No automated impression was produced; full manual review by a radiologist is required.",
+        "recommendations": "Full review of the images by a veterinary radiologist is required.",
+    },
+}
+
+
 class ReportWire(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    technique: str
-    findings: str
-    impression: str
-    recommendations: str
+    technique: str = ""
+    findings: str = ""
+    impression: str = ""
+    recommendations: str = ""
 
-    @field_validator(*SECTION_KEYS)
+    @field_validator(*SECTION_KEYS, mode="before")
     @classmethod
-    def _non_empty(cls, value: str) -> str:
-        if not value or not value.strip():
-            raise ValueError("section must not be empty")
+    def _strip(cls, value: object) -> str:
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            raise ValueError("section must be a string")
         return value.strip()
+
+    @model_validator(mode="after")
+    def _not_all_empty(self) -> "ReportWire":
+        if not any(getattr(self, k) for k in SECTION_KEYS):
+            raise ValueError("all report sections are empty")
+        return self
+
+    def empty_sections(self) -> list[str]:
+        return [k for k in SECTION_KEYS if not getattr(self, k)]
 
 
 def extract_markers(text: str) -> list[str]:
@@ -96,11 +127,13 @@ def build_draft_report(
     model_id: str,
     model_version: str,
     prompt_version: str,
+    language: str = "tr",
 ) -> DraftReport:
     gen = request.generation
+    fallback = EMPTY_SECTION_TEXT.get(language, EMPTY_SECTION_TEXT["en"])
 
     def section(key: str) -> ReportSection:
-        text = getattr(wire, key)
+        text = getattr(wire, key) or fallback[key]
         cited = [aliases.findings[a] for a in extract_markers(text) if a in aliases.findings]
         return ReportSection(text=text, cited_finding_ids=cited)
 

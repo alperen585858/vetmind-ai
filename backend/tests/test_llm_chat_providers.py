@@ -226,8 +226,23 @@ def test_gateway_with_real_provider_and_rag() -> None:
 def test_parse_report_payload_rejects_bad_shapes() -> None:
     with pytest.raises(LLMMalformedResponseError, match="no JSON"):
         parse_report_payload("Üzgünüm, yardımcı olamam.")
-    with pytest.raises(LLMMalformedResponseError, match="impression"):
-        parse_report_payload({"technique": "a", "findings": "b", "impression": " ", "recommendations": "d"})
+    with pytest.raises(LLMMalformedResponseError, match="all report sections are empty"):
+        parse_report_payload({"technique": " ", "findings": "", "impression": None, "recommendations": ""})
+    with pytest.raises(LLMMalformedResponseError, match="must be a string"):
+        parse_report_payload({"technique": "a", "findings": ["x"], "impression": "c", "recommendations": "d"})
+
+
+def test_blank_section_gets_safe_text_not_an_error() -> None:
+    request, _, _ = _request()
+    gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
+    content = json.dumps(
+        {"technique": "Köpek, beyin MR.", "findings": "", "impression": "", "recommendations": "Uzman incelemesi."}
+    )
+    provider = OpenAICompatibleProvider(model_id="m", api_key="k", transport=_openai_transport(content, {}))
+    report = provider.generate(LLMRequest(generation=gen)).report
+    assert "normal olduğu anlamına gelmez" in report.findings.text
+    assert "manuel" in report.impression.text
+    assert report.recommendations.text == "Uzman incelemesi."
 
 
 def test_extract_markers_handles_groups() -> None:
