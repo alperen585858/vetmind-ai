@@ -13,8 +13,9 @@
 | Doğrulama katmanı | `llm/grounding.py` | Kaynaksız cümle, aşırı iddia, atlanan bulgu kontrolü |
 | Deneme komutu | `backend/scripts/llm_demo.py` | Örnek vakayı modele gönderip raporu yazdırır |
 | Kişisel veri maskeleme | `llm/privacy.py` | Telefon, e-posta, TC no, sahip/hasta adı → yer tutucu |
+| Uzman geri bildirimi | `llm/feedback.py`, `api/llm_feedback.py` | AI metni ↔ uzman metni karşılaştırması, JSONL / sohbet formatı dışa aktarım |
 | Değerlendirme | `evaluation/llm_eval.py`, `scripts/llm_eval.py`, `backend/eval/llm_eval_set.json` | Modelleri aynı vakalarda puanlar, karşılaştırma raporu yazar |
-| Testler | `tests/test_llm_*.py` | Ağ bağlantısı olmadan 34 test |
+| Testler | `tests/test_llm_*.py` | Ağ bağlantısı olmadan 39 test |
 
 Mevcut `mock` / `stub` / `http` sağlayıcıları **aynen duruyor**; varsayılan hâlâ `mock`.
 
@@ -179,7 +180,26 @@ Toplam skorun bileşenleri: kaynaklı cümle, bulgu kapsama, tanı yakalama, zor
 aşırı iddia/geçersiz atıf yok (1/0), yasak ifade yok (1/0), `1 − min(1, 4 × İngilizce oranı)`.
 Bu skorlar **atıf ve güvenlik davranışını** ölçer; klinik doğruluk için uzman puanlaması gerekir.
 
-## 10. Sonraki adımlar
+## 10. Uzman geri bildirim veri seti
+
+Her pipeline taslağında modelin yazdığı metin `DraftReport.ai_sections` alanında **dondurulur**;
+uzman düzenlese ve onaylasa bile değişmez. (Önceden onay, aynı sürüm numarasının üzerine yazdığı
+için orijinal AI metni kayboluyordu.)
+
+| Uç nokta (yalnızca admin) | Ne verir |
+|---------------------------|----------|
+| `GET /api/v1/llm/feedback` | Karar dağılımı, bölüm bazında düzeltme oranı ve benzerlik, model/prompt bazında onay oranları |
+| `GET /api/v1/llm/feedback?include_records=true` | + vaka bazında AI metni ↔ uzman metni |
+| `GET /api/v1/llm/feedback/export` | JSONL — analiz için ham kayıtlar |
+| `GET /api/v1/llm/feedback/export?format=chat` | Onaylı raporlar `system / user / assistant` sohbet örneği olarak (prompt iyileştirme / fine-tuning) |
+
+Benzerlik kelime bazlıdır (1.0 = hiç değişmedi). Bekleyen (incelenmemiş) vakalar dahil edilmez.
+Dışa aktarılan metinlerde hasta adı ve klinik adı maskelenir.
+
+**Tez için:** "Uzman, model taslaklarının %X'ini düzeltmeden onayladı; en çok düzeltilen bölüm Yorum (impression)"
+gibi cümleler doğrudan `/llm/feedback` çıktısından gelir.
+
+## 11. Sonraki adımlar
 
 - Buğra'nın test setiyle model/prompt karşılaştırması (doğru tanı ilk 3'te mi, kaynaksız cümle oranı)
 - Türkçe için model seçimi: Claude / GPT sınıfı API vs. yerel Qwen 2.5 14B+ / Llama 3.1 70B (vLLM)

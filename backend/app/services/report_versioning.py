@@ -140,6 +140,10 @@ def attach_pipeline_draft(case: CaseRecord, draft: DraftReport) -> DraftReport:
     draft.immutable = False
     draft.reviewed_by = None
     draft.revision_notes = "Pipeline draft generated"
+    if not draft.ai_sections:
+        draft.ai_sections = {
+            k: getattr(draft, k).text for k in ("technique", "findings", "impression", "recommendations")
+        }
     if draft.expert_review_status == ExpertReviewStatus.APPROVED:
         draft.expert_review_status = ExpertReviewStatus.PENDING
 

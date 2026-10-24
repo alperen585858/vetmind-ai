@@ -360,6 +360,8 @@ export interface BackendDraftReport {
   rag_citations?: BackendRagCitation[]
   /** Inline citation alias → id, e.g. { F1: finding_id, S1: rag source_id }. */
   citation_map?: Record<string, string>
+  /** Model text per section at generation time; unchanged by expert edits. */
+  ai_sections?: Record<string, string>
   rag_note?: string
   version?: number
   created_at?: string

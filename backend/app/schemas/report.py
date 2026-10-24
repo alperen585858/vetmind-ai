@@ -60,6 +60,9 @@ class DraftReport(BaseModel):
     rag_citations: list[RagPassage] = Field(default_factory=list)
     # Inline citation alias → id, e.g. {"F1": finding_id, "S1": rag source_id}.
     citation_map: dict[str, str] = Field(default_factory=dict)
+    # Model text per section, captured when the pipeline draft is created. Expert edits
+    # never change it, so AI-vs-expert differences survive approval (feedback dataset).
+    ai_sections: dict[str, str] = Field(default_factory=dict)
     rag_note: str = (
         "Optional RAG citations list retrieved demo passages (retrieval similarity score only). "
         "Score is not clinical confidence. Citations are not clinical evidence and do not validate findings."
