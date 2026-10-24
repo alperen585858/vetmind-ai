@@ -10,6 +10,8 @@ import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { AIDisclaimer } from '../components/AIDisclaimer'
 import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
+import { CitedText } from '../components/CitedText'
+import { GroundingWarnings } from '../components/GroundingWarnings'
 import { EmptyState } from '../components/EmptyState'
 import { SECTION_LABELS, USERS } from '../data/mock'
 import { nowStamp, today } from '../lib/format'
@@ -225,13 +227,6 @@ export default function ExpertReview() {
             ))}
           </ul>
         )}
-        {c.backendDraft?.validation_warnings?.length ? (
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
-            {c.backendDraft.validation_warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        ) : null}
       </div>
 
       {!reviewable && (
@@ -243,7 +238,9 @@ export default function ExpertReview() {
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-5">
           <AIDisclaimer />
-          {warnings.length > 0 && (
+          <GroundingWarnings warnings={c.backendDraft?.validation_warnings} checked={Boolean(c.backendDraft?.generation.prompt_version)} />
+          {/* Backend drafts: pipeline notes are in the status box, grounding in the card above. */}
+          {warnings.length > 0 && !c.backendDraft && (
             <Card className="border-amber-200">
               <CardHeader title="Doğrulama katmanı uyarıları" icon={<AlertTriangle className="h-5 w-5 text-amber-600" />} />
               <ul className="space-y-2 p-4">
@@ -262,7 +259,7 @@ export default function ExpertReview() {
               {KEYS.map((k) => (
                 <div key={k} className="px-5 py-4">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{SECTION_LABELS[k]}</p>
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-navy-800">{draft[k]}</p>
+                  <CitedText text={draft[k]} citationMap={c.backendDraft?.citation_map} sources={c.backendDraft?.rag_citations} className="text-sm leading-relaxed text-navy-800" />
                   {k === 'ayiriciTanilar' && c.ai && !c.backendDraft?.rag_citations?.length && (
                     <p className="mt-2 text-xs text-slate-500">Kaynaklar: <Citations ids={Array.from(new Set(c.ai.differentials.flatMap((d) => d.citations)))} /></p>
                   )}
@@ -272,8 +269,8 @@ export default function ExpertReview() {
           </Card>
           {c.backendDraft?.rag_citations && c.backendDraft.rag_citations.length > 0 && (
             <Card>
-              <CardHeader title="Backend RAG citations" subtitle="Demo lexical/embedding matches — klinik kanıt değil" />
-              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} />
+              <CardHeader title="Kaynak pasajlar (RAG)" subtitle="Taslaktaki [S#] atıflarına tıklayınca ilgili pasaj vurgulanır — klinik kanıt değildir" />
+              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} citationMap={c.backendDraft.citation_map} />
             </Card>
           )}
         </div>

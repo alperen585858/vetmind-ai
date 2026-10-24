@@ -31,6 +31,14 @@ def test_clean_draft_has_no_grounding_warnings() -> None:
     assert check_grounding(r) == []
 
 
+def test_marker_after_full_stop_counts_as_cited() -> None:
+    r = _report(
+        "Olfaktör bulbus bölgesinde şüpheli kitle etkisi izlenmektedir. [F1, S1].\nHafif ödem olasıdır. [F2]",
+        "Ekstra-aksiyel neoplazi olası görünmektedir. [F1]",
+    )
+    assert check_grounding(r) == []
+
+
 def test_flags_uncited_unknown_and_omitted() -> None:
     r = _report(
         "Sol frontal lobda şüpheli kitle lezyonu izlenmektedir [F1].",

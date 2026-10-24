@@ -43,10 +43,15 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
 
 def _sentences(text: str) -> list[str]:
-    out = []
+    out: list[str] = []
     for raw in _SENTENCE_SPLIT_RE.split(text):
         s = raw.strip().lstrip("-•*0123456789. )").strip()
-        if s:
+        if not s:
+            continue
+        # A marker placed after the full stop ("… var. [F1].") belongs to the previous sentence.
+        if out and not MARKER_GROUP_RE.sub("", s).strip(" .;,"):
+            out[-1] = f"{out[-1]} {s}"
+        else:
             out.append(s)
     return out
 
