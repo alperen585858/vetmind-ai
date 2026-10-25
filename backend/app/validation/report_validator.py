@@ -6,6 +6,14 @@ from app.schemas.findings import FINDINGS_SCHEMA_VERSION, StructuredFindings
 from app.schemas.report import REPORT_SCHEMA_VERSION, DraftReport
 
 
+_SECTION_TR = {
+    "technique": "Teknik",
+    "findings": "Bulgular",
+    "impression": "Değerlendirme",
+    "recommendations": "Öneriler",
+}
+
+
 @dataclass
 class ValidationResult:
     ok: bool
@@ -26,25 +34,25 @@ class ReportValidator:
     def validate(self, report: DraftReport, findings: StructuredFindings | None) -> ValidationResult:
         result = ValidationResult(ok=True)
         result.add_warning(
-            "Structural validation does not prove clinical accuracy. Expert review is required."
+            "Yapısal doğrulama klinik doğruluğu kanıtlamaz. Uzman incelemesi gereklidir."
         )
 
         if report.schema_version != REPORT_SCHEMA_VERSION:
-            result.add_warning(f"Unexpected report schema_version={report.schema_version}.")
+            result.add_warning(f"Beklenmeyen rapor şema sürümü: {report.schema_version}.")
         if not report.report_id or not report.case_id:
-            result.add_error("report_id and case_id are required.")
+            result.add_error("report_id ve case_id zorunludur.")
         if findings and report.case_id != findings.case_id:
-            result.add_error("Draft report case_id does not match structured findings case_id.")
+            result.add_error("Taslak raporun case_id değeri yapılandırılmış bulgularınkiyle eşleşmiyor.")
 
         for name in ("technique", "findings", "impression", "recommendations"):
             section = getattr(report, name)
             if not section.text or not section.text.strip():
-                result.add_error(f"Report section '{name}' is empty.")
+                result.add_error(f"Rapor bölümü boş: {_SECTION_TR.get(name, name)}.")
 
         if report.generation.source_kind in {SourceKind.MOCK, SourceKind.MIXED} or report.synthetic:
-            result.add_warning("Report source is MOCK / MIXED / synthetic and is not clinically validated.")
+            result.add_warning("Rapor kaynağı demo / karma / sentetiktir ve klinik olarak doğrulanmamıştır.")
         if report.clinically_validated:
-            result.add_error("clinically_validated must be false until a real validated model exists.")
+            result.add_error("Gerçek ve doğrulanmış bir model olana kadar clinically_validated false olmalıdır.")
 
         known_ids = {f.finding_id for f in findings.findings} if findings else set()
         cited = set(
@@ -55,33 +63,33 @@ class ReportValidator:
         )
         unknown = sorted(cited - known_ids)
         if unknown:
-            result.add_error(f"Invalid finding references: {', '.join(unknown)}.")
+            result.add_error(f"Geçersiz bulgu atıfları: {', '.join(unknown)}.")
 
         for warning in check_grounding(report):
             result.add_warning(warning)
 
         if findings:
             if findings.schema_version != FINDINGS_SCHEMA_VERSION:
-                result.add_warning(f"Unexpected findings schema_version={findings.schema_version}.")
+                result.add_warning(f"Beklenmeyen bulgu şema sürümü: {findings.schema_version}.")
             if findings.source_kind == SourceKind.MOCK:
-                result.add_warning("Structured findings originated from a MOCK imaging adapter.")
+                result.add_warning("Yapılandırılmış bulgular demo (mock) bir görüntü modelinden geldi.")
             if findings.source_kind == SourceKind.MIXED:
                 result.add_warning(
-                    "Structured findings have MIXED provenance; inspect contributing_source_kinds."
+                    "Yapılandırılmış bulgular karma kaynaklıdır; katkı veren kaynakları inceleyin."
                 )
             if findings.no_findings_returned and findings.findings:
-                result.add_error("Contradictory status: no_findings_returned is true but findings list is not empty.")
+                result.add_error("Çelişkili durum: bulgu dönmedi olarak işaretli ama bulgu listesi boş değil.")
             if findings.absences_not_confirmed is False:
                 result.add_warning(
-                    "absences_not_confirmed is false; Phase 1 policy is to never confirm absence from missing items."
+                    "absences_not_confirmed false; politika gereği eksik bulgudan hastalık yokluğu çıkarılmaz."
                 )
             if (
                 findings.execution_status == ModelExecutionStatus.FAILED
                 and report.status not in {ReportStatus.VALIDATION_FAILED, ReportStatus.DRAFT}
             ):
-                result.add_error("Contradictory status: imaging failed but report status is not a draft/failure state.")
+                result.add_error("Çelişkili durum: görüntü analizi başarısız ama rapor durumu taslak/hata değil.")
             if findings.execution_status == ModelExecutionStatus.FAILED and findings.findings:
-                result.add_warning("Failed execution unexpectedly includes findings; treat as unreliable.")
+                result.add_warning("Başarısız analiz beklenmedik şekilde bulgu içeriyor; güvenilmez kabul edin.")
 
         if result.errors:
             report.status = ReportStatus.VALIDATION_FAILED

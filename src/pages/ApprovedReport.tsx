@@ -19,6 +19,13 @@ import {
 } from '../lib/reportPrint'
 import type { BackendDraftReport, VetCase } from '../types'
 
+const SOURCE_KIND_TR: Record<string, string> = {
+  mock: 'Demo (sentetik model)',
+  real: 'Gerçek model',
+  mixed: 'Karma (demo + gerçek)',
+  unknown: 'Bilinmiyor',
+}
+
 export default function ApprovedReport() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
@@ -395,7 +402,7 @@ export default function ApprovedReport() {
 
         <section className="border-t border-slate-100 px-8 py-5 text-sm">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Kaynaklar ve provenance
+            Kaynak bilgisi
           </p>
           <dl className="space-y-1">
             <div className="flex gap-2">
@@ -403,12 +410,12 @@ export default function ApprovedReport() {
               <dd className="font-mono text-xs text-navy-900">{provenance.modelLine}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">source_kind</dt>
-              <dd className="font-mono text-xs uppercase text-navy-900">{provenance.sourceKind}</dd>
+              <dt className="w-36 text-slate-500">Kaynak türü</dt>
+              <dd className="text-navy-900">{SOURCE_KIND_TR[provenance.sourceKind] ?? provenance.sourceKind}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">synthetic</dt>
-              <dd className="font-mono text-xs text-navy-900">{String(provenance.synthetic)}</dd>
+              <dt className="w-36 text-slate-500">Sentetik veri</dt>
+              <dd className="text-navy-900">{provenance.synthetic ? 'Evet' : 'Hayır'}</dd>
             </div>
             <div className="flex gap-2">
               <dt className="w-36 text-slate-500">Klinik doğrulama</dt>

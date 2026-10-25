@@ -9,11 +9,14 @@ from app.schemas.enums import (
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings
 
 MOCK_DISCLAIMER = (
-    "SYNTHETIC MOCK OUTPUT. This is not medical image interpretation and is not clinically validated."
+    "SENTETİK DEMO ÇIKTI. Tıbbi görüntü yorumu değildir ve klinik olarak doğrulanmamıştır."
 )
 ABSENCE_WARNING = (
-    "No findings were returned. Missing findings must not be treated as confirmed absence of disease."
+    "Bulgu dönmedi. Bulgu olmaması, hastalığın olmadığının doğrulandığı anlamına gelmez."
 )
+
+
+_REGION_TR = {"BRAIN": "beyin", "CERVICAL": "servikal", "THORAX": "toraks", "OTHER": "diğer", "UNKNOWN": "bilinmeyen bölge"}
 
 
 class MockVisionError(ImagingAdapterError):
@@ -21,8 +24,8 @@ class MockVisionError(ImagingAdapterError):
 
 
 DICOM_METADATA_ONLY_WARNING = (
-    "Case includes DICOM metadata. Mock imaging adapters do not analyze pixels; "
-    "outputs remain synthetic and must not be treated as image-based diagnosis."
+    "Vakada DICOM metadata var. Demo görüntü modelleri pikselleri analiz etmez; "
+    "çıktılar sentetiktir ve görüntüye dayalı tanı olarak kabul edilmemelidir."
 )
 
 
@@ -39,8 +42,8 @@ def _base(
     if case.model_input is not None:
         mi = case.model_input
         warnings.append(
-            f"Consumed ImagingModelInput v{mi.schema_version}: "
-            f"{mi.total_instances} instance(s) / {len(mi.series)} series; "
+            f"Kullanılan ImagingModelInput v{mi.schema_version}: "
+            f"{mi.total_instances} görüntü / {len(mi.series)} seri; "
             f"metadata_only={mi.metadata_only}; "
             f"pixel_analysis_authorized={mi.pixel_analysis_authorized}."
         )
@@ -86,7 +89,7 @@ def _finding(
         source_model_version=version,
         requires_review=True,
         evidence_references=evidence or [],
-        uncertainty_note=uncertainty_note or "Confidence is undefined for mock adapters.",
+        uncertainty_note=uncertainty_note or "Demo modellerde güven düzeyi tanımlı değildir.",
         synthetic=True,
     )
 
@@ -97,7 +100,7 @@ class MockBrainMriModel:
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
         if case.scenario == MockScenario.MODEL_FAILURE:
-            raise MockVisionError("Mock Brain MRI adapter forced failure (scenario=model_failure).")
+            raise MockVisionError("Demo beyin MR modeli bilinçli olarak hata verdi (senaryo: model hatası).")
         if case.scenario == MockScenario.NO_FINDINGS:
             out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
             out.no_findings_returned = True
@@ -109,19 +112,19 @@ class MockBrainMriModel:
                 finding_id=f"{case.case_id}-f-brain-01",
                 finding_code="MOCK-BRAIN-MASS-EFFECT",
                 description=(
-                    "SYNTHETIC MOCK FINDING: suspected extra-axial mass effect near the olfactory bulb region. "
-                    "This statement is a fixture for pipeline testing, not a radiology interpretation."
+                    "SENTETİK DEMO BULGU: olfaktör bulbus bölgesi yakınında şüpheli ekstra-aksiyel kitle etkisi. "
+                    "Bu ifade sistem testi için örnek veridir, radyolojik yorum değildir."
                 ),
-                anatomical_location="brain / olfactory bulb region (synthetic)",
+                anatomical_location="beyin / olfaktör bulbus bölgesi (sentetik)",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-brain-01",
-                        description="Mock series hint only; pixels were not analyzed.",
-                        series_hint="T2W transverse (placeholder)",
-                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                        description="Yalnızca demo seri ipucu; pikseller analiz edilmedi.",
+                        series_hint="T2A transvers (örnek)",
+                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
                     )
                 ],
             )
@@ -142,17 +145,17 @@ class MockBrainMriAltModel:
                 finding_id=f"{case.case_id}-f-brain-alt-01",
                 finding_code="MOCK-BRAIN-NO-MASS-EFFECT",
                 description=(
-                    "SYNTHETIC MOCK FINDING (CONFLICTING ADAPTER): alternative mock model did not return "
-                    "mass-effect at the olfactory bulb. This is a fixture, not a negative diagnosis."
+                    "SENTETİK DEMO BULGU (ÇELİŞEN MODEL): alternatif demo model olfaktör bulbusta "
+                    "kitle etkisi bildirmedi. Bu örnek veridir, negatif tanı değildir."
                 ),
-                anatomical_location="brain / olfactory bulb region (synthetic)",
+                anatomical_location="beyin / olfaktör bulbus bölgesi (sentetik)",
                 finding_status=FindingStatus.UNCERTAIN,
                 model_id=self.model_id,
                 version=self.version,
-                uncertainty_note="Conflicts with mock-brain-mri-v1 on the same synthetic location.",
+                uncertainty_note="Aynı sentetik konumda mock-brain-mri-v1 ile çelişiyor.",
             )
         ]
-        out.warnings.append("Conflicting mock adapter output. Both findings are preserved for review.")
+        out.warnings.append("Demo modeller çelişen sonuç verdi. İnceleme için iki bulgu da korunuyor.")
         return out
 
 
@@ -162,7 +165,7 @@ class MockCervicalMriModel:
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
         if case.scenario == MockScenario.MODEL_FAILURE:
-            raise MockVisionError("Mock Cervical MRI adapter forced failure (scenario=model_failure).")
+            raise MockVisionError("Demo servikal MR modeli bilinçli olarak hata verdi (senaryo: model hatası).")
         if case.scenario == MockScenario.NO_FINDINGS:
             out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
             out.no_findings_returned = True
@@ -174,19 +177,19 @@ class MockCervicalMriModel:
                 finding_id=f"{case.case_id}-f-cerv-01",
                 finding_code="MOCK-CERVICAL-CORD-COMPRESSION",
                 description=(
-                    "SYNTHETIC MOCK FINDING: suspected extradural cord compression at C2–C3. "
-                    "This statement is a fixture for pipeline testing, not a radiology interpretation."
+                    "SENTETİK DEMO BULGU: C2–C3 seviyesinde şüpheli ekstradural omurilik basısı. "
+                    "Bu ifade sistem testi için örnek veridir, radyolojik yorum değildir."
                 ),
-                anatomical_location="cervical spine / C2–C3 (synthetic)",
+                anatomical_location="servikal omurga / C2–C3 (sentetik)",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-cerv-01",
-                        description="Mock series hint only; pixels were not analyzed.",
-                        series_hint="T2W sagittal (placeholder)",
-                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                        description="Yalnızca demo seri ipucu; pikseller analiz edilmedi.",
+                        series_hint="T2A sagital (örnek)",
+                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
                     )
                 ],
             )
@@ -202,37 +205,37 @@ class MockCt3dModel:
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
         if case.scenario == MockScenario.MODEL_FAILURE:
-            raise MockVisionError("Mock CT 3D adapter forced failure (scenario=model_failure).")
+            raise MockVisionError("Demo BT 3B modeli bilinçli olarak hata verdi (senaryo: model hatası).")
         if case.scenario == MockScenario.NO_FINDINGS:
             out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
             out.no_findings_returned = True
             out.warnings.append(ABSENCE_WARNING)
             return out
         out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
-        region = case.anatomical_region.value.lower()
+        region = _REGION_TR.get(case.anatomical_region.value, case.anatomical_region.value.lower())
         out.findings = [
             _finding(
                 finding_id=f"{case.case_id}-f-ct-01",
                 finding_code="MOCK-CT-VOLUME-HINT",
                 description=(
-                    f"SYNTHETIC MOCK FINDING: CT volume stub flagged a possible soft-tissue density "
-                    f"asymmetry in the {region} study. Fixture only — no 3D reconstruction or HU analysis."
+                    f"SENTETİK DEMO BULGU: BT hacim modeli {region} çalışmasında olası yumuşak doku "
+                    f"yoğunluk asimetrisi işaretledi. Yalnızca örnek veri — 3B rekonstrüksiyon veya HU analizi yapılmadı."
                 ),
-                anatomical_location=f"{region} (synthetic CT stub)",
+                anatomical_location=f"{region} (sentetik BT)",
                 finding_status=FindingStatus.POSSIBLE,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-ct-01",
-                        description="Mock CT series hint; voxels were not reconstructed.",
-                        series_hint="Axial CT (placeholder)",
-                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                        description="Demo BT seri ipucu; vokseller yeniden oluşturulmadı.",
+                        series_hint="Aksiyel BT (örnek)",
+                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
                     )
                 ],
             )
         ]
-        out.warnings.append("CT 3D mock adapter: quarantine paths may be present but pixels were not loaded.")
+        out.warnings.append("Demo BT 3B modeli: karantina dosyaları mevcut olabilir ancak pikseller yüklenmedi.")
         return out
 
 
@@ -242,7 +245,7 @@ class MockXrVisionModel:
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
         if case.scenario == MockScenario.MODEL_FAILURE:
-            raise MockVisionError("Mock X-Ray adapter forced failure (scenario=model_failure).")
+            raise MockVisionError("Demo röntgen modeli bilinçli olarak hata verdi (senaryo: model hatası).")
         if case.scenario == MockScenario.NO_FINDINGS:
             out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
             out.no_findings_returned = True
@@ -254,19 +257,19 @@ class MockXrVisionModel:
                 finding_id=f"{case.case_id}-f-xr-01",
                 finding_code="MOCK-XR-THORAX-OPACITY",
                 description=(
-                    "SYNTHETIC MOCK FINDING: possible interstitial opacity in the caudal lung field "
-                    "on thorax radiograph. Fixture for pipeline testing, not a radiology interpretation."
+                    "SENTETİK DEMO BULGU: toraks grafisinde kaudal akciğer alanında olası interstisyel opasite. "
+                    "Sistem testi için örnek veridir, radyolojik yorum değildir."
                 ),
-                anatomical_location="thorax / caudal lung field (synthetic)",
+                anatomical_location="toraks / kaudal akciğer alanı (sentetik)",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-xr-01",
-                        description="Mock XR projection hint; pixels were not analyzed.",
-                        series_hint="Right lateral thorax (placeholder)",
-                        note="Evidence is a mock reference. No pixel-level imaging analysis was performed.",
+                        description="Demo röntgen projeksiyon ipucu; pikseller analiz edilmedi.",
+                        series_hint="Sağ lateral toraks (örnek)",
+                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
                     )
                 ],
             )
@@ -291,19 +294,19 @@ class MockMultimodalVlmModel:
                 finding_id=f"{case.case_id}-f-vlm-01",
                 finding_code="MOCK-VLM-DOCUMENT-CONTEXT",
                 description=(
-                    f"SYNTHETIC MOCK FINDING: multimodal stub reviewed {doc_count} quarantined "
-                    f"document(s) as draft context only. "
-                    f"Text preview: {preview or '(no extractable text)'}."
+                    f"SENTETİK DEMO BULGU: çok modlu demo model karantinadaki {doc_count} belgeyi "
+                    f"yalnızca taslak bağlamı olarak inceledi. "
+                    f"Metin önizlemesi: {preview or '(çıkarılabilir metin yok)'}."
                 ),
-                anatomical_location="document context (synthetic)",
+                anatomical_location="belge bağlamı (sentetik)",
                 finding_status=FindingStatus.UNCERTAIN,
                 model_id=self.model_id,
                 version=self.version,
-                uncertainty_note="VLM stub does not perform vision OCR diagnosis; text is draft context.",
+                uncertainty_note="Demo VLM modeli görüntüden OCR veya tanı yapmaz; metin yalnızca taslak bağlamıdır.",
             )
         ]
         out.warnings.append(
-            "Multimodal VLM mock: uses extracted document text / image stubs. Not clinical interpretation."
+            "Çok modlu demo VLM: çıkarılan belge metnini kullanır. Klinik yorum değildir."
         )
         return out
 
@@ -320,7 +323,7 @@ class ManualReviewStub:
             status=ModelExecutionStatus.UNSUPPORTED,
         )
         out.warnings.append(
-            "Unsupported modality/region for automated pipelines. Case routed to manual radiologist review."
+            "Bu modalite/bölge otomatik analiz için desteklenmiyor. Vaka manuel radyolog incelemesine yönlendirildi."
         )
         out.no_findings_returned = True
         out.warnings.append(ABSENCE_WARNING)

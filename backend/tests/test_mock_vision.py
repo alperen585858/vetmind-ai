@@ -25,7 +25,7 @@ def test_brain_adapter_returns_labeled_mock_finding() -> None:
     assert out.execution_status == ModelExecutionStatus.SUCCESS
     assert out.findings[0].finding_code == "MOCK-BRAIN-MASS-EFFECT"
     assert out.findings[0].finding_status == FindingStatus.SUSPECTED
-    assert "SYNTHETIC MOCK" in out.findings[0].description
+    assert "SENTETİK DEMO BULGU" in out.findings[0].description
     assert out.absences_not_confirmed is True
 
 
@@ -41,7 +41,7 @@ def test_no_findings_is_not_disease_absence() -> None:
     assert out.findings == []
     assert out.no_findings_returned is True
     assert out.absences_not_confirmed is True
-    assert any("absence of disease" in w.lower() for w in out.warnings)
+    assert any("hastalığın olmadığının" in w.lower() for w in out.warnings)
 
 
 def test_model_failure_is_deterministic() -> None:
@@ -59,5 +59,5 @@ def test_normalizer_preserves_conflicts() -> None:
     assert "MOCK-BRAIN-MASS-EFFECT" in codes
     assert "MOCK-BRAIN-NO-MASS-EFFECT" in codes
     assert merged.potential_conflicts
-    assert any("POTENTIAL CONFLICT PRESERVED" in w for w in merged.warnings)
+    assert any("OLASI ÇELİŞKİ KORUNDU" in w for w in merged.warnings)
     assert all(f.source_model_version == "0.1.0" for f in merged.findings)

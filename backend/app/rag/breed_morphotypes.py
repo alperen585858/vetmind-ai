@@ -15,9 +15,23 @@ from app.rag.corpus import CorpusDoc, SEED_CORPUS
 
 _DATA_PATH = Path(__file__).with_name("corpus") / "breed_morphotypes.json"
 _COVERAGE_NOTE = (
-    "Representative breeds only; this is not an exhaustive breed registry. "
-    "Reference material only; not clinical evidence or a diagnostic rule."
+    "Yalnızca temsilî ırklar listelenmiştir; eksiksiz bir ırk kaydı değildir. "
+    "Yalnızca referans materyaldir; klinik kanıt veya tanı kuralı değildir."
 )
+
+# Passages and titles are shown to Turkish users (reports, Bilgi Tabanı); data keys stay English.
+_SPECIES_TR = {"dogs": "Köpek", "cats": "Kedi"}
+_LABEL_TR = {
+    "description": "açıklama",
+    "cephalic_index_range": "sefalik indeks aralığı",
+    "craniofacial_angle_range": "kraniyofasiyal açı aralığı",
+    "representative_breeds": "temsilî ırklar",
+    "clinical_notes": "klinik notlar",
+    "closure rules": "kapanma kuralları",
+    "misinterpretation_risk": "yanlış yorumlama riski",
+    "affected_breeds": "etkilenen ırklar",
+    "resolution": "çözüm",
+}
 
 
 def load_breed_morphotype_data(path: Path | None = None) -> dict[str, Any]:
@@ -59,7 +73,7 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
                     f"Morphotype {species}.{morphotype} has invalid representative_breeds."
                 )
 
-            title = f"{species.title()} cranial morphotype: {morphotype}"
+            title = f"{_SPECIES_TR.get(species, species.title())} kraniyal morfotip: {morphotype}"
             passage_parts = [
                 _format_value(label, details[label])
                 for label in (
@@ -77,13 +91,13 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
                 CorpusDoc(
                     source_id=_source_id("breed", species, morphotype),
                     title=title,
-                    section="Breed morphology",
+                    section="Irk morfolojisi",
                     passage=passage,
                     keywords=tuple(
                         dict.fromkeys(
                             [species, "dog" if species == "dogs" else "cat", morphotype]
                             + breeds
-                            + ["cranial morphology", "cephalic index"]
+                            + ["cranial morphology", "cephalic index", "kraniyal morfoloji", "sefalik indeks", "ırk"]
                         )
                     ),
                 )
@@ -96,10 +110,10 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
         documents.append(
             CorpusDoc(
                 source_id=_source_id("suture", structure),
-                title=f"Cranial suture closure: {structure}",
-                section="Cranial suture closure rules",
+                title=f"Kraniyal sütür kapanması: {structure}",
+                section="Kraniyal sütür kapanma kuralları",
                 passage=f"{structure}. {_format_value('closure rules', details)}",
-                keywords=("suture", "synchondrosis", "closure", "cranial", structure),
+                keywords=("suture", "synchondrosis", "closure", "cranial", "sütür", "kapanma", structure),
             )
         )
 
@@ -120,10 +134,10 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
         documents.append(
             CorpusDoc(
                 source_id=_source_id("breed", pitfall["id"]),
-                title=f"Anatomical pitfall: {structure}",
-                section="Veterinary cranial anatomy pitfalls",
+                title=f"Anatomik tuzak: {structure}",
+                section="Veteriner kraniyal anatomi tuzakları",
                 passage=" ".join(passage_parts),
-                keywords=("anatomical pitfall", "cranial anatomy", structure),
+                keywords=("anatomical pitfall", "cranial anatomy", "anatomik tuzak", "kraniyal anatomi", structure),
             )
         )
     return tuple(documents)
@@ -138,10 +152,10 @@ def _format_value(label: str, value: Any) -> str:
     if isinstance(value, (dict, list)):
         rendered = json.dumps(value, ensure_ascii=False, separators=(",", ": "))
     elif value is None:
-        rendered = "not specified"
+        rendered = "belirtilmemiş"
     else:
         rendered = str(value)
-    return f"{label.replace('_', ' ')}: {rendered}."
+    return f"{_LABEL_TR.get(label, label.replace('_', ' '))}: {rendered}."
 
 
 def _source_id(*parts: str) -> str:

@@ -7,37 +7,37 @@ const META: Record<
   { label: string; cls: string; icon: 'warn' | 'info' | 'shield'; text: string }
 > = {
   mock: {
-    label: 'MOCK',
+    label: 'DEMO',
     cls: 'border-amber-300 bg-amber-50 text-amber-950',
     icon: 'warn',
-    text: 'Demo / mock çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.',
+    text: 'Demo çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.',
   },
   synthetic: {
-    label: 'SYNTHETIC',
+    label: 'SENTETİK',
     cls: 'border-orange-300 bg-orange-50 text-orange-950',
     icon: 'warn',
     text: 'Sentetik / simüle edilmiş veri. Gerçek hasta bulgusu değildir.',
   },
   mixed: {
-    label: 'MIXED',
+    label: 'KARMA',
     cls: 'border-violet-300 bg-violet-50 text-violet-950',
     icon: 'shield',
-    text: 'Mock ve gerçek kaynaklar karışık olabilir. Uzman incelemesi zorunludur.',
+    text: 'Demo ve gerçek kaynaklar karışık olabilir. Uzman incelemesi zorunludur.',
   },
   real: {
-    label: 'REAL',
+    label: 'GERÇEK MODEL',
     cls: 'border-sky-300 bg-sky-50 text-sky-950',
     icon: 'info',
     text: 'Gerçek model yolu. Klinik doğrulama değildir; uzman onayı gerekir.',
   },
   not_configured: {
-    label: 'NOT CONFIGURED',
+    label: 'BAĞLI DEĞİL',
     cls: 'border-slate-300 bg-slate-100 text-slate-800',
     icon: 'shield',
     text: 'Gerçek Vision / LLM bağlı değil. Bulgu uydurulmaz; entegrasyon bekleniyor.',
   },
   unknown: {
-    label: 'UNKNOWN',
+    label: 'BİLİNMİYOR',
     cls: 'border-slate-200 bg-slate-50 text-slate-700',
     icon: 'info',
     text: 'Kaynak bilgisi yok. Klinik kullanım için uygun değildir.',

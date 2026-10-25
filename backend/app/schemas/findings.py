@@ -84,9 +84,9 @@ class PotentialConflict(BaseModel):
     reason_codes: list[str] = Field(default_factory=list)
     group_key: Optional[str] = None
     note: str = (
-        "Potential incompatibility preserved for expert review. "
-        "Agreement between models would also not prove clinical correctness. "
-        "No confidence scores are fabricated."
+        "Olası uyumsuzluk uzman incelemesi için korundu. "
+        "Modellerin uyuşması da klinik doğruluğu kanıtlamazdı. "
+        "Uydurma güven skoru üretilmez."
     )
 
 

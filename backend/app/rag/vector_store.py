@@ -53,13 +53,23 @@ class JsonVectorStore:
             self.reindex_seed(persist=True)
             return
 
-        existing_ids = {doc.source_id for doc in self._docs}
-        missing_seed_docs = [
-            doc for doc in load_default_rag_corpus() if doc.source_id not in existing_ids
-        ]
-        for doc in missing_seed_docs:
+        # Add missing seed docs and re-index seed docs whose text changed in code
+        # (e.g. translated titles), so an old index file never serves stale wording.
+        # Docs added at runtime (custom-*) are not in the corpus and stay untouched.
+        existing = {doc.source_id: doc for doc in self._docs}
+        stale_seed_docs = []
+        for doc in load_default_rag_corpus():
+            current = existing.get(doc.source_id)
+            if current is None or (current.title, current.section, current.passage, current.keywords) != (
+                doc.title,
+                doc.section,
+                doc.passage,
+                list(doc.keywords),
+            ):
+                stale_seed_docs.append(doc)
+        for doc in stale_seed_docs:
             self.add_corpus_doc(doc, persist=False)
-        if missing_seed_docs:
+        if stale_seed_docs:
             self.save()
 
     def save(self) -> None:
