@@ -62,7 +62,7 @@ function VetDashboard() {
     <>
       <PageHeader
         title={`Hoş geldiniz, ${user?.name}`}
-        subtitle={`${user?.org} · Klinik vaka panosu`}
+        subtitle={`${user?.org} · Klinik vaka panosu · sıradaki aksiyonlar`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button size="lg" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>DICOM Yükle</Button>
@@ -70,6 +70,10 @@ function VetDashboard() {
           </div>
         }
       />
+      <p className="mb-4 rounded-vm border border-teal-200/80 bg-accent-soft px-3 py-2 text-xs text-teal-900">
+        Öncelik: DICOM yükle veya açık vakayı tamamla. Aşağıdaki istatistikler klinik özet içindir — GPU/token
+        kartları Sistem Durumu’nda DEMO / not configured olarak işaretlenir.
+      </p>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Aktif vakalar" value={open} icon={<FolderOpen className="h-5 w-5" />} tone="navy" hint="Sonuçlanmamış" />
         <StatCard label="İnceleme bekleyen" value={review} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Uzman kuyruğunda" />
@@ -409,7 +413,6 @@ function AdminDashboard() {
   const { kbSources, cases } = useApp()
   const nav = useNavigate()
   const chunks = kbSources.reduce((s, k) => s + k.chunks, 0)
-  const ok = SERVICES.filter((s) => s.status === 'ok').length
   return (
     <>
       <PageHeader
@@ -430,7 +433,13 @@ function AdminDashboard() {
         <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="Nöroloji aktif" />
         <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça indeksli`} />
         <StatCard label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
-        <StatCard label="Servis sağlığı" value={`${ok}/${SERVICES.length}`} icon={<Activity className="h-5 w-5" />} tone="amber" hint="Mock health paneli" />
+        <StatCard
+          label="Servis kartları"
+          value={`${SERVICES.length} demo`}
+          icon={<Activity className="h-5 w-5" />}
+          tone="amber"
+          hint="not configured · canlı /health Sistem Durumu’nda"
+        />
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">

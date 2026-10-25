@@ -16,9 +16,24 @@ export default {
           50: '#effcfa', 100: '#c8f5ef', 200: '#93eadf', 300: '#57d7ca', 400: '#29bcb0',
           500: '#12a096', 600: '#0b807a', 700: '#0d6663', 800: '#0f5150', 900: '#114443',
         },
+        surface: {
+          DEFAULT: 'var(--vm-surface)',
+          elevated: 'var(--vm-surface-elevated)',
+        },
+        accent: {
+          DEFAULT: 'var(--vm-accent)',
+          soft: 'var(--vm-accent-soft)',
+        },
+        danger: 'var(--vm-danger)',
+        success: 'var(--vm-success)',
+        warning: 'var(--vm-warning)',
+        info: 'var(--vm-info)',
       },
       boxShadow: {
-        soft: '0 1px 2px rgba(16,35,58,0.04), 0 4px 16px rgba(16,35,58,0.06)',
+        soft: 'var(--vm-shadow)',
+      },
+      borderRadius: {
+        vm: 'var(--vm-radius)',
       },
       keyframes: {
         'slide-in': { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },

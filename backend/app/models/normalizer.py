@@ -2,14 +2,19 @@ from collections import defaultdict
 
 from app.models.evidence_validation import validate_evidence_references
 from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
+from app.models.ontology import code_family
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
-from app.schemas.findings import Finding, PotentialConflict, StructuredFindings
+from app.schemas.findings import ConflictReasonCode, Finding, PotentialConflict, StructuredFindings
 from app.schemas.model_input import ImagingModelInput
 
 AGREEMENT_NOTE = (
     "Multiple models reported findings at the same location. "
     "Agreement does not prove clinical correctness."
 )
+
+_OPPOSING_LATERALITY = {
+    frozenset({"LEFT", "RIGHT"}),
+}
 
 
 def _resolve_source_kind(kinds: list[SourceKind]) -> SourceKind:
@@ -33,23 +38,44 @@ def _primary_series_uid(finding: Finding) -> str | None:
     return None
 
 
-def _conflict_group_key(finding: Finding) -> str:
-    """Group by normalized location + series UID when both sides have anchors.
+def _primary_sop_frame(finding: Finding) -> tuple[str, int | None] | None:
+    for ref in finding.evidence_references:
+        if ref.sop_instance_uid:
+            return (ref.sop_instance_uid, ref.frame_index)
+    return None
 
-    Findings with different series UIDs are not auto-conflicted solely on
-    free-text location (reduces false positives across series). Missing series
-    UIDs still fall back to location-only grouping for mock demos.
+
+def _conflict_group_key(finding: Finding) -> str:
+    """Priority: SOP+frame → series UID → normalized location (soft).
+
+    Code-family is used *inside* a group to decide hard vs soft conflict
+    (ISS-FUS-01), not as part of the group key — otherwise cross-family
+    findings on the same series would never meet.
     """
-    loc = _location_key(finding.anatomical_location)
+    sop = _primary_sop_frame(finding)
+    if sop is not None:
+        uid, frame = sop
+        frame_part = f"frame:{frame}" if frame is not None else "frame:any"
+        return f"sop:{uid}|{frame_part}"
+
     series = _primary_series_uid(finding)
-    return f"{loc}|series:{series}" if series else loc
+    if series:
+        return f"series:{series}"
+
+    return f"loc:{_location_key(finding.anatomical_location)}"
+
+
+def _laterality_opposes(a: str, b: str) -> bool:
+    pair = frozenset({a, b})
+    return pair in _OPPOSING_LATERALITY
 
 
 def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflict]:
     """Generic conflict flags. Findings are never dropped or auto-resolved.
 
-    Uses location + optional series_instance_uid; never auto-resolves. Finding
-    codes and statuses decide incompatibility within a group.
+    Grouping uses SOP → series+family → location. Laterality LEFT vs RIGHT is a
+    hard conflict within a group. Cross-family codes conflict; same-family code
+    differences alone are soft (status-driven).
     """
     by_key: dict[str, list[Finding]] = defaultdict(list)
     for finding in findings:
@@ -61,28 +87,62 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
             continue
         models = {f.source_model for f in group}
         codes = {f.finding_code for f in group}
+        families = {code_family(f.finding_code) for f in group}
         statuses = {f.finding_status for f in group}
+        lateralities = {f.laterality for f in group}
+
         if len(models) < 2:
-            continue
+            # Single-model duplicates are not multi-adapter conflicts.
+            # Exception: opposing laterality still deserves a flag.
+            laterality_clash = any(
+                _laterality_opposes(a.laterality, b.laterality)
+                for i, a in enumerate(group)
+                for b in group[i + 1 :]
+            )
+            if not laterality_clash:
+                continue
 
-        incompatible_codes = len(codes) >= 2
+        cross_family = len(families) >= 2
+        incompatible_codes = len(codes) >= 2 and cross_family
+        same_family_diff = len(codes) >= 2 and not cross_family
         opposing_status = FindingStatus.SUSPECTED in statuses and FindingStatus.UNCERTAIN in statuses
-        # Treat NOT_ASSESSED vs SUSPECTED as soft incompatibility when codes also differ
-        soft_status = len(statuses) >= 2 and incompatible_codes
+        soft_status = len(statuses) >= 2 and (incompatible_codes or same_family_diff)
+        laterality_clash = any(
+            _laterality_opposes(a.laterality, b.laterality)
+            for i, a in enumerate(group)
+            for b in group[i + 1 :]
+        )
+        same_sop = group_key.startswith("sop:")
 
-        if not (incompatible_codes or opposing_status or soft_status):
+        if not (incompatible_codes or opposing_status or soft_status or laterality_clash):
             continue
 
         conflict_id = f"conflict-{idx + 1}"
-        reason_parts = []
+        reason_codes: list[str] = [ConflictReasonCode.MULTI_MODEL.value]
+        reason_parts: list[str] = []
         if incompatible_codes:
-            reason_parts.append(f"distinct finding_codes={sorted(codes)}")
+            reason_codes.append(ConflictReasonCode.CROSS_FAMILY.value)
+            reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
+            reason_parts.append(f"distinct finding_codes={sorted(codes)} families={sorted(families)}")
+        elif same_family_diff and (opposing_status or soft_status):
+            reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
+            reason_parts.append(f"same-family code variance={sorted(codes)}")
         if opposing_status or soft_status:
+            reason_codes.append(ConflictReasonCode.OPPOSING_STATUS.value)
             reason_parts.append(f"distinct statuses={[s.value for s in statuses]}")
+        if laterality_clash:
+            reason_codes.append(ConflictReasonCode.OPPOSING_LATERALITY.value)
+            reason_parts.append(f"opposing laterality={sorted(lateralities)}")
+        if same_sop:
+            reason_codes.append(ConflictReasonCode.SAME_SOP_DIVERGENT.value)
         reason_parts.append(f"models={sorted(models)}")
+        reason_parts.append(f"group_key={group_key}")
         series_uids = {s for s in (_primary_series_uid(f) for f in group) if s}
         if series_uids:
             reason_parts.append(f"series_uids={sorted(series_uids)}")
+
+        # Deduplicate reason codes while preserving order
+        reason_codes = list(dict.fromkeys(reason_codes))
 
         for finding in group:
             finding.conflict_group_id = conflict_id
@@ -92,8 +152,10 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
             PotentialConflict(
                 conflict_id=conflict_id,
                 finding_ids=[f.finding_id for f in group],
-                anatomical_location_key=loc_key if group_key == loc_key else group_key,
+                anatomical_location_key=loc_key if group_key == f"loc:{loc_key}" else group_key,
                 reason="POTENTIAL CONFLICT PRESERVED: " + "; ".join(reason_parts),
+                reason_codes=reason_codes,
+                group_key=group_key,
             )
         )
     return conflicts
@@ -214,7 +276,7 @@ def normalize_outputs(
         version = "0.2.0"
 
     return StructuredFindings(
-        schema_version=primary.schema_version if primary.schema_version else "1.1.0",
+        schema_version=primary.schema_version if primary.schema_version else "1.2.0",
         case_id=primary.case_id,
         study=primary.study,
         species=primary.species,

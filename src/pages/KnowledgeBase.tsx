@@ -120,8 +120,11 @@ export default function KnowledgeBase() {
 
           {loading && (
             <div className="mt-5 space-y-1 rounded-lg bg-navy-950 p-4 font-mono text-xs text-navy-100">
-              <p><span className="text-teal-400">›</span> Sorgu vektörleştiriliyor (768 boyut)…</p>
-              <p className="flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin text-teal-400" /> Qdrant: neuro-kb koleksiyonunda en yakın komşu araması…</p>
+              <p className="text-amber-300">[DEMO FICTION · not backend] Aşağıdaki satırlar animasyon içindir.</p>
+              <p><span className="text-teal-400">›</span> Backend lexical RAG çağrılıyor (/api/v1/rag/search)…</p>
+              <p className="flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin text-teal-400" /> Hash/token-overlap retrieve — embedding/Qdrant yok
+              </p>
             </div>
           )}
           {hits && (

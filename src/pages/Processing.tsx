@@ -17,6 +17,7 @@ import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
+import { SkeletonRows } from '../components/Skeleton'
 import {
   BackendUnavailableError,
   analyzeCaseAsyncAndWait,
@@ -164,6 +165,13 @@ export default function Processing() {
           breadcrumb="Vakalar / AI İşleme"
           actions={<StatusBadge status={c.status} />}
         />
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold tracking-wide">Yerel demo animasyonu — gerçek AI pipeline değil</p>
+          <p className="mt-1 text-xs opacity-90">
+            Qdrant / 768-dim embed / token-s log’ları <code className="font-mono">pipeline.ts</code> fiction’ıdır;
+            backend job alanları burada gösterilmez.
+          </p>
+        </div>
         <Card>
           <EmptyState
             icon={<AlertCircle className="h-6 w-6" />}
@@ -216,6 +224,11 @@ export default function Processing() {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
+          {!job && !loadError && !c.backendOutcome ? (
+            <Card>
+              <SkeletonRows rows={4} />
+            </Card>
+          ) : (
           <Card className="p-5">
             <div className="flex items-start gap-3">
               {statusIcon(jobStatus)}
@@ -233,6 +246,7 @@ export default function Processing() {
               </div>
             </div>
           </Card>
+          )}
 
           <Card>
             <CardHeader title="Pipeline özeti" icon={<Brain className="h-5 w-5" />} />

@@ -16,6 +16,7 @@ from app.routing.model_router import ModelRouter
 from app.routing.registry_validation import validate_registry_capabilities
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
+from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
@@ -57,6 +58,7 @@ class AppContainer:
             max_file_bytes=25 * 1024 * 1024,
         )
         self.audit = AuditLogger(self.settings.audit_log_path)
+        self.feedback = FeedbackStore(self.settings.feedback_log_path)
         self.encryption = encryption_status(self.settings.encryption_at_rest)
         self.malware_scanner = build_scanner(required=self.settings.malware_scan_required)
         self.retention_policy = RetentionPolicy(
@@ -143,6 +145,7 @@ class AppContainer:
             job_backend=self.job_backend,
             tenant_isolation=self.settings.tenant_isolation,
             audit=self.audit,
+            feedback=self.feedback,
             max_concurrent_analyze=self.settings.max_concurrent_analyze,
             analyze_gate_path=self.settings.analyze_gate_path,
             notifications=self.notifications,

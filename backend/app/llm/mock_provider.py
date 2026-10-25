@@ -83,17 +83,29 @@ class MockLLMProvider:
             )
 
         rag_block = ""
+        used_passages = []
+        used_ids: list[str] = []
         if gen.rag_passages:
+            # Deterministic "used" subset — not all retrieved passages are cited (ISS-RAG-04).
+            take = max(1, min(2, len(gen.rag_passages)))
+            for idx, p in enumerate(gen.rag_passages[:take]):
+                related = [cited[idx % len(cited)]] if cited else []
+                used = p.model_copy(update={"related_finding_ids": related})
+                used_passages.append(used)
+                used_ids.append(p.source_id)
             lines = [
                 f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage[:180]}…"
                 if len(p.passage) > 180
                 else f"- [{p.source_id}] {p.title} / {p.section} (score={p.score}): {p.passage}"
-                for p in gen.rag_passages
+                for p in used_passages
             ]
+            unused = len(gen.rag_passages) - len(used_passages)
             rag_block = (
-                "\n\nOptional demo RAG context (lexical matches only — not clinical evidence):\n"
+                "\n\nOptional demo RAG context (used passages only — not clinical evidence):\n"
                 + "\n".join(lines)
             )
+            if unused:
+                rag_block += f"\n({unused} retrieved passage(s) not cited in this mock draft.)"
             recs = f"{recs}\n4. Review listed RAG demo passages; do not treat them as proof of findings."
 
         report = DraftReport(
@@ -114,7 +126,12 @@ class MockLLMProvider:
             recommendations=ReportSection(text=recs, cited_finding_ids=[]),
             synthetic=True,
             clinically_validated=False,
-            rag_citations=list(gen.rag_passages),
+            rag_citations=used_passages,
+            used_passage_ids=used_ids,
+            rag_note=(
+                "Cited RAG passages are the mock draft's used_passage_ids only "
+                "(retrieval similarity score ≠ clinical confidence). Not clinical evidence."
+            ),
         )
         return LLMResponse(
             provider_id=self.provider_id,

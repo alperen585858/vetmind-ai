@@ -1080,10 +1080,33 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   <li key={f.finding_id} className="rounded-lg border border-slate-200 p-3">
                     <p className="font-mono text-xs text-teal-700">{f.finding_id} · {f.finding_code}</p>
                     <p className="mt-1">{f.description}</p>
-                    <p className="mt-1 text-xs text-slate-500">{f.anatomical_location} · status={f.finding_status} · model={f.source_model}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {f.anatomical_location} · laterality={f.laterality ?? 'UNKNOWN'} · status={f.finding_status} ·
+                      model={f.source_model}
+                      {f.conflict_group_id ? ` · conflict=${f.conflict_group_id}` : ''}
+                    </p>
                   </li>
                 ))}
               </ul>
+            )}
+            {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
+                <p className="font-semibold">Potansiyel çatışmalar (auto-resolve yok)</p>
+                <ul className="mt-2 space-y-2">
+                  {c.backendFindings.potential_conflicts!.map((pc) => (
+                    <li key={pc.conflict_id} className="text-xs">
+                      <span className="font-mono font-semibold">{pc.conflict_id}</span>
+                      {(pc.reason_codes?.length ?? 0) > 0 && (
+                        <span className="ml-2 text-rose-800">[{pc.reason_codes!.join(', ')}]</span>
+                      )}
+                      {pc.group_key ? (
+                        <span className="ml-2 font-mono text-rose-700/80">group={pc.group_key}</span>
+                      ) : null}
+                      <p className="mt-0.5 text-rose-900/90">{pc.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </Card>
@@ -1161,7 +1184,12 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
               icon={<BookOpen className="h-5 w-5" />}
             />
             {c.backendDraft?.rag_citations?.length ? (
-              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} citationMap={c.backendDraft.citation_map} />
+              <RagCitations
+                citations={c.backendDraft.rag_citations}
+                note={c.backendDraft.rag_note}
+                citationMap={c.backendDraft.citation_map}
+                usedPassageIds={c.backendDraft.used_passage_ids}
+              />
             ) : (
               <SourceList ids={sources} />
             )}

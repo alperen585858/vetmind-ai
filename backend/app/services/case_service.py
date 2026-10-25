@@ -47,6 +47,7 @@ from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
 from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
+from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.report_versioning import (
     apply_reject_or_revision,
@@ -79,6 +80,7 @@ class CaseService:
         job_backend: JobBackend | None = None,
         tenant_isolation: bool = False,
         audit: AuditLogger | None = None,
+        feedback: FeedbackStore | None = None,
         max_concurrent_analyze: int = 8,
         analyze_gate_path: Path | None = None,
         notifications: object | None = None,
@@ -91,6 +93,7 @@ class CaseService:
         self._jobs = job_backend or ThreadJobBackend(delay_ms=self._async_delay_ms)
         self._tenant_isolation = tenant_isolation
         self._audit_log = audit
+        self._feedback = feedback
         self._notifications = notifications
         self._max_concurrent_analyze = max(1, max_concurrent_analyze)
         # Durable gate shared by sync + async (thread/RQ on same host).
@@ -108,6 +111,50 @@ class CaseService:
 
     def _release_analyze_slot(self) -> None:
         self._analyze_gate.release()
+
+    def _emit_feedback(self, case: CaseRecord, feedback: ReviewFeedback) -> None:
+        """Append training-signal event (PHI-free). Separate from security audit."""
+        if self._feedback is None:
+            return
+        findings = case.structured_findings
+        model_ids: list[str] = []
+        finding_ids: list[str] = []
+        source_kind: str | None = None
+        rag_ids: list[str] = []
+        report_version: str | None = None
+        if findings is not None:
+            model_ids = list(findings.contributing_model_ids or [])
+            finding_ids = [f.finding_id for f in findings.findings]
+            source_kind = (
+                findings.source_kind.value
+                if hasattr(findings.source_kind, "value")
+                else str(findings.source_kind)
+            )
+        draft = case.draft_report
+        if draft is not None:
+            report_version = f"v{draft.version}"
+            for cite in draft.rag_citations or []:
+                pid = getattr(cite, "source_id", None)
+                if pid:
+                    rag_ids.append(str(pid))
+        decision = (
+            feedback.action.value
+            if hasattr(feedback.action, "value")
+            else str(feedback.action)
+        )
+        self._feedback.record(
+            case_id=case.case_id,
+            decision=decision,
+            actor=feedback.reviewer_id,
+            clinic_id=case.clinic_id,
+            report_version_id=report_version,
+            reason_codes=feedback.reason_codes,
+            free_text=feedback.comment,
+            model_ids=model_ids,
+            finding_ids=finding_ids,
+            source_kind=source_kind,
+            rag_passage_ids=rag_ids,
+        )
 
     def _emit_audit(
         self,
@@ -948,6 +995,7 @@ class CaseService:
 
             if feedback.action == ReviewAction.APPROVE:
                 result = self._approve_ai_draft(case, feedback)
+                self._emit_feedback(result, feedback)
                 self._emit_audit("review.approve", principal=principal, resource=case_id)
                 return result
 
@@ -1003,6 +1051,7 @@ class CaseService:
             case.review_history.append(feedback)
             case.updated_at = _now()
             saved = self._repo.save_case(case)
+            self._emit_feedback(saved, feedback)
             event = "review.reject" if feedback.action == ReviewAction.REJECT else "review.revision"
             self._emit_audit(event, principal=principal, resource=case_id)
             if feedback.action == ReviewAction.REQUEST_REVISION:

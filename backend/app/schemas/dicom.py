@@ -99,8 +99,21 @@ class DicomStudyMeta(BaseModel):
         return sum(len(s.instances) for s in self.series)
 
 
+class ClassificationSignal(BaseModel):
+    """One independent classification signal (hybrid stack). Not clinical proof."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    modality: Optional[Modality] = None
+    anatomical_region: Optional[AnatomicalRegion] = None
+    confidence: ClassificationConfidence = ClassificationConfidence.UNKNOWN
+    note: str = ""
+    source_kind: str = "synthetic"
+
+
 class ClassificationSuggestion(BaseModel):
-    """Metadata-derived routing hints. Not a clinical diagnosis."""
+    """Hybrid metadata + hint-adapter routing hints. Not a clinical diagnosis."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -113,9 +126,11 @@ class ClassificationSuggestion(BaseModel):
     species_confidence: ClassificationConfidence = ClassificationConfidence.UNKNOWN
     rationale: list[str] = Field(default_factory=list)
     source_tags: dict[str, Optional[str]] = Field(default_factory=dict)
+    signals: list[ClassificationSignal] = Field(default_factory=list)
+    disagreement: bool = False
     note: str = (
-        "Classification is based on DICOM metadata heuristics only. "
-        "No pixel-based anatomical recognition was performed. "
+        "Hybrid classification: DICOM metadata rules + independent series-hint adapter. "
+        "No trained vision / pixel anatomical recognition. "
         "Species is suggested only when DICOM text reliably indicates canine/feline; "
         "missing species is never invented."
     )

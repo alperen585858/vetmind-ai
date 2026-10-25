@@ -110,6 +110,10 @@ class ReviewFeedback(BaseModel):
     reviewer_id: str = Field(min_length=1, max_length=80)
     action: ReviewAction
     comment: Optional[str] = None
+    reason_codes: list[str] = Field(
+        default_factory=list,
+        description="Training-signal codes: wrong_finding | missing_finding | report_quality | …",
+    )
     edited_technique: Optional[str] = None
     edited_findings: Optional[str] = None
     edited_impression: Optional[str] = None

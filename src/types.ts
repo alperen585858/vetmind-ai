@@ -301,6 +301,8 @@ export interface BackendFinding {
   source_model: string
   requires_review: boolean
   synthetic: boolean
+  laterality?: 'LEFT' | 'RIGHT' | 'MIDLINE' | 'UNKNOWN'
+  conflict_group_id?: string | null
 }
 
 export interface BackendFindings {
@@ -321,6 +323,8 @@ export interface BackendFindings {
     finding_ids: string[]
     anatomical_location_key: string
     reason: string
+    reason_codes?: string[]
+    group_key?: string | null
     note: string
   }[]
 }
@@ -332,6 +336,7 @@ export interface BackendRagCitation {
   passage: string
   score: number
   keywords?: string[]
+  related_finding_ids?: string[]
 }
 
 export interface BackendDraftReport {
@@ -358,6 +363,8 @@ export interface BackendDraftReport {
   expert_review_status?: string
   reviewer_comment?: string | null
   rag_citations?: BackendRagCitation[]
+  /** When set, only these source_ids are "cited" (ISS-RAG-04). Empty/missing = legacy. */
+  used_passage_ids?: string[]
   /** Inline citation alias → id, e.g. { F1: finding_id, S1: rag source_id }. */
   citation_map?: Record<string, string>
   /** Model text per section at generation time; unchanged by expert edits. */
@@ -420,6 +427,15 @@ export interface DicomValidationIssue {
   sop_instance_uid?: string | null
 }
 
+export interface ClassificationSignal {
+  name: string
+  modality?: BackendModality | null
+  anatomical_region?: BackendAnatomicalRegion | null
+  confidence: ClassificationConfidence
+  note: string
+  source_kind?: string
+}
+
 export interface ClassificationSuggestion {
   suggested_modality: BackendModality
   suggested_anatomical_region: BackendAnatomicalRegion
@@ -428,6 +444,8 @@ export interface ClassificationSuggestion {
   rationale: string[]
   source_tags: Record<string, string | null>
   note: string
+  signals?: ClassificationSignal[]
+  disagreement?: boolean
 }
 
 export interface DicomStudyMeta {

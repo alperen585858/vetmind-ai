@@ -313,13 +313,13 @@ Validasyon fail → `ReportStatus.VALIDATION_FAILED`; orchestrator outcome `PART
 | `Login` / `Register` | Demo oturum + opsiyonel backend JWT |
 | `DicomUpload` | Upload → confirm → `analyzeCaseAsyncAndWait` |
 | `NewCase` | `backend` modu gerçek API; `local` modu tarayıcı içi sahte pipeline |
-| `Processing` | Backend job varsa gerçek outcome adımları; yoksa `pipeline.ts` fiction |
+| `Processing` | Backend job varsa gerçek outcome adımları; local’de kalıcı “demo animasyonu” banner |
 | `CaseDetail` | Findings, draft, `RagCitations` |
 | `ExpertReview` | failed/unsupported/validation_failed’da approve engeli; `submitBackendReview` |
-| `KnowledgeBase` | Canlı `searchRag` |
-| `SystemStatus` | Health + kısmen mock GPU/queue kartları |
+| `KnowledgeBase` | Canlı `searchRag` · loading satırları DEMO FICTION etiketli |
+| `SystemStatus` | Health + model readiness canlı; GPU/Qdrant/token-s kartları **not configured** |
 
-**Risk:** `src/lib/pipeline.ts` içindeki “Qdrant / 768-dim / token/s” katmanları **yerel demo fiction**’ıdır; backend gerçekliğiyle karıştırılmamalıdır.
+**Risk (ISS-FE-01 — kapatıldı):** `src/lib/pipeline.ts` fiction log’ları `[DEMO FICTION · not backend]` önekli; yalnızca `local` mode’da kullanılır. Backend Processing fiction layer göstermez. SystemStatus GPU/queue sahte “ok” yanılsaması kaldırıldı.
 
 ---
 
@@ -430,7 +430,7 @@ Health: `GET /api/v1/health` → `rag`, `job_backend`, `vision_endpoint`, `visio
 | Quarantine AV / encryption-at-rest | ❌ | Yerel disk |
 | Observability | ❌ | Tracing, drift, model version prod monitor yok |
 | Tam manuel rapor ürün yolu | ⚠️ | Unsupported’ta draft yok; UI’da tam manuel yazar akışı sınırlı |
-| Frontend local vs backend AI | ⚠️ | `pipeline.ts` fiction karışıklık riski |
+| Frontend local vs backend AI | ✅ | `pipeline.ts` DEMO FICTION etiketli; backend mode fiction yok (ISS-FE-01) |
 | `.env.example` / ARCHITECTURE §7 senkronu | ⚠️ | LLM/Vision env’leri settings’e göre gecikebilir |
 
 ### 9.3 Regülasyon / güven
@@ -448,7 +448,7 @@ Health: `GET /api/v1/health` → `rag`, `job_backend`, `vision_endpoint`, `visio
 1. **F4:** Confirm/create yollarında `capabilities=router.list_capabilities()` geçirmek veya analyze öncesi stale input refresh  
 2. **F13:** RAG note/score dürüstlüğü; embedding backend’i response note’una yansıtmak  
 3. **F14:** Paylaşılan HTTP policy (timeout + sınırlı retry + typed hard-fail)  
-4. Frontend’de `local` pipeline’ı net “demo fiction” etiketiyle ayırmak  
+4. ~~Frontend’de `local` pipeline’ı net “demo fiction” etiketiyle ayırmak~~ **(yapıldı — ISS-FE-01)**
 5. `.env.example` + ARCHITECTURE env tablosunu `settings.py` ile eşitlemek  
 
 ### Orta vade (gerçek model denemesi)

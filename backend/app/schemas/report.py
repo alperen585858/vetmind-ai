@@ -58,6 +58,8 @@ class DraftReport(BaseModel):
     clinically_validated: bool = False
     reviewer_comment: Optional[str] = None
     rag_citations: list[RagPassage] = Field(default_factory=list)
+    # Passages the draft actually referenced. Empty = legacy (treat all rag_citations as cited).
+    used_passage_ids: list[str] = Field(default_factory=list)
     # Inline citation alias → id, e.g. {"F1": finding_id, "S1": rag source_id}.
     citation_map: dict[str, str] = Field(default_factory=dict)
     # Model text per section, captured when the pipeline draft is created. Expert edits

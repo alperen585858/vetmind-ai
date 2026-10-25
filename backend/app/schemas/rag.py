@@ -15,6 +15,8 @@ class RagPassage(BaseModel):
     # Retrieval similarity / overlap only — never clinical confidence.
     score: float = Field(ge=0.0, le=1.0)
     keywords: list[str] = Field(default_factory=list)
+    # Optional finding links when the draft explicitly ties a passage to findings.
+    related_finding_ids: list[str] = Field(default_factory=list)
 
 
 class RagSearchResponse(BaseModel):

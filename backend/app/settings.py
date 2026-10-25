@@ -71,6 +71,7 @@ class Settings:
     max_concurrent_analyze: int = 8
     analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
+    feedback_log_path: Path | None = None
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
         "Optional remote Vision via VETMIND_VISION_ENDPOINT. "
@@ -98,6 +99,10 @@ def _default_rag_index_path() -> Path:
 
 def _default_audit_log_path() -> Path:
     return _backend_root() / "data" / "audit" / "security.jsonl"
+
+
+def _default_feedback_log_path() -> Path:
+    return _backend_root() / "data" / "feedback" / "feedback.jsonl"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -265,6 +270,14 @@ def load_settings() -> Settings:
     else:
         audit_log_path = None
 
+    feedback_raw = os.getenv("VETMIND_FEEDBACK_LOG_PATH")
+    if feedback_raw:
+        feedback_log_path = Path(feedback_raw)
+    elif backend != "memory":
+        feedback_log_path = _default_feedback_log_path()
+    else:
+        feedback_log_path = None
+
     return Settings(
         storage_backend=backend,
         sqlite_path=sqlite_path,
@@ -318,6 +331,7 @@ def load_settings() -> Settings:
         max_concurrent_analyze=max_concurrent_analyze,
         analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
+        feedback_log_path=feedback_log_path,
     )
 
 

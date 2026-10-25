@@ -16,6 +16,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const { role, cases } = useApp()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px]'
+  const roleLabels: Record<NonNullable<typeof role>, string> = {
+    vet: 'Veteriner',
+    expert: 'Uzman',
+    owner: 'Sahip',
+    clinic_owner: 'Klinik',
+    admin: 'Admin',
+  }
 
   const menus: Record<Role, NavItem[]> = {
     vet: [
@@ -69,6 +76,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           <div>
             <Logo dark />
             <p className="mt-1.5 pl-[46px] text-[11px] text-navy-300">VRM Teknoloji iş birliğiyle</p>
+            {role && (
+              <span className="mt-2 ml-[46px] inline-flex rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-200 ring-1 ring-inset ring-teal-400/30">
+                Demo rol · {roleLabels[role]}
+              </span>
+            )}
           </div>
           <button
             type="button"

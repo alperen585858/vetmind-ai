@@ -2,18 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Semantic tokens (ISS-FE-UX / issue #6) */
+  --vm-surface: #f5f8fb;
+  --vm-surface-elevated: #ffffff;
+  --vm-border: rgba(148, 163, 184, 0.45);
+  --vm-accent: #0b807a;
+  --vm-accent-soft: #effcfa;
+  --vm-danger: #e11d48;
+  --vm-success: #059669;
+  --vm-warning: #d97706;
+  --vm-info: #0284c7;
+  --vm-radius: 0.75rem;
+  --vm-shadow: 0 1px 2px rgba(16, 35, 58, 0.04), 0 4px 16px rgba(16, 35, 58, 0.06);
+  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+  --vm-font-body: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
 html {
   -webkit-font-smoothing: antialiased;
 }
 body {
-  @apply bg-slate-50 text-navy-900;
+  font-family: var(--vm-font-body);
+  background:
+    radial-gradient(1200px 480px at 12% -10%, rgba(18, 160, 150, 0.08), transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, rgba(30, 82, 122, 0.07), transparent 50%),
+    var(--vm-surface);
+  color: #12233a;
 }
 
 .input {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20;
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20;
+  min-height: 44px;
 }
 .label {
   @apply mb-1.5 block text-sm font-medium text-navy-800;
+}
+
+.text-display {
+  font-family: var(--vm-font-display);
+  @apply text-2xl font-semibold tracking-tight text-navy-900 sm:text-3xl;
+}
+.text-title {
+  font-family: var(--vm-font-display);
+  @apply text-lg font-semibold text-navy-900;
+}
+.text-body {
+  @apply text-sm leading-relaxed text-navy-800;
+}
+.text-caption {
+  @apply text-xs text-slate-500;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  @apply relative overflow-hidden rounded-lg bg-slate-200/80;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: shimmer 1.2s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
 }
 
 /* App-wide keyboard focus (medical UI — visible rings required) */

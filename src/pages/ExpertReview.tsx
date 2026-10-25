@@ -21,6 +21,13 @@ import type { CorrectionCategory, ReportSections, SectionKey } from '../types'
 const KEYS = Object.keys(SECTION_LABELS) as SectionKey[]
 const CATEGORIES: CorrectionCategory[] = ['Klinik hata', 'Eksik bilgi', 'Üslup', 'Kaynak hatası']
 
+/** Training-signal codes for Feedback Store (ISS-AUD-01). */
+const REASON_CODE_OPTIONS: { id: string; label: string }[] = [
+  { id: 'wrong_finding', label: 'Yanlış bulgu' },
+  { id: 'missing_finding', label: 'Eksik bulgu' },
+  { id: 'report_quality', label: 'Rapor kalitesi' },
+]
+
 export default function ExpertReview() {
   const { id = '' } = useParams()
   const { getCase, updateCase, pushToast, hydrateBackendCase } = useApp()
@@ -31,6 +38,7 @@ export default function ExpertReview() {
   const [cats, setCats] = useState<Partial<Record<SectionKey, CorrectionCategory>>>({})
   const [modal, setModal] = useState<null | 'revizyon' | 'reddedildi'>(null)
   const [reason, setReason] = useState('')
+  const [reasonCodes, setReasonCodes] = useState<string[]>([])
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -108,12 +116,17 @@ export default function ExpertReview() {
   const corrections = edited.map((k) => ({ section: k, before: draft[k], after: text[k], category: cats[k] ?? 'Eksik bilgi' }))
   const warnings = c.ai?.validation.filter((v) => v.kind !== 'ok') ?? []
 
-  const syncBackendReview = async (action: 'approve' | 'reject' | 'request_revision', comment?: string) => {
+  const syncBackendReview = async (
+    action: 'approve' | 'reject' | 'request_revision',
+    comment?: string,
+    codes?: string[],
+  ) => {
     if (!c.backendCaseId) return true
     try {
       await submitBackendReview(c.backendCaseId, {
         action,
         comment,
+        reason_codes: codes?.length ? codes : undefined,
         edited_technique: text.klinikOzet,
         edited_findings: text.bulgular,
         edited_impression: text.degerlendirme,
@@ -166,7 +179,15 @@ export default function ExpertReview() {
 
   const decide = async () => {
     if (!modal) return
-    const ok = await syncBackendReview(modal === 'revizyon' ? 'request_revision' : 'reject', reason.trim() || undefined)
+    if (reasonCodes.length < 1) {
+      pushToast({ tone: 'error', title: 'Gerekçe kodu gerekli', body: 'En az bir training-signal kodu seçin.' })
+      return
+    }
+    const ok = await syncBackendReview(
+      modal === 'revizyon' ? 'request_revision' : 'reject',
+      reason.trim() || undefined,
+      reasonCodes,
+    )
     if (!ok) return
     const stamp = nowStamp()
     if (!c.backendCaseId) {
@@ -185,6 +206,7 @@ export default function ExpertReview() {
         ],
       }))
     }
+    setReasonCodes([])
     pushToast({
       tone: modal === 'revizyon' ? 'warning' : 'error',
       title: modal === 'revizyon' ? 'Revizyon istendi' : 'Rapor reddedildi',
@@ -270,7 +292,12 @@ export default function ExpertReview() {
           {c.backendDraft?.rag_citations && c.backendDraft.rag_citations.length > 0 && (
             <Card>
               <CardHeader title="Kaynak pasajlar (RAG)" subtitle="Taslaktaki [S#] atıflarına tıklayınca ilgili pasaj vurgulanır — klinik kanıt değildir" />
-              <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} citationMap={c.backendDraft.citation_map} />
+              <RagCitations
+                citations={c.backendDraft.rag_citations}
+                note={c.backendDraft.rag_note}
+                citationMap={c.backendDraft.citation_map}
+                usedPassageIds={c.backendDraft.used_passage_ids}
+              />
             </Card>
           )}
         </div>
@@ -316,10 +343,10 @@ export default function ExpertReview() {
               })}
             </div>
             {reviewable && (
-              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
-                <Button variant="danger" icon={<XCircle className="h-4 w-4" />} onClick={() => setModal('reddedildi')}>Reddet</Button>
-                <Button variant="warning" icon={<RotateCcw className="h-4 w-4" />} onClick={() => setModal('revizyon')}>Revizyon İste</Button>
-                <Button variant="success" icon={<CheckCircle2 className="h-4 w-4" />} onClick={approve}>Onayla ve Yayınla</Button>
+              <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-surface-elevated/95 px-5 py-4 backdrop-blur">
+                <Button variant="danger" size="lg" icon={<XCircle className="h-4 w-4" />} onClick={() => setModal('reddedildi')}>Reddet</Button>
+                <Button variant="warning" size="lg" icon={<RotateCcw className="h-4 w-4" />} onClick={() => setModal('revizyon')}>Revizyon İste</Button>
+                <Button variant="success" size="lg" icon={<CheckCircle2 className="h-4 w-4" />} onClick={approve}>Onayla ve Yayınla</Button>
               </div>
             )}
           </Card>
@@ -359,15 +386,45 @@ export default function ExpertReview() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setModal(null)}>Vazgeç</Button>
-            <Button variant={modal === 'revizyon' ? 'warning' : 'danger'} disabled={reason.trim().length < 10} onClick={decide}>
+            <Button
+              variant={modal === 'revizyon' ? 'warning' : 'danger'}
+              disabled={reason.trim().length < 10 || reasonCodes.length < 1}
+              onClick={decide}
+            >
               {modal === 'revizyon' ? 'Revizyon iste' : 'Reddet'}
             </Button>
           </>
         }
       >
+        <label className="label">Gerekçe kodları (Feedback Store)</label>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {REASON_CODE_OPTIONS.map((opt) => {
+            const on = reasonCodes.includes(opt.id)
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() =>
+                  setReasonCodes((prev) =>
+                    on ? prev.filter((x) => x !== opt.id) : [...prev, opt.id],
+                  )
+                }
+                className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+                  on
+                    ? 'bg-teal-50 text-teal-900 ring-teal-300'
+                    : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
         <label className="label">Gerekçe (zorunlu)</label>
         <textarea rows={4} className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={modal === 'revizyon' ? 'ör. Derin ağrı algısı değerlendirilip forma eklenmeli.' : 'ör. Yüklenen MR raporu farklı bir hastaya ait.'} />
-        <p className="mt-2 text-xs text-slate-500">En az 10 karakter. Gerekçe veteriner hekime iletilir ve düzeltme kaydına eklenir.</p>
+        <p className="mt-2 text-xs text-slate-500">
+          En az 10 karakter + bir kod. Gerekçe hekime iletilir; kodlar Feedback Store training-signal’e yazılır (PHI yok).
+        </p>
       </Modal>
     </>
   )
