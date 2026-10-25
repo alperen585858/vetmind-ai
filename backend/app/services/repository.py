@@ -28,6 +28,14 @@ class CaseRepository(Protocol):
 
     def get_document_ingestion(self, ingest_id: str) -> Optional[DocumentIngestionRecord]: ...
 
+    def delete_case(self, case_id: str) -> bool:
+        """Remove a case and its analysis jobs. Used only by demo seed cleanup."""
+        ...
+
+    def delete_ingestion(self, ingest_id: str) -> None:
+        """Remove a DICOM or document ingestion record (whichever exists)."""
+        ...
+
 
 class InMemoryCaseRepository:
     def __init__(self) -> None:
@@ -66,6 +74,16 @@ class InMemoryCaseRepository:
 
     def get_document_ingestion(self, ingest_id: str) -> Optional[DocumentIngestionRecord]:
         return self._document_ingestions.get(ingest_id)
+
+    def delete_case(self, case_id: str) -> bool:
+        existed = self._cases.pop(case_id, None) is not None
+        for job_id in [j.job_id for j in self._jobs.values() if j.case_id == case_id]:
+            del self._jobs[job_id]
+        return existed
+
+    def delete_ingestion(self, ingest_id: str) -> None:
+        self._ingestions.pop(ingest_id, None)
+        self._document_ingestions.pop(ingest_id, None)
 
 
 def build_repository(settings: Settings | None = None) -> CaseRepository:

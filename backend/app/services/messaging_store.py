@@ -16,6 +16,8 @@ class MessagingStore(Protocol):
 
     def list_threads(self) -> list[SupportThread]: ...
 
+    def delete_thread(self, thread_id: str) -> bool: ...
+
 
 class InMemoryMessagingStore:
     def __init__(self) -> None:
@@ -30,6 +32,9 @@ class InMemoryMessagingStore:
 
     def list_threads(self) -> list[SupportThread]:
         return sorted(self._threads.values(), key=lambda t: t.updated_at, reverse=True)
+
+    def delete_thread(self, thread_id: str) -> bool:
+        return self._threads.pop(thread_id, None) is not None
 
 
 class SqliteMessagingStore:
@@ -74,6 +79,11 @@ class SqliteMessagingStore:
             "SELECT payload FROM support_threads ORDER BY updated_at DESC"
         ).fetchall()
         return [SupportThread.model_validate_json(r["payload"]) for r in rows]
+
+    def delete_thread(self, thread_id: str) -> bool:
+        cur = self._conn.execute("DELETE FROM support_threads WHERE thread_id=?", (thread_id,))
+        self._conn.commit()
+        return cur.rowcount > 0
 
 
 def build_messaging_store(settings) -> MessagingStore:

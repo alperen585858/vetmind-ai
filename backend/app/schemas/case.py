@@ -208,6 +208,8 @@ class CaseRecord(BaseModel):
     internal_notes: list[ClinicalNoteEntry] = Field(default_factory=list)
     info_requests: list[InfoRequest] = Field(default_factory=list)
     attachment_refs: list[AttachmentRef] = Field(default_factory=list)
+    # Created by app.demo_seed (VETMIND_DEMO_SEED / scripts/seed_demo.py); removable as a set.
+    demo_seed: bool = False
 
 
 class CaseSummary(BaseModel):

@@ -164,3 +164,14 @@ class SqliteCaseRepository:
         if row is None:
             return None
         return DocumentIngestionRecord.model_validate_json(row["payload"])
+
+    def delete_case(self, case_id: str) -> bool:
+        cur = self._conn.execute("DELETE FROM cases WHERE case_id = ?", (case_id,))
+        self._conn.execute("DELETE FROM jobs WHERE case_id = ?", (case_id,))
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def delete_ingestion(self, ingest_id: str) -> None:
+        self._conn.execute("DELETE FROM ingestions WHERE ingest_id = ?", (ingest_id,))
+        self._conn.execute("DELETE FROM document_ingestions WHERE ingest_id = ?", (ingest_id,))
+        self._conn.commit()

@@ -114,7 +114,7 @@ class CaseService:
 
     def _emit_feedback(self, case: CaseRecord, feedback: ReviewFeedback) -> None:
         """Append training-signal event (PHI-free). Separate from security audit."""
-        if self._feedback is None:
+        if self._feedback is None or case.demo_seed:
             return
         findings = case.structured_findings
         model_ids: list[str] = []

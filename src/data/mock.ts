@@ -1,20 +1,14 @@
 // TÜM VERİLER DEMO AMAÇLIDIR. Gerçek hasta, kurum veya yayın bilgisi içermez.
 import type {
-  CaseStatus,
   ClinicalInfo,
-  Correction,
   DocType,
   KbSource,
   NeuroExam,
   Patient,
-  Priority,
   ReportSections,
   Role,
-  TimelineEvent,
   User,
-  VetCase,
 } from '../types'
-import { buildAssessment, makeDocument, type TemplateKey } from './templates'
 
 export const USERS: Record<Role, User> = {
   vet: { name: 'Dr. Elif Kaya', title: 'Veteriner Hekim', org: 'Örnek Veteriner Kliniği (demo)', initials: 'EK' },
@@ -49,124 +43,10 @@ export const KB_SOURCES: KbSource[] = [
   { id: 12, title: 'Dejeneratif Miyelopati İncelemesi (örnek)', type: 'Bilimsel yayın', section: 'Klinik seyir', license: 'Beklemede', chunks: 118, indexedAt: '2026-10-03', keywords: ['dejeneratif', 'miyelopati', 'sod1', 'alman kurdu', 'kronik', 'ataksi'], passage: 'Dejeneratif miyelopati, ileri yaşta, ağrısız ve yavaş progresif pelvik ataksi ile karakterizedir. SOD1 mutasyonu destekleyicidir; kesin tanı histopatolojiktir.' },
 ]
 
-function timelineFor(status: CaseStatus, created: string, approved?: string): TimelineEvent[] {
-  const t: TimelineEvent[] = [{ date: `${created} 09:12`, label: 'Vaka oluşturuldu', by: 'Dr. Elif Kaya' }]
-  if (status === 'taslak') return t
-  t.push({ date: `${created} 09:18`, label: 'Tetkikler yüklendi', by: 'Dr. Elif Kaya' })
-  t.push({ date: `${created} 09:19`, label: 'Belgeler işlendi', by: 'Sistem' })
-  if (status === 'isleniyor') return t
-  t.push({ date: `${created} 09:19`, label: 'AI analizi başladı', by: 'vetmind-neuro-v0.1' })
-  if (status === 'ai_analizi') return t
-  t.push({ date: `${created} 09:20`, label: 'AI ön değerlendirmesi oluşturuldu, uzman kuyruğuna iletildi', by: 'Sistem' })
-  if (status === 'uzman_incelemesinde') return t
-  if (status === 'revizyon') t.push({ date: `${created} 14:40`, label: 'Revizyon istendi', by: 'Prof. Dr. Ahmet Demir' })
-  if (status === 'reddedildi') t.push({ date: `${created} 14:40`, label: 'Rapor reddedildi', by: 'Prof. Dr. Ahmet Demir' })
-  if (status === 'onaylandi') t.push({ date: `${approved} 16:05`, label: 'Uzman tarafından onaylandı ve yayınlandı', by: 'Prof. Dr. Ahmet Demir' })
-  return t
-}
-
-interface SeedArgs {
-  id: string
-  no: string
-  patient: Patient
-  clinical: ClinicalInfo
-  neuro: NeuroExam
-  status: CaseStatus
-  priority: Priority
-  createdAt: string
-  template: TemplateKey
-  files: [string, DocType][]
-  approvedAt?: string
-  report?: (draft: ReportSections) => ReportSections
-  corrections?: Correction[]
-  statusNote?: string
-}
-
-export function makeCase(a: SeedArgs): VetCase {
-  const built = buildAssessment(a.template, a.patient, a.neuro, `${a.createdAt} 09:20`)
-  const hasAi = !['taslak', 'isleniyor', 'ai_analizi'].includes(a.status)
-  return {
-    id: a.id,
-    no: a.no,
-    patient: a.patient,
-    clinical: a.clinical,
-    neuro: a.neuro,
-    documents: a.files.map(([name, type], i) => makeDocument(`${a.id}-d${i}`, name, type, a.patient, a.clinical, built.imaging)),
-    status: a.status,
-    module: 'Nöroloji',
-    priority: a.priority,
-    createdAt: a.createdAt,
-    clinic: CLINIC,
-    vetName: 'Dr. Elif Kaya',
-    ai: hasAi ? built.ai : undefined,
-    aiDraft: hasAi ? built.draft : undefined,
-    report: hasAi ? (a.report ? a.report(built.draft) : { ...built.draft }) : undefined,
-    corrections: a.corrections ?? [],
-    timeline: timelineFor(a.status, a.createdAt, a.approvedAt),
-    statusNote: a.statusNote,
-    approvedBy: a.status === 'onaylandi' ? USERS.expert.name : undefined,
-    approvedAt: a.approvedAt,
-    reportNo: a.status === 'onaylandi' ? a.no.replace('VM-', 'VMR-') : undefined,
-    processingMs: 9400,
-  }
-}
-
 const normalNeuro: NeuroExam = {
   consciousness: 'Uyanık', gait: 'Normal', limbs: [], posturalThoracic: 'Normal', posturalPelvic: 'Normal',
   reflexThoracic: 'Normal', reflexPelvic: 'Normal', cranialNerves: [], deepPain: 'Var', hyperesthesia: 'Yok',
 }
-
-const pasaPatient: Patient = { name: 'Paşa', species: 'Köpek', breed: 'Dachshund', sex: 'Erkek', neutered: false, age: 6, weight: 9, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' }
-
-export const SEED_CASES: VetCase[] = [
-  makeCase({
-    id: 'c-pasa', no: 'VM-2026-0147', status: 'uzman_incelemesinde', priority: 'Acil', createdAt: '2026-10-18', template: 'ivdd',
-    patient: pasaPatient,
-    clinical: { complaint: 'Arka bacaklarda ani başlayan güçsüzlük, sırt ağrısı, merdiven çıkmakta isteksizlik', onset: 'Akut', course: 'Progresif', history: 'Daha önce nörolojik şikâyet öyküsü yok. Aşıları güncel. Hafif kilolu.', medications: 'Meloksikam 0.1 mg/kg/gün (1 gündür)' },
-    neuro: { consciousness: 'Uyanık', gait: 'Parezi', limbs: ['Sol arka', 'Sağ arka'], posturalThoracic: 'Normal', posturalPelvic: 'Azalmış', reflexThoracic: 'Normal', reflexPelvic: 'Artmış', cranialNerves: [], deepPain: 'Değerlendirilmedi', hyperesthesia: 'Torakolomber' },
-    files: [['MR_raporu_Pasa.pdf', 'MR Raporu'], ['Hemogram_biyokimya.pdf', 'Laboratuvar Sonucu'], ['Onceki_klinik_notu.pdf', 'Önceki Rapor']],
-  }),
-  makeCase({
-    id: 'c-duman', no: 'VM-2026-0139', status: 'onaylandi', priority: 'Normal', createdAt: '2026-10-09', approvedAt: '2026-10-10', template: 'seizure',
-    patient: { name: 'Duman', species: 'Kedi', breed: 'British Shorthair', sex: 'Erkek', neutered: true, age: 4, weight: 5.2, ownerName: 'Ayşe Demirtaş', ownerPhone: '0555 000 00 02' },
-    clinical: { complaint: 'Tekrarlayan jeneralize nöbetler (son 3 ayda 4 kez)', onset: 'Kronik', course: 'Progresif', history: 'Kapalı ortamda yaşıyor, toksin maruziyeti öyküsü yok.', medications: 'Yok' },
-    neuro: normalNeuro,
-    files: [['Beyin_MR_Duman.pdf', 'MR Raporu'], ['Kan_tahlili_Duman.pdf', 'Laboratuvar Sonucu']],
-    report: (d) => ({ ...d, oneriler: 'Fenobarbital 2.5 mg/kg BID ile antiepileptik tedavi başlanması; 14. günde serum fenobarbital düzeyi ve karaciğer enzimleri kontrolü. Nöbet günlüğü tutulması. Nöbet sıklığı artarsa BOS analizi.' }),
-    corrections: [{ section: 'oneriler', before: 'Fenobarbital ile antiepileptik tedavi başlanması, 2. haftada serum düzeyi kontrolü. Nöbet günlüğü tutulması. BOS analizi değerlendirilebilir.', after: 'Fenobarbital 2.5 mg/kg BID ile antiepileptik tedavi başlanması; 14. günde serum fenobarbital düzeyi ve karaciğer enzimleri kontrolü. Nöbet günlüğü tutulması. Nöbet sıklığı artarsa BOS analizi.', category: 'Eksik bilgi' }],
-  }),
-  makeCase({
-    id: 'c-karamel', no: 'VM-2026-0148', status: 'ai_analizi', priority: 'Yüksek', createdAt: '2026-10-19', template: 'vestibular',
-    patient: { name: 'Karamel', species: 'Köpek', breed: 'Golden Retriever', sex: 'Dişi', neutered: true, age: 9, weight: 31, ownerName: 'Selin Aksoy', ownerPhone: '0555 000 00 03' },
-    clinical: { complaint: 'Ani başlayan baş eğikliği, gözlerde istemsiz hareket, dengesizlik', onset: 'Akut', course: 'Stabil', history: 'Hipotiroidi şüphesi (tetkik edilmedi).', medications: 'Yok' },
-    neuro: { ...normalNeuro, gait: 'Ataksi', limbs: ['Sol ön', 'Sağ ön', 'Sol arka', 'Sağ arka'], cranialNerves: ['Baş eğikliği', 'Nistagmus'] },
-    files: [['Kafa_BT_Karamel.pdf', 'BT Raporu'], ['Biyokimya_Karamel.pdf', 'Laboratuvar Sonucu']],
-  }),
-  makeCase({
-    id: 'c-tarcin', no: 'VM-2026-0144', status: 'revizyon', priority: 'Yüksek', createdAt: '2026-10-15', template: 'cervical',
-    patient: { name: 'Tarçın', species: 'Köpek', breed: 'Fransız Bulldog', sex: 'Erkek', neutered: false, age: 3, weight: 12, ownerName: 'Can Öztürk', ownerPhone: '0555 000 00 04' },
-    clinical: { complaint: 'Boyun ağrısı, başını aşağıda tutma, dokunulunca bağırma', onset: 'Akut', course: 'Stabil', history: 'Bilinen hastalık yok.', medications: 'Tramadol (2 gün)' },
-    neuro: { ...normalNeuro, hyperesthesia: 'Servikal' },
-    files: [['Servikal_MR_Tarcin.pdf', 'MR Raporu']],
-    statusNote: 'Steroid yanıtlı menenjit-arterit ayırıcı tanısı daha ayrıntılı tartışılmalı; BOS analizi önerisi ve vücut ısısı bilgisi eklenmeli.',
-  }),
-  makeCase({
-    id: 'c-pamuk', no: 'VM-2026-0149', status: 'taslak', priority: 'Normal', createdAt: '2026-10-19', template: 'forebrain',
-    patient: { name: 'Pamuk', species: 'Kedi', breed: 'Tekir', sex: 'Dişi', neutered: true, age: 12, weight: 4.1, ownerName: 'Zeynep Arslan', ownerPhone: '0555 000 00 05' },
-    clinical: { complaint: 'Davranış değişikliği, sürekli aynı yöne dönme', onset: 'Kronik', course: 'Progresif', history: 'Hipertiroidi tedavisi altında.', medications: 'Metimazol' },
-    neuro: { ...normalNeuro, consciousness: 'Depresif' },
-    files: [],
-  }),
-  makeCase({
-    id: 'c-zeytin', no: 'VM-2026-0131', status: 'onaylandi', priority: 'Normal', createdAt: '2026-10-02', approvedAt: '2026-10-03', template: 'dm',
-    patient: { name: 'Zeytin', species: 'Köpek', breed: 'Alman Kurdu', sex: 'Dişi', neutered: true, age: 10, weight: 34, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' },
-    clinical: { complaint: 'Aylardır yavaş ilerleyen arka bacak dengesizliği, ayak sürtme', onset: 'Kronik', course: 'Progresif', history: 'Kalça displazisi öyküsü.', medications: 'Omega-3 takviyesi' },
-    neuro: { ...normalNeuro, gait: 'Ataksi', limbs: ['Sol arka', 'Sağ arka'], posturalPelvic: 'Azalmış' },
-    files: [['Torakolomber_MR_Zeytin.pdf', 'MR Raporu'], ['Lab_Zeytin.pdf', 'Laboratuvar Sonucu']],
-    report: (d) => ({ ...d, degerlendirme: 'Klinik tablo dejeneratif miyelopati ile uyumludur. MR\'daki hafif protrüzyonlar klinik bulguları tek başına açıklamamaktadır; ancak Hansen tip II katkısı tamamen dışlanamaz.' }),
-    corrections: [{ section: 'degerlendirme', before: 'Klinik tablo dejeneratif miyelopati ile uyumludur; MR bulguları tabloyu tek başına açıklamamaktadır.', after: 'Klinik tablo dejeneratif miyelopati ile uyumludur. MR\'daki hafif protrüzyonlar klinik bulguları tek başına açıklamamaktadır; ancak Hansen tip II katkısı tamamen dışlanamaz.', category: 'Klinik hata' }],
-  }),
-]
 
 // "Örnek vaka ile doldur" butonunun kullandığı veri
 export const SAMPLE_FORM = {
