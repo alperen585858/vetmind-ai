@@ -5,8 +5,14 @@ import { PriorityBadge, StatusBadge } from './StatusBadge'
 import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
 
+const SPECIES_EMOJI: Record<string, string> = { Kedi: '🐱', Köpek: '🐶' }
+
 export function SpeciesIcon({ species }: { species: string }) {
-  return <span className="text-base leading-none">{species === 'Kedi' ? '🐈' : '🐕'}</span>
+  return (
+    <span className="text-base leading-none" role="img" aria-label={species}>
+      {SPECIES_EMOJI[species] ?? '🐾'}
+    </span>
+  )
 }
 
 function studyCell(c: VetCase): string {
@@ -54,9 +60,6 @@ export function CaseTable({ cases, showPriority = false }: { cases: VetCase[]; s
                 <div className="flex items-center gap-2 font-medium text-navy-900">
                   <SpeciesIcon species={c.patient.species} /> {c.patient.name}
                 </div>
-                {c.fromBackend && (
-                  <div className="text-[10px] font-medium uppercase tracking-wide text-teal-700">Backend</div>
-                )}
               </td>
               <td className="td">
                 <div>{c.patient.species}</div>
