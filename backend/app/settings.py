@@ -72,6 +72,8 @@ class Settings:
     analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
     feedback_log_path: Path | None = None
+    # Load scripted demo cases on startup when the case store is empty (app.demo_seed).
+    demo_seed: bool = False
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
         "Optional remote Vision via VETMIND_VISION_ENDPOINT. "
@@ -332,6 +334,7 @@ def load_settings() -> Settings:
         analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
         feedback_log_path=feedback_log_path,
+        demo_seed=_env_bool("VETMIND_DEMO_SEED", False),
     )
 
 

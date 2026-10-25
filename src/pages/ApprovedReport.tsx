@@ -115,7 +115,7 @@ export default function ApprovedReport() {
     return (
       <Card className="flex items-center gap-3 p-6 text-sm text-slate-600">
         <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
-        Onaylı rapor backend’den yükleniyor…
+        Onaylı rapor yükleniyor…
       </Card>
     )
   }

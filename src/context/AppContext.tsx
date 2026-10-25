@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { KbSource, Role, User, VetCase } from '../types'
-import { KB_SOURCES, SEED_CASES, USERS } from '../data/mock'
+import { KB_SOURCES, USERS } from '../data/mock'
 import {
   demoEmailForRole,
   loadSession,
@@ -54,7 +54,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const boot = initialSession()
   const [session, setSession] = useState<DemoSession | null>(boot)
   const [role, setRoleState] = useState<Role | null>(boot?.role ?? null)
-  const [cases, setCases] = useState<VetCase[]>(SEED_CASES)
+  // Cases come only from the backend (demo set: VETMIND_DEMO_SEED / scripts/seed_demo.py).
+  const [cases, setCases] = useState<VetCase[]>([])
   const [kbSources, setKb] = useState<KbSource[]>(KB_SOURCES)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [sourceId, setSourceId] = useState<number | null>(null)

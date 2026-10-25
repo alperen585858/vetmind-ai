@@ -22,6 +22,8 @@ class NotificationStore(Protocol):
 
     def mark_all_read(self, recipient: str) -> int: ...
 
+    def delete_for_cases(self, case_ids: set[str]) -> int: ...
+
 
 class InMemoryNotificationStore:
     def __init__(self) -> None:
@@ -59,6 +61,13 @@ class InMemoryNotificationStore:
                 self._by_id[item.notification_id] = item.model_copy(update={"read_at": now})
                 n += 1
         return n
+
+    def delete_for_cases(self, case_ids: set[str]) -> int:
+        doomed = [n for n in self._by_id.values() if n.case_id in case_ids]
+        for item in doomed:
+            del self._by_id[item.notification_id]
+            self._dedupe.discard(item.dedupe_key)
+        return len(doomed)
 
 
 class SqliteNotificationStore:
@@ -149,6 +158,19 @@ class SqliteNotificationStore:
         for item in items:
             self.save(item.model_copy(update={"read_at": now}))
         return len(items)
+
+    def delete_for_cases(self, case_ids: set[str]) -> int:
+        rows = self._conn.execute("SELECT notification_id, payload FROM notifications").fetchall()
+        doomed = [
+            r["notification_id"]
+            for r in rows
+            if AppNotification.model_validate_json(r["payload"]).case_id in case_ids
+        ]
+        self._conn.executemany(
+            "DELETE FROM notifications WHERE notification_id=?", [(i,) for i in doomed]
+        )
+        self._conn.commit()
+        return len(doomed)
 
 
 def build_notification_store(settings) -> NotificationStore:

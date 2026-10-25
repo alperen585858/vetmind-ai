@@ -46,10 +46,9 @@ const EMPTY_PATIENT: Patient = { name: '', species: 'Köpek', breed: '', sex: 'E
 const EMPTY_CLINICAL: ClinicalInfo = { complaint: '', onset: 'Akut', course: 'Progresif', history: '', medications: '' }
 
 type IntakeMode = 'documents' | 'dicom'
-type PipelineMode = 'local' | BackendScenario | 'dicom_metadata'
+type PipelineMode = BackendScenario | 'dicom_metadata'
 
 const PIPELINE_OPTIONS: { id: PipelineMode; label: string }[] = [
-  { id: 'local', label: 'Yerel prototip (mevcut demo)' },
   { id: 'dicom_metadata', label: 'Backend · DICOM metadata' },
   { id: 'brain_mri_suspected', label: 'Backend MOCK · Brain MRI (sentetik JSON)' },
   { id: 'cervical_mri_suspected', label: 'Backend MOCK · Cervical MRI (sentetik JSON)' },
@@ -154,14 +153,14 @@ function Checks({ options, value, onChange }: { options: string[]; value: string
 }
 
 export default function NewCase() {
-  const { addCase, cases, pushToast, updateCase } = useApp()
+  const { addCase, pushToast, updateCase } = useApp()
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT)
   const [clinical, setClinical] = useState<ClinicalInfo>(EMPTY_CLINICAL)
   const [neuro, setNeuro] = useState<NeuroExam>(EMPTY_NEURO)
   const [files, setFiles] = useState<UploadFile[]>([])
-  const [intakeMode, setIntakeMode] = useState<IntakeMode>('documents')
+  const [intakeMode, setIntakeMode] = useState<IntakeMode>('dicom')
   const [dicomFiles, setDicomFiles] = useState<File[]>([])
   const [dicomPreview, setDicomPreview] = useState<DicomUploadResponse | null>(null)
   const [pendingDemoKind, setPendingDemoKind] = useState<DicomDemoKind | null>(null)
@@ -169,7 +168,7 @@ export default function NewCase() {
   const [overrideModality, setOverrideModality] = useState<BackendModality>('MR')
   const [overrideRegion, setOverrideRegion] = useState<BackendAnatomicalRegion>('BRAIN')
   const [drag, setDrag] = useState(false)
-  const [pipeline, setPipeline] = useState<PipelineMode>('local')
+  const [pipeline, setPipeline] = useState<PipelineMode>('dicom_metadata')
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dicomInputRef = useRef<HTMLInputElement>(null)
@@ -181,7 +180,7 @@ export default function NewCase() {
   const hint = localize(neuro, clinical)
 
   const fillSample = () => {
-    setPipeline('local')
+    setPipeline('document_context')
     setIntakeMode('documents')
     setDicomPreview(null)
     setDicomFiles([])
@@ -189,7 +188,7 @@ export default function NewCase() {
     setClinical(SAMPLE_FORM.clinical)
     setNeuro(SAMPLE_FORM.neuro)
     setFiles(SAMPLE_FORM.files.map((f, i) => ({ ...f, id: `s${i}` })))
-    pushToast({ tone: 'info', title: 'Form örnek vaka ile dolduruldu', body: 'Fındık — Beagle, akut pelvik parezi (yerel prototip)' })
+    pushToast({ tone: 'info', title: 'Form örnek vaka ile dolduruldu', body: 'Fındık — Beagle, akut pelvik parezi (doküman kanalı)' })
   }
 
   const fillBrainBackend = () => {
@@ -345,160 +344,156 @@ export default function NewCase() {
             : 'Normal'
 
     let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp)
-    let backendCaseId: string | undefined
+    let backendCaseId = ''
     let backendJobId: string | undefined
     let backendOutcome: VetCase['backendOutcome']
     let backendFindings: VetCase['backendFindings']
     let backendDraft: VetCase['backendDraft']
 
-    if (pipeline !== 'local') {
-      setSubmitting(true)
-      try {
-        const history = `${clinical.complaint}\n${clinical.history}`.trim()
-        let result
-        if (pipeline === 'dicom_metadata') {
-          let ingestId = dicomPreview && !dicomPreview.blocked ? dicomPreview.ingest_id : undefined
-          if (!ingestId) {
-            if (dicomFiles.length === 0 && !pendingDemoKind) {
-              setSubmitting(false)
-              pushToast({
-                tone: 'warning',
-                title: 'DICOM gerekli',
-                body: 'Önce .dcm dosyası yükleyin veya DICOM demo / sunucu fixture kullanın.',
-              })
-              return
-            }
-            const upload = pendingDemoKind
-              ? await uploadDicomDemo({
-                  kind: pendingDemoKind,
-                  patientName: patient.name,
-                  species: patient.species,
-                  breed: patient.breed,
-                  clinicalHistory: history,
-                })
-              : await uploadDicomFiles({
-                  files: dicomFiles,
-                  patientName: patient.name,
-                  species: patient.species,
-                  breed: patient.breed,
-                  clinicalHistory: history,
-                })
-            setDicomPreview(upload)
-            applyClassificationDefaults(upload)
-            if (upload.blocked) {
-              setSubmitting(false)
-              pushToast({ tone: 'error', title: 'DICOM ingest engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
-              return
-            }
-            ingestId = upload.ingest_id
-          }
-          result = await confirmDicomAndAnalyze({
-            ingestId,
-            acceptSuggestion,
-            modality: acceptSuggestion ? undefined : overrideModality,
-            anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
-            patientName: patient.name,
-            clinicalHistory: history,
-          })
-        } else if (pipeline === 'document_context') {
-          const blobs = files.map((f) => f.file).filter((f): f is File => Boolean(f))
-          const payloadFiles =
-            blobs.length > 0
-              ? blobs
-              : [
-                  new File(
-                    [
-                      `SYNTHETIC CLINICAL NOTE\nPatient: ${patient.name}\nSpecies: ${patient.species}\n\n${history}\n\nNot a real clinical document.`,
-                    ],
-                    'clinical_note.txt',
-                    { type: 'text/plain' },
-                  ),
-                ]
-          const upload = await uploadDocuments({
-            files: payloadFiles,
-            patientName: patient.name,
-            species: patient.species,
-            breed: patient.breed,
-            clinicalHistory: history,
-          })
-          if (upload.blocked) {
+    setSubmitting(true)
+    try {
+      const history = `${clinical.complaint}\n${clinical.history}`.trim()
+      let result
+      if (pipeline === 'dicom_metadata') {
+        let ingestId = dicomPreview && !dicomPreview.blocked ? dicomPreview.ingest_id : undefined
+        if (!ingestId) {
+          if (dicomFiles.length === 0 && !pendingDemoKind) {
             setSubmitting(false)
-            pushToast({ tone: 'error', title: 'Doküman ingest engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
+            pushToast({
+              tone: 'warning',
+              title: 'DICOM gerekli',
+              body: 'Önce .dcm dosyası yükleyin veya DICOM demo / sunucu fixture kullanın.',
+            })
             return
           }
-          result = await confirmDocumentAndAnalyze(upload.ingest_id)
-        } else {
-          result = await createAndAnalyzeCase({
-            patientName: patient.name,
-            species: patient.species,
-            breed: patient.breed,
-            clinicalHistory: history,
-            scenario: pipeline,
-            patientAgeYears: patient.age || undefined,
-            priority:
-              neuro.deepPain === 'Yok'
-                ? 'stat'
-                : neuro.gait === 'Pleji'
-                  ? 'urgent'
-                  : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
-                    ? 'high'
-                    : 'normal',
-            clinicalHistoryStructured: {
-              complaint: clinical.complaint || undefined,
-              onset: clinical.onset || undefined,
-              course: clinical.course || undefined,
-              medications: clinical.medications || undefined,
-              relevant_history: clinical.history || undefined,
-              handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'}`,
-            },
-          })
-        }
-        backendCaseId = result.job.case_id
-        backendJobId = result.job.job_id
-        backendOutcome = result.outcome
-        backendFindings = result.findings ?? undefined
-        backendDraft = result.report ?? undefined
-        if (result.report && result.findings) {
-          const sections = draftToSections(result.report)
-          built = {
-            ...built,
-            ai: pipelineToAssessment(result.findings, result.report),
-            draft: sections,
+          const upload = pendingDemoKind
+            ? await uploadDicomDemo({
+                kind: pendingDemoKind,
+                patientName: patient.name,
+                species: patient.species,
+                breed: patient.breed,
+                clinicalHistory: history,
+              })
+            : await uploadDicomFiles({
+                files: dicomFiles,
+                patientName: patient.name,
+                species: patient.species,
+                breed: patient.breed,
+                clinicalHistory: history,
+              })
+          setDicomPreview(upload)
+          applyClassificationDefaults(upload)
+          if (upload.blocked) {
+            setSubmitting(false)
+            pushToast({ tone: 'error', title: 'DICOM ingest engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
+            return
           }
-        } else if (result.outcome === 'failed') {
-          built = {
-            ...built,
-            ai: {
-              summary: `Mock pipeline failed: ${result.job.error_message ?? 'unknown error'}. This is not a clinical result.`,
-              findings: [],
-              differentials: [],
-              recommendedTests: ['Re-run after inspecting backend logs. Expert review is still required.'],
-              validation: [{ kind: 'unsupported', text: 'Mock vision adapter failed', detail: result.job.error_message ?? 'failed' }],
-              model: 'mock-pipeline',
-              generatedAt: stamp,
-            },
-            draft: {
-              klinikOzet: 'Mock pipeline failed before a draft was produced.',
-              bulgular: 'No structured findings.',
-              degerlendirme: result.job.error_message ?? 'failed',
-              ayiriciTanilar: 'Not generated.',
-              oneriler: 'Do not use this case clinically.',
-            },
-          }
+          ingestId = upload.ingest_id
         }
-      } catch (err) {
-        setSubmitting(false)
-        const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'Backend isteği başarısız.'
-        pushToast({ tone: 'error', title: 'FastAPI backend yanıt vermedi', body: message })
-        return
+        result = await confirmDicomAndAnalyze({
+          ingestId,
+          acceptSuggestion,
+          modality: acceptSuggestion ? undefined : overrideModality,
+          anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
+          patientName: patient.name,
+          clinicalHistory: history,
+        })
+      } else if (pipeline === 'document_context') {
+        const blobs = files.map((f) => f.file).filter((f): f is File => Boolean(f))
+        const payloadFiles =
+          blobs.length > 0
+            ? blobs
+            : [
+                new File(
+                  [
+                    `SYNTHETIC CLINICAL NOTE\nPatient: ${patient.name}\nSpecies: ${patient.species}\n\n${history}\n\nNot a real clinical document.`,
+                  ],
+                  'clinical_note.txt',
+                  { type: 'text/plain' },
+                ),
+              ]
+        const upload = await uploadDocuments({
+          files: payloadFiles,
+          patientName: patient.name,
+          species: patient.species,
+          breed: patient.breed,
+          clinicalHistory: history,
+        })
+        if (upload.blocked) {
+          setSubmitting(false)
+          pushToast({ tone: 'error', title: 'Doküman ingest engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
+          return
+        }
+        result = await confirmDocumentAndAnalyze(upload.ingest_id)
+      } else {
+        result = await createAndAnalyzeCase({
+          patientName: patient.name,
+          species: patient.species,
+          breed: patient.breed,
+          clinicalHistory: history,
+          scenario: pipeline,
+          patientAgeYears: patient.age || undefined,
+          priority:
+            neuro.deepPain === 'Yok'
+              ? 'stat'
+              : neuro.gait === 'Pleji'
+                ? 'urgent'
+                : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
+                  ? 'high'
+                  : 'normal',
+          clinicalHistoryStructured: {
+            complaint: clinical.complaint || undefined,
+            onset: clinical.onset || undefined,
+            course: clinical.course || undefined,
+            medications: clinical.medications || undefined,
+            relevant_history: clinical.history || undefined,
+            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'}`,
+          },
+        })
       }
+      backendCaseId = result.job.case_id
+      backendJobId = result.job.job_id
+      backendOutcome = result.outcome
+      backendFindings = result.findings ?? undefined
+      backendDraft = result.report ?? undefined
+      if (result.report && result.findings) {
+        const sections = draftToSections(result.report)
+        built = {
+          ...built,
+          ai: pipelineToAssessment(result.findings, result.report),
+          draft: sections,
+        }
+      } else if (result.outcome === 'failed') {
+        built = {
+          ...built,
+          ai: {
+            summary: `Mock pipeline failed: ${result.job.error_message ?? 'unknown error'}. This is not a clinical result.`,
+            findings: [],
+            differentials: [],
+            recommendedTests: ['Re-run after inspecting backend logs. Expert review is still required.'],
+            validation: [{ kind: 'unsupported', text: 'Mock vision adapter failed', detail: result.job.error_message ?? 'failed' }],
+            model: 'mock-pipeline',
+            generatedAt: stamp,
+          },
+          draft: {
+            klinikOzet: 'Mock pipeline failed before a draft was produced.',
+            bulgular: 'No structured findings.',
+            degerlendirme: result.job.error_message ?? 'failed',
+            ayiriciTanilar: 'Not generated.',
+            oneriler: 'Do not use this case clinically.',
+          },
+        }
+      }
+    } catch (err) {
       setSubmitting(false)
+      const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'Backend isteği başarısız.'
+      pushToast({ tone: 'error', title: 'FastAPI backend yanıt vermedi', body: message })
+      return
     }
+    setSubmitting(false)
 
-    const id = backendCaseId ?? `c-new-${Date.now()}`
-    const no = backendCaseId
-      ? backendCaseId.replace(/^case-/, 'VM-').toUpperCase()
-      : `VM-2026-0${150 + cases.filter((c) => c.id.startsWith('c-new')).length}`
+    const id = backendCaseId
+    const no = backendCaseId.replace(/^case-/, 'VM-').toUpperCase()
 
     const newCase: VetCase = {
       id,
@@ -556,7 +551,7 @@ export default function NewCase() {
               : `${files.length} tetkik belgesi yüklendi`,
           by: 'Dr. Elif Kaya',
         },
-        ...(backendCaseId ? [{ date: stamp, label: `FastAPI mock analiz: ${backendOutcome} (${backendCaseId})`, by: 'backend' }] : []),
+        { date: stamp, label: `FastAPI mock analiz: ${backendOutcome} (${backendCaseId})`, by: 'backend' },
       ],
       processingStartedAt: Date.now(),
       backendCaseId,
@@ -564,13 +559,13 @@ export default function NewCase() {
       backendOutcome,
       backendFindings,
       backendDraft,
-      fromBackend: Boolean(backendCaseId),
+      fromBackend: true,
     }
     addCase(newCase)
     setTimeout(() => updateCase(id, { status: 'ai_analizi' }), AI_PHASE_START)
     setTimeout(() => {
       const done = nowStamp()
-      const nextStatus = pipeline === 'local' ? 'uzman_incelemesinde' : caseStatusFromBackendOutcome(backendOutcome)
+      const nextStatus = caseStatusFromBackendOutcome(backendOutcome)
       const statusNote =
         backendOutcome === 'failed'
           ? 'Mock vision adapter failed. Bu uzman revizyon talebi değildir; onaylanabilir AI taslak yoktur.'
@@ -578,21 +573,19 @@ export default function NewCase() {
             ? 'Desteklenmeyen görüntüleme kombinasyonu. Manuel radyolog incelemesi gerekir; AI draft onayı kapalıdır.'
             : undefined
       const timelineLabel =
-        pipeline === 'local'
-          ? 'AI ön değerlendirmesi oluşturuldu, uzman kuyruğuna iletildi'
-          : backendOutcome === 'failed'
-            ? 'Senkron mock analiz başarısız — AI draft üretilmedi'
-            : backendOutcome === 'unsupported'
-              ? 'Senkron mock analiz: unsupported → manuel inceleme (AI draft yok)'
-              : `Senkron mock analiz tamamlandı (${backendOutcome}) — uzman incelemesine bırakıldı`
+        backendOutcome === 'failed'
+          ? 'Senkron mock analiz başarısız — AI draft üretilmedi'
+          : backendOutcome === 'unsupported'
+            ? 'Senkron mock analiz: unsupported → manuel inceleme (AI draft yok)'
+            : `Senkron mock analiz tamamlandı (${backendOutcome}) — uzman incelemesine bırakıldı`
       updateCase(id, (c) => ({
         status: nextStatus,
         processingMs: PIPELINE_MS,
         statusNote: statusNote ?? c.statusNote,
         timeline: [
           ...c.timeline,
-          { date: done, label: pipeline === 'local' ? 'Belgeler işlendi' : 'Mock orchestrator (async job poll) tamamlandı', by: 'Sistem' },
-          { date: done, label: timelineLabel, by: pipeline === 'local' ? 'vetmind-neuro-v0.1' : 'mock-pipeline' },
+          { date: done, label: 'Mock orchestrator (async job poll) tamamlandı', by: 'Sistem' },
+          { date: done, label: timelineLabel, by: 'mock-pipeline' },
         ],
       }))
       const tone = backendOutcome === 'failed' ? 'error' : backendOutcome === 'unsupported' ? 'warning' : 'success'
@@ -624,15 +617,6 @@ export default function NewCase() {
           </div>
         }
       />
-      {pipeline === 'local' && (
-        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">Yerel demo animasyonu — gerçek AI pipeline değil</p>
-          <p className="mt-1 text-xs opacity-90">
-            Zamanlayıcı ve <code className="font-mono">pipeline.ts</code> katman log’ları DEMO FICTION’dır (Qdrant /
-            768-dim / token-s yok). Backend senaryosu seçerseniz gerçek job alanları kullanılır.
-          </p>
-        </div>
-      )}
       <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
         <summary className="cursor-pointer font-medium text-navy-800">Demo hızlı doldurma (sentetik / DICOM fixture)</summary>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -740,19 +724,19 @@ export default function NewCase() {
           <div className="animate-fade-up">
             <h2 className="mb-1 text-lg font-semibold text-navy-900">Tetkik Yükleme</h2>
             <p className="mb-4 text-sm text-slate-500">
-              Belge yolu yerel PDF demosudur. DICOM yolu metadata ingest kullanır; piksel tabanlı tanı yoktur.
+              Belge yolu dosyaları backend doküman kanalına gönderir. DICOM yolu metadata ingest kullanır; piksel tabanlı tanı yoktur.
             </p>
             <div className="mb-5 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setIntakeMode('documents')
-                  setPipeline((p) => (p === 'dicom_metadata' ? 'local' : p))
+                  setPipeline((p) => (p === 'dicom_metadata' ? 'document_context' : p))
                   setDicomPreview(null)
                 }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${intakeMode === 'documents' ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300'}`}
               >
-                Belge (PDF demo)
+                Belge (PDF)
               </button>
               <button
                 type="button"
@@ -973,7 +957,7 @@ export default function NewCase() {
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="mb-2 text-sm font-semibold text-navy-900">Analiz kanalı</p>
               <p className="mb-3 text-xs text-slate-500">
-                Yerel prototip tarayıcıdaki eski şablonları kullanır. Backend seçenekleri FastAPI mock Vision + mock LLM boru hattını <strong>async job + poll</strong> ile çalıştırır (thread/RQ). DICOM kanalı metadata sınıflandırması + onay sonrası aynı pipeline&apos;a bağlanır; klinik yorum değildir.
+                Tüm seçenekler FastAPI mock Vision + mock LLM boru hattını <strong>async job + poll</strong> ile çalıştırır (thread/RQ). DICOM kanalı metadata sınıflandırması + onay sonrası aynı pipeline&apos;a bağlanır; klinik yorum değildir.
               </p>
               <div className="flex flex-wrap gap-2">
                 {PIPELINE_OPTIONS.map((opt) => (
@@ -1056,11 +1040,9 @@ export default function NewCase() {
               <Brain className="h-8 w-8 shrink-0 text-teal-600" />
               <p className="flex-1 text-sm text-navy-800">
                 Gönderdiğinizde{' '}
-                {pipeline === 'local'
-                  ? 'yerel demo işlem hattı'
-                  : pipeline === 'dicom_metadata'
-                    ? 'DICOM metadata onayı + FastAPI mock orchestrator'
-                    : 'FastAPI mock AI orchestrator'}{' '}
+                {pipeline === 'dicom_metadata'
+                  ? 'DICOM metadata onayı + FastAPI mock orchestrator'
+                  : 'FastAPI mock AI orchestrator'}{' '}
                 çalışır ve taslak <strong>uzman veteriner hekim onayına</strong> iletilir. Hiçbir çıktı klinik tanı değildir.
               </p>
               <Button

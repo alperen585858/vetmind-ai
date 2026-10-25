@@ -137,6 +137,12 @@ class QuarantineStore:
                     child.rmdir()
             resolved.rmdir()
 
+    def remove_ingest(self, ingest_id: str) -> None:
+        """Delete an ingest's quarantined bytes + manifest (demo seed cleanup)."""
+        path = (self.root / validate_ingest_id(ingest_id)).resolve()
+        if path != self.root and path.is_dir():
+            self.cleanup_temp_dir(path)
+
     def ownership(self, ingest_id: str) -> tuple[str | None, str | None]:
         """Return (owner_subject, clinic_id) from manifest when present."""
         try:

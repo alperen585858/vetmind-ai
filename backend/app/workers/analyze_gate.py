@@ -65,7 +65,8 @@ class AnalyzeGate:
         os.fsync(f.fileno())
 
     def _with_file_lock(self, fn):
-        # Local import keeps Windows import soft-fail path clear if ever ported.
+        if os.name == "nt":
+            return self._with_windows_lock(fn)
         import fcntl
 
         with open(self.path, "a+", encoding="utf-8") as f:
@@ -74,6 +75,19 @@ class AnalyzeGate:
                 return fn(f)
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+    def _with_windows_lock(self, fn):
+        # fcntl is POSIX-only; msvcrt byte-range lock on byte 0 gives the same exclusion.
+        import msvcrt
+
+        with open(self.path, "a+", encoding="utf-8") as f:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                return fn(f)
+            finally:
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 def build_analyze_gate(*, max_concurrent: int, path: Path | None) -> AnalyzeGate:

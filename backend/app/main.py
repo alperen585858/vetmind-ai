@@ -17,6 +17,7 @@ from app.api.messaging import router as messaging_router
 from app.api.payments import router as payments_router
 from app.api.workflow import router as workflow_router
 from app.container import AppContainer
+from app.demo_seed import ensure_demo_seed
 
 
 def create_app(container: AppContainer | None = None) -> FastAPI:
@@ -32,6 +33,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.container = container or AppContainer()
+    ensure_demo_seed(app.state.container)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

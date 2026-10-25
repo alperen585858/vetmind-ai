@@ -81,7 +81,8 @@ def _redact(text: str, case: CaseRecord) -> str:
 def feedback_record(case: CaseRecord) -> FeedbackRecord | None:
     """None unless the case has a model draft that an expert has acted on."""
     draft = case.draft_report
-    if draft is None or not draft.ai_sections:
+    # Seeded demo approvals are scripted, not real expert sign-off.
+    if case.demo_seed or draft is None or not draft.ai_sections:
         return None
     if draft.expert_review_status == ExpertReviewStatus.PENDING:
         return None

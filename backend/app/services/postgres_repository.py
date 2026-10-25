@@ -167,3 +167,17 @@ class PostgresCaseRepository:
         if row is None:
             return None
         return DocumentIngestionRecord.model_validate(row["payload"])
+
+    def delete_case(self, case_id: str) -> bool:
+        with self._conn.cursor() as cur:
+            cur.execute("DELETE FROM cases WHERE case_id = %s", (case_id,))
+            existed = cur.rowcount > 0
+            cur.execute("DELETE FROM jobs WHERE case_id = %s", (case_id,))
+        self._conn.commit()
+        return existed
+
+    def delete_ingestion(self, ingest_id: str) -> None:
+        with self._conn.cursor() as cur:
+            cur.execute("DELETE FROM ingestions WHERE ingest_id = %s", (ingest_id,))
+            cur.execute("DELETE FROM document_ingestions WHERE ingest_id = %s", (ingest_id,))
+        self._conn.commit()

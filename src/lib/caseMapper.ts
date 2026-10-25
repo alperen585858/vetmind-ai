@@ -13,7 +13,7 @@ import type {
   VetCase,
 } from '../types'
 import { draftToSections, pipelineToAssessment } from './backend'
-import { CLINIC } from '../data/mock'
+import { CLINIC, USERS } from '../data/mock'
 
 const EMPTY_NEURO: NeuroExam = {
   consciousness: 'Uyanık',
@@ -127,9 +127,9 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     priority: priorityFromBackend(s.priority),
     createdAt: created,
     clinic: s.referring_clinic || s.clinic_id || CLINIC,
-    vetName: 'Backend',
+    vetName: USERS.vet.name,
     corrections: [],
-    timeline: [{ date: s.created_at, label: 'Backend’den yüklendi', by: 'sync' }],
+    timeline: [{ date: s.created_at, label: 'Vaka oluşturuldu', by: 'Sistem' }],
     backendCaseId: s.case_id,
     backendJobId: s.latest_job_id ?? undefined,
     fromBackend: true,
@@ -206,10 +206,15 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
   const approvedAt = status === 'onaylandi' ? r.updated_at.slice(0, 10) : undefined
   const reportNo = status === 'onaylandi' ? r.case_id.replace(/^case-/, 'VMR-').toUpperCase() : undefined
 
+  const reviewLabels: Record<string, string> = {
+    approve: 'Uzman tarafından onaylandı',
+    reject: 'Rapor reddedildi',
+    request_revision: 'Revizyon istendi',
+  }
   const reviewEvents = (r.review_history ?? []).map((h) => ({
     date: r.updated_at,
-    label: `Review: ${h.action}${h.comment ? ` — ${h.comment}` : ''}`,
-    by: h.reviewer_id,
+    label: `${reviewLabels[h.action] ?? h.action}${h.comment ? ` — ${h.comment}` : ''}`,
+    by: ['expert@demo.local', 'expert-demo'].includes(h.reviewer_id) ? USERS.expert.name : h.reviewer_id,
   }))
 
   const docs =
@@ -245,7 +250,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     priority: priorityFromBackend(r.priority),
     createdAt: created,
     clinic: r.referring_clinic || CLINIC,
-    vetName: 'Backend',
+    vetName: USERS.vet.name,
     ai,
     aiDraft,
     report,
@@ -256,17 +261,17 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     reportViewedAt: r.report_viewed_at ?? undefined,
     corrections: [],
     timeline: [
-      { date: r.created_at, label: 'Vaka oluşturuldu', by: 'api' },
-      ...(r.latest_job_id ? [{ date: r.updated_at, label: `Son job: ${r.latest_job_id}`, by: 'backend' }] : []),
+      { date: r.created_at, label: 'Vaka oluşturuldu', by: 'Sistem' },
+      ...(r.latest_job_id ? [{ date: r.updated_at, label: 'AI ön değerlendirmesi oluşturuldu', by: 'Sistem' }] : []),
       ...reviewEvents,
       ...(r.report_available_at
-        ? [{ date: r.report_available_at, label: 'Onaylı rapor hazır', by: 'delivery' }]
+        ? [{ date: r.report_available_at, label: 'Onaylı rapor hazır', by: 'Sistem' }]
         : []),
       ...(r.report_delivered_at
-        ? [{ date: r.report_delivered_at, label: 'Rapor kliniklere iletildi', by: 'delivery' }]
+        ? [{ date: r.report_delivered_at, label: 'Rapor kliniklere iletildi', by: 'Sistem' }]
         : []),
       ...(r.report_viewed_at
-        ? [{ date: r.report_viewed_at, label: 'Rapor görüntülendi', by: 'delivery' }]
+        ? [{ date: r.report_viewed_at, label: 'Rapor görüntülendi', by: 'Sistem' }]
         : []),
     ],
     backendCaseId: r.case_id,
