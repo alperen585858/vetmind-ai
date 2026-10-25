@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, mo
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMMalformedResponseError, LLMRequest
 from app.llm.prompts import CitationAliases
+from app.llm.rag_grounding import apply_used_passages_to_report
 from app.schemas.enums import ReportStatus
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
 
@@ -138,7 +139,8 @@ def build_draft_report(
         return ReportSection(text=text, cited_finding_ids=cited)
 
     report_kind, synthetic = _report_provenance_from_findings(gen.findings_source_kind)
-    return DraftReport(
+    # Chat providers do not return used_passage_ids yet — legacy honesty note via helper.
+    report = DraftReport(
         report_id=f"llm-rpt-{uuid4().hex[:12]}",
         case_id=gen.case_id,
         status=ReportStatus.DRAFT,
@@ -157,6 +159,6 @@ def build_draft_report(
         recommendations=section("recommendations"),
         synthetic=synthetic,
         clinically_validated=False,
-        rag_citations=list(gen.rag_passages),
         citation_map=aliases.as_map(),
     )
+    return apply_used_passages_to_report(report, list(gen.rag_passages), None)

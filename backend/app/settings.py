@@ -355,3 +355,11 @@ def validate_security_settings(settings: Settings) -> None:
         raise RuntimeError(
             "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
         )
+    # Refuse fake "encryption enabled" claims — NullEncryptor is passthrough only.
+    enc = (settings.encryption_at_rest or "none").strip().lower()
+    if enc not in {"none", "off", "disabled", ""}:
+        raise RuntimeError(
+            f"VETMIND_ENCRYPTION_AT_REST={enc!r} is not implemented. "
+            "Use 'none' until a real BlobEncryptor + KMS is wired. "
+            "Refusing to start with a false encryption claim."
+        )

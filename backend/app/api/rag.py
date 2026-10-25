@@ -24,6 +24,26 @@ class RagDocumentCreate(BaseModel):
     passage: str = Field(min_length=1, max_length=8000)
     keywords: list[str] = Field(default_factory=list)
     source_id: str | None = None
+    # Default false — do not claim clinical approved KB unless explicitly set.
+    approved: bool = False
+
+
+class RagBulkCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    documents: list[RagDocumentCreate] = Field(min_length=1, max_length=500)
+
+
+class RagBulkResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    added: int
+    source_ids: list[str]
+    count: int
+    note: str = (
+        "Bulk ingest into local JSON vector store. approved=false by default. "
+        "Not clinical evidence."
+    )
 
 
 class RagReindexResponse(BaseModel):
@@ -42,6 +62,7 @@ class RagDocumentResponse(BaseModel):
     title: str
     section: str
     count: int
+    approved: bool = False
 
 
 @router.get("/search", response_model=RagSearchResponse)
@@ -92,6 +113,7 @@ class RagCustomDocument(BaseModel):
     section: str
     passage: str
     keywords: list[str]
+    approved: bool = False
 
 
 @router.get("/documents", response_model=list[RagCustomDocument])
@@ -109,6 +131,7 @@ def list_custom_rag_documents(
             section=d.section,
             passage=d.passage,
             keywords=list(d.keywords),
+            approved=bool(getattr(d, "approved", False)),
         )
         for d in container.vector_store.documents
         if d.source_id.startswith("custom-")
@@ -132,10 +155,41 @@ def add_rag_document(
         section=payload.section,
         passage=payload.passage,
         keywords=payload.keywords,
+        approved=payload.approved,
     )
     return RagDocumentResponse(
         source_id=doc.source_id,
         title=doc.title,
         section=doc.section,
+        count=len(container.vector_store),
+        approved=doc.approved,
+    )
+
+
+@router.post("/documents/bulk", response_model=RagBulkResponse, status_code=201)
+def add_rag_documents_bulk(
+    payload: RagBulkCreate,
+    container: AppContainer = Depends(get_container),
+    _auth=Depends(require_capability(CAP_RAG_ADMIN)),
+) -> RagBulkResponse:
+    if container.vector_store is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=409, detail="Vector store unavailable (lexical RAG mode).")
+    rows = [
+        {
+            "source_id": d.source_id,
+            "title": d.title,
+            "section": d.section,
+            "passage": d.passage,
+            "keywords": d.keywords,
+            "approved": d.approved,
+        }
+        for d in payload.documents
+    ]
+    added = container.vector_store.add_documents_bulk(rows, default_approved=False)
+    return RagBulkResponse(
+        added=len(added),
+        source_ids=[d.source_id for d in added],
         count=len(container.vector_store),
     )

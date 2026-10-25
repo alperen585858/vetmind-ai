@@ -23,6 +23,7 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
+from app.llm.rag_grounding import apply_used_passages_to_report
 from app.schemas.enums import ReportStatus, SourceKind
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
 
@@ -46,6 +47,9 @@ class HttpLLMWireResponse(BaseModel):
     impression: str
     recommendations: str
     cited_finding_ids: list[str] = Field(default_factory=list)
+    # Optional: passages the remote draft actually used (ISS-RAG-04).
+    # Absent/empty → legacy: all retrieved shown with honesty note.
+    used_passage_ids: list[str] = Field(default_factory=list)
     report_id: Optional[str] = None
 
 
@@ -141,7 +145,12 @@ class HttpLLMProvider:
             recommendations=ReportSection(text=wire.recommendations, cited_finding_ids=[]),
             synthetic=synthetic,
             clinically_validated=False,
-            rag_citations=list(request.generation.rag_passages),
+        )
+        report = apply_used_passages_to_report(
+            report,
+            list(request.generation.rag_passages),
+            list(wire.used_passage_ids) or None,
+            related_finding_ids=cited[:1] if cited else None,
         )
         return LLMResponse(
             provider_id=self.provider_id,

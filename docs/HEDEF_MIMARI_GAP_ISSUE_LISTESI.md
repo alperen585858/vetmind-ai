@@ -1,11 +1,15 @@
 # VetMind AI — Hedef Mimari Gap & Issue Listesi
 
 > **Kaynak diyagram:** Hedef pipeline (DICOM/Document Upload → Secure Ingestion → Classifier / Document Processing → Model Router → Vision modelleri → Normalizer / Fusion → Structured Findings → LLM + RAG → Validator → Radiologist Review → Approved Report / Feedback·Audit)  
-> **Tarih:** 2026-10-24  
+> **Tarih:** 2026-10-24 · **Senkron:** 2026-10-25  
 > **Kod gerçeği:** Backend `0.2.0` · modular monolith · varsayılan çıktılar `MOCK` / `SYNTHETIC`  
 > **Verdict:** Diyagramdaki **iskelet** büyük ölçüde mevcut · diyagramdaki **klinik/gerçek AI** katmanları **yok veya stub** · Demo **GO** · Klinik üretim **NO-GO**
 
 Bu belge, fotoğraftaki hedef mimariyi **bileşen bileşen** mevcut kodla karşılaştırır ve tüm açık issue’ları tek listede toplar. Davranış çelişkisinde kaynak kod (`container.py`, `orchestrator.py`, adapter’lar) esas alınır.
+
+**Bağlama kılavuzu (AI/LLM/veri gelince):** [INTEGRATION_PLAYBOOK.md](INTEGRATION_PLAYBOOK.md) · [PHASE_20_FINAL_AI_READINESS.md](PHASE_20_FINAL_AI_READINESS.md)
+
+**2026-10-25 senkron (kod kazanımları):** ISS-CLS-01 hibrit iskelet (metadata + series_hint) · ISS-AUD-01 FeedbackStore · ISS-FUS-01 ontology/laterality · ISS-FE-01 DEMO FICTION etiketleri — aşağıdaki tablolarda **DONE** işaretli. Kalan aktif iş: plug-in hazırlığı (RAG used-passages tüm provider’lar, wire fixture, korumalı fail-fast, bulk KB).
 
 İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [PROJE_MIMARI_DEGERLENDIRME.md](../PROJE_MIMARI_DEGERLENDIRME.md) · [audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](audits/PHASE_8_SECURITY_ASYNC.md)
 
@@ -73,14 +77,14 @@ Vision Vision Vision     VLM           │
 | 1 | DICOM / Document Upload | `api/dicom.py`, `api/documents.py`, FE `DicomUpload` | ✅ Kısmi | Upload var; PACS/DICOMweb yok |
 | 2 | Secure Ingestion & Storage | `storage/quarantine.py` | ⚠️ Stub güvenli | SHA256+manifest var; AV / encryption-at-rest yok |
 | 3 | DICOM Metadata / Series Parser | `dicom/parser.py`, `imaging/series_selection.py` | ✅ Kısmi | Metadata parse + series seçimi; piksel decode üretim yolu kapalı |
-| 4 | Hybrid Classification | `dicom/classifier.py` | ⚠️ Zayıf | Sadece metadata/token kuralları; gerçek “hybrid” (vision+rules) yok |
+| 4 | Hybrid Classification | `dicom/classifier.py` | ✅ İskelet | Metadata + series_hint hibrit sinyal; eğitilmiş vision sınıflandırıcı BOUNDARY |
 | 5 | Document Processing | `ingest/documents.py`, `document_service.py` | ⚠️ Stub | PDF/text extract; OCR/caption yok |
 | 6 | Model Router + Execution Policy | `routing/model_router.py`, `scenario_policy.py`, `execution_policy.py` | ✅ İskelet | Capability + exclusive_real çalışır; gerçek model yok |
 | 7 | MRI Vision Model | `models/mock_vision.py` (`mock-brain-mri-*`, cervical) | ❌ Mock | Fixture; eğitilmiş MR modeli yok |
 | 8 | CT Vision Model | `mock-ct-3d-v1` | ❌ Mock | Fixture; eğitilmiş CT modeli yok |
 | 9 | X-Ray Vision Model | `mock-xr-vision-v1` | ❌ Mock | Fixture; eğitilmiş XR modeli yok |
 | 10 | Multimodal VLM | `mock-multimodal-vlm-v1` | ❌ Stub | OCR/vision tanı yok; metin bağlam stub |
-| 11 | Output Normalizer | `models/normalizer.py` | ✅ Kısmi | Normalize var; conflict ontology zayıf (F9) |
+| 11 | Output Normalizer | `models/normalizer.py` | ✅ | Normalize + finding ontology / laterality (ISS-FUS-01 DONE iskelet) |
 | 12 | Evidence Fusion + Provenance | `normalizer.py`, `evidence_validation.py`, `source_kind` | ✅ Kısmi | Provenance disiplinli; klinik fusion yok |
 | 13 | Structured Findings | `schemas/findings.py` | ✅ | Tip güvenli DTO mevcut |
 | 14 | Approved Knowledge Base | `rag/corpus.py` (`SEED_CORPUS`) | ⚠️ Demo | Sentetik/eğitim pasajları; onaylı klinik KB değil |
@@ -90,7 +94,7 @@ Vision Vision Vision     VLM           │
 | 18 | Report Validator | `validation/report_validator.py` | ✅ Yapısal | Klinik doğrulama bilinçli engelli |
 | 19 | Radiologist Review | `POST .../review`, FE ExpertReview / workspace | ✅ | Approve/reject/revision + immutable sürüm |
 | 20 | Approved Report | `report_versioning.py`, PDF | ✅ | Immutable onaylı sürüm + print/PDF |
-| 21 | Feedback / Audit Store | `security/audit.py`, `ReviewFeedback` | ⚠️ Kısmi | Security JSONL + review history; model feedback loop / drift store yok |
+| 21 | Feedback / Audit Store | `feedback/store.py`, `security/audit.py` | ✅ İskelet | Reject/revision → FeedbackEvent + export; otomatik retrain BOUNDARY |
 
 **Legenda:** ✅ hedefe yakın iskelet · ⚠️ kısmi/stub · ❌ diyagram vaadi karşılanmıyor (mock veya yok)
 
@@ -116,7 +120,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
-| **ISS-CLS-01** | P1 | “Hybrid Classification” gerçekte hybrid değil — yalnızca DICOM metadata + token kuralları | `dicom/classifier.py` (“No LLM”) | Diyagram vaadiyle uyumsuz; vision-assisted sınıflandırma yok |
+| **ISS-CLS-01** | ✅ DONE | Hibrit iskelet: metadata + series_hint; şeffaf signals | `dicom/classifier.py` | Vision-assisted 2. sinyal hâlâ BOUNDARY (eğitilmiş model yok) |
 | **ISS-CLS-02** | P2 | Desteklenen modalite seti dar (MR/CT/XR); diğerleri MANUAL_REVIEW | `_SUPPORTED_MODALITIES` | Geniş klinik kapsama yok |
 | **ISS-CLS-03** | P2 | Belirsiz/çakışan sınıflandırmada insan onayı zorunlu (iyi) ama otomatik iyileştirme/feedback yok | classifier + confirm API | Feedback loop eksik |
 | **ISS-CLS-04** | P2 | Piksel yolu default-deny; `metadata_only=True` sabit builder yolu | `model_input_builder.py` | Series parser → vision’a gerçek görüntü gitmiyor |
@@ -140,7 +144,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
-| **ISS-FUS-01** | P2 | Conflict detection büyük ölçüde location (+ opsiyonel series UID); ontology/laterality yok | `normalizer.py`, **F9**, **P8-R3** | Gerçek modellerde false ± |
+| **ISS-FUS-01** | ✅ DONE | SOP/series/family + laterality ontology iskeleti | `normalizer.py`, `finding_ontology.yaml` | Klinik ensemble derinliği hâlâ sınırlı (ISS-FUS-02) |
 | **ISS-FUS-02** | P2 | Evidence fusion klinik ensemble değil; mock findings birleştirme | `normalize_outputs` | Diyagramdaki “Evidence Fusion” sığ |
 | **ISS-FUS-03** | P3 | Agreement note “doğruluk kanıtı değil” uyarısı var ama UI’da yanlış okunabilir | `AGREEMENT_NOTE` | Kullanıcı yanılsaması riski |
 
@@ -151,7 +155,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | **ISS-RAG-01** | BOUNDARY | Approved Knowledge Base = sentetik seed corpus; klinik onaylı KB değil | `rag/corpus.py` | Diyagramdaki “Approved” karşılanmıyor |
 | **ISS-RAG-02** | BOUNDARY | Gerçek embedding modeli yok (hash n-gram); sentence-transformers yok | `rag/embeddings.py` | Semantik retrieval zayıf |
 | **ISS-RAG-03** | BOUNDARY | Managed vector DB yok (Qdrant/pgvector); JSON indeks | `JsonVectorStore` | Ölçek / kalite sınırlı |
-| **ISS-RAG-04** | P2 | RAG citations = retrieve edilen tüm pasajlar; LLM’in “kullandığı” filtre yok | **P7-R4** / **P8-R2** | Grounding yanıltıcı |
+| **ISS-RAG-04** | ✅ DONE | used_passage_ids: mock + HTTP wire + stub; chat path legacy uyarı | `rag_grounding.py`, `http_provider.py` | Finding-link soft (ISS-RAG-05) |
 | **ISS-RAG-05** | P2 | Citation ↔ finding bağlama zayıf; skor semantiği dikkat gerektirir | **F13** (kısmen iyileşti) | “Klinik kanıt” sanılabilir |
 | **ISS-RAG-06** | P3 | RAG lisans / kaynak uyumu üretim politikası yok | docs | Legal risk |
 
@@ -162,7 +166,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | **ISS-LLM-01** | BOUNDARY | Veterinary LLM yok — varsayılan `MockLLMProvider` şablon taslak | `llm/mock_provider.py` | Diyagramdaki Veterinary LLM karşılanmıyor |
 | **ISS-LLM-02** | P1 | HTTP LLM bağlanabilir ama VetMind wire contract; keyfi vendor API değil | `http_provider.py` | Entegrasyon sürtünmesi |
 | **ISS-LLM-03** | P2 | LLM sync blocking; async job içinde bile HTTP çağrısı thread’i tutar | gateway + workers | Uzun timeout / cancel zayıf |
-| **ISS-LLM-04** | P2 | Cancel, adapter loop sonrası / LLM sırasında tam cooperative değil | **P7-R3** | İptal gecikmeli |
+| **ISS-LLM-04** | ✅/P3 | Cancel probe LLM sonrası taslağı atar; HTTP çağrısı ortasında kill yok | orchestrator | True mid-HTTP abort ayrı (blocking) |
 | **ISS-LLM-05** | P3 | Document context LLM’e “draft text only” olarak girer; yapılandırılmış klinik NER yok | mock provider `document_context_*` | Document branch sığ |
 
 ### 3.7 Validator, Review, Approved Report
@@ -180,7 +184,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
-| **ISS-AUD-01** | P1 | Diyagramdaki Feedback Store (model iyileştirme döngüsü) yok | Sadece `ReviewFeedback` history | Reject/revision → model retraining/feedback pipeline yok |
+| **ISS-AUD-01** | ✅ DONE | FeedbackStore + API export + FE reason codes | `feedback/store.py` | Otomatik retrain / RLHF BOUNDARY |
 | **ISS-AUD-02** | P2 | Security audit JSONL var ama operasyonel model audit / drift / version monitor yok | `security/audit.py` | Observability eksik |
 | **ISS-AUD-03** | P2 | Retention / legal hold kısmi | `security/retention.py` | Regülasyon paketi yok |
 | **ISS-AUD-04** | P3 | Audit path opsiyonel; test/demo’da memory | settings `audit_log_path` | Prod hijyeni dokümante edilmeli |
@@ -189,14 +193,14 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
-| **ISS-SEC-01** | P2 | Auth varsayılan kapalı (`VETMIND_AUTH_ENABLED`) | settings | Demo güvenli değil; protected mode ayrı |
+| **ISS-SEC-01** | ✅/P3 | Protected → auth zorunlu; encryption no-op fail-fast; readiness auth | settings + models API | Varsayılan demo hâlâ auth kapalı (bilinçli) |
 | **ISS-SEC-02** | BOUNDARY | OAuth / SSO / IdP yok | auth paketi JWT+API key | Kurumsal auth yok |
 | **ISS-SEC-03** | P2 | Multi-tenant kısmi; tam SaaS izolasyonu değil | tenancy | Cross-clinic risk (auth açıkken bile sınırlı) |
 | **ISS-SEC-04** | P2 | Analyze gate multi-node / Redis cluster değil | **P8-R1** | Yatay ölçekte race |
 | **ISS-SEC-05** | P3 | RQ paketleri / Redis ortamda her zaman yok; integration blocked olabilir | Phase 8 audit | Async prod yolu opsiyonel |
-| **ISS-FE-01** | P2 | `src/lib/pipeline.ts` Qdrant / 768-dim / token-s fiction — backend gerçeğiyle karışabilir | `pipeline.ts` | Demo yanılsaması |
+| **ISS-FE-01** | ✅ DONE | DEMO FICTION etiketleri + backend Processing ayrımı | `pipeline.ts`, `Processing.tsx` | Dashboard mock kartları ayrı (ISS-FE-02) |
 | **ISS-FE-02** | P3 | System Status’ta kısmen mock GPU/queue kartları | FE SystemStatus | Altyapı yanılsaması |
-| **ISS-DOC-01** | P3 | `.env.example` / bazı mimari tablolar `settings.py` ile gecikebilir | docs sync | Operasyon hatası riski |
+| **ISS-DOC-01** | ✅/P3 | `.env.example` + INTEGRATION_PLAYBOOK senkronlandı (2026-10-25) | docs sync | Küçük drift riski kalır |
 | **ISS-PER-01** | P2 | Kalıcılık JSON(B) blob; zengin ilişkisel klinik şema yok | sqlite/postgres repos | Raporlama/analitik sınırlı |
 | **ISS-OBS-01** | BOUNDARY | Tracing, metrics, model drift monitoring yok | — | Üretim observability NO-GO |
 | **ISS-INT-01** | BOUNDARY | HL7 / FHIR yok | — | Hastane entegrasyonu yok |
@@ -206,14 +210,14 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | ID | Sev | Kaynak | Durum (2026-10-24) |
 |----|-----|--------|---------------------|
 | **F4** | P3 | AI Architecture | Document confirm + analyze refresh ile büyük ölçüde kapatıldı; residual düşük |
-| **F9** | P2 | AI Architecture | Series UID gruplama eklendi; ontology/laterality açık → **ISS-FUS-01** |
-| **F13** | P2 | AI Architecture | Note/UI iyileşti; unused-passage grounding açık → **ISS-RAG-04/05** |
+| **F9** | ✅/P3 | AI Architecture | Ontology/laterality iskeleti → **ISS-FUS-01 DONE**; residual klinik fusion |
+| **F13** | P2 | AI Architecture | Mock used-passages DONE; HTTP path → **ISS-RAG-04** |
 | **F14** | P3 | AI Architecture | Connect/read timeout + policy wired; POST retry=0 bilinçli → **ISS-VIS-09** |
 | **P7-R3** | P2 | Phase 7 | Cancel cooperative sınırlı → **ISS-LLM-04** |
 | **P7-R4** | P2 | Phase 7 | RAG used-passages → **ISS-RAG-04** |
 | **P8-R1** | P2 | Phase 8 | Multi-node gate → **ISS-SEC-04** |
 | **P8-R2** | P2 | Phase 8 | = P7-R4 |
-| **P8-R3** | P3 | Phase 8 | Conflict ontology → **ISS-FUS-01** |
+| **P8-R3** | ✅ | Phase 8 | Conflict ontology → **ISS-FUS-01 DONE** |
 
 > Not: P7-R1 (forged JWT `role=demo`) ve P8-01/02/03 Phase 8’de düzeltilmiş kabul edilir; bu listede tekrar **açık** issue olarak yazılmaz.
 
@@ -246,18 +250,20 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 ## 5. Öncelikli kapatma sırası (öneri)
 
-### P0 / P1 — güven ve dürüstlük
-1. Korumalı deploy’da auth + tenant + audit zorunlu tutmak (varsayılan demo kapalı kalsın ama dokümante).  
-2. FE `pipeline.ts` fiction’ını net “DEMO ONLY” ayırmak (**ISS-FE-01**).  
-3. Feedback Store en azından reject/revision → yapılandırılmış training-signal kaydı (**ISS-AUD-01**).
+### P0 / P1 — güven ve dürüstlük / plug-in hazırlığı
+1. Korumalı deploy’da auth + tenant + audit zorunlu (**ISS-SEC-01**; encryption no-op fail-fast).  
+2. ~~FE pipeline fiction~~ → **ISS-FE-01 DONE**.  
+3. ~~Feedback Store~~ → **ISS-AUD-01 DONE**.  
+4. Entegrasyon playbook + wire fixture + fail-closed Vision/LLM → [INTEGRATION_PLAYBOOK.md](INTEGRATION_PLAYBOOK.md).
 
 ### P2 — diyagrama yaklaştırma (prototip sertleştirme)
-4. Hybrid classification’a ikinci sinyal (ör. modality-from-pixels stub veya kullanıcı+metadata fusion skoru) veya diyagram metnini “Metadata Classification” olarak düzeltmek.  
-5. OCR / document caption adapter yüzeyi (**ISS-ING-05**).  
-6. RAG used-passages + finding link (**ISS-RAG-04/05**).  
-7. Conflict ontology / laterality (**ISS-FUS-01**).  
-8. Cancel probe’u LLM aşamasına taşımak (**ISS-LLM-04**).  
-9. Multi-node analyze gate (**ISS-SEC-04**).
+5. ~~Hybrid classification iskelet~~ → **ISS-CLS-01 DONE** (vision 2. sinyal BOUNDARY).  
+6. OCR / document caption adapter yüzeyi (**ISS-ING-05**).  
+7. RAG used-passages tüm LLM path’leri + finding link (**ISS-RAG-04/05**).  
+8. ~~Conflict ontology / laterality~~ → **ISS-FUS-01 DONE**.  
+9. Cancel probe’u LLM aşamasına taşımak (**ISS-LLM-04**).  
+10. Multi-node analyze gate (**ISS-SEC-04**).  
+11. Bulk KB ingest + `approved=false` default.
 
 ### BOUNDARY — klinik üretim (ayrı program)
 10. Eğitilmiş / valide MRI·CT·XR·VLM + piksel pipeline.  

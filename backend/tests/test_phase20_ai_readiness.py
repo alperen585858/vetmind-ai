@@ -140,13 +140,22 @@ def test_schema_validation_and_config_blockers() -> None:
 
 def test_readiness_exposes_blockers_and_remaining_steps(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    res = client.get("/api/v1/models/readiness")
+    res = client.get(
+        "/api/v1/models/readiness",
+        headers={"X-API-Key": "test-api-key"},
+    )
     assert res.status_code == 200
     body = res.json()
     assert "blockers" in body["models"][0]
     assert "remaining_steps_to_first_real_model" in body
     assert body["models_with_blockers"] >= 1
     assert len(body["remaining_steps_to_first_real_model"]) >= 3
+
+
+def test_readiness_requires_auth_when_enabled(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    denied = client.get("/api/v1/models/readiness")
+    assert denied.status_code == 401
 
 
 def test_synthetic_integration_walkthrough_dicom_to_draft(tmp_path: Path) -> None:

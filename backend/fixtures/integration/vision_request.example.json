@@ -1,0 +1,12 @@
+{
+  "model_id": "remote-vision-v1",
+  "case_id": "case-example-001",
+  "species": "canine",
+  "modality": "MR",
+  "anatomical_region": "BRAIN",
+  "clinical_history": "Seizures, progressive ataxia (redacted as needed by gateway).",
+  "model_input": {
+    "note": "Full ImagingModelInput JSON from VetMind prepare_model_input — metadata-first; pixels only if explicitly authorized."
+  },
+  "note": "Remote Vision request. Server must not invent clinical certainty."
+}

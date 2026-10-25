@@ -1,0 +1,9 @@
+{
+  "technique": "Canine MR brain — draft technique section.",
+  "findings": "Suspected mass effect [f-1]. Educational RAG context may apply.",
+  "impression": "Indeterminate — radiologist review required. Not clinically validated.",
+  "recommendations": "1. Expert review of source images.\n2. Do not treat RAG passages as clinical proof.",
+  "cited_finding_ids": ["f-1"],
+  "used_passage_ids": ["kb-1"],
+  "report_id": "http-rpt-example001"
+}

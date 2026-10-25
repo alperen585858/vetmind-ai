@@ -19,6 +19,8 @@ class IndexedDoc:
     passage: str
     keywords: list[str]
     vector: list[float]
+    # Clinic-approved knowledge flag — default false (never imply clinical KB).
+    approved: bool = False
 
 
 class JsonVectorStore:
@@ -46,6 +48,7 @@ class JsonVectorStore:
                 passage=d["passage"],
                 keywords=list(d.get("keywords") or []),
                 vector=list(d["vector"]),
+                approved=bool(d.get("approved", False)),
             )
             for d in raw.get("documents", [])
         ]
@@ -94,7 +97,9 @@ class JsonVectorStore:
             self.save()
         return len(self._docs)
 
-    def add_corpus_doc(self, doc: CorpusDoc, *, persist: bool = True) -> IndexedDoc:
+    def add_corpus_doc(
+        self, doc: CorpusDoc, *, persist: bool = True, approved: bool = False
+    ) -> IndexedDoc:
         text = f"{doc.title} {doc.section} {doc.passage} {' '.join(doc.keywords)}"
         indexed = IndexedDoc(
             source_id=doc.source_id,
@@ -103,6 +108,7 @@ class JsonVectorStore:
             passage=doc.passage,
             keywords=list(doc.keywords),
             vector=self._backend.embed(text),
+            approved=approved,
         )
         self._docs = [d for d in self._docs if d.source_id != indexed.source_id]
         self._docs.append(indexed)
@@ -118,6 +124,7 @@ class JsonVectorStore:
         section: str,
         passage: str,
         keywords: list[str] | None = None,
+        approved: bool = False,
     ) -> IndexedDoc:
         doc = CorpusDoc(
             source_id=source_id,
@@ -126,7 +133,41 @@ class JsonVectorStore:
             passage=passage,
             keywords=tuple(keywords or ()),
         )
-        return self.add_corpus_doc(doc, persist=True)
+        return self.add_corpus_doc(doc, persist=True, approved=approved)
+
+    def add_documents_bulk(
+        self,
+        items: list[dict],
+        *,
+        default_approved: bool = False,
+    ) -> list[IndexedDoc]:
+        """Bulk-index dict rows with keys title/section/passage/keywords/source_id/approved."""
+        out: list[IndexedDoc] = []
+        for raw in items:
+            source_id = str(raw.get("source_id") or "").strip() or None
+            title = str(raw.get("title") or "").strip()
+            passage = str(raw.get("passage") or "").strip()
+            if not title or not passage:
+                continue
+            if not source_id:
+                from uuid import uuid4
+
+                source_id = f"custom-{uuid4().hex[:10]}"
+            keywords = raw.get("keywords") or []
+            if isinstance(keywords, str):
+                keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+            approved = bool(raw.get("approved", default_approved))
+            out.append(
+                self.add_document(
+                    source_id=source_id,
+                    title=title,
+                    section=str(raw.get("section") or "Custom"),
+                    passage=passage,
+                    keywords=list(keywords),
+                    approved=approved,
+                )
+            )
+        return out
 
     @property
     def documents(self) -> list[IndexedDoc]:

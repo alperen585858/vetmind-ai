@@ -1,0 +1,29 @@
+{
+  "execution_status": "success",
+  "source_kind": "real",
+  "warnings": [
+    "Example response only — not clinical output.",
+    "source_kind=real does not imply clinical validation."
+  ],
+  "findings": [
+    {
+      "finding_id": "remote-f-1",
+      "finding_code": "EXAMPLE-MASS-EFFECT",
+      "description": "Suspected mass effect — example payload for wire testing.",
+      "anatomical_location": "forebrain",
+      "finding_status": "suspected",
+      "synthetic": false,
+      "model_confidence": 0.42,
+      "uncertainty_note": "Requires radiologist confirmation.",
+      "evidence_references": [
+        {
+          "evidence_id": "ev-1",
+          "description": "Series hint only",
+          "series_instance_uid": "1.2.840.example.series",
+          "sop_instance_uid": "1.2.840.example.sop",
+          "frame_index": 0
+        }
+      ]
+    }
+  ]
+}

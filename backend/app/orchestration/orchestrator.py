@@ -282,6 +282,25 @@ class AIOrchestrator:
                     messages=list(dict.fromkeys(messages)),
                 )
 
+            # Cooperative cancel during/after LLM: discard draft if cancel was requested
+            # while the (blocking) provider call ran (ISS-LLM-04).
+            if _cancelled():
+                job.status = JobStatus.CANCELLED
+                job.outcome = PipelineOutcome.FAILED
+                job.error_message = "Cancelled during/after LLM draft (cooperative cancel)."
+                job.completed_at = _now()
+                case.status = CaseLifecycleStatus.FAILED
+                case.structured_findings = findings
+                case.draft_report = None
+                case.updated_at = _now()
+                return PipelineResult(
+                    job=job,
+                    findings=findings,
+                    report=None,
+                    outcome=PipelineOutcome.FAILED,
+                    messages=messages + [job.error_message],
+                )
+
             validation = self._validator.validate(report, findings)
             messages.extend(validation.warnings)
             messages.extend(validation.errors)

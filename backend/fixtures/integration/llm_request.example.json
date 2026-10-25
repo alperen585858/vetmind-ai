@@ -1,0 +1,43 @@
+{
+  "provider_id": "http-llm",
+  "model_id": "generic-http-llm",
+  "model_version": "0.1.0",
+  "instructions": "Produce a structured veterinary radiology DRAFT. Never claim clinical validation.",
+  "generation": {
+    "case_id": "case-example-001",
+    "species": "canine",
+    "modality": "MR",
+    "anatomical_region": "BRAIN",
+    "clinical_history": "[HASTA] — redacted history sample",
+    "findings": [
+      {
+        "finding_id": "f-1",
+        "finding_code": "EXAMPLE-MASS-EFFECT",
+        "description": "Suspected mass effect",
+        "anatomical_location": "forebrain",
+        "finding_status": "suspected",
+        "source_model": "remote-vision-v1"
+      }
+    ],
+    "findings_source_kind": "real",
+    "execution_status": "success",
+    "rag_passages": [
+      {
+        "source_id": "kb-1",
+        "title": "Example KB",
+        "section": "Neuro",
+        "passage": "Educational passage only.",
+        "score": 0.71
+      },
+      {
+        "source_id": "kb-2",
+        "title": "Example KB 2",
+        "section": "Neuro",
+        "passage": "Another retrieved passage.",
+        "score": 0.55
+      }
+    ],
+    "rag_is_clinical_validation": false
+  },
+  "note": "Generic VetMind HTTP LLM wire format. Not OpenAI/Anthropic native API."
+}

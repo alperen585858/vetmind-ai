@@ -754,6 +754,9 @@ Gerçek modeller / altyapı eklerken orchestrator’ı yeniden yazmak gerekmez:
 | Belge | Amaç |
 |-------|------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Mimari, API, kalıcılık, frontend, güvenlik, demo |
+| [docs/INTEGRATION_PLAYBOOK.md](docs/INTEGRATION_PLAYBOOK.md) | AI/LLM/veri gelince bağlama (basit Türkçe) |
+| [docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md) | Hedef mimari gap / issue listesi |
+| [docs/PHASE_20_FINAL_AI_READINESS.md](docs/PHASE_20_FINAL_AI_READINESS.md) | İlk gerçek model için 8 adım |
 | [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md) | AI/LLM pipeline, mock↔real, eksikler |
 | [docs/PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) | DICOM + vaka yönetimi |
 | [docs/PHASE_3_AI_READINESS.md](docs/PHASE_3_AI_READINESS.md) | Model adapter hazırlığı |
