@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { useApp } from '../context/AppContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { SourcePanel } from './SourcePanel'
 
 export function Layout() {
   const [menu, setMenu] = useState(false)
+  const { role, refreshBackendCases } = useApp()
+
+  // Cases start empty after a page refresh; load them once for every signed-in page
+  // (dashboards, sidebar badge) instead of relying on each page to fetch.
+  useEffect(() => {
+    void refreshBackendCases()
+  }, [role, refreshBackendCases])
+
   return (
     <div className="min-h-screen bg-transparent">
       <a href="#main-content" className="skip-link no-print">

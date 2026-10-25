@@ -88,7 +88,7 @@ export default function CaseDetail() {
     setLoadError(null)
     void hydrateBackendCase(id).then((mapped) => {
       if (!mapped) {
-        setLoadError('Vaka backend’den yüklenemedi. Yetki veya ağ sorununu kontrol edin.')
+        setLoadError('Vaka yüklenemedi. Yetki veya ağ sorununu kontrol edin.')
       }
       setLoading(false)
     })
@@ -111,7 +111,7 @@ export default function CaseDetail() {
     void hydrateBackendCase(id).then((mapped) => {
       if (cancelled) return
       if (!mapped && !getCase(id)) {
-        setLoadError('Vaka backend’den yüklenemedi.')
+        setLoadError('Vaka yüklenemedi.')
       }
       setLoading(false)
     })
@@ -1180,7 +1180,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
           <Card>
             <CardHeader
               title="Kaynaklar / RAG"
-              subtitle={c.backendDraft?.rag_citations?.length ? 'Backend lexical/embedding RAG citations' : 'Yerel prototip kaynakları'}
+              subtitle={c.backendDraft?.rag_citations?.length ? 'Backend lexical/embedding RAG citations' : 'Bu taslak için RAG alıntısı yok'}
               icon={<BookOpen className="h-5 w-5" />}
             />
             {c.backendDraft?.rag_citations?.length ? (

@@ -70,7 +70,7 @@ export default function ExpertReview() {
         <EmptyState
           icon={<FileSearch className="h-6 w-6" />}
           title="Uzman inceleme yükleniyor…"
-          text="Vaka backend’den alınırken lütfen bekleyin."
+          text="Vaka yüklenirken lütfen bekleyin."
         />
       </Card>
     )

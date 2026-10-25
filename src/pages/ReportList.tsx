@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileCheck2, FileText } from 'lucide-react'
+import { AlertTriangle, FileCheck2, FileText, Loader2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
@@ -9,9 +10,28 @@ import { SpeciesIcon } from '../components/CaseTable'
 import { fmtDate } from '../lib/format'
 
 export default function ReportList() {
-  const { cases, role, user } = useApp()
+  const { cases, role, session, refreshBackendCases } = useApp()
   const nav = useNavigate()
-  const reports = cases.filter((c) => c.status === 'onaylandi' && (role !== 'owner' || c.patient.ownerName === user?.name))
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Cases live only in the backend; fetch on mount so a page refresh does not show an empty list.
+  useEffect(() => {
+    let cancelled = false
+    void refreshBackendCases().then((r) => {
+      if (cancelled) return
+      setLoadError(r.ok ? null : 'Raporlar yüklenemedi. Sunucu bağlantısını kontrol edin.')
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshBackendCases])
+
+  // Owners see reports for their own pets (pet_owner_subject is the owner's login email).
+  const reports = cases.filter(
+    (c) => c.status === 'onaylandi' && (role !== 'owner' || (c.petOwnerSubject ?? c.patient.ownerName) === session?.email),
+  )
   return (
     <>
       <PageHeader
@@ -20,7 +40,11 @@ export default function ReportList() {
         crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar' }]}
       />
       <Card>
-        {reports.length ? (
+        {loading && !reports.length ? (
+          <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Raporlar yükleniyor…" />
+        ) : loadError && !reports.length ? (
+          <EmptyState icon={<AlertTriangle className="h-6 w-6" />} title="Raporlar yüklenemedi" text={loadError} />
+        ) : reports.length ? (
           <ul className="divide-y divide-slate-100">
             {reports.map((c) => (
               <li key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
@@ -32,7 +56,9 @@ export default function ReportList() {
                     <SpeciesIcon species={c.patient.species} /> {c.patient.name} — Nöroloji Değerlendirme Raporu
                   </p>
                   <p className="text-xs text-slate-500">
-                    {c.reportNo ?? c.no} · Onaylayan: {c.approvedBy ?? '—'} · {fmtDate(c.approvedAt)}
+                    {c.reportNo ?? c.no}
+                    {c.approvedBy ? ` · Onaylayan: ${c.approvedBy}` : ''}
+                    {c.approvedAt || c.reportAvailableAt ? ` · ${fmtDate(c.approvedAt ?? c.reportAvailableAt)}` : ''}
                     {c.reportViewedAt ? ' · görüldü' : c.reportDeliveredAt ? ' · iletildi' : ''}
                   </p>
                 </div>
