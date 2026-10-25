@@ -7,6 +7,7 @@ import { Card, CardHeader } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
+import { currentActorId } from '../lib/auth'
 import { listBackendWorklist, updateCaseAssignment } from '../lib/backend'
 import { summaryToVetCase } from '../lib/caseMapper'
 import type { BackendCaseSummary } from '../types'
@@ -120,7 +121,7 @@ export default function ReviewQueue() {
             <select id="wl-assigned" className="input mt-1" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
               <option value="">Tümü</option>
               <option value="unassigned">Atanmamış</option>
-              <option value="expert-demo">expert-demo</option>
+              <option value={currentActorId()}>Bana atananlar</option>
             </select>
           </label>
         </div>
@@ -198,7 +199,7 @@ export default function ReviewQueue() {
                           className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-navy-900"
                           onClick={() => {
                             void updateCaseAssignment(c.backendCaseId || c.id, {
-                              assigned_reviewer_id: 'expert-demo',
+                              assigned_reviewer_id: currentActorId(),
                               priority:
                                 c.priority === 'STAT'
                                   ? 'stat'

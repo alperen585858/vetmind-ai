@@ -44,7 +44,7 @@ export function RagCitations({
     <div>
       {legacyAllRetrieved && (
         <p className="border-b border-amber-100 bg-amber-50 px-5 py-2 text-[11px] text-amber-900">
-          Legacy: <code className="font-mono">used_passage_ids</code> yok — retrieve edilen tüm pasajlar
+          Eski kayıt: modelin hangi pasajları kullandığı bilgisi yok — bulunan tüm pasajlar
           gösteriliyor; modelin kullandığı anlamına gelmez.
         </p>
       )}
@@ -61,14 +61,14 @@ export function RagCitations({
                     <span className="mr-1.5 rounded bg-teal-100 px-1 text-[11px] font-semibold text-teal-800">{aliasOf.get(c.source_id)}</span>
                   )}
                   [{c.source_id}] {c.title}
-                  <span className="ml-2 font-mono text-[11px] text-slate-400" title="Retrieval similarity only — not clinical confidence">
-                    retrieval_score={c.score}
+                  <span className="ml-2 font-mono text-[11px] text-slate-400" title="Yalnızca metin benzerliği — klinik güven düzeyi değildir">
+                    benzerlik: {c.score}
                   </span>
                 </p>
                 <p className="text-xs text-slate-500">{c.section}</p>
                 {(c.related_finding_ids?.length ?? 0) > 0 && (
                   <p className="mt-0.5 font-mono text-[11px] text-teal-800">
-                    related_findings={c.related_finding_ids!.join(', ')}
+                    İlgili bulgu: {c.related_finding_ids!.join(', ')}
                   </p>
                 )}
                 <p className="mt-1 text-sm leading-relaxed text-navy-800">{c.passage}</p>

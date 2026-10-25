@@ -16,11 +16,11 @@ from app.rag.vector_store import JsonVectorStore
 def test_breed_morphotype_json_becomes_rag_documents() -> None:
     documents = load_breed_morphotype_documents()
     assert len(documents) == 25
-    morphotypes = [doc for doc in documents if doc.section == "Breed morphology"]
+    morphotypes = [doc for doc in documents if doc.section == "Irk morfolojisi"]
     assert len(morphotypes) == 6
     assert any("Siamese" in doc.keywords for doc in morphotypes)
     assert any("Golden Retriever" in doc.keywords for doc in morphotypes)
-    assert all("not an exhaustive breed registry" in doc.passage for doc in morphotypes)
+    assert all("eksiksiz bir ırk kaydı değildir" in doc.passage for doc in morphotypes)
 
 
 def test_lexical_and_embedding_retrievers_can_find_breed_reference() -> None:

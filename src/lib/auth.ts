@@ -184,6 +184,25 @@ export function login(email: string, password: string): DemoSession {
   return session
 }
 
+const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
+
+/**
+ * Session for an account that exists only in the backend directory (created by an
+ * admin on Kullanıcılar). The backend has already verified the password.
+ */
+export function backendAccountSession(email: string, role: string): DemoSession {
+  if (!ROLES.includes(role as Role)) throw new Error('Bu hesabın rolü web arayüzünde desteklenmiyor.')
+  const normalized = email.trim().toLowerCase()
+  const session: DemoSession = {
+    accountId: `backend-${normalized}`,
+    email: normalized,
+    role: role as Role,
+    name: normalized.split('@')[0],
+  }
+  saveSession(session)
+  return session
+}
+
 export function register(input: {
   name: string
   email: string
@@ -245,4 +264,13 @@ export const DEMO_PASSWORD = 'demo1234'
 export function demoEmailForRole(role: Role): string {
   if (role === 'clinic_owner') return 'clinic-owner@demo.local'
   return `${role}@demo.local`
+}
+
+/**
+ * Identity sent as reviewer / editor / assignee: the signed-in user's email.
+ * Matches the JWT subject the backend binds to when auth is on, so assignments,
+ * worklist filters and notifications all use one id.
+ */
+export function currentActorId(): string {
+  return loadSession()?.email ?? demoEmailForRole('expert')
 }

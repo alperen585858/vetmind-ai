@@ -80,7 +80,7 @@ def test_real_output_not_synthetic_by_default() -> None:
     assert merged.findings[0].synthetic is False
     assert merged.findings[0].source_model == "future-real-adapter"
     assert merged.findings[0].source_model_version == "1.0.0"
-    assert any("does not imply clinical validation" in w for w in merged.warnings)
+    assert any("klinik doğrulama anlamına gelmez" in w for w in merged.warnings)
 
 
 def test_mixed_fusion_retains_per_finding_identity() -> None:
@@ -154,4 +154,4 @@ def test_contradictory_provenance_flagged_not_rewritten() -> None:
     merged = normalize_outputs([contradictory])
     assert merged.findings[0].synthetic is True  # not rewritten
     assert merged.source_kind == SourceKind.REAL
-    assert any("contradictory provenance" in w.lower() for w in merged.warnings)
+    assert any("çelişkili kaynak bilgisi" in w for w in merged.warnings)

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
-import { BackendUnavailableError, searchRag } from '../lib/backend'
+import { BackendUnavailableError, addRagDocument, listCustomRagDocuments, searchRag, type RagCustomDocument } from '../lib/backend'
 import { fmtDate, today } from '../lib/format'
 import type { KbSource } from '../types'
 
@@ -32,13 +32,39 @@ function localSearch(q: string, sources: KbSource[]): Hit[] {
     .slice(0, 5)
 }
 
+// Type and license have no backend field; they travel in the section as "Tür · Lisans".
+function fromBackendDoc(d: RagCustomDocument, i: number): KbSource {
+  const [type, license] = d.section.split(' · ')
+  return {
+    id: 20_000 + i,
+    title: d.title,
+    type: (['Kitap', 'Bilimsel yayın', 'VRM örnek rapor'].includes(type) ? type : 'Bilimsel yayın') as KbSource['type'],
+    license: license === 'İzinli' ? 'İzinli' : 'Beklemede',
+    section: 'Eklenen kaynak',
+    passage: d.passage,
+    chunks: 1,
+    indexedAt: today(),
+    keywords: d.keywords,
+  }
+}
+
 export default function KnowledgeBase() {
-  const { kbSources, addKbSource, updateKbSource, pushToast, openSource } = useApp()
+  const { kbSources: seedSources, pushToast, openSource } = useApp()
+  const [custom, setCustom] = useState<KbSource[]>([])
+  const [saving, setSaving] = useState(false)
+  const kbSources = [...custom, ...seedSources]
+
+  useEffect(() => {
+    void listCustomRagDocuments()
+      .then((docs) => setCustom(docs.map(fromBackendDoc)))
+      .catch(() => setCustom([]))
+  }, [])
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(false)
   const [hits, setHits] = useState<Hit[] | null>(null)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ title: '', type: 'Bilimsel yayın' as KbSource['type'], license: 'Beklemede' as KbSource['license'] })
+  const emptyForm = { title: '', passage: '', type: 'Bilimsel yayın' as KbSource['type'], license: 'Beklemede' as KbSource['license'] }
+  const [form, setForm] = useState(emptyForm)
 
   const run = (query = q) => {
     if (!query.trim()) return
@@ -76,16 +102,20 @@ export default function KnowledgeBase() {
     })()
   }
 
-  const add = () => {
-    const id = Math.max(...kbSources.map((s) => s.id)) + 1
-    addKbSource({ id, title: form.title, type: form.type, license: form.license, section: 'Tüm bölümler', passage: 'Yeni eklenen kaynak (demo). İçerik indekslendiğinde ilgili pasajlar burada gösterilecek.', chunks: 0, indexedAt: today(), keywords: [], indexing: true })
-    setModal(false)
-    setForm({ title: '', type: 'Bilimsel yayın', license: 'Beklemede' })
-    pushToast({ tone: 'info', title: 'Kaynak indeksleniyor', body: form.title })
-    setTimeout(() => {
-      updateKbSource(id, { indexing: false, chunks: 80 + ((id * 97) % 300) })
-      pushToast({ tone: 'success', title: 'İndeksleme tamamlandı', body: form.title })
-    }, 3000)
+  const add = async () => {
+    setSaving(true)
+    try {
+      await addRagDocument({ title: form.title.trim(), section: `${form.type} · ${form.license}`, passage: form.passage.trim() })
+      const docs = await listCustomRagDocuments()
+      setCustom(docs.map(fromBackendDoc))
+      setModal(false)
+      setForm(emptyForm)
+      pushToast({ tone: 'success', title: 'Kaynak eklendi ve indekslendi', body: 'Artık RAG aramasında ve rapor taslaklarında kullanılabilir.' })
+    } catch (err) {
+      pushToast({ tone: 'error', title: 'Kaynak eklenemedi', body: err instanceof Error ? err.message : undefined })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -200,7 +230,7 @@ export default function KnowledgeBase() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setModal(false)}>Vazgeç</Button>
-            <Button disabled={!form.title.trim()} onClick={add}>Ekle ve indeksle</Button>
+            <Button disabled={!form.title.trim() || !form.passage.trim() || saving} onClick={() => void add()}>{saving ? 'İndeksleniyor…' : 'Ekle ve indeksle'}</Button>
           </>
         }
       >
@@ -226,7 +256,15 @@ export default function KnowledgeBase() {
               </select>
             </div>
           </div>
-          <div className="rounded-lg border-2 border-dashed border-slate-200 p-4 text-center text-sm text-slate-500">PDF dosyası (demo — yükleme simüle edilir)</div>
+          <div>
+            <label className="label">İçerik (pasaj)</label>
+            <textarea
+              className="input min-h-[120px]"
+              value={form.passage}
+              onChange={(e) => setForm({ ...form, passage: e.target.value })}
+              placeholder="Kaynaktan RAG aramasında kullanılacak metni yapıştırın."
+            />
+          </div>
         </div>
       </Modal>
     </>

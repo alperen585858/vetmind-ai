@@ -8,8 +8,8 @@ from app.schemas.findings import ConflictReasonCode, Finding, PotentialConflict,
 from app.schemas.model_input import ImagingModelInput
 
 AGREEMENT_NOTE = (
-    "Multiple models reported findings at the same location. "
-    "Agreement does not prove clinical correctness."
+    "Birden fazla model aynı konumda bulgu bildirdi. "
+    "Modellerin uyuşması klinik doğruluğu kanıtlamaz."
 )
 
 _OPPOSING_LATERALITY = {
@@ -123,23 +123,23 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
         if incompatible_codes:
             reason_codes.append(ConflictReasonCode.CROSS_FAMILY.value)
             reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
-            reason_parts.append(f"distinct finding_codes={sorted(codes)} families={sorted(families)}")
+            reason_parts.append(f"farklı bulgu kodları={sorted(codes)} aileler={sorted(families)}")
         elif same_family_diff and (opposing_status or soft_status):
             reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
-            reason_parts.append(f"same-family code variance={sorted(codes)}")
+            reason_parts.append(f"aynı ailede farklı kodlar={sorted(codes)}")
         if opposing_status or soft_status:
             reason_codes.append(ConflictReasonCode.OPPOSING_STATUS.value)
-            reason_parts.append(f"distinct statuses={[s.value for s in statuses]}")
+            reason_parts.append(f"farklı durumlar={[s.value for s in statuses]}")
         if laterality_clash:
             reason_codes.append(ConflictReasonCode.OPPOSING_LATERALITY.value)
-            reason_parts.append(f"opposing laterality={sorted(lateralities)}")
+            reason_parts.append(f"zıt taraf (lateralite)={sorted(lateralities)}")
         if same_sop:
             reason_codes.append(ConflictReasonCode.SAME_SOP_DIVERGENT.value)
-        reason_parts.append(f"models={sorted(models)}")
-        reason_parts.append(f"group_key={group_key}")
+        reason_parts.append(f"modeller={sorted(models)}")
+        reason_parts.append(f"grup={group_key}")
         series_uids = {s for s in (_primary_series_uid(f) for f in group) if s}
         if series_uids:
-            reason_parts.append(f"series_uids={sorted(series_uids)}")
+            reason_parts.append(f"seriler={sorted(series_uids)}")
 
         # Deduplicate reason codes while preserving order
         reason_codes = list(dict.fromkeys(reason_codes))
@@ -153,7 +153,7 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
                 conflict_id=conflict_id,
                 finding_ids=[f.finding_id for f in group],
                 anatomical_location_key=loc_key if group_key == f"loc:{loc_key}" else group_key,
-                reason="POTENTIAL CONFLICT PRESERVED: " + "; ".join(reason_parts),
+                reason="OLASI ÇELİŞKİ KORUNDU: " + "; ".join(reason_parts),
                 reason_codes=reason_codes,
                 group_key=group_key,
             )
@@ -238,13 +238,13 @@ def normalize_outputs(
         warnings.insert(0, MOCK_DISCLAIMER)
     if resolved_kind == SourceKind.MIXED:
         warnings.append(
-            "MIXED provenance: contributing adapters reported more than one source_kind. "
-            "Inspect contributing_source_kinds and per-finding source_model; do not treat the fused "
-            "output as a single validated clinical source."
+            "KARMA KAYNAK: katkı veren modeller birden fazla kaynak türü bildirdi. "
+            "Katkı veren kaynakları ve her bulgunun modelini inceleyin; birleşik çıktıyı "
+            "tek ve doğrulanmış bir klinik kaynak olarak kabul etmeyin."
         )
     if resolved_kind == SourceKind.REAL:
         warnings.append(
-            "source_kind=real preserves adapter provenance only; it does not imply clinical validation."
+            "Kaynak türü 'gerçek' yalnızca modelin kaynağını belirtir; klinik doğrulama anlamına gelmez."
         )
 
     # Flag contradictory finding-level provenance; never silently rewrite.
@@ -257,13 +257,13 @@ def normalize_outputs(
         }
         if SourceKind.REAL in parent_kinds and finding.synthetic:
             warnings.append(
-                f"Contradictory provenance on {finding.finding_id}: "
-                "REAL-sourced finding marked synthetic=true (preserved, not rewritten)."
+                f"{finding.finding_id} için çelişkili kaynak bilgisi: "
+                "gerçek kaynaklı bulgu sentetik olarak işaretli (değiştirilmeden korundu)."
             )
         if parent_kinds == {SourceKind.MOCK} and not finding.synthetic:
             warnings.append(
-                f"Contradictory provenance on {finding.finding_id}: "
-                "MOCK-sourced finding marked synthetic=false (preserved, not rewritten)."
+                f"{finding.finding_id} için çelişkili kaynak bilgisi: "
+                "demo kaynaklı bulgu sentetik değil olarak işaretli (değiştirilmeden korundu)."
             )
 
     warnings.extend(validate_evidence_references(merged_findings, model_input))

@@ -37,7 +37,7 @@ def test_analyze_brain_mri_and_fetch_report(client: TestClient) -> None:
     report = client.get(f"/api/v1/cases/{case_id}/report")
     assert report.status_code == 200
     assert report.json()["synthetic"] is True
-    assert "SYNTHETIC DRAFT" in report.json()["findings"]["text"]
+    assert "SENTETİK TASLAK" in report.json()["findings"]["text"]
 
 
 def test_review_approve(client: TestClient) -> None:

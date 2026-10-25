@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { demoEmailForRole } from '../lib/auth'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
@@ -521,7 +522,7 @@ export default function Submissions() {
           action === 'request_info'
             ? infoRequestText[id]?.trim() || 'Lütfen klinik öyküyü tamamlayın.'
             : undefined,
-        assigned_reviewer_id: action === 'accept' ? 'expert@demo.local' : undefined,
+        assigned_reviewer_id: action === 'accept' ? demoEmailForRole('expert') : undefined,
         run_analyze: action === 'accept',
         vet_notes: action === 'accept' ? 'Klinik doğrulama tamam' : undefined,
       })

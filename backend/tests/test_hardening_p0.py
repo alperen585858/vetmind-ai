@@ -90,7 +90,7 @@ def test_validation_failed_cannot_approve(client: TestClient) -> None:
     assert res.status_code == 409
     detail = res.json()["detail"]
     assert isinstance(detail, dict)
-    assert any("Invalid finding references" in e for e in detail["errors"])
+    assert any("Geçersiz bulgu atıfları" in e for e in detail["errors"])
 
 
 def test_validator_status_not_overwritten_by_orchestrator() -> None:
@@ -131,7 +131,7 @@ def test_review_edits_are_revalidated(client: TestClient) -> None:
     assert res.status_code == 409
     detail = res.json()["detail"]
     assert isinstance(detail, dict)
-    assert any("impression" in e for e in detail["errors"])
+    assert any("Değerlendirme" in e for e in detail["errors"])
 
 
 def test_mock_provenance_preserved() -> None:
@@ -206,7 +206,7 @@ def test_mixed_model_provenance_preserved() -> None:
     assert set(merged.contributing_source_kinds) == {SourceKind.MOCK, SourceKind.REAL}
     assert set(merged.contributing_model_ids) == {"mock-brain-mri-v1", "future-real-adapter"}
     assert {f.finding_id for f in merged.findings} == {"f-mock", "f-real"}
-    assert any("MIXED provenance" in w for w in merged.warnings)
+    assert any("KARMA KAYNAK" in w for w in merged.warnings)
 
 
 def test_brain_and_cervical_mock_workflows_still_work(client: TestClient) -> None:

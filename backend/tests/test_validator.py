@@ -25,8 +25,8 @@ def test_validator_accepts_mock_draft_and_adds_mock_warnings() -> None:
     result = ReportValidator().validate(report, findings)
     assert result.ok is True
     assert report.status == ReportStatus.AWAITING_REVIEW
-    assert any("MOCK" in w or "synthetic" in w.lower() for w in result.warnings)
-    assert any("clinical accuracy" in w.lower() for w in result.warnings)
+    assert any("demo" in w.lower() or "sentetik" in w.lower() for w in result.warnings)
+    assert any("klinik doğruluğu" in w.lower() for w in result.warnings)
 
 
 def test_validator_rejects_unknown_finding_references() -> None:
@@ -37,7 +37,7 @@ def test_validator_rejects_unknown_finding_references() -> None:
     result = ReportValidator().validate(report, findings)
     assert result.ok is False
     assert report.status == ReportStatus.VALIDATION_FAILED
-    assert any("Invalid finding references" in e for e in result.errors)
+    assert any("Geçersiz bulgu atıfları" in e for e in result.errors)
 
 
 def test_validator_detects_empty_section() -> None:
@@ -47,7 +47,7 @@ def test_validator_detects_empty_section() -> None:
     report.technique = ReportSection(text="   ")
     result = ReportValidator().validate(report, findings)
     assert result.ok is False
-    assert any("technique" in e for e in result.errors)
+    assert any("Teknik" in e for e in result.errors)
 
 
 def test_validator_detects_contradictory_no_findings_flag() -> None:
@@ -57,4 +57,4 @@ def test_validator_detects_contradictory_no_findings_flag() -> None:
     report = LLMGateway(MockLLMProvider()).generate_draft(case, findings)
     result = ReportValidator().validate(report, findings)
     assert result.ok is False
-    assert any("no_findings_returned" in e for e in result.errors)
+    assert any("Çelişkili durum" in e for e in result.errors)

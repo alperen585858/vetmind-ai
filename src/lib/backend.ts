@@ -1,4 +1,4 @@
-import { getBackendAccessToken, loadSession } from './auth'
+import { currentActorId, getBackendAccessToken, loadSession } from './auth'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, ReportSections, Species } from '../types'
 import type {
@@ -130,6 +130,7 @@ export function toBackendSpecies(species: Species): BackendSpecies {
 export async function backendLogin(email: string, password: string): Promise<{
   access_token: string
   role: string
+  email: string
   auth_enabled: boolean
 }> {
   return request('/auth/login', {
@@ -556,6 +557,28 @@ export async function searchRag(query: string, topK = 5): Promise<{
   return request(`/rag/search?${params.toString()}`)
 }
 
+export interface RagCustomDocument {
+  source_id: string
+  title: string
+  section: string
+  passage: string
+  keywords: string[]
+}
+
+/** Sources added from Bilgi Tabanı (seed corpus excluded). */
+export async function listCustomRagDocuments(): Promise<RagCustomDocument[]> {
+  return request('/rag/documents')
+}
+
+export async function addRagDocument(input: { title: string; section: string; passage: string }): Promise<{
+  source_id: string
+  title: string
+  section: string
+  count: number
+}> {
+  return request('/rag/documents', { method: 'POST', body: JSON.stringify(input) })
+}
+
 export async function confirmDicomClassification(input: {
   ingestId: string
   acceptSuggestion: boolean
@@ -679,7 +702,7 @@ export async function saveBackendDraftReport(
   return request(`/cases/${caseId}/report/draft`, {
     method: 'PUT',
     body: JSON.stringify({
-      editor_id: 'expert-demo',
+      editor_id: currentActorId(),
       technique: sections.klinikOzet,
       findings: sections.bulgular,
       impression: sections.degerlendirme,
@@ -867,7 +890,7 @@ export async function submitBackendReview(caseId: string, payload: {
 }) {
   return request(`/cases/${caseId}/review`, {
     method: 'POST',
-    body: JSON.stringify({ reviewer_id: 'expert-demo', ...payload }),
+    body: JSON.stringify({ reviewer_id: currentActorId(), ...payload }),
   })
 }
 
