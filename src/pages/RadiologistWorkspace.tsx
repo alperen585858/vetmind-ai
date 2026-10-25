@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { currentActorId } from '../lib/auth'
 import { AIFindingsPanel } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -119,7 +120,7 @@ export default function RadiologistWorkspace() {
   }, [c?.id, c?.backendCaseId, c?.status])
 
   useEffect(() => {
-    void listBackendWorklist({ assigned_to: 'expert@demo.local' })
+    void listBackendWorklist({ assigned_to: currentActorId() })
       .then(setWorklist)
       .catch(() =>
         listBackendWorklist()

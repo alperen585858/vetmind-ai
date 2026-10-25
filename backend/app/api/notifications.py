@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_container
-from app.auth.deps import AuthPrincipal, require_auth
+from app.auth.deps import AuthPrincipal, require_actor, require_auth
 from app.container import AppContainer
 from app.schemas.notifications import AppNotification, NotificationListResponse
 
@@ -19,7 +19,7 @@ def _svc(container: AppContainer = Depends(get_container)):
 @router.get("", response_model=NotificationListResponse)
 def list_notifications(
     unread_only: bool = Query(default=False),
-    principal: AuthPrincipal = Depends(require_auth),
+    principal: AuthPrincipal = Depends(require_actor),
     service=Depends(_svc),
 ) -> NotificationListResponse:
     return service.list_mine(principal=principal, unread_only=unread_only)
@@ -28,7 +28,7 @@ def list_notifications(
 @router.post("/{notification_id}/read", response_model=AppNotification)
 def mark_read(
     notification_id: str,
-    principal: AuthPrincipal = Depends(require_auth),
+    principal: AuthPrincipal = Depends(require_actor),
     service=Depends(_svc),
 ) -> AppNotification:
     return service.mark_read(notification_id, principal=principal)
@@ -36,7 +36,7 @@ def mark_read(
 
 @router.post("/read-all")
 def mark_all_read(
-    principal: AuthPrincipal = Depends(require_auth),
+    principal: AuthPrincipal = Depends(require_actor),
     service=Depends(_svc),
 ) -> dict[str, int]:
     return service.mark_all_read(principal=principal)

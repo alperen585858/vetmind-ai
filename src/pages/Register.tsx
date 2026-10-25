@@ -9,7 +9,8 @@ import { backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
 import type { Role } from '../types'
 
-const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
+// Admin accounts are not self-service; they come from the seed list or Admin → Kullanıcılar.
+const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner']
 
 export default function Register() {
   const { signIn, pushToast } = useApp()

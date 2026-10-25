@@ -14,7 +14,7 @@ from app.security.audit import AuditLogger, AuditOutcome
 _bearer = HTTPBearer(auto_error=False)
 
 # Re-export for existing imports
-__all__ = ["AuthPrincipal", "require_auth", "require_capability", "require_roles"]
+__all__ = ["AuthPrincipal", "require_actor", "require_auth", "require_capability", "require_roles"]
 
 
 def require_auth(
@@ -104,3 +104,18 @@ def require_roles(*roles: str):
         )
 
     return _dep
+
+
+def require_actor(request: Request, principal: AuthPrincipal = Depends(require_auth)) -> AuthPrincipal:
+    """Principal whose ``subject`` names the person, for per-user data (notifications).
+
+    With auth off every request is ``anonymous``; the frontend sends the demo session's
+    email in ``X-VetMind-Demo-Subject``, so use it as the subject. Role and permissions
+    are unchanged. With auth on the header is ignored and the JWT subject is used.
+    """
+    if principal.via != "disabled":
+        return principal
+    subject = (request.headers.get("X-VetMind-Demo-Subject") or "").strip().lower()
+    if not subject:
+        return principal
+    return AuthPrincipal(subject=subject, role=principal.role, via=principal.via, clinic_id=principal.clinic_id)

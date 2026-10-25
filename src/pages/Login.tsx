@@ -5,11 +5,13 @@ import { useApp } from '../context/AppContext'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
 import {
+  backendAccountSession,
   login,
   listDemoCredentials,
   postLoginPath,
   setBackendAccessToken,
   setProtectedTokenMode,
+  type DemoSession,
 } from '../lib/auth'
 import { backendAuthStatus, backendLogin } from '../lib/backend'
 import { ROLE_LABELS } from '../data/mock'
@@ -27,7 +29,25 @@ export default function Login() {
     setError(null)
     setBusy(true)
     try {
-      const session = login(email, password)
+      let session: DemoSession
+      try {
+        session = login(email, password)
+      } catch (localErr) {
+        // Not a browser account: users created on Admin → Kullanıcılar exist only in the backend.
+        try {
+          const status = await backendAuthStatus()
+          setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
+          const tokenRes = await backendLogin(email, password)
+          setBackendAccessToken(tokenRes.access_token)
+          session = backendAccountSession(tokenRes.email, tokenRes.role)
+        } catch (backendErr) {
+          throw backendErr instanceof Error && backendErr.message.includes('rol') ? backendErr : localErr
+        }
+        signIn(session)
+        pushToast({ tone: 'success', title: 'Giriş başarılı', body: `${session.name} · ${ROLE_LABELS[session.role]}` })
+        nav(postLoginPath(session.role))
+        return
+      }
       try {
         const status = await backendAuthStatus()
         setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))

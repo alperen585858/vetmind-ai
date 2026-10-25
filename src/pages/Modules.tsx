@@ -1,9 +1,8 @@
-import { Brain, Database, FileStack, HeartPulse, Microscope, Bone, Plus, ScanFace } from 'lucide-react'
+import { Brain, Database, FileStack, HeartPulse, Microscope, Bone, ScanFace } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
-import { Button } from '../components/Button'
 import { MODULES } from '../data/mock'
 
 const ICONS: Record<string, ReactNode> = {
@@ -15,13 +14,12 @@ const ICONS: Record<string, ReactNode> = {
 }
 
 export default function Modules() {
-  const { kbSources, cases, pushToast } = useApp()
+  const { kbSources, cases } = useApp()
   return (
     <>
       <PageHeader
         title="Uzmanlık Modülleri"
         subtitle="Her modül kendi bilgi tabanı, ince ayarlı modeli ve rapor şablonuyla platforma eklenir."
-        actions={<Button variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => pushToast({ tone: 'info', title: 'Yeni modül sihirbazı', body: 'Bu özellik ilerleyen aşamada eklenecek (demo).' })}>Modül ekle</Button>}
       />
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {MODULES.map((m) => {

@@ -84,6 +84,37 @@ def reindex_rag(
     return RagReindexResponse(count=count, method=container.rag_method, index_path=path)
 
 
+class RagCustomDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str
+    title: str
+    section: str
+    passage: str
+    keywords: list[str]
+
+
+@router.get("/documents", response_model=list[RagCustomDocument])
+def list_custom_rag_documents(
+    container: AppContainer = Depends(get_container),
+    _auth=Depends(require_capability(CAP_RAG_ADMIN)),
+) -> list[RagCustomDocument]:
+    """Sources added through POST /documents (seed corpus excluded), so the UI can list them."""
+    if container.vector_store is None:
+        return []
+    return [
+        RagCustomDocument(
+            source_id=d.source_id,
+            title=d.title,
+            section=d.section,
+            passage=d.passage,
+            keywords=list(d.keywords),
+        )
+        for d in container.vector_store.documents
+        if d.source_id.startswith("custom-")
+    ]
+
+
 @router.post("/documents", response_model=RagDocumentResponse, status_code=201)
 def add_rag_document(
     payload: RagDocumentCreate,
