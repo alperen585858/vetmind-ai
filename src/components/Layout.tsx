@@ -7,7 +7,7 @@ import { SourcePanel } from './SourcePanel'
 export function Layout() {
   const [menu, setMenu] = useState(false)
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-transparent">
       <a href="#main-content" className="skip-link no-print">
         İçeriğe atla
       </a>

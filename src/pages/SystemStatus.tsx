@@ -4,7 +4,6 @@ import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { DEPLOYMENTS, SERVICES } from '../data/mock'
-import { GpuChart } from './Dashboard'
 import { fmtDate } from '../lib/format'
 import {
   BackendUnavailableError,
@@ -89,7 +88,7 @@ export default function SystemStatus() {
               </span>
             ) : (
               <span className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                <AlertTriangle className="h-3.5 w-3.5" /> {healthError ? 'API yok' : '1 serviste yüksek yük (mock)'}
+                <AlertTriangle className="h-3.5 w-3.5" /> {healthError ? 'API yok' : 'Health bekleniyor'}
               </span>
             )}
           </div>
@@ -211,51 +210,97 @@ export default function SystemStatus() {
         )}
       </Card>
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200">
+          Demo / not configured
+        </span>
+        <p className="text-xs text-slate-500">
+          Aşağıdaki servis ve GPU kartları canlı telemetri değildir; yalnızca /health ve model readiness gerçek.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SERVICES.map((s) => (
           <Card key={s.name} className="p-4">
             <div className="flex items-start justify-between gap-2">
               <p className="font-semibold text-navy-900">{s.name}</p>
-              {s.status === 'ok' ? (
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Çalışıyor</span>
-              ) : (
-                <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" /> Yüksek yük</span>
-              )}
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                not configured
+              </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">{s.detail}</p>
-            <p className="mt-3 text-xs text-slate-500">Gecikme: <span className="font-mono font-medium text-navy-800">{s.latency}</span></p>
+            <p className="mt-3 text-xs text-slate-500">
+              Demo kart · gerçek latency yok
+              {s.name.includes('Qdrant') || s.name.includes('Embedding') || s.name.includes('vLLM')
+                ? ' · backend’de bu servis yok'
+                : ''}
+            </p>
           </Card>
         ))}
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="NVIDIA GPU #0" subtitle="gpu-node-01 · kullanım % (son 1 saat) · demo grafik" icon={<Cpu className="h-5 w-5" />} />
+          <CardHeader
+            title="GPU telemetri"
+            subtitle="not configured · canlı GPU metrikleri yok (demo placeholder)"
+            icon={<Cpu className="h-5 w-5" />}
+          />
           <div className="grid gap-4 p-5 sm:grid-cols-3">
             <div className="sm:col-span-2">
-              <p className="mb-1 flex justify-between text-sm"><span className="text-slate-500">VRAM</span><span className="font-mono font-medium text-navy-900">{vramUsed} / {vramTotal} GB</span></p>
+              <p className="mb-1 flex justify-between text-sm">
+                <span className="text-slate-500">VRAM</span>
+                <span className="font-mono font-medium text-slate-500">— / — (not configured)</span>
+              </p>
               <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-navy-600" style={{ width: `${(vramUsed / vramTotal) * 100}%` }} />
+                <div className="h-full w-0 rounded-full bg-slate-300" />
               </div>
-              <p className="mt-1 text-xs text-slate-400">vetmind-neuro-v0.1 + LoRA adaptörü + KV önbellek (mock)</p>
+              <p className="mt-1 text-xs text-slate-400">
+                DEMO FICTION — gerçek GPU node / LoRA / KV cache bağlı değil
+              </p>
             </div>
             <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <Thermometer className="h-6 w-6 text-orange-500" />
+              <Thermometer className="h-6 w-6 text-slate-400" />
               <div>
                 <p className="text-xs text-slate-500">Sıcaklık</p>
-                <p className="text-lg font-semibold text-navy-900">71 °C</p>
+                <p className="text-lg font-semibold text-slate-500">—</p>
               </div>
             </div>
           </div>
-          <div className="px-3 pb-4">
-            <GpuChart height={220} />
+          <div className="border-t border-dashed border-slate-200 px-5 py-6 text-center text-sm text-slate-500">
+            GpuChart gizlendi — sahte kullanım eğrisi jüri yanılsaması yaratıyordu.
+            <span className="mt-1 block text-xs text-slate-400">
+              (Eski demo değerler: {vramUsed}/{vramTotal} GB — kullanılmıyor)
+            </span>
           </div>
         </Card>
 
         <div className="space-y-4">
-          <StatCard label="Ortalama yanıt süresi" value="2.4 sn" icon={<Timer className="h-5 w-5" />} tone="amber" hint="p95: 4.1 sn · hedef < 3 sn · mock" />
-          <StatCard label="Üretim hızı" value="38 token/s" icon={<Zap className="h-5 w-5" />} tone="teal" hint="Batch boyutu: 4 · mock" />
-          <StatCard label="Kuyruktaki iş" value="3" icon={<ListOrdered className="h-5 w-5" />} tone="violet" hint="2 belge işleme · 1 LLM çıkarımı · mock" />
+          <StatCard
+            label="Ortalama yanıt süresi"
+            value="—"
+            icon={<Timer className="h-5 w-5" />}
+            tone="amber"
+            hint="not configured · canlı p95 yok"
+          />
+          <StatCard
+            label="Üretim hızı"
+            value="—"
+            icon={<Zap className="h-5 w-5" />}
+            tone="teal"
+            hint="not configured · token/s telemetrisi yok"
+          />
+          <StatCard
+            label="Kuyruktaki iş"
+            value={health?.job_backend ? String(health.job_backend) : '—'}
+            icon={<ListOrdered className="h-5 w-5" />}
+            tone="violet"
+            hint={
+              health?.job_backend
+                ? `job_backend=${health.job_backend} (health)`
+                : 'not configured · kuyruk derinliği bilinmiyor'
+            }
+          />
         </div>
       </div>
 
@@ -292,7 +337,9 @@ export default function SystemStatus() {
           </table>
         </div>
       </Card>
-      <p className="mt-4 flex items-center gap-2 text-xs text-slate-400"><Gauge className="h-3.5 w-3.5" /> GPU/kuyruk kartları demo amaçlıdır; üstteki /health paneli canlıdır.</p>
+      <p className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+        <Gauge className="h-3.5 w-3.5" /> GPU/embedding/Qdrant kartları DEMO / not configured; /health ve model readiness canlıdır.
+      </p>
     </>
   )
 }

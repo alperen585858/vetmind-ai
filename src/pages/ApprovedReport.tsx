@@ -435,7 +435,11 @@ export default function ApprovedReport() {
               {c.backendDraft.rag_note ||
                 'Lexical/embedding eşleşmeleri — görüntüleme bulgularından ayrı tutulur.'}
             </p>
-            <RagCitations citations={c.backendDraft.rag_citations} note={c.backendDraft.rag_note} />
+            <RagCitations
+              citations={c.backendDraft.rag_citations}
+              note={c.backendDraft.rag_note}
+              usedPassageIds={c.backendDraft.used_passage_ids}
+            />
           </section>
         )}
 

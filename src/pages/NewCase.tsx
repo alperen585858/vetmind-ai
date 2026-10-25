@@ -624,6 +624,15 @@ export default function NewCase() {
           </div>
         }
       />
+      {pipeline === 'local' && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Yerel demo animasyonu — gerçek AI pipeline değil</p>
+          <p className="mt-1 text-xs opacity-90">
+            Zamanlayıcı ve <code className="font-mono">pipeline.ts</code> katman log’ları DEMO FICTION’dır (Qdrant /
+            768-dim / token-s yok). Backend senaryosu seçerseniz gerçek job alanları kullanılır.
+          </p>
+        </div>
+      )}
       <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
         <summary className="cursor-pointer font-medium text-navy-800">Demo hızlı doldurma (sentetik / DICOM fixture)</summary>
         <div className="mt-3 flex flex-wrap gap-2">

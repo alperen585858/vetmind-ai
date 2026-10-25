@@ -1,4 +1,5 @@
-from typing import Optional
+from enum import Enum
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -11,7 +12,18 @@ from app.schemas.enums import (
     Species,
 )
 
-FINDINGS_SCHEMA_VERSION = "1.1.0"
+FINDINGS_SCHEMA_VERSION = "1.2.0"
+
+Laterality = Literal["LEFT", "RIGHT", "MIDLINE", "UNKNOWN"]
+
+
+class ConflictReasonCode(str, Enum):
+    DISTINCT_CODES = "distinct_codes"
+    CROSS_FAMILY = "cross_family"
+    OPPOSING_STATUS = "opposing_status"
+    OPPOSING_LATERALITY = "opposing_laterality"
+    SAME_SOP_DIVERGENT = "same_sop_divergent"
+    MULTI_MODEL = "multi_model"
 
 
 class EvidenceReference(BaseModel):
@@ -46,6 +58,7 @@ class Finding(BaseModel):
     # Mock adapters must set synthetic=True explicitly.
     synthetic: bool = False
     conflict_group_id: Optional[str] = None
+    laterality: Laterality = "UNKNOWN"
     # Model-provided confidence only — never fabricate. Reject out-of-range when present.
     model_confidence: Optional[float] = None
 
@@ -68,6 +81,8 @@ class PotentialConflict(BaseModel):
     finding_ids: list[str]
     anatomical_location_key: str
     reason: str
+    reason_codes: list[str] = Field(default_factory=list)
+    group_key: Optional[str] = None
     note: str = (
         "Potential incompatibility preserved for expert review. "
         "Agreement between models would also not prove clinical correctness. "

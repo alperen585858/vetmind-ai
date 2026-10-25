@@ -1,12 +1,12 @@
-"""Metadata-based modality / anatomical-region classification with explicit uncertainty.
+"""Hybrid classification: DICOM metadata rules + independent series-hint adapter.
 
-No LLM. Missing values are never invented. Ambiguous / conflicting / unsupported
-outcomes always require human confirmation (or block automated routing).
+No LLM / no trained vision. Missing values are never invented. Ambiguous /
+conflicting / unsupported outcomes always require human confirmation.
 """
 
 from __future__ import annotations
 
-from app.schemas.dicom import ClassificationSuggestion, DicomStudyMeta
+from app.schemas.dicom import ClassificationSignal, ClassificationSuggestion, DicomStudyMeta
 from app.schemas.enums import (
     AnatomicalRegion,
     ClassificationConfidence,
@@ -117,6 +117,73 @@ def _suggest_species(text: str, rationale: list[str]) -> tuple[Species | None, C
         return Species.FELINE, ClassificationConfidence.MEDIUM
     rationale.append("No reliable species tokens in DICOM metadata; species not invented.")
     return None, ClassificationConfidence.UNKNOWN
+
+
+def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
+    """Second independent signal: series-description-only heuristic (not Modality tag).
+
+    Deliberately ignores StudyDescription / BodyPartExamined / Modality tags so it
+    can disagree with the metadata_rules signal. Not a vision model.
+    """
+    series_text = " ".join(
+        (s.series_description or "") for s in study.series if s.series_description
+    ).upper()
+    if not series_text.strip():
+        return ClassificationSignal(
+            name="series_hint",
+            confidence=ClassificationConfidence.UNKNOWN,
+            note="No SeriesDescription text for hint adapter.",
+            source_kind="synthetic",
+        )
+
+    # Region tokens only — do not use T1/T2/FLAIR as "brain" (they appear on spine too).
+    brain = _contains_any(
+        series_text, ("BRAIN", "HEAD", "SAG BRAIN", "AX BRAIN", "INTRACRANIAL", "CRANIUM")
+    )
+    cervical = _contains_any(
+        series_text, ("C-SPINE", "CERVICAL", "NECK", "SPINE C", "SAG C SPINE", "C SPINE")
+    )
+    thorax = _contains_any(series_text, ("CHEST", "THORAX", "LUNG", "CXR", "THORACIC"))
+    region: AnatomicalRegion | None = None
+    conf = ClassificationConfidence.LOW
+    note_bits: list[str] = []
+    hits = [
+        (brain, AnatomicalRegion.BRAIN),
+        (cervical, AnatomicalRegion.CERVICAL),
+        (thorax, AnatomicalRegion.THORAX),
+    ]
+    non_empty = [(h, r) for h, r in hits if h]
+    if len(non_empty) == 1:
+        h, region = non_empty[0]
+        conf = ClassificationConfidence.MEDIUM
+        note_bits.append(f"series_hint region={region.value} tokens={h}")
+    elif len(non_empty) > 1:
+        region = AnatomicalRegion.UNKNOWN
+        conf = ClassificationConfidence.LOW
+        note_bits.append(f"series_hint ambiguous regions: {non_empty}")
+    else:
+        note_bits.append("series_hint: no region protocol tokens.")
+
+    modality: Modality | None = None
+    # Sequence tokens imply MR without claiming anatomical region.
+    if _contains_any(series_text, ("MR", "MRI", "T1", "T2", "FLAIR", "DWI", "STIR")):
+        modality = Modality.MR
+        note_bits.append("series_hint modality≈MR from protocol tokens")
+    elif _contains_any(series_text, ("CT", "CTA", "HRCT")):
+        modality = Modality.CT
+        note_bits.append("series_hint modality≈CT from protocol tokens")
+    elif _contains_any(series_text, ("XR", "XRAY", "RADIOGRAPH", "CXR")):
+        modality = Modality.XR
+        note_bits.append("series_hint modality≈XR from protocol tokens")
+
+    return ClassificationSignal(
+        name="series_hint",
+        modality=modality,
+        anatomical_region=region,
+        confidence=conf,
+        note="; ".join(note_bits),
+        source_kind="synthetic",
+    )
 
 
 def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
@@ -234,6 +301,51 @@ def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
     else:
         status = ClassificationStatus.READY
 
+    metadata_signal = ClassificationSignal(
+        name="metadata_rules",
+        modality=suggested_modality if suggested_modality != Modality.OTHER else None,
+        anatomical_region=region
+        if region not in {AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}
+        else None,
+        confidence=confidence,
+        note="DICOM Modality / StudyDescription / BodyPartExamined token rules.",
+        source_kind="synthetic",
+    )
+    hint_signal = _series_hint_signal(study)
+    signals = [metadata_signal, hint_signal]
+
+    disagreement = False
+    if hint_signal.anatomical_region is not None:
+        if region in {AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}:
+            # Hint asserts a region while metadata rules are ambiguous/missing.
+            disagreement = True
+            rationale.append(
+                f"Hybrid disagreement: metadata_rules region={region.value} "
+                f"vs series_hint region={hint_signal.anatomical_region.value}."
+            )
+        elif hint_signal.anatomical_region != region:
+            disagreement = True
+            rationale.append(
+                f"Hybrid disagreement: metadata_rules region={region.value} "
+                f"vs series_hint region={hint_signal.anatomical_region.value}."
+            )
+    if (
+        hint_signal.modality is not None
+        and suggested_modality in _SUPPORTED_MODALITIES
+        and hint_signal.modality != suggested_modality
+    ):
+        disagreement = True
+        rationale.append(
+            f"Hybrid disagreement: metadata_rules modality={suggested_modality.value} "
+            f"vs series_hint modality={hint_signal.modality.value}."
+        )
+
+    if disagreement:
+        confidence = ClassificationConfidence.LOW
+        if status == ClassificationStatus.READY:
+            status = ClassificationStatus.AMBIGUOUS
+        rationale.append("Disagreement → LOW confidence; human confirmation required.")
+
     needs_confirmation = (
         status
         in {
@@ -250,6 +362,7 @@ def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
         }
         or region in {AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}
         or suggested_modality == Modality.OTHER
+        or disagreement
     )
 
     return ClassificationSuggestion(
@@ -262,4 +375,6 @@ def classify_study(study: DicomStudyMeta) -> ClassificationSuggestion:
         species_confidence=species_confidence,
         rationale=rationale,
         source_tags=source_tags,
+        signals=signals,
+        disagreement=disagreement,
     )

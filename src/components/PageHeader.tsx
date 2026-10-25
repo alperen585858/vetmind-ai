@@ -25,8 +25,8 @@ export function PageHeader({
         ) : (
           breadcrumb && <div className="mb-1 text-xs text-slate-500">{breadcrumb}</div>
         )}
-        <h1 className="text-2xl font-semibold tracking-tight text-navy-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-display">{title}</h1>
+        {subtitle && <p className="text-caption mt-1 sm:text-sm">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </header>

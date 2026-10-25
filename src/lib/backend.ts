@@ -859,6 +859,7 @@ export async function getJob(jobId: string) {
 export async function submitBackendReview(caseId: string, payload: {
   action: 'approve' | 'reject' | 'request_revision'
   comment?: string
+  reason_codes?: string[]
   edited_technique?: string
   edited_findings?: string
   edited_impression?: string

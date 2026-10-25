@@ -1,0 +1,26 @@
+# Minimal finding-code families for conflict detection (ISS-FUS-01).
+# Same family = soft severity difference; cross-family = hard code conflict.
+# Not a clinical ontology — development heuristic only.
+
+families:
+  IVDD:
+    - IVDD
+    - IVDD_SUSPECTED
+    - IVDD_CONFIRMED
+    - DISC_HERNIATION
+    - INTERVERTEBRAL_DISC
+  MENINGIOMA:
+    - MENINGIOMA
+    - INTRACRANIAL_MASS
+    - BRAIN_MASS
+  HYDROCEPHALUS:
+    - HYDROCEPHALUS
+    - VENTRICULOMEGALY
+  FRACTURE:
+    - FRACTURE
+    - SKULL_FRACTURE
+    - MAXILLOFACIAL_FRACTURE
+
+notes: >
+  Codes not listed are treated as their own singleton family (code itself).
+  Agreement within a family is not clinical proof.

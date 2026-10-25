@@ -48,12 +48,12 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }
 
   return (
-    <header className="no-print sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
+    <header className="no-print sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200/80 bg-surface-elevated/90 px-4 backdrop-blur sm:px-6">
       <button
         type="button"
         onClick={onMenu}
         aria-label="Menüyü aç"
-        className="rounded-md p-2 text-navy-700 hover:bg-slate-100 lg:hidden"
+        className="min-h-11 min-w-11 rounded-md p-2 text-navy-700 hover:bg-slate-100 lg:hidden"
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>

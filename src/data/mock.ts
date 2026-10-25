@@ -204,15 +204,16 @@ export const GPU_SERIES = Array.from({ length: 60 }, (_, i) => {
   }
 })
 
+/** UI placeholder cards only — SystemStatus must label these as demo / not configured. */
 export const SERVICES = [
-  { name: 'Frontend', detail: 'React SPA · v0.1.0', status: 'ok', latency: '38 ms' },
-  { name: 'API (FastAPI)', detail: '3 replika', status: 'ok', latency: '64 ms' },
-  { name: 'Doküman İşleme Worker', detail: 'OCR + metin çıkarımı', status: 'ok', latency: '1.8 sn/belge' },
-  { name: 'Embedding Servisi', detail: 'vetmind-embed-tr-v1', status: 'ok', latency: '22 ms' },
-  { name: 'LLM Inference (vLLM)', detail: 'vetmind-neuro-v0.1', status: 'warn', latency: '2.4 sn' },
-  { name: 'Vektör DB (Qdrant)', detail: '5.036 vektör parçası', status: 'ok', latency: '9 ms' },
-  { name: 'PostgreSQL', detail: 'Birincil + replika', status: 'ok', latency: '4 ms' },
-  { name: 'Object Storage', detail: 'Belge arşivi · 18.4 GB', status: 'ok', latency: '31 ms' },
+  { name: 'Frontend', detail: 'React SPA · demo kart', status: 'demo', latency: '—' },
+  { name: 'API (FastAPI)', detail: 'Canlı durum için /health panelini kullanın', status: 'demo', latency: '—' },
+  { name: 'Doküman İşleme Worker', detail: 'OCR üretimde yok · stub', status: 'demo', latency: '—' },
+  { name: 'Embedding Servisi', detail: 'vetmind-embed-tr-v1 yok · hash RAG', status: 'demo', latency: '—' },
+  { name: 'LLM Inference (vLLM)', detail: 'Varsayılan mock LLM · vLLM bağlı değil', status: 'demo', latency: '—' },
+  { name: 'Vektör DB (Qdrant)', detail: 'Qdrant yok · JsonVectorStore', status: 'demo', latency: '—' },
+  { name: 'PostgreSQL', detail: 'Demo kart · asıl depo ayara bağlı', status: 'demo', latency: '—' },
+  { name: 'Object Storage', detail: 'Yerel quarantine · S3 yok', status: 'demo', latency: '—' },
 ] as const
 
 export const DEPLOYMENTS = [

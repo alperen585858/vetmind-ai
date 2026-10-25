@@ -758,8 +758,22 @@ export default function DicomUpload() {
             {preview.classification.suggested_modality} / {preview.classification.suggested_anatomical_region}
             <span className="ml-1 text-xs font-normal text-slate-600">
               · {preview.classification.confidence}
+              {preview.classification.disagreement ? ' · disagreement' : ''}
             </span>
           </p>
+          {(preview.classification.signals?.length ?? 0) > 0 && (
+            <ul className="mt-2 space-y-1 rounded-lg bg-white/70 p-2 text-[11px] text-slate-700 ring-1 ring-inset ring-teal-100">
+              {preview.classification.signals!.map((s) => (
+                <li key={s.name}>
+                  <span className="font-semibold text-teal-900">{s.name}</span>
+                  {': '}
+                  {[s.modality, s.anatomical_region].filter(Boolean).join(' / ') || '—'}
+                  <span className="text-slate-500"> · {s.confidence}</span>
+                  {s.note ? <span className="block text-slate-500">{s.note}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
           <label className="mt-2 flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -1060,6 +1074,10 @@ export default function DicomUpload() {
       <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-900">
         Akış: DICOM yükleme → sınıflandırma onayı → vaka oluşturma → <strong>demo/mock analiz</strong> → uzman
         inceleme. Gerçek klinik AI yorumu değildir; ödeme entegrasyonu yoktur.
+      </p>
+      <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+        <strong>Yerel zamanlayıcı / pipeline.ts animasyonu</strong> kullanılıyorsa bu DEMO FICTION’dır (Qdrant /
+        768-dim / token-s yok). İlerleme ekranı backend job alanlarını gösterir.
       </p>
 
       {/* STATE A — before upload */}
