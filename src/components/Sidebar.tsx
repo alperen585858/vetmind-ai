@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, Gauge, LayoutDashboard, Layers, MessageSquare, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { Activity, BookOpen, ClipboardCheck, FilePlus2, FileText, FolderOpen, Gauge, LayoutDashboard, Layers, LogOut, MessageSquare, PawPrint, ShieldCheck, UploadCloud, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { Logo } from './Logo'
@@ -13,7 +13,8 @@ interface NavItem {
 }
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { role, cases } = useApp()
+  const { role, cases, signOut, pushToast } = useApp()
+  const nav = useNavigate()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px]'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
@@ -37,6 +38,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
       { to: '/kuyruk', label: 'İş Listesi', icon: <ClipboardCheck className={ic} />, badge: queue },
       { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
+      { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
     ],
     owner: [
@@ -50,7 +52,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       { to: '/', label: 'Klinik Panosu', icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: 'Klinik Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/basvurular', label: 'Sahip Başvuruları', icon: <ClipboardCheck className={ic} /> },
-      { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
     ],
     admin: [
       { to: '/', label: 'Sistem Özeti', icon: <LayoutDashboard className={ic} /> },
@@ -111,13 +112,26 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             </NavLink>
           ))}
         </nav>
-        <div className="m-3 rounded-lg bg-navy-900 p-3 text-xs text-navy-300">
+        <div className="mt-auto m-3 rounded-lg bg-navy-900 p-3 text-xs text-navy-300">
           <div className="mb-1 flex items-center gap-1.5 font-semibold text-navy-100">
             <ShieldCheck className="h-3.5 w-3.5 text-teal-400" /> Aktif modül: Nöroloji
           </div>
           Veteriner hekimin yerini almaz; değerlendirme sürecini güçlendirir.
           <p className="mt-2 text-[10px] uppercase tracking-wide text-navy-500">Demo prototip · mock veri</p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            signOut()
+            onClose()
+            nav('/giris')
+            pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Demo oturumu localStorage’dan temizlendi.' })
+          }}
+          className="mx-3 mb-3 flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red"
+        >
+          <LogOut className={ic} aria-hidden="true" />
+          <span>Çıkış yap</span>
+        </button>
       </aside>
     </>
   )

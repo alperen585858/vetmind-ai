@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, ChevronDown, LogOut, Menu, RefreshCcw } from 'lucide-react'
+import { Check, ChevronDown, Menu, RefreshCcw } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { DEMO_PASSWORD, demoEmailForRole, setBackendAccessToken } from '../lib/auth'
 import { backendLogin } from '../lib/backend'
@@ -17,7 +17,7 @@ export const ROLE_BADGE: Record<Role, string> = {
 }
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { role, setRole, signOut, user, pushToast } = useApp()
+  const { role, setRole, user, pushToast } = useApp()
   const nav = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -115,19 +115,6 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <p className="text-sm font-semibold text-navy-900">{user.name}</p>
             <span className={`mt-0.5 inline-block rounded-full px-2 py-px text-[10px] font-semibold ring-1 ring-inset ${ROLE_BADGE[role]}`}>{user.title}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              signOut()
-              nav('/giris')
-              pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Demo oturumu localStorage’dan temizlendi.' })
-            }}
-            aria-label="Çıkış yap"
-            title="Çıkış"
-            className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <LogOut className="h-4 w-4" aria-hidden />
-          </button>
         </div>
       </div>
     </header>

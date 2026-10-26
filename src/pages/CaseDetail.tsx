@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, LayoutGrid, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader } from '../components/Card'
-import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { PriorityBadge, SeverityBadge, StatusBadge } from '../components/StatusBadge'
 import { AIDisclaimer } from '../components/AIDisclaimer'
@@ -14,6 +13,7 @@ import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
 import { CaseProgressTracker } from '../components/CaseProgressTracker'
+import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
 import { CaseMessaging } from '../components/CaseMessaging'
 import { ReportVersionCompare } from '../components/ReportVersionCompare'
 import { DicomViewer } from '../components/DicomViewer'
@@ -49,14 +49,26 @@ import { GroundingWarnings } from '../components/GroundingWarnings'
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
-  { key: 'genel', label: 'Genel Bakış', icon: <LayoutGrid className="h-4 w-4" /> },
-  { key: 'bulgular', label: 'AI Bulgular', icon: <Brain className="h-4 w-4" /> },
-  { key: 'goruntu', label: 'Görüntüler', icon: <ImageIcon className="h-4 w-4" /> },
-  { key: 'rapor', label: 'Rapor', icon: <ClipboardList className="h-4 w-4" /> },
-  { key: 'mesajlar', label: 'Mesajlar', icon: <MessageSquare className="h-4 w-4" /> },
-  { key: 'gecmis', label: 'İşlem Geçmişi', icon: <History className="h-4 w-4" /> },
-  { key: 'belgeler', label: 'Belgeler', icon: <FileText className="h-4 w-4" /> },
-]
+  { key: 'genel', label: 'Klinik Özet', icon: <Stethoscope className="h-4 w-4" /> },
+  { key: 'bulgular', label: 'AI Bulguları', icon: <Brain className="h-4 w-4" /> },
+  { key: 'kaynaklar', label: 'Kaynaklar (RAG)', icon: <BookOpen className="h-4 w-4" /> },
+] as const
+
+type CaseDetailTab = (typeof TABS)[number]['key']
+type CaseDetailModule = 'genel' | 'goruntu' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
+
+function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
+  if (value === 'ai' || value === 'bulgular') return 'bulgular'
+  if (value === 'kaynaklar' || value === 'sources') return 'kaynaklar'
+  return 'genel'
+}
+
+function caseDetailModule(value: string | null): CaseDetailModule {
+  if (value === 'goruntu' || value === 'rapor' || value === 'mesajlar' || value === 'gecmis' || value === 'belgeler') {
+    return value
+  }
+  return 'genel'
+}
 
 function DetailSkeleton() {
   return (
@@ -79,8 +91,30 @@ export default function CaseDetail() {
   const c = getCase(id)
   const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [loadError, setLoadError] = useState<string | null>(null)
-  const rawTab = params.get('tab') ?? 'genel'
-  const tab = rawTab === 'ai' ? 'bulgular' : rawTab
+  const [tab, setTab] = useState<CaseDetailTab>(() => normalizeCaseDetailTab(params.get('tab')))
+  const [summaryModule, setSummaryModule] = useState<CaseDetailModule>(() => caseDetailModule(params.get('tab')))
+  const [modulesOpen, setModulesOpen] = useState(() => caseDetailModule(params.get('tab')) !== 'genel')
+
+  useEffect(() => {
+    const routeTab = params.get('tab')
+    setTab(normalizeCaseDetailTab(routeTab))
+    const module = caseDetailModule(routeTab)
+    setSummaryModule(module)
+    setModulesOpen(module !== 'genel')
+  }, [params])
+
+  const selectTab = (nextTab: CaseDetailTab) => {
+    setTab(nextTab)
+    setSummaryModule('genel')
+    setModulesOpen(false)
+    setParams({ tab: nextTab }, { replace: true })
+  }
+
+  const selectSummaryModule = (module: CaseDetailModule) => {
+    setSummaryModule(module)
+    setModulesOpen(true)
+    setParams({ tab: module }, { replace: true })
+  }
 
   const reload = () => {
     if (!id.startsWith('case-')) return
@@ -152,45 +186,72 @@ export default function CaseDetail() {
     )
   }
 
+  const workflowStep =
+    c.status === 'onaylandi'
+      ? 4
+      : c.status === 'uzman_incelemesinde' || c.status === 'revizyon' || c.status === 'manuel_inceleme' || c.status === 'reddedildi'
+        ? 3
+        : c.status === 'isleniyor' || c.status === 'ai_analizi' || c.status === 'analiz_basarisiz'
+          ? 2
+          : 1
+  const workflowStatus =
+    c.status === 'analiz_basarisiz' ? 'error' : c.status === 'reddedildi' ? 'reject' : undefined
+
   return (
     <>
-      <PageHeader
-        crumbs={[
-          { label: role === 'expert' ? 'İş Listesi' : 'Vakalar', to: role === 'expert' ? '/kuyruk' : '/vakalar' },
-          { label: c.no },
-        ]}
-        title={
-          <span className="flex flex-wrap items-center gap-3">
-            <span>{c.patient.name}</span>
+      <section className="mb-5 rounded-2xl bg-vet-navy p-5 text-white shadow-soft sm:p-6" aria-label="Hasta temel bilgileri">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <Link
+              to={role === 'expert' ? '/kuyruk' : '/vakalar'}
+              className="text-xs font-medium text-slate-300 hover:text-white"
+            >
+              ← {role === 'expert' ? 'İş Listesi' : 'Vakalara dön'}
+            </Link>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Hasta / vaka</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">{c.patient.name}</h1>
+            <p className="mt-1 text-sm text-slate-300">
+              {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş · {c.patient.weight} kg · {c.patient.sex}
+            </p>
+            <p className="mt-1 text-sm text-slate-400">{c.no} · {c.clinic} · {c.module} · {fmtDate(c.createdAt)}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={c.status} />
             <PriorityBadge priority={c.priority} />
             {c.unreadMessages && c.unreadMessages > 0 ? (
-              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-                {c.unreadMessages} mesaj
+              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
+                {c.unreadMessages} okunmamış mesaj
               </span>
             ) : null}
-          </span>
-        }
-        subtitle={`${c.no} · ${c.patient.species}, ${c.patient.breed} · ${c.module} · ${fmtDate(c.createdAt)}`}
-        actions={
-          <>
-            {(c.status === 'isleniyor' || (c.status === 'ai_analizi' && c.processingStartedAt)) && (
-              <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>İşlem hattını izle</Button>
-            )}
-            {role === 'expert' && (c.status === 'uzman_incelemesinde' || c.status === 'revizyon' || c.status === 'manuel_inceleme') && (
-              <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/calisma`)}>Çalışma alanı</Button>
-            )}
-            {role === 'vet' && (
-              <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => setParams({ tab: 'mesajlar' }, { replace: true })}>
-                Mesajlar
-              </Button>
-            )}
-            {c.status === 'onaylandi' && (
-              <Button variant="success" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>Onaylı raporu görüntüle</Button>
-            )}
-          </>
-        }
-      />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          {(c.status === 'isleniyor' || (c.status === 'ai_analizi' && c.processingStartedAt)) && (
+            <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
+              İşlem hattını izle
+            </Button>
+          )}
+          {role === 'expert' && (c.status === 'uzman_incelemesinde' || c.status === 'revizyon' || c.status === 'manuel_inceleme') && (
+            <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+              Çalışma alanı
+            </Button>
+          )}
+          {role === 'vet' && (
+            <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => selectSummaryModule('mesajlar')}>
+              Mesajlar
+            </Button>
+          )}
+          {c.status === 'onaylandi' && (
+            <Button variant="success" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>
+              Onaylı raporu görüntüle
+            </Button>
+          )}
+        </div>
+      </section>
+
+      <div className="mb-5">
+        <CaseWorkflowStepper currentStep={workflowStep} status={workflowStatus} />
+      </div>
 
       {c.status === 'revizyon' && c.statusNote && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
@@ -217,13 +278,18 @@ export default function CaseDetail() {
         </div>
       )}
 
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200">
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist" aria-label="Vaka detay bölümleri">
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setParams({ tab: t.key }, { replace: true })}
+            id={`case-tab-${t.key}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            aria-controls={`case-panel-${t.key}`}
+            onClick={() => selectTab(t.key)}
             className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-              tab === t.key ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-navy-800'
+              tab === t.key ? 'border-b-2 border-vet-turquoise text-vet-turquoise' : 'border-transparent text-slate-500 hover:text-navy-800'
             }`}
           >
             {t.icon} {t.label}
@@ -231,13 +297,68 @@ export default function CaseDetail() {
         ))}
       </div>
 
-      {tab === 'genel' && <Overview c={c} onOpenAiTab={() => setParams({ tab: 'bulgular' }, { replace: true })} />}
-      {tab === 'bulgular' && <AssessmentView c={c} />}
-      {tab === 'goruntu' && <Imaging c={c} />}
-      {tab === 'rapor' && <ReportWorkspace c={c} />}
-      {tab === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
-      {tab === 'gecmis' && <CaseHistoryPanel c={c} />}
-      {tab === 'belgeler' && <Documents c={c} />}
+      <div
+        id={`case-panel-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`case-tab-${tab}`}
+        className="space-y-5"
+      >
+        {tab === 'genel' && (
+          <>
+            {summaryModule === 'genel' && (
+              <Overview c={c} onOpenAiTab={() => selectTab('bulgular')} />
+            )}
+            <details
+              className="group rounded-xl border border-slate-200 bg-white shadow-soft"
+              open={modulesOpen}
+              onToggle={(event) => setModulesOpen(event.currentTarget.open)}
+            >
+              <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-navy-900 marker:hidden">
+                <span className="flex items-center justify-between gap-3">
+                  Diğer vaka modülleri
+                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
+                </span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  Görüntüleme, rapor, mesajlar, işlem geçmişi ve belgeler
+                </span>
+              </summary>
+              <div className="border-t border-slate-100 p-4">
+                <div className="mb-4 flex flex-wrap gap-2" aria-label="Vaka araçları">
+                  {([
+                    ['genel', 'Klinik Özete dön'],
+                    ['goruntu', 'Görüntüleme'],
+                    ['rapor', 'Rapor'],
+                    ['mesajlar', 'Mesajlar'],
+                    ['gecmis', 'İşlem geçmişi'],
+                    ['belgeler', 'Belgeler'],
+                  ] as const).map(([module, label]) => (
+                    <button
+                      key={module}
+                      type="button"
+                      aria-pressed={summaryModule === module}
+                      onClick={() => selectSummaryModule(module)}
+                      className={`min-h-9 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        summaryModule === module
+                          ? 'bg-vet-turquoise text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {summaryModule === 'goruntu' && <Imaging c={c} />}
+                {summaryModule === 'rapor' && <ReportWorkspace c={c} />}
+                {summaryModule === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
+                {summaryModule === 'gecmis' && <CaseHistoryPanel c={c} />}
+                {summaryModule === 'belgeler' && <Documents c={c} />}
+              </div>
+            </details>
+          </>
+        )}
+        {tab === 'bulgular' && <AssessmentView c={c} />}
+        {tab === 'kaynaklar' && <SourcesView c={c} />}
+      </div>
     </>
   )
 }
@@ -1061,7 +1182,6 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
       </Card>
     )
   }
-  const sources = Array.from(new Set([...ai.differentials.flatMap((d) => d.citations), ...ai.findings.flatMap((f) => f.citations ?? []), ...ai.validation.flatMap((v) => v.citations ?? [])])).sort((a, b) => a - b)
   return (
     <div className="space-y-5">
       <AIDisclaimer />
@@ -1177,43 +1297,82 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
               {ai.validation.map((v, i) => <ValidationBox key={i} v={v} />)}
             </div>
           </Card>
-          <Card>
-            <CardHeader
-              title="Kaynaklar / RAG"
-              subtitle={c.backendDraft?.rag_citations?.length ? 'Backend lexical/embedding RAG citations' : 'Bu taslak için RAG alıntısı yok'}
-              icon={<BookOpen className="h-5 w-5" />}
-            />
-            {c.backendDraft?.rag_citations?.length ? (
-              <RagCitations
-                citations={c.backendDraft.rag_citations}
-                note={c.backendDraft.rag_note}
-                citationMap={c.backendDraft.citation_map}
-                usedPassageIds={c.backendDraft.used_passage_ids}
-              />
-            ) : (
-              <SourceList ids={sources} />
-            )}
-          </Card>
         </div>
       </div>
     </div>
   )
 }
 
+function SourcesView({ c }: { c: VetCase }) {
+  const ai = c.ai
+  const sourceIds = ai
+    ? Array.from(
+        new Set([
+          ...ai.differentials.flatMap((d) => d.citations),
+          ...ai.findings.flatMap((f) => f.citations ?? []),
+          ...ai.validation.flatMap((v) => v.citations ?? []),
+        ]),
+      ).sort((a, b) => a - b)
+    : []
+  const ragCitations = c.backendDraft?.rag_citations
+
+  return (
+    <Card>
+      <CardHeader
+        title="Kaynaklar (RAG)"
+        subtitle={ragCitations?.length ? 'AI taslağında kullanılan kaynak pasajları' : 'Bu vaka için mevcut atıflar'}
+        icon={<BookOpen className="h-5 w-5" />}
+      />
+      {ragCitations?.length ? (
+        <RagCitations
+          citations={ragCitations}
+          note={c.backendDraft?.rag_note}
+          citationMap={c.backendDraft?.citation_map}
+          usedPassageIds={c.backendDraft?.used_passage_ids}
+        />
+      ) : sourceIds.length ? (
+        <SourceList ids={sourceIds} />
+      ) : (
+        <div className="p-5">
+          <EmptyState
+            icon={<BookOpen className="h-6 w-6" />}
+            title="Kaynak atfı bulunamadı"
+            text="Bu vaka için görüntülenebilir RAG pasajı veya AI kaynak atfı bulunmuyor."
+          />
+        </div>
+      )}
+    </Card>
+  )
+}
+
 function SourceList({ ids }: { ids: number[] }) {
   const { kbSources, openSource } = useApp()
+  const sources = ids
+    .map((id) => ({ id, source: kbSources.find((item) => item.id === id) }))
+    .filter((item): item is { id: number; source: (typeof kbSources)[number] } => Boolean(item.source))
+
+  if (!sources.length) {
+    return (
+      <div className="p-5">
+        <EmptyState
+          icon={<BookOpen className="h-6 w-6" />}
+          title="Kaynak kaydı bulunamadı"
+          text="AI atıfları mevcut, ancak bu oturumda eşleşen bilgi bankası kaydı bulunamadı."
+        />
+      </div>
+    )
+  }
+
   return (
     <ul className="divide-y divide-slate-100">
-      {ids.map((id) => {
-        const s = kbSources.find((k) => k.id === id)
-        if (!s) return null
+      {sources.map(({ id, source }) => {
         return (
           <li key={id}>
             <button onClick={() => openSource(id)} className="flex w-full items-start gap-3 px-5 py-3 text-left hover:bg-slate-50">
               <span className="mt-0.5 rounded bg-teal-50 px-1.5 text-[11px] font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">[{id}]</span>
               <span>
-                <span className="block text-sm font-medium text-navy-900">{s.title}</span>
-                <span className="block text-xs text-slate-500">{s.type} · {s.section}</span>
+                <span className="block text-sm font-medium text-navy-900">{source.title}</span>
+                <span className="block text-xs text-slate-500">{source.type} · {source.section}</span>
               </span>
             </button>
           </li>
