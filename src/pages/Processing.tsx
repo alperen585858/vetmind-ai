@@ -18,6 +18,7 @@ import { Button } from '../components/Button'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { SkeletonRows } from '../components/Skeleton'
+import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
 import {
   BackendUnavailableError,
   analyzeCaseAsyncAndWait,
@@ -165,6 +166,7 @@ export default function Processing() {
           breadcrumb="Vakalar / AI İşleme"
           actions={<StatusBadge status={c.status} />}
         />
+        <CaseWorkflowStepper currentStep={2} />
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="font-semibold tracking-wide">Yerel demo animasyonu — gerçek AI pipeline değil</p>
           <p className="mt-1 text-xs opacity-90">
@@ -202,6 +204,9 @@ export default function Processing() {
         breadcrumb="Vakalar / AI İşleme"
         actions={<StatusBadge status={c.status} />}
       />
+      <div className="mb-4">
+        <CaseWorkflowStepper currentStep={2} status={failed || cancelled ? 'error' : undefined} />
+      </div>
 
       <div className={`mb-4 rounded-lg border px-4 py-2 text-sm font-semibold tracking-wide ${mode.cls}`}>
         {mode.label}

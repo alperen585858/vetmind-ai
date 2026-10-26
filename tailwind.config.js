@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       fontFamily: {
@@ -8,6 +8,10 @@ export default {
         display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        'vet-navy': '#0F172A',
+        'vet-turquoise': '#0D9488',
+        'vet-amber': '#F59E0B',
+        'vet-red': '#EF4444',
         navy: {
           50: '#f2f6fa', 100: '#e1eaf3', 200: '#c3d4e6', 300: '#94b2d0', 400: '#5f88b3',
           500: '#3e6895', 600: '#2f527a', 700: '#264263', 800: '#1b3049', 900: '#12233a', 950: '#0b1727',
