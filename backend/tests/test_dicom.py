@@ -136,8 +136,7 @@ def test_api_upload_confirm_analyze(client: TestClient) -> None:
     assert analyzed.json()["outcome"] == "success"
     findings = client.get(f"/api/v1/cases/{case['case_id']}/findings").json()
     assert findings["source_kind"] == "mock"
-    assert any("DICOM metadata" in w for w in findings["warnings"])
-    assert any("pikselleri analiz etmez" in w for w in findings["warnings"])
+    assert any("ImagingModelInput" in w or "metadata_only" in w for w in findings["warnings"])
 
 
 def test_api_confirm_override_region(client: TestClient) -> None:

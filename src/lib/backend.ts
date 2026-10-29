@@ -905,6 +905,12 @@ export function draftToSections(report: BackendDraftReport): ReportSections {
   }
 }
 
+function isDisclaimerWarning(text: string): boolean {
+  return /SENTETİK|klinik doğrulan|tıbbi görüntü yorumu|demo çıktı|radyolog incelemesi zorunlu|sentetiktir|pikselleri analiz etmez/i.test(
+    text,
+  )
+}
+
 export function pipelineToAssessment(findings: BackendFindings, report: BackendDraftReport): AIAssessment {
   const mapped = findings.findings.map((f) => ({
     text: `[${f.finding_code}] ${f.description}`,
@@ -917,10 +923,9 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       : [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
     differentials: [],
     recommendedTests: [report.recommendations.text],
-    validation: [
-      { kind: 'unsupported', text: 'AI ön değerlendirme', detail: 'Bu çıktı klinik doğrulanmış bir model değildir. Uzman veteriner radyolog incelemesi zorunludur.' },
-      ...findings.warnings.map((w) => ({ kind: 'missing' as const, text: 'Pipeline uyarısı', detail: w })),
-    ],
+    validation: findings.warnings
+      .filter((w) => !isDisclaimerWarning(w))
+      .map((w) => ({ kind: 'missing' as const, text: 'Pipeline notu', detail: w })),
     model: `${findings.source_model_id} + ${report.generation.model_id}`,
     generatedAt: report.generation.generated_at,
   }

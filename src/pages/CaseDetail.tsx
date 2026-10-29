@@ -8,7 +8,6 @@ import { useApp } from '../context/AppContext'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { PriorityBadge, SeverityBadge, StatusBadge } from '../components/StatusBadge'
-import { AIDisclaimer } from '../components/AIDisclaimer'
 import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
 import { EmptyState } from '../components/EmptyState'
@@ -1182,7 +1181,6 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
   }
   return (
     <div className="space-y-5">
-      <AIDisclaimer />
       {c.backendFindings && (
         <Card>
           <CardHeader title="Yapılandırılmış bulgular" subtitle={`${c.backendFindings.source_model_id} · ${c.backendOutcome ?? ''}`} icon={<Brain className="h-5 w-5" />} />
@@ -1284,17 +1282,30 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
           </Card>
         </div>
         <div className="space-y-5">
-          <Card>
-            <CardHeader title="Doğrulama Raporu" subtitle="Ayrıntı için kutulara tıklayın" icon={<CheckCircle2 className="h-5 w-5" />} />
-            <div className="flex gap-2 px-5 pt-4 text-xs">
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">{ai.validation.filter((v) => v.kind === 'ok').length} doğrulandı</span>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{ai.validation.filter((v) => v.kind === 'missing').length} eksik</span>
-              <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{ai.validation.filter((v) => v.kind === 'unsupported').length} kaynaksız</span>
-            </div>
-            <div className="space-y-2.5 p-5">
-              {ai.validation.map((v, i) => <ValidationBox key={i} v={v} />)}
-            </div>
-          </Card>
+          {(() => {
+            const validation = ai.validation.filter(
+              (v) =>
+                !/SENTETİK|klinik doğrulan|tıbbi görüntü|radyolog incelemesi|AI ön değerlendirme|Pipeline uyarısı/i.test(
+                  `${v.text} ${v.detail}`,
+                ),
+            )
+            if (!validation.length) return null
+            return (
+              <Card>
+                <CardHeader title="Doğrulama Raporu" subtitle="Ayrıntı için kutulara tıklayın" icon={<CheckCircle2 className="h-5 w-5" />} />
+                <div className="flex gap-2 px-5 pt-4 text-xs">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">{validation.filter((v) => v.kind === 'ok').length} doğrulandı</span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{validation.filter((v) => v.kind === 'missing').length} eksik</span>
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{validation.filter((v) => v.kind === 'unsupported').length} kaynaksız</span>
+                </div>
+                <div className="space-y-2.5 p-5">
+                  {validation.map((v, i) => (
+                    <ValidationBox key={i} v={v} />
+                  ))}
+                </div>
+              </Card>
+            )
+          })()}
         </div>
       </div>
     </div>

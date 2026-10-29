@@ -714,7 +714,6 @@ export default function NewCase() {
                 {neuro.deepPain === 'Değerlendirilmedi' && (
                   <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">Derin ağrı algısı değerlendirilmedi olarak işaretli. Bu bilgi prognoz için önemlidir.</p>
                 )}
-                <p className="mt-4 border-t border-teal-100 pt-3 text-[11px] text-slate-500">Kural tabanlı ipucudur; tanı yerine geçmez.</p>
               </div>
             </div>
           </div>

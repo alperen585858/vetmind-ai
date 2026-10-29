@@ -26,9 +26,15 @@ function Item({ w }: { w: ReviewWarning }) {
   )
 }
 
+function isDisclaimerNote(w: { detail: string; raw: string }): boolean {
+  return /SENTETİK|klinik doğrulan|tıbbi görüntü|sentetiktir|demo \/ karma|radyolog incelemesi/i.test(
+    `${w.detail} ${w.raw}`,
+  )
+}
+
 /** Validation-layer card: grounding issues first, structural/system notes collapsed. */
 export function GroundingWarnings({ warnings, checked }: { warnings?: string[] | null; checked: boolean }) {
-  const items = parseWarnings(warnings)
+  const items = parseWarnings(warnings).filter((w) => !isDisclaimerNote(w))
   const issues = items.filter((w) => w.kind !== 'system')
   const system = items.filter((w) => w.kind === 'system')
   if (!items.length) return null

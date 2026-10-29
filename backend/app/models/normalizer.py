@@ -234,17 +234,12 @@ def normalize_outputs(
     unique_kinds = list(dict.fromkeys(source_kinds))
     unique_models = list(dict.fromkeys(model_ids))
 
-    if resolved_kind in {SourceKind.MOCK, SourceKind.MIXED} and MOCK_DISCLAIMER not in warnings:
+    if MOCK_DISCLAIMER and resolved_kind in {SourceKind.MOCK, SourceKind.MIXED} and MOCK_DISCLAIMER not in warnings:
         warnings.insert(0, MOCK_DISCLAIMER)
     if resolved_kind == SourceKind.MIXED:
         warnings.append(
             "KARMA KAYNAK: katkı veren modeller birden fazla kaynak türü bildirdi. "
-            "Katkı veren kaynakları ve her bulgunun modelini inceleyin; birleşik çıktıyı "
-            "tek ve doğrulanmış bir klinik kaynak olarak kabul etmeyin."
-        )
-    if resolved_kind == SourceKind.REAL:
-        warnings.append(
-            "Kaynak türü 'gerçek' yalnızca modelin kaynağını belirtir; klinik doğrulama anlamına gelmez."
+            "Katkı veren kaynakları ve her bulgunun modelini inceleyin."
         )
 
     # Flag contradictory finding-level provenance; never silently rewrite.

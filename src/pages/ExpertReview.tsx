@@ -6,7 +6,6 @@ import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
-import { AIDisclaimer } from '../components/AIDisclaimer'
 import { DicomViewer } from '../components/DicomViewer'
 import { Citations } from '../components/CitationChip'
 import { RagCitations } from '../components/RagCitations'
@@ -387,7 +386,6 @@ const ExpertReview: FC = () => {
             )}
 
             <div className="space-y-5">
-              <AIDisclaimer />
               <GroundingWarnings warnings={c.backendDraft?.validation_warnings} checked={Boolean(c.backendDraft?.generation.prompt_version)} />
               {/* Backend drafts: pipeline notes are in the status box, grounding in the card above. */}
               {warnings.length > 0 && !c.backendDraft && (

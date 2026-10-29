@@ -6,9 +6,7 @@ import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
-import { ProvenanceBanner, provenanceKindFromSource } from '../components/ProvenanceBanner'
 import { Logo } from '../components/Logo'
-import { RagCitations } from '../components/RagCitations'
 import { downloadApprovedReportPdf, getReportVersion, markReportViewed } from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import {
@@ -192,10 +190,6 @@ export default function ApprovedReport() {
   const provenance = reportProvenance(c)
   const showDemoPatientExtras = !c.fromBackend
 
-  const provKind = provenanceKindFromSource(c.backendDraft?.generation?.source_kind ?? c.backendFindings?.source_kind, {
-    synthetic: c.backendDraft?.synthetic ?? true,
-  })
-
   return (
     <div className="mx-auto max-w-4xl">
       <div className="no-print">
@@ -229,7 +223,6 @@ export default function ApprovedReport() {
             </div>
           }
         />
-        <ProvenanceBanner kind={provKind} className="mb-4" compact />
       </div>
 
       {loadError && (
@@ -266,10 +259,6 @@ export default function ApprovedReport() {
       )}
 
       <article className="rounded-xl border border-slate-200 bg-white shadow-soft print:border-0 print:shadow-none">
-        <div className="border-b border-amber-200 bg-amber-50 px-8 py-2 text-center text-[11px] font-semibold tracking-wide text-amber-950">
-          {provenance.banner}
-        </div>
-
         <header className="flex flex-col gap-4 border-b-4 border-teal-600 px-8 py-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Logo />
@@ -283,14 +272,6 @@ export default function ApprovedReport() {
             <p className="text-slate-500">
               Vaka No: <span className="font-mono">{c.no}</span>
             </p>
-            <p className="text-slate-500">
-              Sürüm: <span className="font-mono">{provenance.versionLabel}</span>
-            </p>
-            {c.backendCaseId && (
-              <p className="text-slate-500">
-                Case ID: <span className="font-mono text-xs">{c.backendCaseId}</span>
-              </p>
-            )}
           </div>
         </header>
 
@@ -432,23 +413,6 @@ export default function ApprovedReport() {
             </ul>
           )}
         </section>
-
-        {c.backendDraft?.rag_citations && c.backendDraft.rag_citations.length > 0 && (
-          <section className="border-t border-slate-100 px-8 py-6">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-teal-700">
-              RAG kaynakları (klinik kanıt değil)
-            </h3>
-            <p className="mb-3 text-xs text-slate-500">
-              {c.backendDraft.rag_note ||
-                'Lexical/embedding eşleşmeleri — görüntüleme bulgularından ayrı tutulur.'}
-            </p>
-            <RagCitations
-              citations={c.backendDraft.rag_citations}
-              note={c.backendDraft.rag_note}
-              usedPassageIds={c.backendDraft.used_passage_ids}
-            />
-          </section>
-        )}
 
         <footer className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/70 px-8 py-5 sm:flex-row sm:items-end sm:justify-between print:bg-white">
           <div className="flex items-start gap-3">

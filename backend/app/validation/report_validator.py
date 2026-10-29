@@ -49,8 +49,6 @@ class ReportValidator:
             if not section.text or not section.text.strip():
                 result.add_error(f"Rapor bölümü boş: {_SECTION_TR.get(name, name)}.")
 
-        if report.generation.source_kind in {SourceKind.MOCK, SourceKind.MIXED} or report.synthetic:
-            result.add_warning("Rapor kaynağı demo / karma / sentetiktir ve klinik olarak doğrulanmamıştır.")
         if report.clinically_validated:
             result.add_error("Gerçek ve doğrulanmış bir model olana kadar clinically_validated false olmalıdır.")
 

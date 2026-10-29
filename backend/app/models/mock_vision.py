@@ -8,9 +8,7 @@ from app.schemas.enums import (
 )
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings
 
-MOCK_DISCLAIMER = (
-    "SENTETİK DEMO ÇIKTI. Tıbbi görüntü yorumu değildir ve klinik olarak doğrulanmamıştır."
-)
+MOCK_DISCLAIMER = ""
 ABSENCE_WARNING = (
     "Bulgu dönmedi. Bulgu olmaması, hastalığın olmadığının doğrulandığı anlamına gelmez."
 )
@@ -23,10 +21,7 @@ class MockVisionError(ImagingAdapterError):
     """Deterministic mock execution failure (subclass of ImagingAdapterError)."""
 
 
-DICOM_METADATA_ONLY_WARNING = (
-    "Vakada DICOM metadata var. Demo görüntü modelleri pikselleri analiz etmez; "
-    "çıktılar sentetiktir ve görüntüye dayalı tanı olarak kabul edilmemelidir."
-)
+DICOM_METADATA_ONLY_WARNING = ""
 
 
 def _base(
@@ -36,9 +31,7 @@ def _base(
     version: str,
     status: ModelExecutionStatus,
 ) -> StructuredFindings:
-    warnings = [MOCK_DISCLAIMER]
-    if case.dicom_study is not None or case.study.dicom_available:
-        warnings.append(DICOM_METADATA_ONLY_WARNING)
+    warnings: list[str] = []
     if case.model_input is not None:
         mi = case.model_input
         warnings.append(

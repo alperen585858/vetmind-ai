@@ -210,9 +210,6 @@ export default function Processing() {
 
       <div className={`mb-4 rounded-lg border px-4 py-2 text-sm font-semibold tracking-wide ${mode.cls}`}>
         {mode.label}
-        <span className="mt-0.5 block text-xs font-normal opacity-90">
-          Klinik doğrulanmış AI değildir. Uzman incelemesi zorunludur. İstemci poll iptali backend işini iptal etmez.
-        </span>
       </div>
 
       {loadError && (
