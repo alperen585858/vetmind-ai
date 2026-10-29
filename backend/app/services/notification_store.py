@@ -22,6 +22,10 @@ class NotificationStore(Protocol):
 
     def mark_all_read(self, recipient: str) -> int: ...
 
+    def delete(self, notification_id: str) -> bool: ...
+
+    def delete_all_for(self, recipient: str) -> int: ...
+
     def delete_for_cases(self, case_ids: set[str]) -> int: ...
 
 
@@ -61,6 +65,20 @@ class InMemoryNotificationStore:
                 self._by_id[item.notification_id] = item.model_copy(update={"read_at": now})
                 n += 1
         return n
+
+    def delete(self, notification_id: str) -> bool:
+        item = self._by_id.pop(notification_id, None)
+        if item is None:
+            return False
+        self._dedupe.discard(item.dedupe_key)
+        return True
+
+    def delete_all_for(self, recipient: str) -> int:
+        doomed = [n for n in self._by_id.values() if n.recipient_subject == recipient]
+        for item in doomed:
+            del self._by_id[item.notification_id]
+            self._dedupe.discard(item.dedupe_key)
+        return len(doomed)
 
     def delete_for_cases(self, case_ids: set[str]) -> int:
         doomed = [n for n in self._by_id.values() if n.case_id in case_ids]
@@ -158,6 +176,22 @@ class SqliteNotificationStore:
         for item in items:
             self.save(item.model_copy(update={"read_at": now}))
         return len(items)
+
+    def delete(self, notification_id: str) -> bool:
+        cur = self._conn.execute(
+            "DELETE FROM notifications WHERE notification_id=?",
+            (notification_id,),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def delete_all_for(self, recipient: str) -> int:
+        cur = self._conn.execute(
+            "DELETE FROM notifications WHERE recipient_subject=?",
+            (recipient,),
+        )
+        self._conn.commit()
+        return cur.rowcount
 
     def delete_for_cases(self, case_ids: set[str]) -> int:
         rows = self._conn.execute("SELECT notification_id, payload FROM notifications").fetchall()

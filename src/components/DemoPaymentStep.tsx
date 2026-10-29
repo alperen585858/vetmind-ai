@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { AlertCircle, CreditCard, Loader2, Lock, ShieldAlert } from 'lucide-react'
+import { AlertCircle, CreditCard, Loader2, Lock } from 'lucide-react'
 import { Button } from './Button'
 import { PaymentCardPreview } from './PaymentCardPreview'
 import { PaymentSuccessCheck } from './PaymentSuccessCheck'
@@ -70,7 +70,7 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
       successTimer.current = window.setTimeout(() => onApproved(result), 4200)
     } catch (err) {
       setState('error')
-      setError(err instanceof Error ? err.message : 'Demo ödeme başarısız')
+      setError(err instanceof Error ? err.message : 'Ödeme başarısız')
     }
   }
 
@@ -84,7 +84,7 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
           Talep radyoloji iş akışına gönderiliyor…
         </p>
         <p className="mt-1 text-center text-xs font-medium text-slate-500">
-          {DEMO_PRICE_LABEL} · DEMO / NO REAL CHARGE
+          {DEMO_PRICE_LABEL}
         </p>
       </div>
     )
@@ -92,22 +92,6 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
 
   return (
     <div className="space-y-5">
-      {/* Demo banner */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300/80 bg-gradient-to-r from-amber-50 via-amber-50 to-orange-50 px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-800 ring-1 ring-amber-200">
-            <ShieldAlert className="h-4 w-4" />
-          </span>
-          <div>
-            <p className="text-sm font-bold tracking-wide text-amber-950">DEMO / NO REAL CHARGE</p>
-            <p className="text-xs text-amber-900/80">Simüle edilmiş ödeme · gerçek tahsilat veya fatura oluşmaz</p>
-          </div>
-        </div>
-        <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-800 ring-1 ring-amber-200">
-          Simulated only
-        </span>
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-start">
         {/* Left: summary + form */}
         <div className="space-y-5">
@@ -147,9 +131,9 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
 
           <form onSubmit={(e) => void submit(e)} className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-soft">
               <div>
-                <h3 className="text-[15px] font-semibold text-navy-900">Demo kart bilgileri</h3>
+                <h3 className="text-[15px] font-semibold text-navy-900">Kart bilgileri</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Ön tanımlı test kartını kullanın veya alanları düzenleyin — önizleme anında güncellenir.
+                  Kart bilgilerinizi girin veya ön tanımlı kartı kullanın — önizleme anında güncellenir.
                 </p>
               </div>
 
@@ -219,7 +203,7 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
                   <div>
-                    <p className="font-semibold">Demo ödeme reddedildi</p>
+                    <p className="font-semibold">Ödeme reddedildi</p>
                     <p className="mt-0.5 text-rose-800/90">{error}</p>
                     <p className="mt-1.5 text-xs text-rose-700/80">
                       Ön tanımlı test kartını deneyin. Başarısız denemeler talebi tamamlamaz.
@@ -241,7 +225,7 @@ export function DemoPaymentStep({ payment, disabled, onApproved, onSuccessStart 
                   )
                 }
               >
-                {state === 'loading' ? 'Demo ödeme doğrulanıyor…' : `Demo öde · ${DEMO_PRICE_LABEL}`}
+                {state === 'loading' ? 'Ödeme doğrulanıyor…' : `Öde · ${DEMO_PRICE_LABEL}`}
               </Button>
             </form>
         </div>

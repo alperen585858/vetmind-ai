@@ -40,3 +40,20 @@ def mark_all_read(
     service=Depends(_svc),
 ) -> dict[str, int]:
     return service.mark_all_read(principal=principal)
+
+
+@router.post("/clear-all")
+def clear_all(
+    principal: AuthPrincipal = Depends(require_actor),
+    service=Depends(_svc),
+) -> dict[str, int]:
+    return service.delete_all(principal=principal)
+
+
+@router.post("/{notification_id}/delete")
+def delete_notification(
+    notification_id: str,
+    principal: AuthPrincipal = Depends(require_actor),
+    service=Depends(_svc),
+) -> dict[str, bool]:
+    return service.delete(notification_id, principal=principal)

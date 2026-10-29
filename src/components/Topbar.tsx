@@ -57,14 +57,6 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       >
         <Menu className="h-5 w-5" aria-hidden />
       </button>
-      <div className="hidden min-w-0 text-sm text-slate-500 md:block">
-        <span className="text-slate-400">Modül</span>{' '}
-        <span className="font-medium text-navy-800">Veteriner Nöroloji</span>
-        <span className="mx-2 text-slate-300" aria-hidden>
-          ·
-        </span>
-        <span className="text-xs text-amber-700">Demo · mock veri</span>
-      </div>
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         <NotificationBell />
 
@@ -82,10 +74,10 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           {open && (
             <div
               role="listbox"
-              aria-label="Demo rol seçimi"
+              aria-label="Rol seçimi"
               className="absolute right-0 mt-2 w-72 animate-fade-up rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
             >
-              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Demo: rol seçin</p>
+              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Rol seçin</p>
               {(Object.keys(USERS) as Role[]).map((r) => (
                 <button
                   key={r}

@@ -39,12 +39,14 @@ export function StatCard({
   icon,
   hint,
   tone = 'teal',
+  className = '',
 }: {
   label: string
   value: ReactNode
   icon: ReactNode
   hint?: string
   tone?: 'teal' | 'navy' | 'amber' | 'emerald' | 'violet' | 'sky'
+  className?: string
 }) {
   const tones = {
     teal: 'bg-accent-soft text-teal-700',
@@ -55,13 +57,15 @@ export function StatCard({
     sky: 'bg-sky-50 text-sky-700',
   }
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <div className={`rounded-lg p-2 ${tones[tone]}`}>{icon}</div>
+    <Card className={`flex h-full flex-col p-4 ${className}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        <div className={`shrink-0 rounded-lg p-1.5 [&_svg]:h-4 [&_svg]:w-4 ${tones[tone]}`}>{icon}</div>
       </div>
-      <p className="mt-3 font-display text-3xl font-semibold tracking-tight text-navy-900">{value}</p>
-      {hint && <p className="text-caption mt-1">{hint}</p>}
+      <p className="mt-2 font-display text-2xl font-semibold tracking-tight text-navy-900 tabular-nums sm:text-[1.75rem]">
+        {value}
+      </p>
+      {hint && <p className="text-caption mt-auto pt-1 text-[11px] leading-snug">{hint}</p>}
     </Card>
   )
 }

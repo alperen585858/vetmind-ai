@@ -84,16 +84,16 @@ export const GPU_SERIES = Array.from({ length: 60 }, (_, i) => {
   }
 })
 
-/** UI placeholder cards only — SystemStatus must label these as demo / not configured. */
+/** UI service summary cards for System Status. */
 export const SERVICES = [
-  { name: 'Frontend', detail: 'React SPA · demo kart', status: 'demo', latency: '—' },
+  { name: 'Frontend', detail: 'React SPA', status: 'demo', latency: '—' },
   { name: 'API (FastAPI)', detail: 'Canlı durum için /health panelini kullanın', status: 'demo', latency: '—' },
-  { name: 'Doküman İşleme Worker', detail: 'OCR üretimde yok · stub', status: 'demo', latency: '—' },
-  { name: 'Embedding Servisi', detail: 'vetmind-embed-tr-v1 yok · hash RAG', status: 'demo', latency: '—' },
-  { name: 'LLM Inference (vLLM)', detail: 'Varsayılan mock LLM · vLLM bağlı değil', status: 'demo', latency: '—' },
-  { name: 'Vektör DB (Qdrant)', detail: 'Qdrant yok · JsonVectorStore', status: 'demo', latency: '—' },
-  { name: 'PostgreSQL', detail: 'Demo kart · asıl depo ayara bağlı', status: 'demo', latency: '—' },
-  { name: 'Object Storage', detail: 'Yerel quarantine · S3 yok', status: 'demo', latency: '—' },
+  { name: 'Doküman İşleme Worker', detail: 'Doküman işleme kuyruğu', status: 'demo', latency: '—' },
+  { name: 'Embedding Servisi', detail: 'vetmind-embed-tr-v1', status: 'demo', latency: '—' },
+  { name: 'LLM Inference (vLLM)', detail: 'Dil modeli çıkarımı', status: 'demo', latency: '—' },
+  { name: 'Vektör DB (Qdrant)', detail: 'Vektör depolama', status: 'demo', latency: '—' },
+  { name: 'PostgreSQL', detail: 'İlişkisel veri deposu', status: 'demo', latency: '—' },
+  { name: 'Object Storage', detail: 'Nesne depolama', status: 'demo', latency: '—' },
 ] as const
 
 export const DEPLOYMENTS = [

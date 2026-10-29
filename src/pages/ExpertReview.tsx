@@ -367,7 +367,7 @@ const ExpertReview: FC = () => {
                 {c.backendDraft?.immutable ? ' · immutable' : ''}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                source_kind={c.backendFindings?.source_kind ?? 'mock'} · Uzman onayı klinik sertifikasyon değildir.
+                Uzman onayı klinik sertifikasyon değildir.
               </p>
               {warnings.length > 0 && (
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">

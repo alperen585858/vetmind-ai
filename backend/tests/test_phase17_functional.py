@@ -84,6 +84,18 @@ def test_notifications_submission_and_dedupe(tmp_path: Path) -> None:
     assert all_read.status_code == 200
     assert before >= 1
 
+    deleted = client.post(f"/api/v1/notifications/{nid}/delete", headers=_hdr(owner))
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+    after_one = client.get("/api/v1/notifications", headers=_hdr(owner))
+    assert all(i["notification_id"] != nid for i in after_one.json()["items"])
+
+    cleared = client.post("/api/v1/notifications/clear-all", headers=_hdr(owner))
+    assert cleared.status_code == 200
+    empty = client.get("/api/v1/notifications", headers=_hdr(owner))
+    assert empty.json()["items"] == []
+    assert empty.json()["unread_count"] == 0
+
 
 def test_pet_medical_history_and_activity_and_pdf(tmp_path: Path) -> None:
     client = _client(tmp_path)

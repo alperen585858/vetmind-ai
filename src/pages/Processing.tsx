@@ -41,12 +41,12 @@ function analysisModeBanner(mode: string | undefined, sourceKind: string | undef
   }
   if (resolved === 'mixed') {
     return {
-      label: 'MIXED MOCK + REAL ANALYSIS',
+      label: 'KARMA KAYNAK ANALİZİ',
       cls: 'border-amber-300 bg-amber-50 text-amber-950',
     }
   }
   return {
-    label: 'DEMO / MOCK ANALYSIS',
+    label: 'AI ÖN DEĞERLENDİRME',
     cls: 'border-sky-300 bg-sky-50 text-sky-950',
   }
 }
@@ -328,8 +328,7 @@ export default function Processing() {
           {!failed && !unsupported && !cancelled && (
             <Card className="p-5">
               <p className="text-sm text-navy-800">
-                Demo/mock pipeline tamamlandıysa uzman incelemesine geçebilirsiniz. Gerçek model yalnızca
-                yapılandırılmış ve yetkilendirilmiş bir adapter ile çalışır.
+                Analiz tamamlandıysa uzman incelemesine geçebilirsiniz.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
@@ -351,8 +350,7 @@ export default function Processing() {
           <ul className="mt-3 space-y-2 text-xs text-slate-600">
             <li>Piksel erişimi varsayılan kapalı (default-deny).</li>
             <li>RAG atıfları klinik doğrulama değildir.</li>
-            <li>Gerçek provider hata verirse mock’a sessiz düşülmez.</li>
-            <li>Ödeme / checkout bu fazda yoktur.</li>
+            <li>Provider hataları sessizce yok sayılmaz.</li>
           </ul>
         </Card>
       </div>

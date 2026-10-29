@@ -38,13 +38,18 @@ const STEPS: { key: string; label: string; match: (s: CaseStatus) => boolean; do
 export function CaseProgressTracker({
   status,
   handoffNotes,
+  embedded = false,
 }: {
   status: CaseStatus
   handoffNotes?: string | null
+  /** Drop outer border when already inside a Card */
+  embedded?: boolean
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Vaka ilerleme</p>
+    <div className={embedded ? '' : 'rounded-xl border border-slate-200 bg-white p-4'}>
+      {!embedded && (
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Vaka ilerleme</p>
+      )}
       <ol className="space-y-2">
         {STEPS.map((step) => {
           const isDone = step.done(status)
@@ -52,11 +57,11 @@ export function CaseProgressTracker({
           return (
             <li key={step.key} className="flex items-center gap-2 text-sm">
               {isDone && !isActive ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
               ) : isActive ? (
-                <Loader2 className="h-4 w-4 animate-spin text-teal-700" />
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-teal-700" />
               ) : (
-                <Circle className="h-4 w-4 text-slate-300" />
+                <Circle className="h-4 w-4 shrink-0 text-slate-300" />
               )}
               <span className={isActive ? 'font-semibold text-navy-900' : isDone ? 'text-slate-700' : 'text-slate-400'}>
                 {step.label}
@@ -66,7 +71,7 @@ export function CaseProgressTracker({
         })}
       </ol>
       {handoffNotes ? (
-        <p className="mt-3 rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
+        <p className="mt-3 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
           <span className="font-semibold text-navy-800">Klinik not: </span>
           {handoffNotes}
         </p>

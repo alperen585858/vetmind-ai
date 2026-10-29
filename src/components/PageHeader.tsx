@@ -16,7 +16,7 @@ export function PageHeader({
   crumbs?: Crumb[]
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         {crumbs?.length ? (
           <div className="mb-1">
@@ -26,9 +26,9 @@ export function PageHeader({
           breadcrumb && <div className="mb-1 text-xs text-slate-500">{breadcrumb}</div>
         )}
         <h1 className="text-display">{title}</h1>
-        {subtitle && <p className="text-caption mt-1 sm:text-sm">{subtitle}</p>}
+        {subtitle && <p className="text-caption mt-0.5">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
 }

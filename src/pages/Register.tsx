@@ -60,7 +60,7 @@ export default function Register() {
             <h1 className="text-lg font-semibold text-white">Hesap oluştur</h1>
           </div>
           <p className="text-sm text-navy-300">
-            Demo kayıt localStorage&apos;a yazılır. Backend açıksa seed hesaplarla JWT de alınır; özel e-postalar yalnızca UI oturumu alır.
+            E-posta ve şifrenizle hesap oluşturun; giriş sonrası rolünüze uygun panele yönlendirilirsiniz.
           </p>
 
           <label className="mt-5 block text-xs font-medium text-navy-300">

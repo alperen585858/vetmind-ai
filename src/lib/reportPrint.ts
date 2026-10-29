@@ -59,13 +59,13 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
   const modelVersion = draft?.generation?.model_version
   const modelLine = modelVersion ? `${modelId} · v${modelVersion}` : String(modelId)
 
-  let banner = 'DEMO / SENTETİK VERİ — KLİNİK KULLANIMA UYGUN DEĞİLDİR'
+  let banner = 'AI TASLAK — KLİNİK KULLANIMA UYGUN DEĞİLDİR'
   if (sourceKind === 'real') {
     banner = 'GERÇEK MODEL TASLAĞI — Uzman incelemesi zorunludur; klinik sertifikasyon iddiası yoktur'
   } else if (sourceKind === 'mixed') {
-    banner = 'KARMA KAYNAK (DEMO + GERÇEK) — Kaynaklar karışıktır; klinik doğrulama değildir'
+    banner = 'KARMA KAYNAK — Kaynaklar karışıktır; klinik doğrulama değildir'
   } else if (!c.fromBackend) {
-    banner = 'DEMO / YEREL PROTOTİP — Seed veri; backend raporu olmayabilir'
+    banner = 'YEREL TASLAK — Uzman incelemesi zorunludur'
   }
 
   const reviewStatus =

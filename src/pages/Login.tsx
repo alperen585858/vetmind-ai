@@ -82,7 +82,7 @@ export default function Login() {
             <span className="text-teal-300"> DICOM metadata yükleyin,</span> uzman onayıyla ilerleyin.
           </h1>
           <p className="mt-5 max-w-lg text-base text-navy-200">
-            Demo UI oturumu localStorage’dadır. Backend açıksa JWT de alınır (VETMIND_AUTH_ENABLED=1 iken API koruması aktif). AI çıktıları klinik tanı değildir.
+            Veteriner radyoloji iş akışına güvenli giriş yapın; DICOM yükleme ve uzman onay sürecine devam edin.
           </p>
         </div>
 
@@ -138,7 +138,7 @@ export default function Login() {
           </form>
 
           <div className="mt-4 rounded-xl border border-navy-800 bg-navy-900/50 p-4 text-xs text-navy-300">
-            <p className="font-semibold text-navy-100">Demo hesaplar (şifre: demo1234)</p>
+            <p className="font-semibold text-navy-100">Örnek hesaplar</p>
             <ul className="mt-2 space-y-1">
               {listDemoCredentials().map((c) => (
                 <li key={c.email}>
@@ -159,7 +159,7 @@ export default function Login() {
         </div>
 
         <div className="mt-auto pt-10 text-xs text-navy-400 lg:absolute lg:bottom-10 lg:left-6">
-          Acıbadem Üniversitesi CSE 401/402 · VRM Teknoloji iş birliğiyle · Demo prototip
+          Acıbadem Üniversitesi CSE 401/402 · VRM Teknoloji iş birliğiyle
         </div>
       </div>
     </div>

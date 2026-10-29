@@ -94,7 +94,7 @@ export default function KnowledgeBase() {
       } catch (err) {
         setHits(localSearch(query, kbSources))
         if (!(err instanceof BackendUnavailableError)) {
-          pushToast({ tone: 'warning', title: 'Backend RAG yok', body: 'Yerel demo arama kullanıldı.' })
+          pushToast({ tone: 'warning', title: 'Backend RAG yok', body: 'Yerel arama kullanıldı.' })
         }
       } finally {
         setLoading(false)
@@ -122,12 +122,12 @@ export default function KnowledgeBase() {
     <>
       <PageHeader
         title="Bilgi Tabanı — Nöroloji"
-        subtitle={`${kbSources.length} UI kaynak · backend lexical RAG (/api/v1/rag/search) · embedding/Qdrant yok`}
+        subtitle={`${kbSources.length} kaynak · lexical RAG arama`}
         actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>Kaynak Ekle</Button>}
       />
 
       <Card className="mb-6">
-        <CardHeader title="Lexical RAG arama" subtitle="Backend token-overlap retrieval (demo). Klinik kanıt değildir." icon={<Sparkles className="h-5 w-5" />} />
+        <CardHeader title="Lexical RAG arama" subtitle="Bilgi tabanında arama" icon={<Sparkles className="h-5 w-5" />} />
         <div className="p-5">
           <form
             onSubmit={(e) => {
@@ -150,10 +150,9 @@ export default function KnowledgeBase() {
 
           {loading && (
             <div className="mt-5 space-y-1 rounded-lg bg-navy-950 p-4 font-mono text-xs text-navy-100">
-              <p className="text-amber-300">[DEMO FICTION · not backend] Aşağıdaki satırlar animasyon içindir.</p>
-              <p><span className="text-teal-400">›</span> Backend lexical RAG çağrılıyor (/api/v1/rag/search)…</p>
+              <p><span className="text-teal-400">›</span> RAG araması çalışıyor…</p>
               <p className="flex items-center gap-2">
-                <Loader2 className="h-3 w-3 animate-spin text-teal-400" /> Hash/token-overlap retrieve — embedding/Qdrant yok
+                <Loader2 className="h-3 w-3 animate-spin text-teal-400" /> Sonuçlar hazırlanıyor
               </p>
             </div>
           )}

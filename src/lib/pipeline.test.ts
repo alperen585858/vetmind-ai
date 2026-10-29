@@ -14,7 +14,7 @@ const stubCase = {
 } as unknown as VetCase
 
 describe('pipeline fiction vs backend', () => {
-  it('marks every fiction log with DEMO FICTION prefix', () => {
+  it('marks every fiction log with local prefix', () => {
     for (const layer of LAYERS) {
       for (const line of layer.logs(stubCase)) {
         expect(line.startsWith(DEMO_FICTION_PREFIX)).toBe(true)
@@ -32,7 +32,7 @@ describe('pipeline fiction vs backend', () => {
   it('rag fiction still mentions Qdrant but as not-backend', () => {
     const rag = LAYERS.find((l) => l.key === 'rag')!
     const joined = rag.logs(stubCase).join('\n')
-    expect(joined).toContain('DEMO FICTION')
+    expect(joined).toContain('[yerel]')
     expect(joined).toContain('Qdrant yok')
   })
 })

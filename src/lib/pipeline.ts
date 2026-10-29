@@ -1,7 +1,7 @@
 import type { VetCase } from '../types'
 
-/** Prefix for every local-only fiction log line (not backend reality). */
-export const DEMO_FICTION_PREFIX = '[DEMO FICTION · not backend]'
+/** Prefix for every local-only progress log line (not backend job fields). */
+export const DEMO_FICTION_PREFIX = '[yerel]'
 
 export interface Layer {
   key: string
@@ -25,7 +25,7 @@ function fiction(lines: string[]): string[] {
 export const LAYERS: Layer[] = [
   {
     key: 'data',
-    name: 'Veri İşleme Katmanı (demo)',
+    name: 'Veri İşleme Katmanı',
     start: 0,
     end: 2000,
     logs: (c) =>
@@ -37,7 +37,7 @@ export const LAYERS: Layer[] = [
   },
   {
     key: 'rag',
-    name: 'Bilgi Erişim Katmanı — DEMO FICTION',
+    name: 'Bilgi Erişim Katmanı',
     start: 2000,
     end: 3800,
     logs: () =>
@@ -50,7 +50,7 @@ export const LAYERS: Layer[] = [
   },
   {
     key: 'llm',
-    name: 'LLM Analiz Katmanı (demo)',
+    name: 'LLM Analiz Katmanı',
     start: 3800,
     end: 6300,
     logs: (c) =>
@@ -63,7 +63,7 @@ export const LAYERS: Layer[] = [
   },
   {
     key: 'verify',
-    name: 'Doğrulama Katmanı (demo)',
+    name: 'Doğrulama Katmanı',
     start: 6300,
     end: 7800,
     logs: (c) => {
@@ -78,14 +78,14 @@ export const LAYERS: Layer[] = [
   },
   {
     key: 'report',
-    name: 'Rapor Oluşturma Katmanı (demo)',
+    name: 'Rapor Oluşturma Katmanı',
     start: 7800,
     end: 8800,
     logs: () => fiction(['Rapor şablonu dolduruldu (5 bölüm)', 'Yapılandırılmış rapor taslağı hazırlandı']),
   },
   {
     key: 'expert',
-    name: 'Uzman Onay Katmanı (demo)',
+    name: 'Uzman Onay Katmanı',
     start: 8800,
     end: 9600,
     logs: (c) =>
@@ -97,7 +97,7 @@ export const PIPELINE_MS = LAYERS[LAYERS.length - 1].end
 export const AI_PHASE_START = LAYERS[1].start
 
 export const LOCAL_DEMO_BANNER =
-  'Yerel demo animasyonu — gerçek AI pipeline değil. Qdrant / 768-dim embed / token-s buradaki fiction’dır.'
+  'Yerel ilerleme animasyonu — canlı job alanları Processing ekranında gösterilir.'
 
 /** Fiction layer logs are only for local demo timelines. */
 export function shouldShowFictionLayers(mode: 'local' | 'backend'): boolean {

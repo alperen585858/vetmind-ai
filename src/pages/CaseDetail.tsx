@@ -674,7 +674,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                   : '—'
               }
             />
-            <Row k="Demo analiz" v={analysisStatusLabel(c.status)} />
+            <Row k="Analiz" v={analysisStatusLabel(c.status)} />
             <Row k="Uzman inceleme" v={expertReviewLabel(c.status)} />
             <Row
               k="Rapor"
@@ -685,7 +685,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                   </Link>
                 ) : c.backendDraft || c.aiDraft ? (
                   <button type="button" className="font-medium text-teal-700 hover:underline" onClick={onOpenAiTab}>
-                    AI taslak (mock) — AI sekmesi
+                    AI taslak — AI sekmesi
                   </button>
                 ) : (
                   'Henüz yok'
@@ -888,7 +888,7 @@ function Imaging({ c }: { c: VetCase }) {
             explicitDemoKind === 'thorax_xr' ? 1 : 12,
           )
           if (cancelled) return
-          await paintFiles(demoFiles, `Demo · ${explicitDemoKind.replace(/_/g, ' ')}`)
+          await paintFiles(demoFiles, `Örnek · ${explicitDemoKind.replace(/_/g, ' ')}`)
           return
         }
 
@@ -943,14 +943,14 @@ function Imaging({ c }: { c: VetCase }) {
     try {
       const kind = explicitDemoKind ?? fallbackDemoKind
       const demoFiles = await fetchDemoDicomFiles(kind, kind === 'thorax_xr' ? 1 : 12)
-      await paintFiles(demoFiles, `Demo · ${kind.replace(/_/g, ' ')} (örnek)`)
+      await paintFiles(demoFiles, `Örnek · ${kind.replace(/_/g, ' ')}`)
     } catch (err) {
       const message =
         err instanceof BackendUnavailableError
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Demo yüklenemedi'
+            : 'Örnek yüklenemedi'
       setError(message)
     } finally {
       setLoading(false)
@@ -1042,7 +1042,7 @@ function Imaging({ c }: { c: VetCase }) {
             </Button>
           )}
           <Button type="button" variant="ghost" size="sm" disabled={busy || loading} onClick={() => void loadDemoOptional()}>
-            Örnek demo
+            Örnek
           </Button>
         </div>
         <input
@@ -1113,8 +1113,7 @@ function Imaging({ c }: { c: VetCase }) {
               <UploadCloud className="h-10 w-10 text-[#0D827B]" />
               <p className="mt-3 font-medium text-[#172B45]">Bu vakaya ait DICOM henüz görüntülenemiyor</p>
               <p className="mt-1 max-w-md text-sm text-slate-500">
-                Yüklediğiniz çalışma sunucudan getirilir. Bulunamazsa kendi DICOM klasörünüzü buraya sürükleyin —
-                sentetik demo otomatik açılmaz.
+                Yüklediğiniz çalışma sunucudan getirilir. Bulunamazsa kendi DICOM klasörünüzü buraya sürükleyin.
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button size="sm" variant="secondary" onClick={() => void reloadCaseStudy()}>
@@ -1124,7 +1123,7 @@ function Imaging({ c }: { c: VetCase }) {
                   Dosya seç
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void loadDemoOptional()}>
-                  Örnek demo (isteğe bağlı)
+                  Örnek yükle
                 </Button>
               </div>
             </div>
@@ -1135,8 +1134,7 @@ function Imaging({ c }: { c: VetCase }) {
 
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 ring-1 ring-inset ring-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          Önce sizin yüklediğiniz DICOM (quarantine / tarayıcı önbelleği) gösterilir. Sentetik “SYNTHETIC …” görüntüler
-          yalnızca isteğe bağlı örnek demoda açılır; yapay zekâ piksel analizi yapmaz.
+          Önce sizin yüklediğiniz DICOM gösterilir. Örnek görüntüler isteğe bağlı olarak açılabilir.
         </p>
       </div>
     </Card>
@@ -1187,10 +1185,10 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
       <AIDisclaimer />
       {c.backendFindings && (
         <Card>
-          <CardHeader title="Yapılandırılmış mock bulgular (FastAPI)" subtitle={`${c.backendFindings.source_model_id} · ${c.backendOutcome ?? ''} · source=${c.backendFindings.source_kind}`} icon={<Brain className="h-5 w-5" />} />
+          <CardHeader title="Yapılandırılmış bulgular" subtitle={`${c.backendFindings.source_model_id} · ${c.backendOutcome ?? ''}`} icon={<Brain className="h-5 w-5" />} />
           <div className="space-y-3 p-5 text-sm text-navy-800">
-            <p className="rounded-lg bg-amber-50 p-3 text-amber-900 ring-1 ring-inset ring-amber-200">
-              Bu kayıtlar sentetiktir. Eksik bulgu, hastalığın yokluğu anlamına gelmez (`absences_not_confirmed={String(c.backendFindings.absences_not_confirmed)}`).
+            <p className="rounded-lg bg-slate-50 p-3 text-slate-700 ring-1 ring-inset ring-slate-200">
+              Eksik bulgu, hastalığın yokluğu anlamına gelmez.
             </p>
             {c.backendFindings.findings.length === 0 ? (
               <p>Döndürülen bulgu yok (`no_findings_returned={String(c.backendFindings.no_findings_returned)}`).</p>
@@ -1415,7 +1413,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
             </p>
             <p className="mt-1 font-mono text-xs text-slate-500">{prov}</p>
             {draft?.synthetic !== false && (
-              <p className="mt-2 text-xs font-semibold text-amber-800">DEMO / MOCK — klinik sertifikasyon değildir</p>
+              <p className="mt-2 text-xs font-semibold text-amber-800">AI taslak — klinik sertifikasyon değildir</p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">

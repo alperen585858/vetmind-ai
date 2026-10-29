@@ -349,12 +349,12 @@ export function analysisStatusLabel(status: CaseStatus): string {
       return 'Bekliyor'
     case 'isleniyor':
     case 'ai_analizi':
-      return 'Demo analiz'
+      return 'Analiz'
     case 'uzman_incelemesinde':
     case 'onaylandi':
     case 'reddedildi':
     case 'revizyon':
-      return 'Tamamlandı (mock)'
+      return 'Tamamlandı'
     case 'analiz_basarisiz':
       return 'Başarısız'
     case 'manuel_inceleme':

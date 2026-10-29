@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react'
+import { fmtDate } from '../lib/format'
 import { useApp } from '../context/AppContext'
 import { demoEmailForRole } from '../lib/auth'
 import { PageHeader } from '../components/PageHeader'
@@ -20,6 +21,7 @@ import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { StepIndicator } from '../components/StepIndicator'
 import { DEMO_PRICE_LABEL, DemoPaymentStep } from '../components/DemoPaymentStep'
+import { VetSubmissionsBoard } from '../components/VetSubmissionsBoard'
 import {
   attachSubmission,
   closeSubmissionInfoRequest,
@@ -55,6 +57,70 @@ const STATUS_TR: Record<string, string> = {
   verified: 'Doğrulandı',
   rejected: 'Reddedildi',
   linked: 'Vakaya bağlandı',
+}
+
+const STATUS_PILL: Record<string, string> = {
+  draft: 'bg-slate-100 text-slate-700 ring-slate-200',
+  pending_verification: 'bg-amber-50 text-amber-900 ring-amber-200',
+  needs_info: 'bg-orange-50 text-orange-900 ring-orange-200',
+  verified: 'bg-teal-50 text-teal-800 ring-teal-200',
+  rejected: 'bg-rose-50 text-rose-800 ring-rose-200',
+  linked: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+}
+
+/** User-facing Turkish message; keep raw text for debugging. */
+function presentError(raw: string): { message: string; technical: string } {
+  const t = raw.trim()
+  const lower = t.toLowerCase()
+  if (!t) return { message: 'Beklenmeyen bir hata oluştu.', technical: t }
+  if (
+    lower.includes('internal server error') ||
+    lower === '500' ||
+    /\b500\b/.test(t) ||
+    lower.includes('server error')
+  ) {
+    return {
+      message: 'Sunucu şu an işlemi tamamlayamadı. Lütfen kısa süre sonra tekrar deneyin.',
+      technical: t,
+    }
+  }
+  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network')) {
+    return {
+      message: 'Bağlantı kurulamadı. Ağınızı kontrol edip yeniden deneyin.',
+      technical: t,
+    }
+  }
+  if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('403')) {
+    return {
+      message: 'Bu işlem için yetkiniz yok veya oturumunuz sona ermiş olabilir.',
+      technical: t,
+    }
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return {
+      message: 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.',
+      technical: t,
+    }
+  }
+  return { message: t, technical: t }
+}
+
+function ErrorDetails({ raw }: { raw: string }) {
+  const { message, technical } = presentError(raw)
+  const showTech = technical && technical !== message
+  return (
+    <div className="space-y-1">
+      <p>{message}</p>
+      {showTech && (
+        <details className="text-[11px] text-slate-500">
+          <summary className="cursor-pointer select-none hover:text-slate-700">Teknik ayrıntı</summary>
+          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-100/80 p-2 font-mono">
+            {technical}
+          </pre>
+        </details>
+      )}
+    </div>
+  )
 }
 
 const WIZARD_STEPS = ['Hayvan ve klinik', 'DICOM seç', 'Talep özeti', 'Ödeme']
@@ -101,6 +167,7 @@ export default function Submissions() {
   const docAttachInputRef = useRef<HTMLInputElement>(null)
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [infoRequestText, setInfoRequestText] = useState<Record<string, string>>({})
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null)
   const [detailIngestId, setDetailIngestId] = useState<string | null>(null)
   const [detail, setDetail] = useState<DicomIngestionRecord | null>(null)
   const [detailFrames, setDetailFrames] = useState<DicomFramePreview[]>([])
@@ -109,14 +176,29 @@ export default function Submissions() {
 
   const load = () => {
     setLoading(true)
-    void Promise.all([listSubmissions(), isOwner ? listPets() : Promise.resolve([])])
+    void Promise.all([listSubmissions(), isOwner || isVet ? listPets().catch(() => []) : Promise.resolve([])])
       .then(([subs, p]) => {
         setRows(subs)
         setPets(p)
         if (p[0] && !petId) setPetId(p[0].pet_id)
+        setSelectedSubmissionId((prev) => {
+          if (routeSubmissionId && subs.some((s) => s.submission_id === routeSubmissionId)) return routeSubmissionId
+          if (prev && subs.some((s) => s.submission_id === prev)) return prev
+          return null
+        })
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Yüklenemedi'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Liste yüklenemedi'))
       .finally(() => setLoading(false))
+  }
+
+  const toastError = (title: string, err: unknown) => {
+    const raw = err instanceof Error ? err.message : 'Beklenmeyen hata'
+    const { message, technical } = presentError(raw)
+    pushToast({
+      tone: 'error',
+      title,
+      body: message === technical ? message : `${message} (${technical})`,
+    })
   }
 
   useEffect(() => {
@@ -126,6 +208,7 @@ export default function Submissions() {
 
   useEffect(() => {
     if (!routeSubmissionId) return
+    setSelectedSubmissionId(routeSubmissionId)
     const el = document.getElementById(`submission-${routeSubmissionId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [routeSubmissionId, rows])
@@ -265,8 +348,8 @@ export default function Submissions() {
           if (pay.status === 'approved') {
             pushToast({
               tone: 'success',
-              title: 'Demo Payment Approved',
-              body: 'Önceki onaylı demo ödeme korundu.',
+              title: 'Ödeme onaylandı',
+              body: 'Önceki onaylı ödeme korundu.',
             })
             navigate(`/basvurular/${saved.submissionId}`, { replace: true })
             resetWizard()
@@ -288,7 +371,7 @@ export default function Submissions() {
       pushToast({
         tone: 'error',
         title: 'DICOM seçilmedi',
-        body: 'Kendi .dcm dosyalarınızı ekleyin veya demo DICOM kullanın.',
+        body: 'Kendi .dcm dosyalarınızı ekleyin veya örnek DICOM kullanın.',
       })
       return
     }
@@ -314,11 +397,7 @@ export default function Submissions() {
       setWizardStep(3)
     } catch (e) {
       setSubmitLock(false)
-      pushToast({
-        tone: 'error',
-        title: 'Ödeme adımı hazırlanamadı',
-        body: e instanceof Error ? e.message : undefined,
-      })
+      toastError('Ödeme adımı hazırlanamadı', e)
     } finally {
       setBusy(null)
     }
@@ -346,7 +425,7 @@ export default function Submissions() {
       })
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'DICOM eklenemedi', body: e instanceof Error ? e.message : undefined })
+      toastError('DICOM eklenemedi', e)
     } finally {
       setBusy(null)
     }
@@ -360,12 +439,12 @@ export default function Submissions() {
       const linked = await uploadAndLink(row, { demo: true })
       pushToast({
         tone: 'success',
-        title: 'Demo DICOM eklendi',
+        title: 'Örnek DICOM eklendi',
         body: `Ingest ${linked.dicom_ingest_id} · veteriner doğrulaması gerekir.`,
       })
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'DICOM eklenemedi', body: e instanceof Error ? e.message : undefined })
+      toastError('DICOM eklenemedi', e)
     } finally {
       setBusy(null)
     }
@@ -393,7 +472,7 @@ export default function Submissions() {
       })
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Belge eklenemedi', body: e instanceof Error ? e.message : undefined })
+      toastError('Belge eklenemedi', e)
     } finally {
       setBusy(null)
     }
@@ -417,7 +496,7 @@ export default function Submissions() {
       setReplyDraft((prev) => ({ ...prev, [s.submission_id]: '' }))
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Yanıt gönderilemedi', body: e instanceof Error ? e.message : undefined })
+      toastError('Yanıt gönderilemedi', e)
     } finally {
       setBusy(null)
     }
@@ -430,7 +509,7 @@ export default function Submissions() {
       pushToast({ tone: 'info', title: 'Bilgi isteği kapatıldı' })
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Kapatılamadı', body: e instanceof Error ? e.message : undefined })
+      toastError('Kapatılamadı', e)
     } finally {
       setBusy(null)
     }
@@ -455,11 +534,7 @@ export default function Submissions() {
       if (routeSubmissionId === s.submission_id) navigate('/basvurular', { replace: true })
       load()
     } catch (e) {
-      pushToast({
-        tone: 'error',
-        title: 'Silinemedi',
-        body: e instanceof Error ? e.message : undefined,
-      })
+      toastError('Silinemedi', e)
     } finally {
       setBusy(null)
     }
@@ -479,11 +554,11 @@ export default function Submissions() {
     setDetailLoading(false)
   }
 
-  const openDicomDetail = async (ingestId: string) => {
-    if (detailIngestId === ingestId) {
-      closeDicomDetail()
-      return
-    }
+  const loadedDicomRef = useRef<string | null>(null)
+
+  const loadDicomDetail = useCallback(async (ingestId: string) => {
+    if (loadedDicomRef.current === ingestId) return
+    loadedDicomRef.current = ingestId
     setDetailIngestId(ingestId)
     setDetail(null)
     setDetailFrames([])
@@ -498,10 +573,21 @@ export default function Submissions() {
         setDetailFrames(frames.filter((f) => f.ok))
       }
     } catch (e) {
+      loadedDicomRef.current = null
       setDetailError(e instanceof Error ? e.message : 'DICOM detayı yüklenemedi')
     } finally {
       setDetailLoading(false)
     }
+  }, [])
+
+  const openDicomDetail = async (ingestId: string) => {
+    if (detailIngestId === ingestId) {
+      loadedDicomRef.current = null
+      closeDicomDetail()
+      return
+    }
+    loadedDicomRef.current = null
+    await loadDicomDetail(ingestId)
   }
 
   const act = async (id: string, action: 'accept' | 'reject' | 'request_info') => {
@@ -542,32 +628,69 @@ export default function Submissions() {
       })
       load()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'İşlem başarısız', body: e instanceof Error ? e.message : undefined })
+      toastError('İşlem başarısız', e)
     } finally {
       setBusy(null)
     }
   }
 
+  if (isVet) {
+    return (
+      <>
+        {error && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <ErrorDetails raw={error} />
+          </div>
+        )}
+        <VetSubmissionsBoard
+          rows={rows}
+          pets={pets}
+          loading={loading}
+          selectedId={selectedSubmissionId}
+          onSelect={(id) => {
+            setSelectedSubmissionId(id)
+            navigate(`/basvurular/${id}`, { replace: true })
+          }}
+          onCloseDetail={() => {
+            setSelectedSubmissionId(null)
+            navigate('/basvurular', { replace: true })
+          }}
+          busy={busy}
+          infoRequestText={infoRequestText}
+          setInfoRequestText={setInfoRequestText}
+          onAccept={(id) => void act(id, 'accept')}
+          onRequestInfo={(id) => void act(id, 'request_info')}
+          onReject={(id) => void act(id, 'reject')}
+          onDelete={(s) => void removeSubmission(s)}
+          canDelete={canDelete}
+          detail={detail}
+          detailFrames={detailFrames}
+          detailLoading={detailLoading}
+          detailError={detailError}
+          onLoadDicom={(ingestId) => void loadDicomDetail(ingestId)}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       <PageHeader
-        title={isOwner ? 'DICOM yükle' : 'Başvuru onayı'}
-        subtitle={
-          isOwner
-            ? `Hasta bilgileri → DICOM → özet → demo ödeme (${DEMO_PRICE_LABEL}) → radyoloji iş akışı`
-            : 'Doğrula · radyoloğa ata · veya eksik bilgi iste'
-        }
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: isOwner ? 'DICOM yükle' : 'Başvurular' }]}
+        title="DICOM yükle"
+        subtitle={`Hasta bilgileri → DICOM → özet → ödeme (${DEMO_PRICE_LABEL}) → radyoloji iş akışı`}
+        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'DICOM yükle' }]}
       />
       {error && (
-        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">{error}</p>
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <ErrorDetails raw={error} />
+        </div>
       )}
 
       {isOwner && (
         <Card className="mb-6 p-5">
           <CardHeader
             title="Yeni görüntüleme talebi"
-            subtitle={`Demo ödeme (${DEMO_PRICE_LABEL}) sonrası radyoloji iş akışına gönderilir`}
+            subtitle={`Ödeme (${DEMO_PRICE_LABEL}) sonrası radyoloji iş akışına gönderilir`}
             icon={<UploadCloud className="h-5 w-5" />}
           />
           {pets.length === 0 ? (
@@ -679,7 +802,7 @@ export default function Submissions() {
                           setFiles([])
                         }}
                       >
-                        Demo DICOM kullan
+                        Örnek DICOM kullan
                       </Button>
                     </div>
                     <input
@@ -710,7 +833,7 @@ export default function Submissions() {
 
                   {useDemoDicom && (
                     <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
-                      Demo brain MRI DICOM kullanılacak (gerçek piksel analizi yok).
+                      Örnek brain MRI DICOM kullanılacak.
                     </p>
                   )}
 
@@ -768,7 +891,7 @@ export default function Submissions() {
                       </div>
                       <div>
                         <dt className="text-xs text-slate-500">Ücret</dt>
-                        <dd className="font-semibold text-navy-900">{DEMO_PRICE_LABEL} (demo)</dd>
+                        <dd className="font-semibold text-navy-900">{DEMO_PRICE_LABEL}</dd>
                       </div>
                       <div className="sm:col-span-2">
                         <dt className="text-xs text-slate-500">Şikâyet / notlar</dt>
@@ -778,7 +901,7 @@ export default function Submissions() {
                         <dt className="text-xs text-slate-500">DICOM</dt>
                         <dd className="text-slate-800">
                           {useDemoDicom
-                            ? 'Demo brain MRI'
+                            ? 'Örnek brain MRI'
                             : `${files.length} dosya (${files
                                 .slice(0, 3)
                                 .map((f) => f.name)
@@ -823,7 +946,7 @@ export default function Submissions() {
                       const sid = result.submission_id || draftSub?.submission_id
                       pushToast({
                         tone: 'success',
-                        title: 'Demo Payment Approved',
+                        title: 'Ödeme onaylandı',
                         body: 'Talep oluşturuldu ve radyoloji iş akışına gönderildi.',
                       })
                       resetWizard()
@@ -875,9 +998,9 @@ export default function Submissions() {
       />
 
       <Card>
-        <CardHeader title="Başvuru listesi" icon={<ClipboardCheck className="h-5 w-5" />} />
+        <CardHeader title="Başvuru listesi" subtitle={loading ? undefined : `${rows.length} kayıt`} icon={<ClipboardCheck className="h-5 w-5" />} />
         {loading ? (
-          <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500">
+          <p className="flex items-center gap-2 px-5 py-6 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
           </p>
         ) : rows.length === 0 ? (
@@ -885,279 +1008,223 @@ export default function Submissions() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {rows.map((s) => {
-              const answeredReqs = (s.info_requests || []).filter((r) => r.status === 'ANSWERED')
-              const requiredActions: string[] = []
-              if (isOwner && s.status === 'needs_info') requiredActions.push('Veteriner bilgi istedi — yanıtlayın')
-              if (isOwner && canOwnerAttach(s) && !s.dicom_ingest_id) requiredActions.push('DICOM yükleyin')
-              if (isVet && s.status === 'pending_verification') requiredActions.push('Doğrula veya ek bilgi iste')
-              if (isVet && answeredReqs.length) requiredActions.push('Sahip yanıtını inceleyin')
               const highlighted = routeSubmissionId === s.submission_id
+              const pet = pets.find((p) => p.pet_id === s.pet_id)
+              const statusCls = STATUS_PILL[s.status] ?? 'bg-slate-100 text-slate-700 ring-slate-200'
               return (
-              <li
-                id={`submission-${s.submission_id}`}
-                key={s.submission_id}
-                className={`px-5 py-4 ${highlighted ? 'bg-teal-50/70 ring-1 ring-inset ring-teal-200' : ''}`}
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm">
-                    <p className="font-semibold text-navy-900">{STATUS_TR[s.status] ?? s.status}</p>
-                    <p className="text-xs text-slate-500">
-                      {s.submission_id} · pet {s.pet_id}
-                      {s.pet_owner_subject ? ` · sahip ${s.pet_owner_subject}` : ''}
-                      {s.dicom_ingest_id ? ' · DICOM ekli' : ' · DICOM yok'}
-                      {s.document_ingest_id || (s.attachments || []).some((a) => a.kind === 'document')
-                        ? ' · belge ekli'
-                        : ''}
-                      {(s.attachments || []).length > 1 ? ` · ${s.attachments!.length} ek` : ''}
-                      {s.linked_case_id ? (
-                        <>
-                          {' '}
-                          · vaka{' '}
-                          <Link className="text-teal-700 hover:underline" to={`/vakalar/${s.linked_case_id}`}>
-                            {s.linked_case_id}
-                          </Link>
-                        </>
-                      ) : null}
-                      {s.pet_id ? (
-                        <>
-                          {' '}
-                          ·{' '}
-                          <Link className="text-teal-700 hover:underline" to="/hayvanlar">
-                            geçmiş
-                          </Link>
-                        </>
-                      ) : null}
-                    </p>
-                    <p className="mt-1 text-slate-700">{s.chief_complaint || s.clinical_notes || '—'}</p>
-                    {s.missing_info_request && (
-                      <p className="mt-1 text-xs text-amber-800">Eksik: {s.missing_info_request}</p>
-                    )}
-                    {requiredActions.length > 0 && (
-                      <ul className="mt-2 space-y-0.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                        {requiredActions.map((a) => (
-                          <li key={a}>• {a}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {(s.info_requests || []).length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
-                        {(s.info_requests || []).map((r) => (
-                          <li key={r.request_id} className="rounded border border-slate-100 bg-slate-50 px-2 py-1">
-                            <span className="font-medium text-navy-800">{r.status}</span> · {r.body}
-                            {r.reply ? <span className="block text-teal-800">Yanıt: {r.reply}</span> : null}
-                            {isVet && r.status === 'ANSWERED' && (
-                              <button
-                                type="button"
-                                className="mt-1 text-teal-700 hover:underline"
-                                disabled={busy === s.submission_id}
-                                onClick={() => void closeReq(s.submission_id, r.request_id)}
-                              >
-                                Kapat
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {s.dicom_ingest_id && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<Eye className="h-3.5 w-3.5" />}
-                        disabled={detailLoading && detailIngestId === s.dicom_ingest_id}
-                        onClick={() => void openDicomDetail(s.dicom_ingest_id!)}
-                      >
-                        {detailIngestId === s.dicom_ingest_id ? 'Detayı kapat' : 'DICOM detay'}
-                      </Button>
-                    )}
-                    {canOwnerAttach(s) && (
-                      <>
-                        <Button size="sm" disabled={busy === s.submission_id} onClick={() => openAttachPicker(s.submission_id)}>
-                          {busy === s.submission_id ? 'Yükleniyor…' : s.dicom_ingest_id ? 'Ek DICOM' : 'DICOM dosya ekle'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busy === s.submission_id}
-                          onClick={() => void attachDemo(s.submission_id)}
-                        >
-                          Demo DICOM
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          icon={<FileText className="h-3.5 w-3.5" />}
-                          disabled={busy === s.submission_id}
-                          onClick={() => openDocAttachPicker(s.submission_id)}
-                        >
-                          Belge ekle
-                        </Button>
-                      </>
-                    )}
-                    {isVet && (s.status === 'pending_verification' || s.status === 'needs_info') && (
-                      <>
-                        <Button size="sm" disabled={busy === s.submission_id} onClick={() => void act(s.submission_id, 'accept')}>
-                          Doğrula + vaka aç
-                        </Button>
-                        <Button size="sm" variant="secondary" disabled={busy === s.submission_id} onClick={() => void act(s.submission_id, 'request_info')}>
-                          Eksik bilgi
-                        </Button>
-                        <Button size="sm" variant="danger" disabled={busy === s.submission_id} onClick={() => void act(s.submission_id, 'reject')}>
-                          Reddet
-                        </Button>
-                      </>
-                    )}
-                    {canDelete(s) && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        icon={<Trash2 className="h-3.5 w-3.5" />}
-                        disabled={busy === s.submission_id || busy === `del-${s.submission_id}`}
-                        onClick={() => void removeSubmission(s)}
-                      >
-                        {busy === `del-${s.submission_id}` ? 'Siliniyor…' : 'Sil'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {isOwner && s.status === 'needs_info' && (
-                  <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                    <label className="block text-xs font-medium text-amber-950">
-                      Veteriner isteğine yanıt
-                      <textarea
-                        className="input mt-1 min-h-[72px] text-sm"
-                        value={replyDraft[s.submission_id] || ''}
-                        onChange={(e) => setReplyDraft((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
-                        placeholder="İstenen klinik bilgiyi yazın…"
-                      />
-                    </label>
-                    <Button size="sm" disabled={busy === s.submission_id} onClick={() => void sendOwnerReply(s)}>
-                      Yanıtı gönder
-                    </Button>
-                  </div>
-                )}
-                {isVet && (s.status === 'pending_verification' || s.status === 'needs_info') && (
-                  <label className="mt-3 block text-xs text-slate-600">
-                    Eksik bilgi metni (isteğe bağlı)
-                    <input
-                      className="input mt-1 text-sm"
-                      value={infoRequestText[s.submission_id] || ''}
-                      onChange={(e) => setInfoRequestText((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
-                      placeholder="Örn. Nöro muayene notu eksik"
-                    />
-                  </label>
-                )}
-
-                {s.dicom_ingest_id && detailIngestId === s.dicom_ingest_id && (
-                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                    {detailLoading && (
-                      <p className="flex items-center gap-2 text-sm text-slate-600">
-                        <Loader2 className="h-4 w-4 animate-spin" /> DICOM detayları yükleniyor…
-                      </p>
-                    )}
-                    {detailError && <p className="text-sm text-rose-700">{detailError}</p>}
-                    {!detailLoading && detail && (
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold text-navy-900">Yüklediğiniz DICOM</p>
-                            <p className="text-xs text-slate-500">
-                              Ingest {detail.ingest_id}
-                              {detail.accepted && detail.case_id ? ` · vakaya bağlandı (${detail.case_id})` : ' · karantinada'}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700"
-                            onClick={closeDicomDetail}
-                            aria-label="Kapat"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <dl className="grid gap-2 text-xs sm:grid-cols-2">
-                          <div>
-                            <dt className="text-slate-500">Hasta</dt>
-                            <dd className="font-medium text-navy-900">
-                              {detail.patient_name} · {detail.species}
-                              {detail.breed ? ` · ${detail.breed}` : ''}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Önerilen sınıflandırma</dt>
-                            <dd className="font-medium text-navy-900">
-                              {detail.classification
-                                ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region} (${detail.classification.confidence})`
-                                : '—'}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Study UID</dt>
-                            <dd className="break-all font-mono text-[11px] text-navy-800">
-                              {detail.study?.study_instance_uid || '—'}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Seri / instance</dt>
-                            <dd className="font-medium text-navy-900">
-                              {detail.study
-                                ? `${detail.study.series.length} seri · ${detail.study.series.reduce((n, ser) => n + ser.instances.length, 0)} instance`
-                                : '—'}
-                              {detail.quarantined_files?.length
-                                ? ` · ${detail.quarantined_files.length} dosya`
-                                : ''}
-                            </dd>
-                          </div>
-                        </dl>
-                        {detail.study?.study_description && (
-                          <p className="text-xs text-slate-600">Açıklama: {detail.study.study_description}</p>
-                        )}
-                        {detail.blocked && (
-                          <p className="text-xs text-rose-700">Engellendi: {detail.block_reason || 'DICOM doğrulama hatası'}</p>
-                        )}
-                        {detail.quarantined_files?.length > 0 && (
-                          <ul className="max-h-28 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-                            {detail.quarantined_files.map((f) => (
-                              <li key={f.relative_path} className="truncate">
-                                {f.original_filename}{' '}
-                                <span className="text-slate-400">({Math.max(1, Math.round(f.size_bytes / 1024))} KB)</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {detailFrames.length > 0 && (
-                          <div>
-                            <p className="mb-2 text-xs font-medium text-slate-600">Önizleme (görüntüleme amaçlı)</p>
-                            <div className="flex flex-wrap gap-2">
-                              {detailFrames.slice(0, 6).map((f) => (
-                                <div
-                                  key={f.sopInstanceUid || f.fileName}
-                                  className="overflow-hidden rounded-lg border border-slate-200 bg-navy-950"
-                                >
-                                  {f.thumbUrl ? (
-                                    <img src={f.thumbUrl} alt={f.fileName} className="h-24 w-24 object-contain" />
-                                  ) : (
-                                    <div className="flex h-24 w-24 items-center justify-center text-[10px] text-slate-400">
-                                      {f.modality || 'DCM'}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {!detailFrames.length && !detail.blocked && (
-                          <p className="text-xs text-slate-500">
-                            Metadata okundu. Piksel önizleme yoksa dosyalar metadata-only veya decode edilemedi.
-                          </p>
-                        )}
+                <li
+                  id={`submission-${s.submission_id}`}
+                  key={s.submission_id}
+                  className={`px-4 py-3 ${highlighted ? 'bg-teal-50/70' : ''}`}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${statusCls}`}>
+                          {STATUS_TR[s.status] ?? s.status}
+                        </span>
+                        <span className="truncate text-sm font-semibold text-navy-900">
+                          {pet?.name || s.chief_complaint || 'Başvuru'}
+                        </span>
                       </div>
-                    )}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {s.dicom_ingest_id ? 'DICOM ekli' : 'DICOM yok'}
+                        {' · '}
+                        {fmtDate(s.updated_at || s.created_at)}
+                        {s.linked_case_id ? (
+                          <>
+                            {' · '}
+                            <Link className="text-teal-700 hover:underline" to={`/vakalar/${s.linked_case_id}`}>
+                              Vakaya git
+                            </Link>
+                          </>
+                        ) : null}
+                      </p>
+                      {s.missing_info_request && s.status === 'needs_info' && (
+                        <p className="mt-1 text-xs text-amber-800">İstenen: {s.missing_info_request}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {s.dicom_ingest_id && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Eye className="h-3.5 w-3.5" />}
+                          onClick={() => void openDicomDetail(s.dicom_ingest_id!)}
+                        >
+                          {detailIngestId === s.dicom_ingest_id ? 'Kapat' : 'DICOM'}
+                        </Button>
+                      )}
+                      {canOwnerAttach(s) && (
+                        <>
+                          <Button size="sm" disabled={busy === s.submission_id} onClick={() => openAttachPicker(s.submission_id)}>
+                            {s.dicom_ingest_id ? 'Ek DICOM' : 'DICOM ekle'}
+                          </Button>
+                          <Button size="sm" variant="secondary" disabled={busy === s.submission_id} onClick={() => void attachDemo(s.submission_id)}>
+                            Örnek
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={<FileText className="h-3.5 w-3.5" />}
+                            disabled={busy === s.submission_id}
+                            onClick={() => openDocAttachPicker(s.submission_id)}
+                          >
+                            Belge
+                          </Button>
+                        </>
+                      )}
+                      {canDelete(s) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                          icon={<Trash2 className="h-3.5 w-3.5" />}
+                          disabled={busy === `del-${s.submission_id}`}
+                          onClick={() => void removeSubmission(s)}
+                        >
+                          Sil
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </li>
+                  {s.status === 'needs_info' && (
+                    <div className="mt-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5">
+                      <label className="block text-xs font-medium text-amber-950">
+                        Veteriner isteğine yanıt
+                        <textarea
+                          className="input mt-1 min-h-[64px] text-sm"
+                          value={replyDraft[s.submission_id] || ''}
+                          onChange={(e) => setReplyDraft((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
+                          placeholder="İstenen klinik bilgiyi yazın…"
+                        />
+                      </label>
+                      <Button size="sm" disabled={busy === s.submission_id} onClick={() => void sendOwnerReply(s)}>
+                        Yanıtı gönder
+                      </Button>
+                    </div>
+                  )}
+                  {s.dicom_ingest_id && detailIngestId === s.dicom_ingest_id && (
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                      {detailLoading && (
+                        <p className="flex items-center gap-2 text-sm text-slate-600">
+                          <Loader2 className="h-4 w-4 animate-spin" /> DICOM detayları yükleniyor…
+                        </p>
+                      )}
+                      {detailError && (
+                        <div className="text-sm text-rose-700">
+                          <ErrorDetails raw={detailError} />
+                        </div>
+                      )}
+                      {!detailLoading && detail && (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-navy-900">DICOM özeti</p>
+                              <p className="text-xs text-slate-500">
+                                {detail.accepted && detail.case_id
+                                  ? `Vakaya bağlı · ${detail.case_id}`
+                                  : 'Karantinada'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700"
+                              onClick={closeDicomDetail}
+                              aria-label="Kapat"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+                            <div>
+                              <dt className="text-slate-500">Hasta</dt>
+                              <dd className="font-medium text-navy-900">
+                                {detail.patient_name} · {detail.species}
+                                {detail.breed ? ` · ${detail.breed}` : ''}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-slate-500">Önerilen sınıflandırma</dt>
+                              <dd className="font-medium text-navy-900">
+                                {detail.classification
+                                  ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region} (${detail.classification.confidence})`
+                                  : '—'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-slate-500">Study UID</dt>
+                              <dd className="break-all font-mono text-[11px] text-navy-800">
+                                {detail.study?.study_instance_uid || '—'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-slate-500">Seri / instance</dt>
+                              <dd className="font-medium text-navy-900">
+                                {detail.study
+                                  ? `${detail.study.series.length} seri · ${detail.study.series.reduce((n, ser) => n + ser.instances.length, 0)} instance`
+                                  : '—'}
+                                {detail.quarantined_files?.length
+                                  ? ` · ${detail.quarantined_files.length} dosya`
+                                  : ''}
+                              </dd>
+                            </div>
+                          </dl>
+                          {detail.study?.study_description && (
+                            <p className="text-xs text-slate-600">Açıklama: {detail.study.study_description}</p>
+                          )}
+                          {detail.blocked && (
+                            <p className="text-xs text-rose-700">
+                              Engellendi: {detail.block_reason || 'DICOM doğrulama hatası'}
+                            </p>
+                          )}
+                          {detail.quarantined_files?.length > 0 && (
+                            <ul className="max-h-28 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                              {detail.quarantined_files.map((f) => (
+                                <li key={f.relative_path} className="truncate">
+                                  {f.original_filename}{' '}
+                                  <span className="text-slate-400">
+                                    ({Math.max(1, Math.round(f.size_bytes / 1024))} KB)
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {detailFrames.length > 0 && (
+                            <div>
+                              <p className="mb-2 text-xs font-medium text-slate-600">Önizleme</p>
+                              <div className="flex flex-wrap gap-2">
+                                {detailFrames.slice(0, 6).map((f) => (
+                                  <div
+                                    key={f.sopInstanceUid || f.fileName}
+                                    className="overflow-hidden rounded-lg border border-slate-200 bg-navy-950"
+                                  >
+                                    {f.thumbUrl ? (
+                                      <img
+                                        src={f.thumbUrl}
+                                        alt={f.fileName}
+                                        className="h-24 w-24 object-contain"
+                                      />
+                                    ) : (
+                                      <div className="flex h-24 w-24 items-center justify-center text-[10px] text-slate-400">
+                                        {f.modality || 'DCM'}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {!detailFrames.length && !detail.blocked && (
+                            <p className="text-xs text-slate-500">
+                              Metadata okundu. Piksel önizleme yoksa dosyalar metadata-only veya decode edilemedi.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
               )
             })}
           </ul>

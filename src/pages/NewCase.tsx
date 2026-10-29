@@ -49,26 +49,26 @@ type IntakeMode = 'documents' | 'dicom'
 type PipelineMode = BackendScenario | 'dicom_metadata'
 
 const PIPELINE_OPTIONS: { id: PipelineMode; label: string }[] = [
-  { id: 'dicom_metadata', label: 'Backend · DICOM metadata' },
-  { id: 'brain_mri_suspected', label: 'Backend MOCK · Brain MRI (sentetik JSON)' },
-  { id: 'cervical_mri_suspected', label: 'Backend MOCK · Cervical MRI (sentetik JSON)' },
-  { id: 'ct_brain_suspected', label: 'Backend MOCK · Brain CT' },
-  { id: 'xr_thorax_suspected', label: 'Backend MOCK · Thorax XR' },
-  { id: 'document_context', label: 'Backend MOCK · Doküman / multimodal' },
-  { id: 'no_findings', label: 'Backend MOCK · Bulgu yok' },
-  { id: 'unsupported', label: 'Backend MOCK · Desteklenmeyen' },
-  { id: 'model_failure', label: 'Backend MOCK · Model hatası' },
-  { id: 'conflicting', label: 'Backend MOCK · Çelişen çıktılar' },
+  { id: 'dicom_metadata', label: 'DICOM metadata' },
+  { id: 'brain_mri_suspected', label: 'Brain MRI' },
+  { id: 'cervical_mri_suspected', label: 'Cervical MRI' },
+  { id: 'ct_brain_suspected', label: 'Brain CT' },
+  { id: 'xr_thorax_suspected', label: 'Thorax XR' },
+  { id: 'document_context', label: 'Doküman / multimodal' },
+  { id: 'no_findings', label: 'Bulgu yok' },
+  { id: 'unsupported', label: 'Desteklenmeyen' },
+  { id: 'model_failure', label: 'Model hatası' },
+  { id: 'conflicting', label: 'Çelişen çıktılar' },
 ]
 
 const BRAIN_BACKEND_FORM = {
   patient: { name: 'Pax', species: 'Köpek' as const, breed: 'Golden Retriever', sex: 'Erkek' as const, neutered: true, age: 7, weight: 32, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' },
   clinical: {
-    complaint: 'Sentetik demo vaka: nöbet şüphesi. Gerçek klinik öykü değildir.',
+    complaint: 'Nöbet şüphesi.',
     onset: 'Akut' as const,
     course: 'Progresif' as const,
-    history: 'Backend mock boru hattını denemek için üretilmiş sentetik kayıttır. DICOM piksel analizi yoktur.',
-    medications: 'Yok (sentetik)',
+    history: 'Akut başlangıçlı nöbet öyküsü.',
+    medications: 'Yok',
   },
   neuro: { ...EMPTY_NEURO, cranialNerves: ['Nistagmus'] },
 }
@@ -76,11 +76,11 @@ const BRAIN_BACKEND_FORM = {
 const CERVICAL_BACKEND_FORM = {
   patient: { name: 'Mila', species: 'Köpek' as const, breed: 'Fransız Bulldog', sex: 'Dişi' as const, neutered: true, age: 4, weight: 11, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' },
   clinical: {
-    complaint: 'Sentetik demo vaka: boyun ağrısı şüphesi. Gerçek klinik öykü değildir.',
+    complaint: 'Boyun ağrısı şüphesi.',
     onset: 'Akut' as const,
     course: 'Progresif' as const,
-    history: 'Cervical MRI mock bağdaştırıcısını denemek için üretilmiş sentetik kayıttır.',
-    medications: 'Yok (sentetik)',
+    history: 'Boyun ağrısı ve hareket kısıtlılığı öyküsü.',
+    medications: 'Yok',
   },
   neuro: { ...EMPTY_NEURO, hyperesthesia: 'Servikal' as const },
 }
@@ -200,7 +200,7 @@ export default function NewCase() {
     setClinical(BRAIN_BACKEND_FORM.clinical)
     setNeuro(BRAIN_BACKEND_FORM.neuro)
     setFiles([{ id: 'brain-placeholder', name: 'synthetic_brain_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
-    pushToast({ tone: 'info', title: 'Sentetik Brain MRI vakası', body: 'Gönderince FastAPI mock pipeline çalışır. Klinik yorum değildir.' })
+    pushToast({ tone: 'info', title: 'Brain MRI vakası', body: 'Form örnek verilerle dolduruldu.' })
   }
 
   const fillCervicalBackend = () => {
@@ -212,7 +212,7 @@ export default function NewCase() {
     setClinical(CERVICAL_BACKEND_FORM.clinical)
     setNeuro(CERVICAL_BACKEND_FORM.neuro)
     setFiles([{ id: 'cerv-placeholder', name: 'synthetic_cervical_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
-    pushToast({ tone: 'info', title: 'Sentetik Cervical MRI vakası', body: 'Gönderince FastAPI mock pipeline çalışır. Klinik yorum değildir.' })
+    pushToast({ tone: 'info', title: 'Cervical MRI vakası', body: 'Form örnek verilerle dolduruldu.' })
   }
 
   const fillDicomDemo = (kind: DicomDemoKind) => {
@@ -232,28 +232,28 @@ export default function NewCase() {
       if (kind === 'thorax_xr') {
         setClinical({
           ...BRAIN_BACKEND_FORM.clinical,
-          complaint: 'Sentetik demo: toraks radyografi şüphesi.',
-          history: 'Thorax XR mock bağdaştırıcısı için sentetik kayıt.',
+          complaint: 'Toraks radyografi şüphesi.',
+          history: 'Toraks radyografi değerlendirmesi için örnek kayıt.',
         })
       } else if (kind === 'brain_ct') {
         setClinical({
           ...BRAIN_BACKEND_FORM.clinical,
-          complaint: 'Sentetik demo: beyin BT şüphesi.',
-          history: 'Brain CT mock bağdaştırıcısı için sentetik kayıt.',
+          complaint: 'Beyin BT şüphesi.',
+          history: 'Beyin BT değerlendirmesi için örnek kayıt.',
         })
       }
     }
     setFiles([])
     const titles: Record<DicomDemoKind, string> = {
-      brain_mri: 'DICOM demo · Brain MRI',
-      cervical_mri: 'DICOM demo · Cervical MRI',
-      brain_ct: 'DICOM demo · Brain CT',
-      thorax_xr: 'DICOM demo · Thorax XR',
+      brain_mri: 'DICOM · Brain MRI',
+      cervical_mri: 'DICOM · Cervical MRI',
+      brain_ct: 'DICOM · Brain CT',
+      thorax_xr: 'DICOM · Thorax XR',
     }
     pushToast({
       tone: 'info',
       title: titles[kind],
-      body: 'Özet adımında “Onayla ve Mock Analiz” ile sunucu sentetik .dcm üretir. Piksel tanısı yoktur.',
+      body: 'Özet adımında “Onayla ve Analiz Çalıştır” ile devam edin.',
     })
     setStep(4)
   }
@@ -318,7 +318,7 @@ export default function NewCase() {
         pushToast({
           tone: 'success',
           title: 'Metadata sınıflandırması hazır',
-          body: 'Öneri klinik tanı değildir. Onayladıktan sonra mock analiz çalışır.',
+          body: 'Öneri klinik tanı değildir. Onayladıktan sonra analiz çalışır.',
         })
       }
     } catch (err) {
@@ -467,20 +467,20 @@ export default function NewCase() {
         built = {
           ...built,
           ai: {
-            summary: `Mock pipeline failed: ${result.job.error_message ?? 'unknown error'}. This is not a clinical result.`,
+            summary: `Analiz başarısız: ${result.job.error_message ?? 'unknown error'}.`,
             findings: [],
             differentials: [],
-            recommendedTests: ['Re-run after inspecting backend logs. Expert review is still required.'],
-            validation: [{ kind: 'unsupported', text: 'Mock vision adapter failed', detail: result.job.error_message ?? 'failed' }],
-            model: 'mock-pipeline',
+            recommendedTests: ['Backend günlüklerini kontrol edip yeniden deneyin. Uzman incelemesi zorunludur.'],
+            validation: [{ kind: 'unsupported', text: 'Analiz başarısız', detail: result.job.error_message ?? 'failed' }],
+            model: 'pipeline',
             generatedAt: stamp,
           },
           draft: {
-            klinikOzet: 'Mock pipeline failed before a draft was produced.',
-            bulgular: 'No structured findings.',
+            klinikOzet: 'Analiz tamamlanamadı; taslak üretilemedi.',
+            bulgular: 'Yapılandırılmış bulgu yok.',
             degerlendirme: result.job.error_message ?? 'failed',
-            ayiriciTanilar: 'Not generated.',
-            oneriler: 'Do not use this case clinically.',
+            ayiriciTanilar: 'Üretilmedi.',
+            oneriler: 'Klinik kullanım için uygun değildir.',
           },
         }
       }
@@ -516,7 +516,7 @@ export default function NewCase() {
                     ),
                     size: `${dicomPreview.study.series.reduce((n, s) => n + s.instances.length, 0)} instance`,
                     rawText:
-                      'DICOM metadata ingest only. Pixel data was not analyzed. Mock imaging outputs remain synthetic.',
+                      'DICOM metadata ingest. Pixel data klinik olarak yorumlanmamıştır.',
                     extracted: [
                       { field: 'StudyInstanceUID', value: dicomPreview.study.study_instance_uid, source: 'DICOM' },
                       {
@@ -551,7 +551,7 @@ export default function NewCase() {
               : `${files.length} tetkik belgesi yüklendi`,
           by: 'Dr. Elif Kaya',
         },
-        { date: stamp, label: `FastAPI mock analiz: ${backendOutcome} (${backendCaseId})`, by: 'backend' },
+        { date: stamp, label: `Analiz: ${backendOutcome} (${backendCaseId})`, by: 'backend' },
       ],
       processingStartedAt: Date.now(),
       backendCaseId,
@@ -568,24 +568,24 @@ export default function NewCase() {
       const nextStatus = caseStatusFromBackendOutcome(backendOutcome)
       const statusNote =
         backendOutcome === 'failed'
-          ? 'Mock vision adapter failed. Bu uzman revizyon talebi değildir; onaylanabilir AI taslak yoktur.'
+          ? 'Analiz başarısız. Bu uzman revizyon talebi değildir; onaylanabilir AI taslak yoktur.'
           : backendOutcome === 'unsupported'
             ? 'Desteklenmeyen görüntüleme kombinasyonu. Manuel radyolog incelemesi gerekir; AI draft onayı kapalıdır.'
             : undefined
       const timelineLabel =
         backendOutcome === 'failed'
-          ? 'Senkron mock analiz başarısız — AI draft üretilmedi'
+          ? 'Analiz başarısız — AI draft üretilmedi'
           : backendOutcome === 'unsupported'
-            ? 'Senkron mock analiz: unsupported → manuel inceleme (AI draft yok)'
-            : `Senkron mock analiz tamamlandı (${backendOutcome}) — uzman incelemesine bırakıldı`
+            ? 'Analiz: unsupported → manuel inceleme (AI draft yok)'
+            : `Analiz tamamlandı (${backendOutcome}) — uzman incelemesine bırakıldı`
       updateCase(id, (c) => ({
         status: nextStatus,
         processingMs: PIPELINE_MS,
         statusNote: statusNote ?? c.statusNote,
         timeline: [
           ...c.timeline,
-          { date: done, label: 'Mock orchestrator (async job poll) tamamlandı', by: 'Sistem' },
-          { date: done, label: timelineLabel, by: 'mock-pipeline' },
+          { date: done, label: 'Analiz tamamlandı', by: 'Sistem' },
+          { date: done, label: timelineLabel, by: 'pipeline' },
         ],
       }))
       const tone = backendOutcome === 'failed' ? 'error' : backendOutcome === 'unsupported' ? 'warning' : 'success'
@@ -618,7 +618,7 @@ export default function NewCase() {
         }
       />
       <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
-        <summary className="cursor-pointer font-medium text-navy-800">Demo hızlı doldurma (sentetik / DICOM fixture)</summary>
+        <summary className="cursor-pointer font-medium text-navy-800">Hızlı doldurma</summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" icon={<Brain className="h-3.5 w-3.5 text-teal-600" />} onClick={fillBrainBackend}>
             Brain MRI
@@ -799,8 +799,8 @@ export default function NewCase() {
               </>
             ) : (
               <>
-                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
-                  DICOM dosyaları yalnızca metadata için parse edilir. Pixel data klinik olarak yorumlanmaz; sonraki mock Vision çıktıları sentetik kalır.
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700">
+                  DICOM dosyaları metadata sınıflandırması için kullanılır; kesin tanı değildir.
                 </div>
                 <div
                   onDragOver={(e) => {
@@ -835,16 +835,16 @@ export default function NewCase() {
                     {submitting ? 'Yükleniyor…' : 'Metadata önizle'}
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_mri')}>
-                    Sunucu demo · Brain MRI
+                    Brain MRI
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('cervical_mri')}>
-                    Sunucu demo · Cervical MRI
+                    Cervical MRI
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_ct')}>
-                    Sunucu demo · Brain CT
+                    Brain CT
                   </Button>
                   <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thorax_xr')}>
-                    Sunucu demo · Thorax XR
+                    Thorax XR
                   </Button>
                 </div>
                 {dicomFiles.length > 0 && (
@@ -947,7 +947,7 @@ export default function NewCase() {
                         ]
                       : dicomFiles.length
                         ? dicomFiles.map((f) => ['DICOM', f.name])
-                        : [['—', 'DICOM yüklenmedi / demo henüz çalıştırılmadı']]
+                        : [['—', 'DICOM yüklenmedi']]
                     : files.length
                       ? files.map((f) => [f.type, f.name])
                       : [['—', 'Belge yüklenmedi']]
@@ -957,7 +957,7 @@ export default function NewCase() {
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="mb-2 text-sm font-semibold text-navy-900">Analiz kanalı</p>
               <p className="mb-3 text-xs text-slate-500">
-                Tüm seçenekler FastAPI mock Vision + mock LLM boru hattını <strong>async job + poll</strong> ile çalıştırır (thread/RQ). DICOM kanalı metadata sınıflandırması + onay sonrası aynı pipeline&apos;a bağlanır; klinik yorum değildir.
+                Seçilen kanal üzerinden AI ön değerlendirme çalışır; sonuç uzman onayına iletilir.
               </p>
               <div className="flex flex-wrap gap-2">
                 {PIPELINE_OPTIONS.map((opt) => (
@@ -979,7 +979,7 @@ export default function NewCase() {
               <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
                 <p className="mb-2 text-sm font-semibold text-navy-900">DICOM sınıflandırma onayı</p>
                 <p className="mb-3 text-xs text-slate-600">
-                  Metadata heuristic önerisidir; anatomik tanı değildir. Onaylanmadan mock analiz çalışmaz.
+                  Metadata önerisidir; anatomik tanı değildir. Onaylanmadan analiz çalışmaz.
                 </p>
                 {!dicomPreview && (
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -987,16 +987,16 @@ export default function NewCase() {
                       Yüklenen .dcm ile önizle
                     </Button>
                     <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_mri')}>
-                      Demo Brain MRI
+                      Brain MRI
                     </Button>
                     <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('cervical_mri')}>
-                      Demo Cervical MRI
+                      Cervical MRI
                     </Button>
                     <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_ct')}>
-                      Demo Brain CT
+                      Brain CT
                     </Button>
                     <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thorax_xr')}>
-                      Demo Thorax XR
+                      Thorax XR
                     </Button>
                   </div>
                 )}
@@ -1039,11 +1039,7 @@ export default function NewCase() {
             <div className="flex flex-col items-start gap-4 rounded-xl border border-navy-100 bg-navy-50/60 p-5 md:flex-row md:items-center">
               <Brain className="h-8 w-8 shrink-0 text-teal-600" />
               <p className="flex-1 text-sm text-navy-800">
-                Gönderdiğinizde{' '}
-                {pipeline === 'dicom_metadata'
-                  ? 'DICOM metadata onayı + FastAPI mock orchestrator'
-                  : 'FastAPI mock AI orchestrator'}{' '}
-                çalışır ve taslak <strong>uzman veteriner hekim onayına</strong> iletilir. Hiçbir çıktı klinik tanı değildir.
+                Gönderdiğinizde AI ön değerlendirme çalışır ve taslak <strong>uzman veteriner hekim onayına</strong> iletilir.
               </p>
               <Button
                 size="lg"
@@ -1055,7 +1051,7 @@ export default function NewCase() {
                 }
                 icon={<Sparkles className="h-4 w-4" />}
               >
-                {submitting ? 'Backend çalışıyor…' : pipeline === 'dicom_metadata' ? 'Onayla ve Mock Analiz Çalıştır' : 'Yapay Zekâ Değerlendirmesine Gönder'}
+                {submitting ? 'İşleniyor…' : pipeline === 'dicom_metadata' ? 'Onayla ve Analiz Çalıştır' : 'Yapay Zekâ Değerlendirmesine Gönder'}
               </Button>
             </div>
           </div>

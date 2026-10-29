@@ -20,9 +20,9 @@ import {
 import type { BackendDraftReport, VetCase } from '../types'
 
 const SOURCE_KIND_TR: Record<string, string> = {
-  mock: 'Demo (sentetik model)',
+  mock: 'AI taslak',
   real: 'Gerçek model',
-  mixed: 'Karma (demo + gerçek)',
+  mixed: 'Karma kaynak',
   unknown: 'Bilinmiyor',
 }
 
@@ -465,8 +465,8 @@ export default function ApprovedReport() {
           </div>
         </footer>
         <p className="px-8 py-4 text-[11px] leading-relaxed text-slate-400">
-          Bu çıktı tarayıcı yazdır / PDF kaydet ile üretilir; sunucuda PDF dosyası saklanmaz. Demo veya
-          yapılandırılmış adapter çıktısıdır. Uzman onayı klinik validasyon belgesi değildir.
+          Bu çıktı tarayıcı yazdır / PDF kaydet ile üretilir; sunucuda PDF dosyası saklanmaz.
+          Uzman onayı klinik validasyon belgesi değildir.
         </p>
       </article>
     </div>

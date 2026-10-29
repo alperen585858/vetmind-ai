@@ -194,7 +194,7 @@ export default function CaseList() {
           <EmptyState
             icon={<FolderOpen className="h-6 w-6" />}
             title="Henüz vaka yok"
-            text="DICOM yükleyerek veya Yeni Vaka ile başlayın. Demo analiz mock AI kullanır."
+            text="DICOM yükleyerek veya Yeni Vaka ile başlayın."
             action={
               role === 'vet' ? (
                 <div className="mt-3 flex flex-wrap justify-center gap-2">

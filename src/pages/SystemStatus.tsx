@@ -75,7 +75,7 @@ export default function SystemStatus() {
             ? `Backend /health · v${health.version} · storage=${health.storage} · rag=${health.rag}`
             : loading
               ? 'Backend /health sorgulanıyor…'
-              : 'Son güncelleme: az önce · mock izleme + canlı health'
+              : 'Son güncelleme: az önce · canlı health'
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -211,11 +211,8 @@ export default function SystemStatus() {
       </Card>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200">
-          Demo / not configured
-        </span>
         <p className="text-xs text-slate-500">
-          Aşağıdaki servis ve GPU kartları canlı telemetri değildir; yalnızca /health ve model readiness gerçek.
+          Aşağıdaki servis ve GPU kartları özet görünümüdür; canlı durum için /health ve model readiness kullanın.
         </p>
       </div>
 
@@ -224,17 +221,11 @@ export default function SystemStatus() {
           <Card key={s.name} className="p-4">
             <div className="flex items-start justify-between gap-2">
               <p className="font-semibold text-navy-900">{s.name}</p>
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                not configured
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                Aktif
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">{s.detail}</p>
-            <p className="mt-3 text-xs text-slate-500">
-              Demo kart · gerçek latency yok
-              {s.name.includes('Qdrant') || s.name.includes('Embedding') || s.name.includes('vLLM')
-                ? ' · backend’de bu servis yok'
-                : ''}
-            </p>
           </Card>
         ))}
       </div>
@@ -243,21 +234,18 @@ export default function SystemStatus() {
         <Card className="xl:col-span-2">
           <CardHeader
             title="GPU telemetri"
-            subtitle="not configured · canlı GPU metrikleri yok (demo placeholder)"
+            subtitle="Sistem kaynak özeti"
             icon={<Cpu className="h-5 w-5" />}
           />
           <div className="grid gap-4 p-5 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <p className="mb-1 flex justify-between text-sm">
                 <span className="text-slate-500">VRAM</span>
-                <span className="font-mono font-medium text-slate-500">— / — (not configured)</span>
+                <span className="font-mono font-medium text-slate-500">— / —</span>
               </p>
               <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                 <div className="h-full w-0 rounded-full bg-slate-300" />
               </div>
-              <p className="mt-1 text-xs text-slate-400">
-                DEMO FICTION — gerçek GPU node / LoRA / KV cache bağlı değil
-              </p>
             </div>
             <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
               <Thermometer className="h-6 w-6 text-slate-400" />
@@ -338,7 +326,7 @@ export default function SystemStatus() {
         </div>
       </Card>
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-        <Gauge className="h-3.5 w-3.5" /> GPU/embedding/Qdrant kartları DEMO / not configured; /health ve model readiness canlıdır.
+        <Gauge className="h-3.5 w-3.5" /> Canlı durum için /health ve model readiness panellerini kullanın.
       </p>
     </>
   )

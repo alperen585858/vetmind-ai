@@ -7,22 +7,22 @@ const META: Record<
   { label: string; cls: string; icon: 'warn' | 'info' | 'shield'; text: string }
 > = {
   mock: {
-    label: 'DEMO',
+    label: 'TASLAK',
     cls: 'border-amber-300 bg-amber-50 text-amber-950',
     icon: 'warn',
-    text: 'Demo çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.',
+    text: 'AI taslak çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.',
   },
   synthetic: {
-    label: 'SENTETİK',
+    label: 'ÖNERİ',
     cls: 'border-orange-300 bg-orange-50 text-orange-950',
     icon: 'warn',
-    text: 'Sentetik / simüle edilmiş veri. Gerçek hasta bulgusu değildir.',
+    text: 'Öneri niteliğindedir. Uzman veteriner incelemesi zorunludur.',
   },
   mixed: {
     label: 'KARMA',
     cls: 'border-violet-300 bg-violet-50 text-violet-950',
     icon: 'shield',
-    text: 'Demo ve gerçek kaynaklar karışık olabilir. Uzman incelemesi zorunludur.',
+    text: 'Kaynaklar karışık olabilir. Uzman incelemesi zorunludur.',
   },
   real: {
     label: 'GERÇEK MODEL',

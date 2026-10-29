@@ -15,7 +15,6 @@ import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
-import { AIDisclaimer } from '../components/AIDisclaimer'
 import { DicomViewer } from '../components/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from '../components/SeriesExplorer'
 import { CLINIC } from '../data/mock'
@@ -296,7 +295,7 @@ export default function DicomUpload() {
 
   const loadDemoForViewing = async (kind: DicomDemoKind) => {
     setBusy(true)
-    setUploadProgress('Demo veri seti yükleniyor…')
+      setUploadProgress('Örnek veri seti yükleniyor…')
     try {
       const demoFiles = await fetchDemoDicomFiles(kind)
       setPendingDemo(kind)
@@ -304,7 +303,7 @@ export default function DicomUpload() {
       setFiles(demoFiles)
       pushToast({
         tone: 'info',
-        title: 'Demo DICOM yüklendi',
+        title: 'Örnek DICOM yüklendi',
         body: 'Görüntüleyici açıldı. İsterseniz metadata önizleyebilir veya analize devam edebilirsiniz.',
       })
     } catch (err) {
@@ -313,8 +312,8 @@ export default function DicomUpload() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Demo indirilemedi'
-      pushToast({ tone: 'error', title: 'Demo DICOM alınamadı', body: message })
+            : 'Örnek indirilemedi'
+      pushToast({ tone: 'error', title: 'Örnek DICOM alınamadı', body: message })
     } finally {
       setBusy(false)
       setUploadProgress(null)
@@ -342,7 +341,7 @@ export default function DicomUpload() {
       pushToast({
         tone: 'warning',
         title: 'Dosya yok',
-        body: 'Önce .dcm sürükleyin veya demo veri setini kullanın.',
+        body: 'Önce .dcm sürükleyin veya örnek veri setini kullanın.',
       })
       return
     }
@@ -460,7 +459,7 @@ export default function DicomUpload() {
           pushToast({
             tone: 'warning',
             title: 'DICOM gerekli',
-            body: 'Dosya sürükleyin veya demo veri setini kullanın.',
+            body: 'Dosya sürükleyin veya örnek veri setini kullanın.',
           })
           return
         }
@@ -492,7 +491,7 @@ export default function DicomUpload() {
         ingestId = upload.ingest_id
       }
 
-      setUploadProgress('Sınıflandırma onayı + demo analiz…')
+      setUploadProgress('Sınıflandırma onayı + analiz…')
       const result = await confirmDicomAndAnalyze({
         ingestId,
         acceptSuggestion,
@@ -514,7 +513,7 @@ export default function DicomUpload() {
         neutered: true,
         age: Number.isFinite(parsedAge) ? parsedAge : 0,
         weight: 0,
-        ownerName: 'Demo Sahip',
+        ownerName: 'Sahip',
         ownerPhone: '',
       }
       const clinical: ClinicalInfo = {
@@ -590,7 +589,7 @@ export default function DicomUpload() {
           { date: stamp, label: 'Giriş sonrası DICOM metadata yüklendi', by: user?.name ?? 'vet' },
           {
             date: stamp,
-            label: `Demo analiz tamamlandı: ${result.outcome} · phase=${phaseFromPipelineOutcome(result.outcome)} (${result.job.case_id})`,
+            label: `Analiz tamamlandı: ${result.outcome} · phase=${phaseFromPipelineOutcome(result.outcome)} (${result.job.case_id})`,
             by: 'backend',
           },
         ],
@@ -883,7 +882,7 @@ export default function DicomUpload() {
           onClick={() => void submit()}
           icon={<Sparkles className="h-4 w-4" />}
         >
-          {busy ? 'İşleniyor…' : 'Demo analize devam et'}
+          {busy ? 'İşleniyor…' : 'Analize devam et'}
         </Button>
         {(busy || uploading) && (
           <Button variant="secondary" className="w-full" onClick={cancelInFlight}>
@@ -892,7 +891,6 @@ export default function DicomUpload() {
         )}
         <p className="text-[11px] leading-relaxed text-slate-500">
           Sonuç bir AI ön değerlendirmesidir; kesin tanı değildir. Uzman veteriner hekim onayı zorunludur.
-          Piksel tabanlı tanı şu ortamda etkin değildir.
         </p>
       </div>
     </div>
@@ -1007,16 +1005,9 @@ export default function DicomUpload() {
   )
 
   const demoSection = (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-      <div className="flex items-center gap-2">
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
-          Demo
-        </span>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sentetik veri setleri</p>
-      </div>
-      <p className="mt-1 text-xs text-slate-500">
-        Gerçek klinik veri değildir · PHI içermez · mock AI demosu için
-      </p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Örnek veri setleri</p>
+      <p className="mt-1 text-xs text-slate-500">Hızlı deneme için hazır DICOM setleri</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {DEMO_SETS.map((d) => (
           <button
@@ -1039,7 +1030,7 @@ export default function DicomUpload() {
           disabled={busy}
           onClick={() => void runPreview(pendingDemo)}
         >
-          Demo metadata önizle
+          Metadata önizle
         </Button>
       )}
     </div>
@@ -1049,13 +1040,14 @@ export default function DicomUpload() {
     <>
       <PageHeader
         title="DICOM Yükleme"
-        subtitle="Görüntüleme çalışma alanı · metadata sınıflandırma · demo AI ön değerlendirme"
         crumbs={[{ label: 'Vakalar', to: '/vakalar' }, { label: 'DICOM Yükle' }]}
         actions={
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 sm:inline">
-              {PHASE_LABELS[workspacePhase]}
-            </span>
+            {workspacePhase !== 'EMPTY' && (
+              <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 sm:inline">
+                {PHASE_LABELS[workspacePhase]}
+              </span>
+            )}
             {hasStudy ? (
               <Button
                 variant="ghost"
@@ -1070,15 +1062,6 @@ export default function DicomUpload() {
           </div>
         }
       />
-      <AIDisclaimer className="mb-4" />
-      <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-900">
-        Akış: DICOM yükleme → sınıflandırma onayı → vaka oluşturma → <strong>demo/mock analiz</strong> → uzman
-        inceleme. Gerçek klinik AI yorumu değildir; ödeme entegrasyonu yoktur.
-      </p>
-      <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
-        <strong>Yerel zamanlayıcı / pipeline.ts animasyonu</strong> kullanılıyorsa bu DEMO FICTION’dır (Qdrant /
-        768-dim / token-s yok). İlerleme ekranı backend job alanlarını gösterir.
-      </p>
 
       {/* STATE A — before upload */}
       {!hasStudy && (
@@ -1161,7 +1144,7 @@ export default function DicomUpload() {
             />
             <details className="rounded-xl border border-[#E3EAF0] bg-white">
               <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-[#172B45]">
-                Daha fazla DICOM ekle / demo
+                Daha fazla DICOM ekle
               </summary>
               <div className="space-y-3 border-t border-[#E3EAF0] px-4 py-3">
                 {uploadZone}

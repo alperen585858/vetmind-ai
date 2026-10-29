@@ -55,9 +55,11 @@ export function CaseTable({ cases, showPriority = false }: { cases: VetCase[]; s
               onClick={() => nav(`/vakalar/${c.id}`)}
               className="cursor-pointer transition hover:bg-teal-50/40"
             >
-              <td className="td font-mono text-xs text-slate-600">{c.no}</td>
+              <td className="td font-mono text-[11px] text-slate-400" title={c.id}>
+                {c.no}
+              </td>
               <td className="td">
-                <div className="flex items-center gap-2 font-medium text-navy-900">
+                <div className="flex items-center gap-2 font-semibold text-navy-900">
                   <SpeciesIcon species={c.patient.species} /> {c.patient.name}
                 </div>
               </td>

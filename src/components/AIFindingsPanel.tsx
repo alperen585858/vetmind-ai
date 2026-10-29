@@ -38,7 +38,7 @@ export function AIFindingsPanel({
               <p className="font-medium text-navy-900">{f.finding_code}</p>
               <p className="mt-0.5 text-slate-600">{f.description}</p>
               <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
-                {f.synthetic ? 'SYNTHETIC/MOCK' : f.source_model} · review required
+                {f.synthetic ? 'Öneri' : f.source_model} · inceleme gerekli
               </p>
             </li>
           ))}

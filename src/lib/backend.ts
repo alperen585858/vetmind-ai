@@ -311,11 +311,11 @@ export async function createAndAnalyzeCase(input: {
       patient_age_years: input.patientAgeYears ?? null,
       modality,
       anatomical_region,
-      clinical_history: input.clinicalHistory || 'Synthetic demo case. Not a real patient.',
+      clinical_history: input.clinicalHistory || 'Örnek vaka.',
       clinical_history_structured: input.clinicalHistoryStructured ?? null,
       priority: input.priority ?? 'normal',
       scenario: input.scenario,
-      referring_clinic: 'Ornek Veteriner Klinigi (demo)',
+      referring_clinic: 'Örnek Veteriner Kliniği',
     }),
   })
   return analyzeCaseAsyncAndWait(created.case_id)
@@ -335,7 +335,7 @@ export async function uploadDicomFiles(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Ornek Veteriner Klinigi (demo)')
+  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
   for (const file of input.files) {
     form.append('files', file, file.name)
   }
@@ -360,7 +360,7 @@ export async function uploadDicomDemo(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Ornek Veteriner Klinigi (demo)')
+  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
   return request<DicomUploadResponse>(`/dicom/demo/${input.kind}`, {
     method: 'POST',
     body: form,
@@ -391,7 +391,7 @@ export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 12): Prom
       throw new BackendUnavailableError()
     }
     if (!res.ok) {
-      if (i === 0) throw new Error(`Demo DICOM indirilemedi (${kind} #${i})`)
+      if (i === 0) throw new Error(`Örnek DICOM indirilemedi (${kind} #${i})`)
       break
     }
     const headerCount = Number(res.headers.get('X-VetMind-Fixture-Count'))
@@ -442,7 +442,7 @@ export async function uploadDocuments(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Ornek Veteriner Klinigi (demo)')
+  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
   for (const file of input.files) {
     form.append('files', file, file.name)
   }
@@ -528,7 +528,7 @@ export async function analyzeCaseAsyncAndWait(
           report,
           messages: [
             status === 'completed'
-              ? 'Async analyze (demo thread worker) completed.'
+              ? 'Async analyze completed.'
               : `Async analyze ended with status=${status}.`,
             'Client poll abort does not cancel the backend job.',
           ],
@@ -914,11 +914,11 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
     summary: report.impression.text,
     findings: mapped.length
       ? mapped
-      : [{ text: 'Mock görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
+      : [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
     differentials: [],
     recommendedTests: [report.recommendations.text],
     validation: [
-      { kind: 'unsupported', text: 'Kaynak: MOCK / sentetik pipeline', detail: 'Bu çıktı klinik doğrulanmış bir model değildir. Uzman veteriner radyolog incelemesi zorunludur.' },
+      { kind: 'unsupported', text: 'AI ön değerlendirme', detail: 'Bu çıktı klinik doğrulanmış bir model değildir. Uzman veteriner radyolog incelemesi zorunludur.' },
       ...findings.warnings.map((w) => ({ kind: 'missing' as const, text: 'Pipeline uyarısı', detail: w })),
     ],
     model: `${findings.source_model_id} + ${report.generation.model_id}`,
@@ -1194,6 +1194,14 @@ export async function markNotificationRead(id: string) {
 
 export async function markAllNotificationsRead() {
   return request<{ marked: number }>('/notifications/read-all', { method: 'POST' })
+}
+
+export async function deleteNotification(id: string) {
+  return request<{ deleted: boolean }>(`/notifications/${id}/delete`, { method: 'POST' })
+}
+
+export async function clearAllNotifications() {
+  return request<{ deleted: number }>('/notifications/clear-all', { method: 'POST' })
 }
 
 export interface PetHistoryEntry {

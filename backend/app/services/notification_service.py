@@ -66,3 +66,13 @@ class NotificationService:
 
     def mark_all_read(self, *, principal: AuthPrincipal) -> dict[str, int]:
         return {"marked": self._store.mark_all_read(principal.subject)}
+
+    def delete(self, notification_id: str, *, principal: AuthPrincipal) -> dict[str, bool]:
+        n = self._store.get(notification_id)
+        if n is None or n.recipient_subject != principal.subject:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found.")
+        self._store.delete(notification_id)
+        return {"deleted": True}
+
+    def delete_all(self, *, principal: AuthPrincipal) -> dict[str, int]:
+        return {"deleted": self._store.delete_all_for(principal.subject)}

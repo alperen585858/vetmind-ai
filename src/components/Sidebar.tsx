@@ -79,7 +79,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <p className="mt-1.5 pl-[46px] text-[11px] text-navy-300">VRM Teknoloji iş birliğiyle</p>
             {role && (
               <span className="mt-2 ml-[46px] inline-flex rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-200 ring-1 ring-inset ring-teal-400/30">
-                Demo rol · {roleLabels[role]}
+                {roleLabels[role]}
               </span>
             )}
           </div>
@@ -112,22 +112,15 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto m-3 rounded-lg bg-navy-900 p-3 text-xs text-navy-300">
-          <div className="mb-1 flex items-center gap-1.5 font-semibold text-navy-100">
-            <ShieldCheck className="h-3.5 w-3.5 text-teal-400" /> Aktif modül: Nöroloji
-          </div>
-          Veteriner hekimin yerini almaz; değerlendirme sürecini güçlendirir.
-          <p className="mt-2 text-[10px] uppercase tracking-wide text-navy-500">Demo prototip · mock veri</p>
-        </div>
         <button
           type="button"
           onClick={() => {
             signOut()
             onClose()
             nav('/giris')
-            pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Demo oturumu localStorage’dan temizlendi.' })
+            pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Güvenli çıkış yapıldı.' })
           }}
-          className="mx-3 mb-3 flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red"
+          className="mx-3 mb-3 mt-auto flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red"
         >
           <LogOut className={ic} aria-hidden="true" />
           <span>Çıkış yap</span>

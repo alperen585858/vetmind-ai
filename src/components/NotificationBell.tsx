@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCheck, Loader2 } from 'lucide-react'
+import { Bell, CheckCheck, Loader2, Trash2 } from 'lucide-react'
 import {
+  clearAllNotifications,
+  deleteNotification,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -15,6 +17,7 @@ export function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
@@ -70,6 +73,35 @@ export function NotificationBell() {
     }
   }
 
+  const onDelete = async (n: AppNotification, e: MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setBusyId(n.notification_id)
+    try {
+      await deleteNotification(n.notification_id)
+      setItems((prev) => prev.filter((x) => x.notification_id !== n.notification_id))
+      if (!n.read_at) setUnread((u) => Math.max(0, u - 1))
+    } catch {
+      refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const onClearAll = async () => {
+    if (!items.length) return
+    setBusyId('__all__')
+    try {
+      await clearAllNotifications()
+      setItems([])
+      setUnread(0)
+    } catch {
+      refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -88,16 +120,26 @@ export function NotificationBell() {
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96">
-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
             <p className="text-sm font-semibold text-navy-900">Bildirimler</p>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline disabled:opacity-40"
-              onClick={() => void onMarkAll()}
-              disabled={!unread}
-            >
-              <CheckCheck className="h-3.5 w-3.5" /> Tümünü okundu
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline disabled:opacity-40"
+                onClick={() => void onMarkAll()}
+                disabled={!unread || busyId !== null}
+              >
+                <CheckCheck className="h-3.5 w-3.5" /> Tümünü okundu
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:underline disabled:opacity-40"
+                onClick={() => void onClearAll()}
+                disabled={!items.length || busyId !== null}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Tümünü sil
+              </button>
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {loading && !items.length ? (
@@ -109,15 +151,29 @@ export function NotificationBell() {
             ) : (
               <ul className="divide-y divide-slate-100">
                 {items.map((n) => (
-                  <li key={n.notification_id}>
+                  <li key={n.notification_id} className={`flex items-stretch ${n.read_at ? '' : 'bg-teal-50/40'}`}>
                     <button
                       type="button"
                       onClick={() => void onClickItem(n)}
-                      className={`w-full px-3 py-2.5 text-left hover:bg-slate-50 ${n.read_at ? '' : 'bg-teal-50/40'}`}
+                      className="min-w-0 flex-1 px-3 py-2.5 text-left hover:bg-slate-50"
                     >
                       <p className="text-sm font-medium text-navy-900">{n.title}</p>
                       <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">{n.body}</p>
                       <p className="mt-1 text-[11px] text-slate-400">{fmtDate(n.created_at)}</p>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Bildirimi sil"
+                      title="Sil"
+                      disabled={busyId !== null}
+                      onClick={(e) => void onDelete(n, e)}
+                      className="shrink-0 px-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                    >
+                      {busyId === n.notification_id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </button>
                   </li>
                 ))}

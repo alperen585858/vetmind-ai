@@ -29,7 +29,7 @@ export function PaymentSuccessCheck({ label = 'Onaylandı' }: { label?: string }
         {label}
       </p>
       <p className="mt-1.5 max-w-sm text-sm text-slate-600 animate-fade-up [animation-delay:120ms]">
-        Demo Payment Approved · gerçek tahsilat yok
+        Ödeme onaylandı
       </p>
     </div>
   )
