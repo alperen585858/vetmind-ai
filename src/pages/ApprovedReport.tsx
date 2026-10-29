@@ -13,16 +13,8 @@ import {
   canExportApprovedReport,
   caseWithDraftVersion,
   printSectionsForCase,
-  reportProvenance,
 } from '../lib/reportPrint'
 import type { BackendDraftReport, VetCase } from '../types'
-
-const SOURCE_KIND_TR: Record<string, string> = {
-  mock: 'AI taslak',
-  real: 'Gerçek model',
-  mixed: 'Karma kaynak',
-  unknown: 'Bilinmiyor',
-}
 
 export default function ApprovedReport() {
   const { id = '' } = useParams()
@@ -187,8 +179,15 @@ export default function ApprovedReport() {
 
   const p = c.patient
   const sections = printSectionsForCase(c)
-  const provenance = reportProvenance(c)
   const showDemoPatientExtras = !c.fromBackend
+  const reviewStatus =
+    c.status === 'onaylandi'
+      ? `Onaylandı${c.approvedBy ? ` · ${c.approvedBy}` : ''}`
+      : c.status === 'reddedildi'
+        ? 'Reddedildi'
+        : c.status === 'revizyon'
+          ? 'Revizyon istendi'
+          : c.backendDraft?.status || c.status
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -247,9 +246,6 @@ export default function ApprovedReport() {
               <> onaylanmıştır.</>
             )}
           </p>
-          <p className="mt-2 text-sm text-slate-600">
-            Raporda yer alan tıbbi terimler hakkında en doğru bilgiyi veteriner hekiminiz verecektir.
-          </p>
           {c.clinic && (
             <p className="mt-3 flex items-center gap-2 text-sm text-slate-600">
               <Phone className="h-4 w-4" /> {c.clinic}
@@ -262,7 +258,6 @@ export default function ApprovedReport() {
         <header className="flex flex-col gap-4 border-b-4 border-teal-600 px-8 py-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Logo />
-            <p className="mt-1 pl-[46px] text-[11px] text-slate-500">VRM Teknoloji iş birliğiyle</p>
           </div>
           <div className="text-left text-sm sm:text-right">
             <p className="text-lg font-semibold text-navy-900">Veteriner Radyoloji Değerlendirme Raporu</p>
@@ -332,7 +327,7 @@ export default function ApprovedReport() {
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">İnceleme</dt>
-                <dd className="text-navy-900">{provenance.reviewStatus}</dd>
+                <dd className="text-navy-900">{reviewStatus}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">Radyolog</dt>
@@ -381,46 +376,12 @@ export default function ApprovedReport() {
           )}
         </section>
 
-        <section className="border-t border-slate-100 px-8 py-5 text-sm">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Kaynak bilgisi
-          </p>
-          <dl className="space-y-1">
-            <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">Model</dt>
-              <dd className="font-mono text-xs text-navy-900">{provenance.modelLine}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">Kaynak türü</dt>
-              <dd className="text-navy-900">{SOURCE_KIND_TR[provenance.sourceKind] ?? provenance.sourceKind}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">Sentetik veri</dt>
-              <dd className="text-navy-900">{provenance.synthetic ? 'Evet' : 'Hayır'}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="w-36 text-slate-500">Klinik doğrulama</dt>
-              <dd className="text-navy-900">
-                {c.backendDraft?.clinically_validated ? 'Evet' : 'Hayır (iddia edilmez)'}
-              </dd>
-            </div>
-          </dl>
-          {c.backendDraft?.validation_warnings && c.backendDraft.validation_warnings.length > 0 && (
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-900">
-              {c.backendDraft.validation_warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         <footer className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/70 px-8 py-5 sm:flex-row sm:items-end sm:justify-between print:bg-white">
           <div className="flex items-start gap-3">
             <BadgeCheck className="h-8 w-8 text-emerald-600" />
             <div className="text-sm">
               <p className="text-slate-500">Onaylayan uzman</p>
               <p className="font-semibold text-navy-900">{c.approvedBy ?? '—'}</p>
-              <p className="text-slate-500">Uzman onayı ≠ otomatik klinik sertifikasyon</p>
             </div>
           </div>
           <div className="text-sm sm:text-right">
@@ -428,10 +389,6 @@ export default function ApprovedReport() {
             <p className="font-semibold text-navy-900">{fmtDate(c.approvedAt)}</p>
           </div>
         </footer>
-        <p className="px-8 py-4 text-[11px] leading-relaxed text-slate-400">
-          Bu çıktı tarayıcı yazdır / PDF kaydet ile üretilir; sunucuda PDF dosyası saklanmaz.
-          Uzman onayı klinik validasyon belgesi değildir.
-        </p>
       </article>
     </div>
   )

@@ -11,10 +11,10 @@ import type {
 } from '../types'
 
 export const USERS: Record<Role, User> = {
-  vet: { name: 'Dr. Elif Kaya', title: 'Veteriner Hekim', org: 'Örnek Veteriner Kliniği (demo)', initials: 'EK' },
+  vet: { name: 'Dr. Elif Kaya', title: 'Veteriner Hekim', org: '', initials: 'EK' },
   expert: { name: 'Prof. Dr. Ahmet Demir', title: 'Uzman Veteriner Nörolog', org: 'VRM Teknoloji', initials: 'AD' },
   owner: { name: 'Mehmet Yılmaz', title: 'Hayvan Sahibi', org: '', initials: 'MY' },
-  clinic_owner: { name: 'Klinik Yöneticisi', title: 'Klinik Sahibi', org: 'Örnek Veteriner Kliniği (demo)', initials: 'KY' },
+  clinic_owner: { name: 'Klinik Yöneticisi', title: 'Klinik Sahibi', org: '', initials: 'KY' },
   admin: { name: 'Admin', title: 'Sistem Yöneticisi', org: 'VetMind AI', initials: 'SY' },
 }
 
@@ -26,7 +26,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Sistem Yöneticisi',
 }
 
-export const CLINIC = 'Örnek Veteriner Kliniği (demo)'
+export const CLINIC = ''
 
 export const KB_SOURCES: KbSource[] = [
   { id: 1, title: 'Veteriner Nöroloji Ders Kitabı (örnek)', type: 'Kitap', section: 'Bölüm 7 — Torakolomber Miyelopatiler', license: 'İzinli', chunks: 1240, indexedAt: '2026-09-02', keywords: ['disk', 'ivdd', 'hansen', 't3-l3', 'kondrodistrofik', 'dachshund', 'miyelopati', 'parezi', 'refleks'], passage: 'Kondrodistrofik ırklarda (ör. Dachshund) nükleus pulpozusun erken kondroid dejenerasyonu, genellikle 3–7 yaş arasında akut Hansen tip I disk ekstrüzyonlarına zemin hazırlar. T3-L3 lezyonlarında pelvik ekstremitelerde üst motor nöron bulguları (normal-artmış spinal refleksler) ile birlikte parezi veya pleji beklenir.' },

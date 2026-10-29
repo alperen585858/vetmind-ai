@@ -25,7 +25,7 @@ def test_brain_adapter_returns_labeled_mock_finding() -> None:
     assert out.execution_status == ModelExecutionStatus.SUCCESS
     assert out.findings[0].finding_code == "MOCK-BRAIN-MASS-EFFECT"
     assert out.findings[0].finding_status == FindingStatus.SUSPECTED
-    assert "SENTETİK DEMO BULGU" in out.findings[0].description
+    assert "kitle etkisi" in out.findings[0].description.lower()
     assert out.absences_not_confirmed is True
 
 

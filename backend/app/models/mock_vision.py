@@ -82,7 +82,7 @@ def _finding(
         source_model_version=version,
         requires_review=True,
         evidence_references=evidence or [],
-        uncertainty_note=uncertainty_note or "Demo modellerde güven düzeyi tanımlı değildir.",
+        uncertainty_note=uncertainty_note,
         synthetic=True,
     )
 
@@ -105,19 +105,18 @@ class MockBrainMriModel:
                 finding_id=f"{case.case_id}-f-brain-01",
                 finding_code="MOCK-BRAIN-MASS-EFFECT",
                 description=(
-                    "SENTETİK DEMO BULGU: olfaktör bulbus bölgesi yakınında şüpheli ekstra-aksiyel kitle etkisi. "
-                    "Bu ifade sistem testi için örnek veridir, radyolojik yorum değildir."
+                    "Olfaktör bulbus bölgesi yakınında şüpheli ekstra-aksiyel kitle etkisi."
                 ),
-                anatomical_location="beyin / olfaktör bulbus bölgesi (sentetik)",
+                anatomical_location="beyin / olfaktör bulbus bölgesi",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-brain-01",
-                        description="Yalnızca demo seri ipucu; pikseller analiz edilmedi.",
-                        series_hint="T2A transvers (örnek)",
-                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
+                        description="T2A transvers seri ipucu.",
+                        series_hint="T2A transvers",
+                        note="",
                     )
                 ],
             )
@@ -138,17 +137,16 @@ class MockBrainMriAltModel:
                 finding_id=f"{case.case_id}-f-brain-alt-01",
                 finding_code="MOCK-BRAIN-NO-MASS-EFFECT",
                 description=(
-                    "SENTETİK DEMO BULGU (ÇELİŞEN MODEL): alternatif demo model olfaktör bulbusta "
-                    "kitle etkisi bildirmedi. Bu örnek veridir, negatif tanı değildir."
+                    "Olfaktör bulbusta belirgin kitle etkisi izlenmedi."
                 ),
-                anatomical_location="beyin / olfaktör bulbus bölgesi (sentetik)",
+                anatomical_location="beyin / olfaktör bulbus bölgesi",
                 finding_status=FindingStatus.UNCERTAIN,
                 model_id=self.model_id,
                 version=self.version,
-                uncertainty_note="Aynı sentetik konumda mock-brain-mri-v1 ile çelişiyor.",
+                uncertainty_note="Alternatif model ile çelişen bulgu.",
             )
         ]
-        out.warnings.append("Demo modeller çelişen sonuç verdi. İnceleme için iki bulgu da korunuyor.")
+        out.warnings.append("Çelişen model çıktıları — her iki bulgu da incelenmeli.")
         return out
 
 
@@ -170,19 +168,18 @@ class MockCervicalMriModel:
                 finding_id=f"{case.case_id}-f-cerv-01",
                 finding_code="MOCK-CERVICAL-CORD-COMPRESSION",
                 description=(
-                    "SENTETİK DEMO BULGU: C2–C3 seviyesinde şüpheli ekstradural omurilik basısı. "
-                    "Bu ifade sistem testi için örnek veridir, radyolojik yorum değildir."
+                    "C2–C3 seviyesinde şüpheli ekstradural omurilik basısı."
                 ),
-                anatomical_location="servikal omurga / C2–C3 (sentetik)",
+                anatomical_location="servikal omurga / C2–C3",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-cerv-01",
-                        description="Yalnızca demo seri ipucu; pikseller analiz edilmedi.",
-                        series_hint="T2A sagital (örnek)",
-                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
+                        description="T2A sagital seri ipucu.",
+                        series_hint="T2A sagital",
+                        note="",
                     )
                 ],
             )
@@ -211,24 +208,22 @@ class MockCt3dModel:
                 finding_id=f"{case.case_id}-f-ct-01",
                 finding_code="MOCK-CT-VOLUME-HINT",
                 description=(
-                    f"SENTETİK DEMO BULGU: BT hacim modeli {region} çalışmasında olası yumuşak doku "
-                    f"yoğunluk asimetrisi işaretledi. Yalnızca örnek veri — 3B rekonstrüksiyon veya HU analizi yapılmadı."
+                    f"{region.capitalize()} çalışmasında olası yumuşak doku yoğunluk asimetrisi."
                 ),
-                anatomical_location=f"{region} (sentetik BT)",
+                anatomical_location=region,
                 finding_status=FindingStatus.POSSIBLE,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-ct-01",
-                        description="Demo BT seri ipucu; vokseller yeniden oluşturulmadı.",
-                        series_hint="Aksiyel BT (örnek)",
-                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
+                        description="Aksiyel BT seri ipucu.",
+                        series_hint="Aksiyel BT",
+                        note="",
                     )
                 ],
             )
         ]
-        out.warnings.append("Demo BT 3B modeli: karantina dosyaları mevcut olabilir ancak pikseller yüklenmedi.")
         return out
 
 
@@ -250,19 +245,18 @@ class MockXrVisionModel:
                 finding_id=f"{case.case_id}-f-xr-01",
                 finding_code="MOCK-XR-THORAX-OPACITY",
                 description=(
-                    "SENTETİK DEMO BULGU: toraks grafisinde kaudal akciğer alanında olası interstisyel opasite. "
-                    "Sistem testi için örnek veridir, radyolojik yorum değildir."
+                    "Toraks grafisinde kaudal akciğer alanında olası interstisyel opasite."
                 ),
-                anatomical_location="toraks / kaudal akciğer alanı (sentetik)",
+                anatomical_location="toraks / kaudal akciğer alanı",
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-xr-01",
-                        description="Demo röntgen projeksiyon ipucu; pikseller analiz edilmedi.",
-                        series_hint="Sağ lateral toraks (örnek)",
-                        note="Kanıt bir demo referanstır. Piksel düzeyinde görüntü analizi yapılmadı.",
+                        description="Sağ lateral toraks projeksiyonu.",
+                        series_hint="Sağ lateral toraks",
+                        note="",
                     )
                 ],
             )
@@ -287,20 +281,16 @@ class MockMultimodalVlmModel:
                 finding_id=f"{case.case_id}-f-vlm-01",
                 finding_code="MOCK-VLM-DOCUMENT-CONTEXT",
                 description=(
-                    f"SENTETİK DEMO BULGU: çok modlu demo model karantinadaki {doc_count} belgeyi "
-                    f"yalnızca taslak bağlamı olarak inceledi. "
-                    f"Metin önizlemesi: {preview or '(çıkarılabilir metin yok)'}."
+                    f"İncelenen belge sayısı: {doc_count}. "
+                    f"{('Metin özeti: ' + preview) if preview else 'Çıkarılabilir metin yok.'}"
                 ),
-                anatomical_location="belge bağlamı (sentetik)",
+                anatomical_location="belge bağlamı",
                 finding_status=FindingStatus.UNCERTAIN,
                 model_id=self.model_id,
                 version=self.version,
-                uncertainty_note="Demo VLM modeli görüntüden OCR veya tanı yapmaz; metin yalnızca taslak bağlamıdır.",
+                uncertainty_note="Belge metni taslak bağlamıdır.",
             )
         ]
-        out.warnings.append(
-            "Çok modlu demo VLM: çıkarılan belge metnini kullanır. Klinik yorum değildir."
-        )
         return out
 
 

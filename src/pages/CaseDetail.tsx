@@ -19,6 +19,12 @@ import { DicomViewer } from '../components/DicomViewer'
 import { localize } from '../lib/localization'
 import { fmtDate } from '../lib/format'
 import {
+  cleanClinicalHistory,
+  displayClinic,
+  displayFindingCode,
+  displayFindingDescription,
+} from '../lib/displayClean'
+import {
   BackendUnavailableError,
   appendCaseClinicalNote,
   attachCaseDocument,
@@ -212,7 +218,9 @@ export default function CaseDetail() {
             <p className="mt-1 text-sm text-slate-300">
               {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş · {c.patient.weight} kg · {c.patient.sex}
             </p>
-            <p className="mt-1 text-sm text-slate-400">{c.no} · {c.clinic} · {c.module} · {fmtDate(c.createdAt)}</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {[c.no, displayClinic(c.clinic) || null, c.module, fmtDate(c.createdAt)].filter(Boolean).join(' · ')}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={c.status} />
@@ -499,17 +507,17 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                     : '—'
                 }
               />
-              <Row k="Klinik / Hekim" v={`${c.clinic} · ${c.vetName}`} />
+              <Row k="Klinik / Hekim" v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
               <Row k="Öncelik / Atama" v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>
           </Card>
           <Card>
             <CardHeader title="Klinik Bilgiler" icon={<Stethoscope className="h-5 w-5" />} />
             <dl className="divide-y divide-slate-50 px-5 py-2">
-              <Row k="Şikâyet" v={c.clinical.complaint} />
+              <Row k="Şikâyet" v={cleanClinicalHistory(c.clinical.complaint) || '—'} />
               <Row k="Başlangıç" v={c.clinical.onset} />
               <Row k="Seyir" v={c.clinical.course} />
-              <Row k="Klinik geçmiş" v={c.clinical.history || '—'} />
+              <Row k="Klinik geçmiş" v={cleanClinicalHistory(c.clinical.history) || '—'} />
               <Row k="İlaçlar" v={c.clinical.medications || '—'} />
             </dl>
             {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
@@ -1183,23 +1191,18 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
     <div className="space-y-5">
       {c.backendFindings && (
         <Card>
-          <CardHeader title="Yapılandırılmış bulgular" subtitle={`${c.backendFindings.source_model_id} · ${c.backendOutcome ?? ''}`} icon={<Brain className="h-5 w-5" />} />
+          <CardHeader title="Yapılandırılmış bulgular" icon={<Brain className="h-5 w-5" />} />
           <div className="space-y-3 p-5 text-sm text-navy-800">
-            <p className="rounded-lg bg-slate-50 p-3 text-slate-700 ring-1 ring-inset ring-slate-200">
-              Eksik bulgu, hastalığın yokluğu anlamına gelmez.
-            </p>
             {c.backendFindings.findings.length === 0 ? (
-              <p>Döndürülen bulgu yok (`no_findings_returned={String(c.backendFindings.no_findings_returned)}`).</p>
+              <p>Döndürülen bulgu yok.</p>
             ) : (
               <ul className="space-y-2">
                 {c.backendFindings.findings.map((f) => (
                   <li key={f.finding_id} className="rounded-lg border border-slate-200 p-3">
-                    <p className="font-mono text-xs text-teal-700">{f.finding_id} · {f.finding_code}</p>
-                    <p className="mt-1">{f.description}</p>
+                    <p className="font-medium text-teal-800">{displayFindingCode(f.finding_code)}</p>
+                    <p className="mt-1">{displayFindingDescription(f.description)}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {f.anatomical_location} · laterality={f.laterality ?? 'UNKNOWN'} · status={f.finding_status} ·
-                      model={f.source_model}
-                      {f.conflict_group_id ? ` · conflict=${f.conflict_group_id}` : ''}
+                      {[displayFindingDescription(f.anatomical_location), f.finding_status].filter(Boolean).join(' · ')}
                     </p>
                   </li>
                 ))}

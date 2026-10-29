@@ -315,7 +315,7 @@ export async function createAndAnalyzeCase(input: {
       clinical_history_structured: input.clinicalHistoryStructured ?? null,
       priority: input.priority ?? 'normal',
       scenario: input.scenario,
-      referring_clinic: 'Örnek Veteriner Kliniği',
+      referring_clinic: '',
     }),
   })
   return analyzeCaseAsyncAndWait(created.case_id)
@@ -335,7 +335,7 @@ export async function uploadDicomFiles(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
+  form.append('referring_clinic', '')
   for (const file of input.files) {
     form.append('files', file, file.name)
   }
@@ -360,7 +360,7 @@ export async function uploadDicomDemo(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
+  form.append('referring_clinic', '')
   return request<DicomUploadResponse>(`/dicom/demo/${input.kind}`, {
     method: 'POST',
     body: form,
@@ -442,7 +442,7 @@ export async function uploadDocuments(input: {
   form.append('species', toBackendSpecies(input.species))
   if (input.breed) form.append('breed', input.breed)
   if (input.clinicalHistory) form.append('clinical_history', input.clinicalHistory)
-  form.append('referring_clinic', 'Örnek Veteriner Kliniği')
+  form.append('referring_clinic', '')
   for (const file of input.files) {
     form.append('files', file, file.name)
   }

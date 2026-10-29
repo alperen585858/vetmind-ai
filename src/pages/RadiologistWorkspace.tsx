@@ -38,6 +38,7 @@ import {
 } from '../lib/backend'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
+import { cleanClinicalHistory, displayClinic } from '../lib/displayClean'
 import type { BackendCaseSummary, ReportSections } from '../types'
 
 export default function RadiologistWorkspace() {
@@ -153,12 +154,13 @@ export default function RadiologistWorkspace() {
 
   const contextBits = useMemo(() => {
     if (!c) return []
+    const clinic = displayClinic(c.clinic)
     return [
       `${c.patient.species} · ${c.patient.breed}`,
       c.patient.age ? `${c.patient.age} yaş` : null,
       c.modality || null,
       c.anatomicalRegion || null,
-      c.clinic,
+      clinic || null,
     ].filter(Boolean) as string[]
   }, [c])
 
@@ -318,11 +320,10 @@ export default function RadiologistWorkspace() {
       <div className="mb-4 grid gap-4 lg:grid-cols-4">
         <Card className="lg:col-span-3 p-3 text-sm text-slate-700">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vaka bağlamı</p>
-          <p className="mt-1">{c.clinical.history || c.clinical.complaint || 'Klinik öykü yok'}</p>
+          <p className="mt-1">
+            {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || 'Klinik öykü yok'}
+          </p>
           {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
-          {c.studyInstanceUid ? (
-            <p className="mt-2 font-mono text-[11px] text-slate-500">Study UID: {c.studyInstanceUid}</p>
-          ) : null}
           {priorReports.length > 0 && (
             <div className="mt-3 border-t border-slate-100 pt-2">
               <p className="text-xs font-semibold text-slate-500">Önceki onaylı raporlar (aynı pet)</p>

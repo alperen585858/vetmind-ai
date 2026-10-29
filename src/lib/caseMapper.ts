@@ -13,7 +13,8 @@ import type {
   VetCase,
 } from '../types'
 import { draftToSections, pipelineToAssessment } from './backend'
-import { CLINIC, USERS } from '../data/mock'
+import { USERS } from '../data/mock'
+import { cleanClinicalHistory, displayClinic } from './displayClean'
 
 const EMPTY_NEURO: NeuroExam = {
   consciousness: 'Uyanık',
@@ -68,11 +69,12 @@ function modalityNote(modality: BackendModality | string | undefined, region: st
 }
 
 function emptyClinical(history?: string | null): ClinicalInfo {
+  const cleaned = cleanClinicalHistory(history)
   return {
-    complaint: history?.split('\n')[0] || 'Backend vakası',
+    complaint: cleaned.split('\n')[0] || '',
     onset: 'Akut',
     course: 'Progresif',
-    history: history || '',
+    history: cleaned,
     medications: '',
   }
 }
@@ -126,7 +128,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     module: 'Nöroloji',
     priority: priorityFromBackend(s.priority),
     createdAt: created,
-    clinic: s.referring_clinic || s.clinic_id || CLINIC,
+    clinic: displayClinic(s.referring_clinic) || displayClinic(s.clinic_id) || '',
     vetName: USERS.vet.name,
     corrections: [],
     timeline: [{ date: s.created_at, label: 'Vaka oluşturuldu', by: 'Sistem' }],
@@ -226,10 +228,10 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
             type: 'MR Raporu' as const,
             size: r.study?.instance_count ? `${r.study.instance_count} instance` : 'metadata',
             pages: 1,
-            rawText: 'DICOM metadata ingest. Pixel data was not analyzed.',
+            rawText: '',
             extracted: [
               {
-                field: 'Modality / Region',
+                field: 'Modalite / Bölge',
                 value: modalityNote(r.modality, r.anatomical_region),
                 source: 'case',
               },
@@ -249,7 +251,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     module: 'Nöroloji',
     priority: priorityFromBackend(r.priority),
     createdAt: created,
-    clinic: r.referring_clinic || CLINIC,
+    clinic: displayClinic(r.referring_clinic) || '',
     vetName: USERS.vet.name,
     ai,
     aiDraft,

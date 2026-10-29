@@ -129,8 +129,7 @@ def upload_demo_fixture(
         patient_name=patient_name,
         species=species,
         breed=breed,
-        clinical_history=clinical_history
-        or f"Demo DICOM metadata ingest ({kind}). Synthetic only — not clinical imagery.",
+        clinical_history=clinical_history or None,
         referring_clinic=referring_clinic,
         principal=principal,
     )

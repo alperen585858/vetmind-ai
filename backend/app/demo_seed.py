@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-DEMO_CLINIC_NAME = "Örnek Veteriner Kliniği (demo)"
+DEMO_CLINIC_NAME = ""
 DEMO_CLINIC_ID = "clinic-demo-a"
 DEMO_VET = "vet@demo.local"
 DEMO_EXPERT = "expert@demo.local"

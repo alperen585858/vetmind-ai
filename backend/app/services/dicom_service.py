@@ -265,8 +265,7 @@ class DicomService:
             breed=record.breed,
             modality=modality,
             anatomical_region=region,
-            clinical_history=clinical_history
-            or "Case created from DICOM metadata ingest. No pixel-based diagnosis performed.",
+            clinical_history=clinical_history or None,
             referring_clinic=record.referring_clinic,
             owner_subject=record.owner_subject
             or (principal.subject if principal and principal.via != "disabled" else None),
