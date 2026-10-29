@@ -207,7 +207,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
   const approveEntry = [...(r.review_history ?? [])].reverse().find((h) => h.action === 'approve')
   const approvedBy = approveEntry?.reviewer_id
   // Backend ReviewFeedback has no timestamp; case.updated_at is the best persisted signal after approve.
-  const approvedAt = status === 'onaylandi' ? r.updated_at.slice(0, 10) : undefined
+  const approvedAt = status === 'onaylandi' ? r.updated_at : undefined
   const reportNo = status === 'onaylandi' ? r.case_id.replace(/^case-/, 'VMR-').toUpperCase() : undefined
 
   const reviewLabels: Record<string, string> = {

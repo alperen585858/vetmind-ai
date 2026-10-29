@@ -54,8 +54,6 @@ export function Sidebar({
     admin: 'Admin',
   }
 
-  const settingsItem: NavItem = { to: '/ayarlar', label: 'Ayarlar', icon: <Settings className={ic} /> }
-
   const menus: Record<Role, NavItem[]> = {
     vet: [
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
@@ -64,7 +62,6 @@ export function Sidebar({
       { to: '/vakalar', label: 'Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/vakalar/yeni', label: 'Yeni Vaka', icon: <FilePlus2 className={ic} /> },
       { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
-      settingsItem,
     ],
     expert: [
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
@@ -72,7 +69,6 @@ export function Sidebar({
       { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
-      settingsItem,
     ],
     owner: [
       { to: '/', label: 'Ana Sayfa', icon: <LayoutDashboard className={ic} /> },
@@ -80,13 +76,11 @@ export function Sidebar({
       { to: '/basvurular', label: 'Görüntüleme Talepleri', icon: <UploadCloud className={ic} /> },
       { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
       { to: '/raporlar', label: 'Raporlarım', icon: <FileText className={ic} /> },
-      settingsItem,
     ],
     clinic_owner: [
       { to: '/', label: 'Klinik Panosu', icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: 'Klinik Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/basvurular', label: 'Sahip Başvuruları', icon: <ClipboardCheck className={ic} /> },
-      settingsItem,
     ],
     admin: [
       { to: '/', label: 'Sistem Özeti', icon: <LayoutDashboard className={ic} /> },
@@ -96,7 +90,6 @@ export function Sidebar({
       { to: '/bilgi-tabani', label: 'Bilgi Tabanı', icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: 'Sistem Durumu', icon: <Activity className={ic} /> },
       { to: '/model-performansi', label: 'Model Performansı', icon: <Gauge className={ic} /> },
-      settingsItem,
     ],
   }
   const items = role ? menus[role] : []
@@ -184,22 +177,41 @@ export function Sidebar({
             </NavLink>
           ))}
         </nav>
-        <button
-          type="button"
-          title="Çıkış yap"
-          onClick={() => {
-            signOut()
-            onClose()
-            nav('/giris')
-            pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Güvenli çıkış yapıldı.' })
-          }}
-          className={`mx-3 mb-3 mt-auto flex min-h-11 items-center rounded-lg text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red ${
-            collapsed ? 'lg:mx-2 lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
-          } gap-3 px-3 py-2.5`}
-        >
-          <LogOut className={ic} aria-hidden="true" />
-          <span className={collapsed ? 'lg:hidden' : ''}>Çıkış yap</span>
-        </button>
+        <div className={`mt-auto space-y-1 border-t border-navy-800 pt-2 ${collapsed ? 'lg:px-2' : 'px-3'} px-3 pb-3`}>
+          <NavLink
+            to="/ayarlar"
+            onClick={onClose}
+            title={collapsed ? 'Ayarlar' : undefined}
+            className={({ isActive }) =>
+              `group relative flex min-h-11 items-center rounded-lg text-sm font-medium transition ${
+                collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
+              } gap-3 px-3 py-2.5 ${
+                isActive
+                  ? 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                  : 'text-navy-200 hover:bg-navy-800 hover:text-white'
+              }`
+            }
+          >
+            <Settings className={ic} aria-hidden="true" />
+            <span className={collapsed ? 'lg:hidden' : ''}>Ayarlar</span>
+          </NavLink>
+          <button
+            type="button"
+            title="Çıkış yap"
+            onClick={() => {
+              signOut()
+              onClose()
+              nav('/giris')
+              pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Güvenli çıkış yapıldı.' })
+            }}
+            className={`flex w-full min-h-11 items-center rounded-lg text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red ${
+              collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
+            } gap-3 px-3 py-2.5`}
+          >
+            <LogOut className={ic} aria-hidden="true" />
+            <span className={collapsed ? 'lg:hidden' : ''}>Çıkış yap</span>
+          </button>
+        </div>
       </aside>
     </>
   )

@@ -8,6 +8,7 @@ import {
   Clock,
   FileSearch,
   History,
+  Image as ImageIcon,
   Loader2,
   Save,
   Send,
@@ -24,7 +25,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
-import { ReportEditor } from '../components/ReportEditor'
+import { ReportDocumentEditor } from '../components/ReportDocumentEditor'
 import {
   BackendUnavailableError,
   appendCaseInternalNote,
@@ -66,6 +67,7 @@ export default function RadiologistWorkspace() {
   const [priorReports, setPriorReports] = useState<PetHistoryEntry[]>([])
   const [internalNote, setInternalNote] = useState('')
   const [infoAsk, setInfoAsk] = useState('')
+  const [showDicom, setShowDicom] = useState(true)
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -331,6 +333,15 @@ export default function RadiologistWorkspace() {
             <Button variant="secondary" size="sm" onClick={() => nav(`/vakalar/${c.id}`)}>
               Vaka özeti
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ImageIcon className="h-3.5 w-3.5" />}
+              onClick={() => setShowDicom((v) => !v)}
+              aria-pressed={showDicom}
+            >
+              {showDicom ? 'DICOM gizle' : 'DICOM göster'}
+            </Button>
             <Button variant="secondary" size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={() => void onSaveDraft()} disabled={saving || immutable}>
               {saving ? 'Kaydediliyor…' : 'Taslak kaydet ⌘S'}
             </Button>
@@ -369,23 +380,32 @@ export default function RadiologistWorkspace() {
         <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="min-h-[420px] space-y-3 xl:min-h-[560px] xl:sticky xl:top-20 xl:self-start">
-          {error && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
-              {error}
+      <div className={`grid gap-4 ${showDicom ? 'xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}>
+        {showDicom && (
+          <div className="min-h-[420px] space-y-3 xl:min-h-[560px] xl:sticky xl:top-20 xl:self-start">
+            {error && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="alert">
+                {error}
+              </p>
+            )}
+            <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[420px] xl:min-h-[560px]" />
+            <p className="text-[11px] text-slate-500">
+              Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri
+              karşılaştır · R reset · ok tuşları dilim.
             </p>
-          )}
-          <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[420px] xl:min-h-[560px]" />
-          <p className="text-[11px] text-slate-500">
-            Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri karşılaştır · R reset · ok tuşları dilim. Taslak kaydı vaka geçişinde korunur.
-          </p>
-        </div>
-        <div className="space-y-3">
-          <AIFindingsPanel findings={c.backendFindings} analysisMode={c.backendDraft?.generation?.source_kind === 'real' ? 'real' : 'mock'} />
+          </div>
+        )}
+
+        <div className={`space-y-3 ${showDicom ? '' : 'mx-auto w-full max-w-[920px]'}`}>
+          <AIFindingsPanel
+            findings={c.backendFindings}
+            analysisMode={c.backendDraft?.generation?.source_kind === 'real' ? 'real' : 'mock'}
+          />
+
+          <ReportDocumentEditor caseData={c} value={text} onChange={setText} disabled={immutable} />
+
           <Card className="p-4">
-            <ReportEditor value={text} onChange={setText} disabled={immutable} />
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 icon={<CheckCircle2 className="h-3.5 w-3.5" />}
@@ -394,17 +414,40 @@ export default function RadiologistWorkspace() {
               >
                 Onayla
               </Button>
-              <Button size="sm" variant="secondary" icon={<Send className="h-3.5 w-3.5" />} disabled={immutable} onClick={() => setModal('revizyon')}>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Send className="h-3.5 w-3.5" />}
+                disabled={immutable}
+                onClick={() => setModal('revizyon')}
+              >
                 Revizyon
               </Button>
-              <Button size="sm" variant="danger" icon={<XCircle className="h-3.5 w-3.5" />} disabled={immutable} onClick={() => setModal('reddedildi')}>
+              <Button
+                size="sm"
+                variant="danger"
+                icon={<XCircle className="h-3.5 w-3.5" />}
+                disabled={immutable}
+                onClick={() => setModal('reddedildi')}
+              >
                 Reddet
               </Button>
+              {!showDicom && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<ImageIcon className="h-3.5 w-3.5" />}
+                  onClick={() => setShowDicom(true)}
+                >
+                  DICOM yanına aç
+                </Button>
+              )}
             </div>
             {immutable && (
               <p className="mt-2 text-xs text-emerald-800">Onaylı sürüm kilitli — içerik değiştirilemez.</p>
             )}
           </Card>
+
           <Card className="p-4">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <History className="h-3.5 w-3.5" /> Rapor geçmişi
@@ -426,6 +469,7 @@ export default function RadiologistWorkspace() {
               </ul>
             )}
           </Card>
+
           {caseKey.startsWith('case-') && (
             <Card className="space-y-3 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">İç not / klinik istek</p>

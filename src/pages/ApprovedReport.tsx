@@ -376,18 +376,23 @@ export default function ApprovedReport() {
           )}
         </section>
 
-        <footer className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/70 px-8 py-5 sm:flex-row sm:items-end sm:justify-between print:bg-white">
-          <div className="flex items-start gap-3">
-            <BadgeCheck className="h-8 w-8 text-emerald-600" />
-            <div className="text-sm">
-              <p className="text-slate-500">Onaylayan uzman</p>
-              <p className="font-semibold text-navy-900">{c.approvedBy ?? '—'}</p>
+        <footer className="border-t border-slate-200 bg-slate-50/70 px-8 py-5 print:bg-white">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3">
+              <BadgeCheck className="h-8 w-8 text-emerald-600" />
+              <div className="text-sm">
+                <p className="text-slate-500">Onaylayan uzman</p>
+                <p className="font-semibold text-navy-900">{c.approvedBy ?? '—'}</p>
+              </div>
+            </div>
+            <div className="text-sm sm:text-right">
+              <p className="text-slate-500">Onay tarihi</p>
+              <p className="font-semibold text-navy-900">{fmtDate(c.approvedAt)}</p>
             </div>
           </div>
-          <div className="text-sm sm:text-right">
-            <p className="text-slate-500">Onay tarihi</p>
-            <p className="font-semibold text-navy-900">{fmtDate(c.approvedAt)}</p>
-          </div>
+          <p className="mt-5 border-t border-slate-200/80 pt-4 text-[10px] font-medium text-slate-500">
+            VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle
+          </p>
         </footer>
       </article>
     </div>

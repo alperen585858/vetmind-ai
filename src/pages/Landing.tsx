@@ -125,13 +125,39 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Intro strip */}
-      <section id="hakkinda" className="bg-sky-600 px-4 py-14 sm:px-6 lg:px-8">
-        <p className="mx-auto max-w-3xl text-center text-base leading-relaxed text-white sm:text-lg">
-          VetMind AI Teleradyoloji; DICOM yükleme, AI destekli taslak rapor ve uzman veteriner radyolog onayıyla
-          çalışan, klinik odaklı bir hizmet prototipidir. Pratikteki meslektaşlarımıza hızlı ve yapılandırılmış
-          görüntüleme desteği sunmak için tasarlandı.
-        </p>
+      {/* About */}
+      <section id="hakkinda" className="bg-sky-600 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-100/90">
+            Hakkında
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-white sm:text-lg">
+            VetMind AI Teleradyoloji; DICOM yükleme, AI destekli taslak rapor ve uzman veteriner radyolog onayıyla
+            çalışan, klinik odaklı bir hizmet prototipidir. Pratikteki meslektaşlarımıza hızlı ve yapılandırılmış
+            görüntüleme desteği sunmak için tasarlandı.
+          </p>
+        </div>
+      </section>
+
+      {/* Partnership — dark band matches VRM logo ground */}
+      <section className="bg-navy-950 px-4 py-12 sm:px-6 lg:px-8" aria-label="İşbirliği">
+        <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-sky-300/70">
+            İşbirliği
+          </p>
+          <img
+            src="/vrm-logo.png"
+            alt="VRM Veteriner Radyoloji Merkezi"
+            className="mt-5 h-auto w-full max-w-[300px] sm:max-w-[360px]"
+          />
+          <p className="mt-5 text-sm font-medium tracking-tight text-sky-100 sm:text-base">
+            VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş.
+          </p>
+          <p className="mt-2 max-w-lg text-sm leading-relaxed text-sky-200/70">
+            Veteriner tanı görüntüleme alanındaki klinik deneyim ve uzmanlık, platformun tasarımı ve
+            geliştirilmesinde yol gösterici olmuştur.
+          </p>
+        </div>
       </section>
 
       {/* Services */}

@@ -13,7 +13,7 @@ import { CitedText } from '../components/CitedText'
 import { GroundingWarnings } from '../components/GroundingWarnings'
 import { EmptyState } from '../components/EmptyState'
 import { SECTION_LABELS, USERS } from '../data/mock'
-import { nowStamp, today } from '../lib/format'
+import { nowStamp } from '../lib/format'
 import { BackendUnavailableError, fetchCaseDicomFiles, fetchDemoDicomFiles, submitBackendReview } from '../lib/backend'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
@@ -226,7 +226,7 @@ const ExpertReview: FC = () => {
         report: text,
         corrections,
         approvedBy: USERS.expert.name,
-        approvedAt: today(),
+        approvedAt: nowStamp(),
         reportNo: x.no.replace('VM-', 'VMR-'),
         statusNote: undefined,
         timeline: [

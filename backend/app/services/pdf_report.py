@@ -384,7 +384,7 @@ def build_approved_report_pdf(
             [
                 Paragraph(f"<b>Onaylayan uzman</b><br/>{_esc(reviewed_by or '—')}", body),
                 Paragraph(
-                    f"<b>Onay tarihi</b><br/>{_esc(approved_at.strftime('%d.%m.%Y') if approved_at else '—')}",
+                    f"<b>Onay tarihi</b><br/>{_esc(approved_at.strftime('%d.%m.%Y %H:%M') if approved_at else '—')}",
                     ParagraphStyle("Right", parent=body, alignment=TA_RIGHT),
                 ),
             ]
@@ -401,6 +401,23 @@ def build_approved_report_pdf(
         )
     )
     story.append(sign)
+
+    collab = ParagraphStyle(
+        "Collab",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=7.5,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor("#64748b"),
+        spaceBefore=2,
+    )
+    story.append(Spacer(1, 14))
+    story.append(
+        Paragraph(
+            "VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle",
+            collab,
+        )
+    )
 
     doc.build(story)
     return buf.getvalue()
