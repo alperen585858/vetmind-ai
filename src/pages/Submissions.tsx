@@ -696,7 +696,10 @@ export default function Submissions() {
           {pets.length === 0 ? (
             <p className="px-1 text-sm text-slate-600">
               Önce{' '}
-              <Link className="font-medium text-teal-700 hover:underline" to="/hayvanlar">
+              <Link
+                className={`font-medium hover:underline ${isOwner ? 'text-sky-700' : 'text-teal-700'}`}
+                to="/hayvanlar"
+              >
                 pet profili
               </Link>{' '}
               oluşturun.
@@ -706,6 +709,7 @@ export default function Submissions() {
               <StepIndicator
                 steps={WIZARD_STEPS}
                 current={wizardStep}
+                accent={isOwner ? 'sky' : 'teal'}
                 onSelect={(i) => {
                   if (i < wizardStep && !submitLock) setWizardStep(i)
                 }}
@@ -759,11 +763,25 @@ export default function Submissions() {
                     onDrop={onDrop}
                     className={`rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
                       drag
-                        ? 'border-teal-600 bg-teal-50'
-                        : 'border-slate-200 bg-slate-50/80 hover:border-teal-400'
+                        ? isOwner
+                          ? 'border-sky-500 bg-sky-50'
+                          : 'border-teal-600 bg-teal-50'
+                        : isOwner
+                          ? 'border-slate-200 bg-slate-50/80 hover:border-sky-400'
+                          : 'border-slate-200 bg-slate-50/80 hover:border-teal-400'
                     }`}
                   >
-                    <UploadCloud className={`mx-auto h-8 w-8 ${drag ? 'text-teal-700' : 'text-teal-600'}`} />
+                    <UploadCloud
+                      className={`mx-auto h-8 w-8 ${
+                        drag
+                          ? isOwner
+                            ? 'text-sky-700'
+                            : 'text-teal-700'
+                          : isOwner
+                            ? 'text-sky-600'
+                            : 'text-teal-600'
+                      }`}
+                    />
                     <p className="mt-2 text-sm font-medium text-navy-900">
                       {drag ? 'Dosyaları bırakın' : 'DICOM dosya veya klasör sürükleyin'}
                     </p>
@@ -832,7 +850,13 @@ export default function Submissions() {
                   </div>
 
                   {useDemoDicom && (
-                    <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+                    <p
+                      className={`rounded-lg px-3 py-2 text-sm ${
+                        isOwner
+                          ? 'border border-sky-200 bg-sky-50 text-sky-950'
+                          : 'border border-teal-200 bg-teal-50 text-teal-900'
+                      }`}
+                    >
                       Örnek brain MRI DICOM kullanılacak.
                     </p>
                   )}

@@ -46,6 +46,7 @@ export function Sidebar({
   const nav = useNavigate()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
+  const isOwner = role === 'owner'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
     vet: 'Veteriner',
     expert: 'Uzman',
@@ -105,17 +106,30 @@ export function Sidebar({
         <div className={`flex items-start gap-2 pb-4 pt-5 ${collapsed ? 'lg:flex-col lg:items-center lg:px-2' : 'justify-between px-5'}`}>
           <div className={collapsed ? 'lg:flex lg:flex-col lg:items-center' : ''}>
             {collapsed ? (
-              <div className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-teal-700 shadow-sm" title="VetMind AI">
+              <div
+                className={`hidden h-9 w-9 items-center justify-center rounded-xl shadow-sm lg:flex ${
+                  isOwner
+                    ? 'bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800'
+                    : 'bg-gradient-to-br from-teal-400 to-teal-700'
+                }`}
+                title="VetMind AI"
+              >
                 <svg viewBox="0 0 32 32" className="h-3/5 w-3/5" fill="none" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M4 17h6l3-7 5 13 3-6h7" />
                 </svg>
               </div>
             ) : null}
             <div className={collapsed ? 'lg:hidden' : ''}>
-              <Logo dark />
+              <Logo dark accent={isOwner ? 'sky' : 'teal'} />
               <p className="mt-1.5 pl-[46px] text-[11px] text-navy-300">VRM Teknoloji iş birliğiyle</p>
               {role && (
-                <span className="mt-2 ml-[46px] inline-flex rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-200 ring-1 ring-inset ring-teal-400/30">
+                <span
+                  className={`mt-2 ml-[46px] inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${
+                    isOwner
+                      ? 'bg-sky-500/15 text-sky-200 ring-sky-400/30'
+                      : 'bg-teal-500/15 text-teal-200 ring-teal-400/30'
+                  }`}
+                >
                   {roleLabels[role]}
                 </span>
               )}
@@ -158,7 +172,9 @@ export function Sidebar({
                   collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
                 } px-3 py-2.5 ${
                   isActive
-                    ? 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                    ? isOwner
+                      ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
+                      : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
                     : 'text-navy-200 hover:bg-navy-800 hover:text-white'
                 }`
               }
@@ -187,7 +203,9 @@ export function Sidebar({
                 collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
               } gap-3 px-3 py-2.5 ${
                 isActive
-                  ? 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                  ? isOwner
+                    ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
+                    : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
                   : 'text-navy-200 hover:bg-navy-800 hover:text-white'
               }`
             }

@@ -231,9 +231,9 @@ export default function ApprovedReport() {
       )}
 
       {role === 'owner' && (
-        <div className="no-print mb-6 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6">
+        <div className="no-print mb-6 rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-navy-50 p-6">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+            <CheckCircle2 className="h-7 w-7 text-sky-600" />
             <h2 className="text-xl font-semibold text-navy-900">Raporunuz hazır</h2>
           </div>
           <p className="mt-3 text-[15px] leading-relaxed text-navy-800">
@@ -255,9 +255,13 @@ export default function ApprovedReport() {
       )}
 
       <article className="rounded-xl border border-slate-200 bg-white shadow-soft print:border-0 print:shadow-none">
-        <header className="flex flex-col gap-4 border-b-4 border-teal-600 px-8 py-6 sm:flex-row sm:items-start sm:justify-between">
+        <header
+          className={`flex flex-col gap-4 border-b-4 px-8 py-6 sm:flex-row sm:items-start sm:justify-between ${
+            role === 'owner' ? 'border-sky-500' : 'border-teal-600'
+          }`}
+        >
           <div>
-            <Logo />
+            <Logo accent={role === 'owner' ? 'sky' : 'teal'} />
           </div>
           <div className="text-left text-sm sm:text-right">
             <p className="text-lg font-semibold text-navy-900">Veteriner Radyoloji Değerlendirme Raporu</p>
@@ -367,7 +371,11 @@ export default function ApprovedReport() {
           ) : (
             sections.map((s) => (
               <div key={s.key}>
-                <h3 className="mb-2 border-b border-slate-100 pb-1 text-sm font-semibold uppercase tracking-wide text-teal-700">
+                <h3
+                  className={`mb-2 border-b border-slate-100 pb-1 text-sm font-semibold uppercase tracking-wide ${
+                    role === 'owner' ? 'text-sky-700' : 'text-teal-700'
+                  }`}
+                >
                   {s.label}
                 </h3>
                 <p className="whitespace-pre-line text-[15px] leading-relaxed text-navy-900">{s.text}</p>

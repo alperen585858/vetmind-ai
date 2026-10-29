@@ -155,7 +155,7 @@ export default function OwnerPets() {
                       >
                         {historyPetId === p.pet_id ? 'Geçmişi kapat' : 'Tıbbi geçmiş'}
                       </button>
-                      <Link to="/basvurular" className="text-xs font-semibold text-teal-700 hover:underline">
+                      <Link to="/basvurular" className="text-xs font-semibold text-sky-700 hover:underline">
                         Talep oluştur
                       </Link>
                     </div>
@@ -178,7 +178,7 @@ export default function OwnerPets() {
                               </p>
                               {e.detail && <p className="text-slate-600 line-clamp-2">{e.detail}</p>}
                               {e.link_path && (
-                                <Link to={e.link_path} className="font-medium text-teal-700 hover:underline">
+                                <Link to={e.link_path} className="font-medium text-sky-700 hover:underline">
                                   Aç
                                 </Link>
                               )}

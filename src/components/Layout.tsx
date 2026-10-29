@@ -53,7 +53,7 @@ export function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent">
+    <div className="min-h-screen bg-transparent" data-role={role || undefined}>
       <a href="#main-content" className="skip-link no-print">
         İçeriğe atla
       </a>

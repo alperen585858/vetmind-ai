@@ -815,6 +815,7 @@ function OwnerDashboard() {
           </div>
         }
       />
+
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Pet profili" value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint="Kayıtlı hayvanlar" />
         <StatCard label="Bekleyen talep" value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Vet doğrulaması" />
@@ -823,10 +824,13 @@ function OwnerDashboard() {
       {ready.length > 0 && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
           <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" aria-hidden />
-          <p className="flex-1 text-sm text-emerald-900">
-            <strong>{ready.length} onaylanmış raporunuz hazır.</strong> Raporlar uzman veteriner hekim tarafından incelenip onaylanmıştır.
+          <p className="flex-1 text-sm text-emerald-950">
+            <strong>{ready.length} onaylanmış raporunuz hazır.</strong> Raporlar uzman veteriner hekim tarafından incelenip
+            onaylanmıştır.
           </p>
-          <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>Raporlarım</Button>
+          <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
+            Raporlarım
+          </Button>
         </div>
       )}
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -847,7 +851,9 @@ function OwnerDashboard() {
               </div>
               <div className="flex flex-1 flex-col gap-3 p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">{c.no} · {fmtDate(c.createdAt)}</span>
+                  <span className="text-xs text-slate-500">
+                    {c.no} · {fmtDate(c.createdAt)}
+                  </span>
                   <StatusBadge status={visibleStatus} />
                 </div>
                 <p className="text-sm text-slate-600">
@@ -856,9 +862,13 @@ function OwnerDashboard() {
                 <p className="rounded-lg bg-slate-50 p-3 text-sm text-navy-800">{OWNER_TEXT[c.status]}</p>
                 <div className="mt-auto pt-1">
                   {c.status === 'onaylandi' ? (
-                    <Button className="w-full" onClick={() => nav(`/raporlar/${c.id}`)} icon={<FileText className="h-4 w-4" />}>Raporu görüntüle</Button>
+                    <Button className="w-full" onClick={() => nav(`/raporlar/${c.id}`)} icon={<FileText className="h-4 w-4" />}>
+                      Raporu görüntüle
+                    </Button>
                   ) : (
-                    <p className="flex items-center gap-2 text-xs text-slate-400"><Clock className="h-3.5 w-3.5" /> Rapor onaylandığında bildirim alacaksınız.</p>
+                    <p className="flex items-center gap-2 text-xs text-slate-400">
+                      <Clock className="h-3.5 w-3.5" /> Rapor onaylandığında bildirim alacaksınız.
+                    </p>
                   )}
                 </div>
               </div>

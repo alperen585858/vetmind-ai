@@ -27,6 +27,7 @@ export default {
         accent: {
           DEFAULT: 'var(--vm-accent)',
           soft: 'var(--vm-accent-soft)',
+          hover: 'var(--vm-accent-hover)',
         },
         danger: 'var(--vm-danger)',
         success: 'var(--vm-success)',

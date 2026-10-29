@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'warning' | 'success'
 
 const styles: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-teal-700 shadow-sm',
+  primary: 'bg-accent text-white hover:bg-accent-hover shadow-sm',
   secondary: 'bg-surface-elevated text-navy-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-50',
   ghost: 'text-navy-700 hover:bg-slate-100',
   danger: 'bg-danger text-white hover:bg-rose-700 shadow-sm',
@@ -32,7 +32,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center gap-2 rounded-vm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 ${sizes[size]} ${styles[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-vm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 ${sizes[size]} ${styles[variant]} ${className}`}
     >
       {icon}
       {children}

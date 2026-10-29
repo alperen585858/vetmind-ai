@@ -66,10 +66,9 @@ function fmtListTime(iso?: string | null): string {
   return clock || full
 }
 
-function channelTone(channel: SupportMessageChannel) {
-  return channel === 'admin'
-    ? 'bg-navy-800 text-sky-100'
-    : 'bg-teal-600 text-white'
+function channelTone(channel: SupportMessageChannel, ownerPalette = false) {
+  if (channel === 'admin') return 'bg-navy-800 text-sky-100'
+  return ownerPalette ? 'bg-sky-500 text-white' : 'bg-teal-600 text-white'
 }
 
 export default function Messages() {
@@ -208,6 +207,37 @@ export default function Messages() {
 
   const me = user?.email || ''
   const showChat = Boolean(threadId)
+  const chrome = isOwner
+    ? {
+        bar: 'bg-sky-600',
+        barMuted: 'text-sky-50/85',
+        activeRow: 'bg-sky-50',
+        unread: 'text-sky-600',
+        unreadBadge: 'bg-sky-500',
+        bubbleMine: 'bg-sky-100',
+        bubbleMeta: 'text-sky-800/70',
+        author: 'text-sky-700',
+        send: 'bg-sky-500 hover:bg-sky-600',
+        focus: 'focus:ring-sky-400 focus-within:ring-sky-400',
+        channelBtn: 'bg-sky-500 text-white',
+        icon: 'text-sky-600',
+        peerAvatar: 'bg-sky-700 text-white',
+      }
+    : {
+        bar: 'bg-[#008f7a]',
+        barMuted: 'text-teal-50/85',
+        activeRow: 'bg-[#e7f8f4]',
+        unread: 'text-teal-600',
+        unreadBadge: 'bg-teal-500',
+        bubbleMine: 'bg-[#d9fdd3]',
+        bubbleMeta: 'text-teal-800/70',
+        author: 'text-teal-700',
+        send: 'bg-[#008f7a] hover:bg-[#007a69]',
+        focus: 'focus:ring-teal-400 focus-within:ring-teal-400',
+        channelBtn: 'bg-teal-600 text-white',
+        icon: 'text-teal-600',
+        peerAvatar: 'bg-teal-800 text-white',
+      }
 
   return (
     <>
@@ -235,13 +265,13 @@ export default function Messages() {
               showChat ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            <div className="flex items-center gap-3 bg-[#008f7a] px-4 py-3 text-white">
+            <div className={`flex items-center gap-3 px-4 py-3 text-white ${chrome.bar}`}>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-sm font-bold">
                 {user?.initials || 'VM'}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{user?.name || 'VetMind'}</p>
-                <p className="truncate text-[11px] text-teal-50/85">Konuşmalar</p>
+                <p className={`truncate text-[11px] ${chrome.barMuted}`}>Konuşmalar</p>
               </div>
               {canCompose && (
                 <button
@@ -263,7 +293,7 @@ export default function Messages() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Ara veya yeni sohbet"
-                  className="w-full rounded-lg border-0 bg-white py-2 pl-9 pr-3 text-sm text-navy-900 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-teal-400"
+                  className={`w-full rounded-lg border-0 bg-white py-2 pl-9 pr-3 text-sm text-navy-900 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 ${chrome.focus}`}
                 />
               </label>
             </div>
@@ -284,7 +314,7 @@ export default function Messages() {
                     <button
                       type="button"
                       onClick={() => setComposeOpen(true)}
-                      className="mt-4 text-sm font-semibold text-teal-700 hover:underline"
+                      className={`mt-4 text-sm font-semibold hover:underline ${chrome.author}`}
                     >
                       Yeni mesaj
                     </button>
@@ -300,18 +330,22 @@ export default function Messages() {
                           type="button"
                           onClick={() => navigate(`/mesajlar/${t.thread_id}`)}
                           className={`flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left transition ${
-                            active ? 'bg-[#e7f8f4]' : 'hover:bg-slate-50'
+                            active ? chrome.activeRow : 'hover:bg-slate-50'
                           }`}
                         >
                           <div
-                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold ${channelTone(t.channel)}`}
+                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold ${channelTone(t.channel, isOwner)}`}
                           >
                             {t.channel === 'admin' ? <Shield className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
                               <span className="truncate text-[15px] font-semibold text-navy-900">{t.subject}</span>
-                              <span className={`shrink-0 text-[11px] ${t.unread_count > 0 ? 'font-semibold text-teal-600' : 'text-slate-400'}`}>
+                              <span
+                                className={`shrink-0 text-[11px] ${
+                                  t.unread_count > 0 ? `font-semibold ${chrome.unread}` : 'text-slate-400'
+                                }`}
+                              >
                                 {fmtListTime(t.last_message_at || t.updated_at)}
                               </span>
                             </div>
@@ -321,7 +355,9 @@ export default function Messages() {
                                 {t.last_message_preview || CHANNEL_TR[t.channel]}
                               </p>
                               {t.unread_count > 0 && (
-                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-teal-500 px-1.5 text-[11px] font-bold text-white">
+                                <span
+                                  className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white ${chrome.unreadBadge}`}
+                                >
                                   {t.unread_count}
                                 </span>
                               )}
@@ -348,7 +384,7 @@ export default function Messages() {
             {!threadId ? (
               <div className="flex flex-1 flex-col items-center justify-center bg-[#f0f2f5] px-6 text-center">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
-                  <MessageSquare className="h-9 w-9 text-teal-600" />
+                  <MessageSquare className={`h-9 w-9 ${chrome.icon}`} />
                 </div>
                 <h2 className="mt-5 text-xl font-semibold text-navy-900">VetMind İletişim</h2>
                 <p className="mt-2 max-w-sm text-sm text-slate-500">
@@ -361,7 +397,7 @@ export default function Messages() {
               </div>
             ) : (
               <>
-                <header className="flex items-center gap-3 border-b border-black/5 bg-[#008f7a] px-3 py-2.5 text-white shadow-sm sm:px-4">
+                <header className={`flex items-center gap-3 border-b border-black/5 px-3 py-2.5 text-white shadow-sm sm:px-4 ${chrome.bar}`}>
                   <button
                     type="button"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 lg:hidden"
@@ -372,7 +408,7 @@ export default function Messages() {
                   </button>
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                      detail.thread.channel === 'admin' ? 'bg-navy-900 text-sky-100' : 'bg-teal-800 text-white'
+                      detail.thread.channel === 'admin' ? 'bg-navy-900 text-sky-100' : chrome.peerAvatar
                     }`}
                   >
                     {detail.thread.channel === 'admin' ? (
@@ -383,7 +419,7 @@ export default function Messages() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold">{detail.thread.subject}</p>
-                    <p className="truncate text-[11px] text-teal-50/90">
+                    <p className={`truncate text-[11px] ${chrome.barMuted}`}>
                       {CHANNEL_TR[detail.thread.channel]}
                       {!isOwner ? ` · ${detail.thread.owner_subject}` : ''}
                       {detail.thread.related_case_id ? (
@@ -409,19 +445,19 @@ export default function Messages() {
                         <div
                           className={`relative max-w-[85%] rounded-lg px-3 py-1.5 shadow-sm sm:max-w-[70%] ${
                             mine
-                              ? 'rounded-tr-none bg-[#d9fdd3] text-navy-900'
+                              ? `rounded-tr-none ${chrome.bubbleMine} text-navy-900`
                               : 'rounded-tl-none bg-white text-navy-900'
                           }`}
                         >
                           {!mine && (
-                            <p className="mb-0.5 text-[11px] font-semibold text-teal-700">
+                            <p className={`mb-0.5 text-[11px] font-semibold ${chrome.author}`}>
                               {authorLabel(m.author_role, m.author_subject)}
                             </p>
                           )}
                           <p className="whitespace-pre-wrap text-[14.5px] leading-snug">{m.body}</p>
                           <div
                             className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
-                              mine ? 'text-teal-800/70' : 'text-slate-400'
+                              mine ? chrome.bubbleMeta : 'text-slate-400'
                             }`}
                           >
                             <span>{fmtClock(m.created_at) || fmtDate(m.created_at)}</span>
@@ -441,7 +477,7 @@ export default function Messages() {
                     void sendReply()
                   }}
                 >
-                  <div className="min-w-0 flex-1 rounded-3xl bg-white px-4 py-2 shadow-sm ring-1 ring-slate-200/70 focus-within:ring-teal-400">
+                  <div className={`min-w-0 flex-1 rounded-3xl bg-white px-4 py-2 shadow-sm ring-1 ring-slate-200/70 ${chrome.focus}`}>
                     <label className="sr-only" htmlFor="wa-reply">
                       Mesaj
                     </label>
@@ -463,7 +499,7 @@ export default function Messages() {
                   <button
                     type="submit"
                     disabled={busy || !reply.trim()}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#008f7a] text-white shadow-md transition hover:bg-[#007a69] disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-50 ${chrome.send}`}
                     aria-label="Gönder"
                   >
                     {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -484,9 +520,7 @@ export default function Messages() {
                 type="button"
                 onClick={() => setChannel('radiologist')}
                 className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                  channel === 'radiologist'
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  channel === 'radiologist' ? chrome.channelBtn : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 <Stethoscope className="h-4 w-4" /> Radyolog

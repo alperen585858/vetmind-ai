@@ -8,6 +8,7 @@
   --vm-surface-elevated: #ffffff;
   --vm-border: rgba(148, 163, 184, 0.45);
   --vm-accent: #0b807a;
+  --vm-accent-hover: #0d6663;
   --vm-accent-soft: #effcfa;
   --vm-danger: #e11d48;
   --vm-success: #059669;
@@ -17,6 +18,29 @@
   --vm-shadow: 0 1px 2px rgba(16, 35, 58, 0.04), 0 4px 16px rgba(16, 35, 58, 0.06);
   --vm-font-display: Outfit, Inter, system-ui, sans-serif;
   --vm-font-body: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+/* Pet owner shell — match Landing sky / navy */
+[data-role='owner'] {
+  --vm-accent: #0ea5e9;
+  --vm-accent-hover: #0284c7;
+  --vm-accent-soft: #e0f2fe;
+  --vm-surface: #f0f9ff;
+}
+body:has([data-role='owner']) {
+  background:
+    radial-gradient(1200px 480px at 12% -10%, rgba(14, 165, 233, 0.12), transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, rgba(18, 35, 58, 0.08), transparent 50%),
+    var(--vm-surface);
+}
+[data-role='owner'] .input {
+  @apply focus:border-sky-500 focus:ring-sky-500/20;
+}
+[data-role='owner'] :where(a, button, [role='button'], summary):focus-visible {
+  @apply outline-sky-600;
+}
+[data-role='owner'] .skip-link:focus {
+  @apply bg-sky-500;
 }
 
 html {
