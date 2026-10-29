@@ -18,6 +18,7 @@ from app.schemas.enums import (
     PipelineOutcome,
     ReportStatus,
 )
+from app.review_sla import apply_review_sla
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.validation.report_validator import ReportValidator
@@ -319,6 +320,7 @@ class AIOrchestrator:
                 outcome = PipelineOutcome.SUCCESS
                 case.status = CaseLifecycleStatus.AWAITING_REVIEW
 
+            apply_review_sla(case)
             job.status = JobStatus.COMPLETED
             job.outcome = outcome
             job.completed_at = _now()

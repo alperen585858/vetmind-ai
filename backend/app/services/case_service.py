@@ -35,6 +35,14 @@ from app.schemas.workflow import (
     InfoRequestReply,
 )
 from app.services.activity import append_activity
+from app.review_sla import (
+    OPEN_REVIEW_STATUSES,
+    WARN_WITHIN_HOURS,
+    apply_review_sla,
+    clear_review_sla,
+    remaining_seconds,
+    sla_hours_for,
+)
 from app.schemas.enums import (
     CaseLifecycleStatus,
     ExpertReviewStatus,
@@ -247,6 +255,8 @@ class CaseService:
             status=c.status,
             priority=getattr(c, "priority", None) or "normal",
             assigned_reviewer_id=c.assigned_reviewer_id,
+            awaiting_review_since=getattr(c, "awaiting_review_since", None),
+            review_due_at=getattr(c, "review_due_at", None),
             scenario=c.scenario,
             created_at=c.created_at,
             latest_job_id=c.latest_job_id,
@@ -301,6 +311,7 @@ class CaseService:
         q: str | None = None,
     ) -> list[CaseSummary]:
         """Radiologist worklist: tenant-filtered summaries with optional filters."""
+        self.backfill_and_emit_sla_warnings()
         rows = self.list_cases(principal=principal)
         status_l = (status or "").strip().lower()
         modality_l = (modality or "").strip().upper()
@@ -511,6 +522,7 @@ class CaseService:
     ) -> CaseRecord:
         case = self.get_case(case_id, principal=principal)
         prev_assignee = case.assigned_reviewer_id
+        prev_priority = case.priority
         if payload.assigned_reviewer_id is not None:
             text = payload.assigned_reviewer_id.strip()
             case.assigned_reviewer_id = text or None
@@ -524,22 +536,89 @@ class CaseService:
                 actor_subject=actor,
                 detail=case.assigned_reviewer_id,
             )
+        if case.status in OPEN_REVIEW_STATUSES or prev_priority != case.priority:
+            apply_review_sla(case)
         case.updated_at = _now()
         saved = self._repo.save_case(case)
         self._emit_audit("case.assign", principal=principal, resource=case_id)
         if saved.assigned_reviewer_id and saved.assigned_reviewer_id != prev_assignee:
             urgent = saved.priority in {"urgent", "stat"}
+            hours = sla_hours_for(saved.priority)
+            due_hint = (
+                f" · yanıt süresi {hours} saat"
+                if saved.review_due_at
+                else ""
+            )
             self._notify(
                 recipient_subject=saved.assigned_reviewer_id,
                 kind="urgent_assignment" if urgent else "radiologist_assigned",
                 title="STAT atama" if saved.priority == "stat" else ("Acil atama" if urgent else "Radyolog ataması"),
-                body=f"{saved.patient_name} · {saved.case_id}",
+                body=f"{saved.patient_name} · {saved.case_id}{due_hint}",
                 link_path=f"/vakalar/{saved.case_id}/calisma",
                 dedupe_key=f"radiologist_assigned:{saved.case_id}:{saved.assigned_reviewer_id}",
                 case_id=saved.case_id,
                 clinic_id=saved.clinic_id,
             )
         return saved
+
+    def backfill_and_emit_sla_warnings(self) -> int:
+        """Backfill missing review_due_at and notify assignees when time is low/overdue."""
+        emitted = 0
+        now = _now()
+        for case in self._repo.list_cases():
+            if case.status not in OPEN_REVIEW_STATUSES:
+                if clear_review_sla(case):
+                    case.updated_at = now
+                    self._repo.save_case(case)
+                continue
+
+            if apply_review_sla(case):
+                case.updated_at = now
+                self._repo.save_case(case)
+
+            rem = remaining_seconds(case, now=now)
+            if rem is None:
+                continue
+            recipient = case.assigned_reviewer_id
+            if not recipient:
+                continue
+            hours = sla_hours_for(case.priority)
+            link = f"/vakalar/{case.case_id}/calisma"
+            if rem <= 0:
+                overdue_h = max(1, int(abs(rem) // 3600))
+                self._notify(
+                    recipient_subject=recipient,
+                    kind="sla_overdue",
+                    title="Yanıt süresi doldu",
+                    body=(
+                        f"{case.patient_name}: {hours} saatlik uzman yanıt süresi aşıldı "
+                        f"(~{overdue_h} sa gecikme). Acil yanıt bekleniyor."
+                    ),
+                    link_path=link,
+                    dedupe_key=f"sla_overdue:{case.case_id}",
+                    case_id=case.case_id,
+                    clinic_id=case.clinic_id,
+                )
+                emitted += 1
+            elif rem <= WARN_WITHIN_HOURS * 3600:
+                left_h = max(1, int(rem // 3600))
+                left_m = max(1, int(rem // 60))
+                left_label = f"{left_h} saat" if rem >= 3600 else f"{left_m} dk"
+                self._notify(
+                    recipient_subject=recipient,
+                    kind="sla_warning",
+                    title="Yanıt süresi azalıyor",
+                    body=(
+                        f"{case.patient_name}: uzman yanıtına {left_label} kaldı "
+                        f"({hours}s SLA · {case.priority})."
+                    ),
+                    link_path=link,
+                    dedupe_key=f"sla_warning:{case.case_id}:{case.review_due_at.isoformat() if case.review_due_at else 'x'}",
+                    case_id=case.case_id,
+                    clinic_id=case.clinic_id,
+                )
+                emitted += 1
+        return emitted
 
     def save_draft_report(
         self,
@@ -739,11 +818,14 @@ class CaseService:
                     ReportStatus.DRAFT,
                 }:
                     latest.status = CaseLifecycleStatus.AWAITING_REVIEW
+                    apply_review_sla(latest)
                 else:
                     latest.status = working.status
             else:
                 latest.draft_report = working.draft_report
                 latest.status = working.status
+                if latest.status in OPEN_REVIEW_STATUSES:
+                    apply_review_sla(latest)
             self._repo.save_job(result.job)
             self._repo.save_case(latest)
             return result
@@ -793,6 +875,7 @@ class CaseService:
                         # Restore prior draft path via persist rules — mark failed job only.
                         if current.draft_report is not None:
                             current.status = CaseLifecycleStatus.AWAITING_REVIEW
+                            apply_review_sla(current)
                         else:
                             current.status = CaseLifecycleStatus.FAILED
                         current.updated_at = _now()
@@ -919,6 +1002,7 @@ class CaseService:
                     # Do not wipe a prior approvable draft when cancelling a queued re-analyze.
                     if case.draft_report is not None and not case.draft_report.immutable:
                         case.status = CaseLifecycleStatus.AWAITING_REVIEW
+                        apply_review_sla(case)
                     else:
                         case.status = CaseLifecycleStatus.FAILED
                     case.updated_at = _now()
@@ -1047,6 +1131,7 @@ class CaseService:
                     actor_subject=feedback.reviewer_id,
                     detail=feedback.comment,
                 )
+            clear_review_sla(case)
 
             case.review_history.append(feedback)
             case.updated_at = _now()
@@ -1135,6 +1220,7 @@ class CaseService:
             notes=feedback.comment,
         )
         case.status = CaseLifecycleStatus.APPROVED
+        clear_review_sla(case)
         if case.report_available_at is None:
             case.report_available_at = _now()
         append_activity(

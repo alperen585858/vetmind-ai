@@ -24,6 +24,8 @@ NotificationKind = Literal[
     "attachment_added",
     "clinical_history_updated",
     "support_message",
+    "sla_warning",
+    "sla_overdue",
 ]
 
 

@@ -46,6 +46,15 @@ import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
 import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
 import { fmtDate } from '../lib/format'
+import {
+  compareBySlaUrgency,
+  formatSlaRemaining,
+  isSlaAttention,
+  slaBadgeClass,
+  slaHoursForPriority,
+  slaRowClass,
+  slaTone,
+} from '../lib/reviewSla'
 import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
 
 const WEEKDAYS_TR = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
@@ -559,17 +568,50 @@ function VetDashboard() {
 }
 
 function waitText(c: VetCase) {
-  return c.id.startsWith('c-new') ? 'az önce' : c.priority === 'Acil' ? '3 sa 12 dk' : '1 gün'
+  if (c.reviewDueAt) {
+    return `${formatSlaRemaining(c.reviewDueAt)} (${slaHoursForPriority(c.priority)}s)`
+  }
+  if (c.id.startsWith('c-new')) return 'az önce'
+  return c.priority === 'STAT' || c.priority === 'Acil' ? '24 sa SLA' : '48 sa SLA'
 }
 
-export function QueueList({ items }: { items: VetCase[] }) {
+export function QueueList({
+  items,
+  sortBySla = false,
+  emptyTitle = 'Kuyruk boş',
+  emptyText = 'Onay bekleyen rapor bulunmuyor.',
+}: {
+  items: VetCase[]
+  sortBySla?: boolean
+  emptyTitle?: string
+  emptyText?: string
+}) {
   const nav = useNavigate()
-  if (!items.length) return <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title="Kuyruk boş" text="Onay bekleyen rapor bulunmuyor." />
+  if (!items.length) {
+    return <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title={emptyTitle} text={emptyText} />
+  }
   const order = { STAT: 0, Acil: 1, Yüksek: 2, Normal: 3 }
+  const sorted = [...items].sort((a, b) => {
+    if (sortBySla) {
+      const bySla = compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt)
+      if (bySla !== 0) return bySla
+    }
+    return order[a.priority] - order[b.priority]
+  })
   return (
     <ul className="divide-y divide-slate-100">
-      {[...items].sort((a, b) => order[a.priority] - order[b.priority]).map((c) => (
-        <li key={c.id} className="flex flex-col gap-3 px-5 py-4 transition hover:bg-slate-50/70 sm:flex-row sm:items-center">
+      {sorted.map((c) => {
+        const tone = slaTone(c.reviewDueAt)
+        const attention = isSlaAttention(c.reviewDueAt)
+        const displayTone = attention && (tone === 'ok' || tone === 'none') ? 'warn' : tone
+        const hot = attention || displayTone === 'overdue' || displayTone === 'critical' || displayTone === 'warn'
+        return (
+        <li
+          key={c.id}
+          className={`flex flex-col gap-3 px-5 py-4 transition sm:flex-row sm:items-center ${
+            hot ? slaRowClass(displayTone) || 'bg-rose-50/60' : 'hover:bg-slate-50/70'
+          }`}
+        >
           <div className="flex flex-1 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg">
               <SpeciesIcon species={c.patient.species} />
@@ -579,12 +621,18 @@ export function QueueList({ items }: { items: VetCase[] }) {
                 <p className="font-semibold text-navy-900">{c.patient.name}</p>
                 <PriorityBadge priority={c.priority} />
                 <span className="font-mono text-xs text-slate-500">{c.no}</span>
+                {c.reviewDueAt ? (
+                  <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(displayTone)}`}>
+                    <Clock className="h-3 w-3" aria-hidden />
+                    {formatSlaRemaining(c.reviewDueAt)}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-0.5 truncate text-sm text-slate-600">
                 {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş — {c.ai?.differentials[0]?.name ?? c.clinical.complaint}
               </p>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {c.clinic} · {c.vetName} · Bekleme: {waitText(c)}
+              <p className={`mt-0.5 text-xs ${hot ? 'font-medium text-rose-700' : 'text-slate-400'}`}>
+                {c.clinic} · {c.vetName} · Yanıt: {waitText(c)}
               </p>
             </div>
           </div>
@@ -592,7 +640,8 @@ export function QueueList({ items }: { items: VetCase[] }) {
             Çalışma alanı
           </Button>
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }
@@ -600,10 +649,20 @@ export function QueueList({ items }: { items: VetCase[] }) {
 function ExpertDashboard() {
   const { cases, user } = useApp()
   const nav = useNavigate()
-  const queue = cases.filter((c) => c.status === 'uzman_incelemesinde')
+  const queue = cases.filter((c) => c.status === 'uzman_incelemesinde' || c.status === 'manuel_inceleme')
   const approvedCount = cases.filter((c) => c.status === 'onaylandi').length
   const recent = cases.filter((c) => c.status === 'onaylandi' || c.status === 'revizyon' || c.status === 'reddedildi')
   const urgentN = queue.filter((q) => q.priority === 'STAT' || q.priority === 'Acil').length
+  const slaTight = useMemo(
+    () =>
+      [...queue]
+        .filter((c) => isSlaAttention(c.reviewDueAt))
+        .sort((a, b) => compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt)),
+    [queue],
+  )
+  const overdueN = slaTight.filter((c) => slaTone(c.reviewDueAt) === 'overdue').length
+  const openSlaList = () => nav('/kuyruk?sla=az')
+
   return (
     <>
       <PageHeader
@@ -615,11 +674,64 @@ function ExpertDashboard() {
           </Button>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${urgentN} STAT/acil`} />
         <StatCard label="STAT / Acil kuyruk" value={urgentN} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli inceleme" />
+        <button
+          type="button"
+          onClick={openSlaList}
+          className={`rounded-2xl border p-5 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 ${
+            slaTight.length
+              ? 'border-rose-300 bg-gradient-to-br from-rose-50 to-white'
+              : 'border-slate-200 bg-white'
+          }`}
+          aria-label={`Süresi az kalanlar: ${slaTight.length}. İş listesinde göster.`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${slaTight.length ? 'text-rose-700' : 'text-slate-500'}`}>
+                Süresi az kalanlar
+              </p>
+              <p className={`mt-2 text-3xl font-semibold tracking-tight ${slaTight.length ? 'text-rose-700' : 'text-navy-900'}`}>
+                {slaTight.length}
+              </p>
+              <p className={`mt-1 text-xs ${slaTight.length ? 'font-medium text-rose-600' : 'text-slate-500'}`}>
+                {slaTight.length
+                  ? overdueN
+                    ? `${overdueN} gecikmiş · tıklayın, listeye gidin`
+                    : '≤12 sa kaldı · tıklayın, listeye gidin'
+                  : '≤12 sa veya gecikme yok'}
+              </p>
+            </div>
+            <span className={`rounded-xl p-2.5 ${slaTight.length ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              <Clock className="h-5 w-5" aria-hidden />
+            </span>
+          </div>
+        </button>
         <StatCard label="Onaylı rapor (oturum)" value={approvedCount} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yerel + senkron kayıtlar" />
       </div>
+
+      {slaTight.length > 0 && (
+        <Card className="mt-6 border-rose-200 ring-1 ring-rose-100">
+          <CardHeader
+            title="Süresi az kalanlar"
+            subtitle="Gecikme ve ≤12 saat kalan vakalar · en acilden başlar"
+            icon={<Timer className="h-5 w-5 text-rose-600" />}
+            action={
+              <Button size="sm" variant="secondary" onClick={openSlaList}>
+                Hepsini iş listesinde aç
+              </Button>
+            }
+          />
+          <QueueList
+            items={slaTight}
+            sortBySla
+            emptyTitle="Süresi az kalan yok"
+            emptyText="Şu an 12 saatin altında kalan vaka yok."
+          />
+        </Card>
+      )}
+
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader

@@ -150,14 +150,21 @@ export function NotificationBell() {
               <p className="px-3 py-6 text-center text-sm text-slate-500">Bildirim yok</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {items.map((n) => (
-                  <li key={n.notification_id} className={`flex items-stretch ${n.read_at ? '' : 'bg-teal-50/40'}`}>
+                {items.map((n) => {
+                  const slaHot = n.kind === 'sla_warning' || n.kind === 'sla_overdue'
+                  const unreadCls = n.read_at
+                    ? ''
+                    : slaHot
+                      ? 'bg-rose-50'
+                      : 'bg-teal-50/40'
+                  return (
+                  <li key={n.notification_id} className={`flex items-stretch ${unreadCls}`}>
                     <button
                       type="button"
                       onClick={() => void onClickItem(n)}
                       className="min-w-0 flex-1 px-3 py-2.5 text-left hover:bg-slate-50"
                     >
-                      <p className="text-sm font-medium text-navy-900">{n.title}</p>
+                      <p className={`text-sm font-medium ${slaHot ? 'text-rose-800' : 'text-navy-900'}`}>{n.title}</p>
                       <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">{n.body}</p>
                       <p className="mt-1 text-[11px] text-slate-400">{fmtDate(n.created_at)}</p>
                     </button>
@@ -176,7 +183,8 @@ export function NotificationBell() {
                       )}
                     </button>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             )}
           </div>

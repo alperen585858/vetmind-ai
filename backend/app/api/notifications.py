@@ -21,7 +21,13 @@ def list_notifications(
     unread_only: bool = Query(default=False),
     principal: AuthPrincipal = Depends(require_actor),
     service=Depends(_svc),
+    container: AppContainer = Depends(get_container),
 ) -> NotificationListResponse:
+    # Polling the bell also refreshes expert SLA clocks and warning notifications.
+    try:
+        container.cases.backfill_and_emit_sla_warnings()
+    except Exception:  # noqa: BLE001 — never block the inbox on SLA scan
+        pass
     return service.list_mine(principal=principal, unread_only=unread_only)
 
 

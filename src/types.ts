@@ -545,6 +545,8 @@ export interface BackendCaseSummary {
   status: string
   priority?: BackendCasePriority
   assigned_reviewer_id?: string | null
+  awaiting_review_since?: string | null
+  review_due_at?: string | null
   scenario?: string | null
   created_at: string
   latest_job_id?: string | null
@@ -580,6 +582,8 @@ export interface BackendCaseRecord {
   clinical_history_structured?: BackendStructuredClinicalHistory | null
   priority?: BackendCasePriority
   assigned_reviewer_id?: string | null
+  awaiting_review_since?: string | null
+  review_due_at?: string | null
   scenario?: string | null
   referring_clinic?: string | null
   /** Phase 5 ownership — null in demo / legacy rows. */
@@ -653,6 +657,10 @@ export interface VetCase {
   backendFindings?: BackendFindings
   backendDraft?: BackendDraftReport
   assignedReviewerId?: string
+  /** When expert review queue clock started (ISO). */
+  awaitingReviewSince?: string
+  /** Expert response deadline (ISO). Urgent/STAT=24h, else=48h. */
+  reviewDueAt?: string
   handoffNotes?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number

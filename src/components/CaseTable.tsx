@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronRight,
   FolderOpen,
+  Image as ImageIcon,
   MoreHorizontal,
   XCircle,
 } from 'lucide-react'
@@ -205,6 +206,16 @@ export function CaseTable({
               <td className="td text-xs text-slate-500">{fmtDate(c.createdAt)}</td>
               <td className="td text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-navy-700 hover:bg-slate-100"
+                    onClick={() => nav(`/vakalar/${c.id}?tab=goruntu`)}
+                    aria-label={`${c.no} DICOM görüntüle`}
+                    title="DICOM görüntüle"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+                    Görüntüle
+                  </button>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"

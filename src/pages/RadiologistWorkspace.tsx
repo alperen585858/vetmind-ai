@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   FileSearch,
   History,
   Loader2,
@@ -39,6 +40,12 @@ import {
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
 import { cleanClinicalHistory, displayClinic } from '../lib/displayClean'
+import {
+  formatSlaRemaining,
+  slaBadgeClass,
+  slaHoursForPriority,
+  slaTone,
+} from '../lib/reviewSla'
 import type { BackendCaseSummary, ReportSections } from '../types'
 
 export default function RadiologistWorkspace() {
@@ -290,6 +297,20 @@ export default function RadiologistWorkspace() {
           <div className="flex flex-wrap items-center gap-2">
             <PriorityBadge priority={c.priority} />
             <StatusBadge status={c.status} />
+            {c.reviewDueAt ? (
+              <span
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
+                title={`${slaHoursForPriority(c.priority)} saat uzman yanıt SLA`}
+              >
+                <Clock className="h-3 w-3" aria-hidden />
+                {formatSlaRemaining(c.reviewDueAt)}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+                <Clock className="h-3 w-3" aria-hidden />
+                {slaHoursForPriority(c.priority)}s SLA
+              </span>
+            )}
             <Button
               variant="secondary"
               size="sm"

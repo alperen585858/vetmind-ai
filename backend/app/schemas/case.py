@@ -169,6 +169,9 @@ class CaseRecord(BaseModel):
     clinical_history_structured: Optional[StructuredClinicalHistory] = None
     priority: CasePriority = "normal"
     assigned_reviewer_id: Optional[str] = None
+    # Expert response SLA clock (urgent/STAT=24h, else=48h from awaiting_review_since).
+    awaiting_review_since: Optional[datetime] = None
+    review_due_at: Optional[datetime] = None
     scenario: Optional[MockScenario] = None
     study: StudyInfo = Field(default_factory=StudyInfo)
     referring_clinic: Optional[str] = None
@@ -225,6 +228,8 @@ class CaseSummary(BaseModel):
     status: CaseLifecycleStatus
     priority: CasePriority = "normal"
     assigned_reviewer_id: Optional[str] = None
+    awaiting_review_since: Optional[datetime] = None
+    review_due_at: Optional[datetime] = None
     scenario: Optional[MockScenario] = None
     created_at: datetime
     latest_job_id: Optional[str] = None

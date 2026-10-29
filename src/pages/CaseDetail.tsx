@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, Clock, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
@@ -49,27 +49,35 @@ import {
 } from '../lib/dicomFolder'
 import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../lib/dicomCaseCache'
 import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
+import {
+  formatSlaRemaining,
+  slaBadgeClass,
+  slaHoursForPriority,
+  slaTone,
+} from '../lib/reviewSla'
 import { CitedText } from '../components/CitedText'
 import { GroundingWarnings } from '../components/GroundingWarnings'
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
   { key: 'genel', label: 'Klinik Özet', icon: <Stethoscope className="h-4 w-4" /> },
+  { key: 'goruntu', label: 'Görüntüleme', icon: <ImageIcon className="h-4 w-4" /> },
   { key: 'bulgular', label: 'AI Bulguları', icon: <Brain className="h-4 w-4" /> },
   { key: 'kaynaklar', label: 'Kaynaklar (RAG)', icon: <BookOpen className="h-4 w-4" /> },
 ] as const
 
 type CaseDetailTab = (typeof TABS)[number]['key']
-type CaseDetailModule = 'genel' | 'goruntu' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
+type CaseDetailModule = 'genel' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
 
 function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
+  if (value === 'goruntu' || value === 'imaging') return 'goruntu'
   if (value === 'ai' || value === 'bulgular') return 'bulgular'
   if (value === 'kaynaklar' || value === 'sources') return 'kaynaklar'
   return 'genel'
 }
 
 function caseDetailModule(value: string | null): CaseDetailModule {
-  if (value === 'goruntu' || value === 'rapor' || value === 'mesajlar' || value === 'gecmis' || value === 'belgeler') {
+  if (value === 'rapor' || value === 'mesajlar' || value === 'gecmis' || value === 'belgeler') {
     return value
   }
   return 'genel'
@@ -98,14 +106,18 @@ export default function CaseDetail() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<CaseDetailTab>(() => normalizeCaseDetailTab(params.get('tab')))
   const [summaryModule, setSummaryModule] = useState<CaseDetailModule>(() => caseDetailModule(params.get('tab')))
-  const [modulesOpen, setModulesOpen] = useState(() => caseDetailModule(params.get('tab')) !== 'genel')
+  const [modulesOpen, setModulesOpen] = useState(() => {
+    const routeTab = params.get('tab')
+    return normalizeCaseDetailTab(routeTab) === 'genel' && caseDetailModule(routeTab) !== 'genel'
+  })
 
   useEffect(() => {
     const routeTab = params.get('tab')
-    setTab(normalizeCaseDetailTab(routeTab))
+    const nextTab = normalizeCaseDetailTab(routeTab)
+    setTab(nextTab)
     const module = caseDetailModule(routeTab)
     setSummaryModule(module)
-    setModulesOpen(module !== 'genel')
+    setModulesOpen(nextTab === 'genel' && module !== 'genel')
   }, [params])
 
   const selectTab = (nextTab: CaseDetailTab) => {
@@ -116,6 +128,7 @@ export default function CaseDetail() {
   }
 
   const selectSummaryModule = (module: CaseDetailModule) => {
+    setTab('genel')
     setSummaryModule(module)
     setModulesOpen(true)
     setParams({ tab: module }, { replace: true })
@@ -233,6 +246,14 @@ export default function CaseDetail() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<ImageIcon className="h-4 w-4" />}
+            onClick={() => selectTab('goruntu')}
+          >
+            DICOM görüntüle
+          </Button>
           {(c.status === 'isleniyor' || (c.status === 'ai_analizi' && c.processingStartedAt)) && (
             <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
               İşlem hattını izle
@@ -260,6 +281,32 @@ export default function CaseDetail() {
         <CaseWorkflowStepper currentStep={workflowStep} status={workflowStatus} />
       </div>
 
+      {c.reviewDueAt &&
+        (c.status === 'uzman_incelemesinde' || c.status === 'manuel_inceleme') && (
+          <div
+            className={`mb-5 flex items-start gap-3 rounded-xl border p-4 text-sm ${
+              slaTone(c.reviewDueAt) === 'overdue' || slaTone(c.reviewDueAt) === 'critical'
+                ? 'border-rose-300 bg-rose-50 text-rose-950'
+                : slaTone(c.reviewDueAt) === 'warn'
+                  ? 'border-amber-300 bg-amber-50 text-amber-950'
+                  : 'border-sky-200 bg-sky-50 text-sky-950'
+            }`}
+          >
+            <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                Uzman yanıt süresi · {slaHoursForPriority(c.priority)} saat
+                {(c.priority === 'STAT' || c.priority === 'Acil') ? ' (acil)' : ''}
+              </p>
+              <p className="mt-1">
+                {formatSlaRemaining(c.reviewDueAt)}. Süre azalınca bildirim gönderilir; gecikmede kırmızı uyarı yanar.
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}>
+              {formatSlaRemaining(c.reviewDueAt)}
+            </span>
+          </div>
+        )}
       {c.status === 'revizyon' && c.statusNote && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -326,14 +373,13 @@ export default function CaseDetail() {
                   <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
                 </span>
                 <span className="mt-1 block text-xs font-normal text-slate-500">
-                  Görüntüleme, rapor, mesajlar, işlem geçmişi ve belgeler
+                  Rapor, mesajlar, işlem geçmişi ve belgeler
                 </span>
               </summary>
               <div className="border-t border-slate-100 p-4">
                 <div className="mb-4 flex flex-wrap gap-2" aria-label="Vaka araçları">
                   {([
                     ['genel', 'Klinik Özete dön'],
-                    ['goruntu', 'Görüntüleme'],
                     ['rapor', 'Rapor'],
                     ['mesajlar', 'Mesajlar'],
                     ['gecmis', 'İşlem geçmişi'],
@@ -354,7 +400,6 @@ export default function CaseDetail() {
                     </button>
                   ))}
                 </div>
-                {summaryModule === 'goruntu' && <Imaging c={c} />}
                 {summaryModule === 'rapor' && <ReportWorkspace c={c} />}
                 {summaryModule === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
                 {summaryModule === 'gecmis' && <CaseHistoryPanel c={c} />}
@@ -363,6 +408,7 @@ export default function CaseDetail() {
             </details>
           </>
         )}
+        {tab === 'goruntu' && <Imaging c={c} />}
         {tab === 'bulgular' && <AssessmentView c={c} />}
         {tab === 'kaynaklar' && <SourcesView c={c} />}
       </div>
@@ -1135,13 +1181,17 @@ function Imaging({ c }: { c: VetCase }) {
               </div>
             </div>
           ) : (
-            <DicomViewer frames={viewFrames} loading={loading || busy} />
+            <DicomViewer
+              frames={viewFrames}
+              loading={loading || busy}
+              className="min-h-[480px] xl:min-h-[560px]"
+            />
           )}
         </div>
 
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 ring-1 ring-inset ring-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          Önce sizin yüklediğiniz DICOM gösterilir. Örnek görüntüler isteğe bağlı olarak açılabilir.
+          Pencere/seviye, yakınlaştırma, pan, cine, mesafe/açı/ROI ve tam ekran araçları görüntü üzerinde kullanılabilir. Önce vakaya bağlı DICOM gösterilir; yoksa dosya sürükleyebilir veya örnek yükleyebilirsiniz.
         </p>
       </div>
     </Card>
