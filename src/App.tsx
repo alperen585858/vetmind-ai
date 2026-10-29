@@ -29,6 +29,7 @@ import OwnerPets from './pages/OwnerPets'
 import Submissions from './pages/Submissions'
 import Messages from './pages/Messages'
 import AdminUsers from './pages/AdminUsers'
+import Settings from './pages/Settings'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { role } = useApp()
@@ -75,6 +76,14 @@ export default function App() {
             <Route path="bilgi-tabani" element={<Gate roles={['admin']}><KnowledgeBase /></Gate>} />
             <Route path="sistem" element={<Gate roles={['admin']}><SystemStatus /></Gate>} />
             <Route path="model-performansi" element={<Gate roles={['admin']}><ModelPerformance /></Gate>} />
+            <Route
+              path="ayarlar"
+              element={
+                <Gate roles={['vet', 'expert', 'owner', 'clinic_owner', 'admin']}>
+                  <Settings />
+                </Gate>
+              }
+            />
             <Route path="giris" element={<Navigate to="/" replace />} />
             <Route path="kayit" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />

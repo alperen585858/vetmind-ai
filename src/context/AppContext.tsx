@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { KbSource, Role, User, VetCase } from '../types'
 import { KB_SOURCES, USERS } from '../data/mock'
 import {
@@ -8,9 +8,25 @@ import {
   userFromSession,
   type DemoSession,
 } from '../lib/auth'
-import { BackendUnavailableError, getBackendCase, listBackendCases } from '../lib/backend'
+import {
+  BackendUnavailableError,
+  getBackendCase,
+  getUserSettings,
+  listBackendCases,
+} from '../lib/backend'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
+
+export type UserProfilePatch = {
+  displayName?: string
+  org?: string
+}
+
+function initialsFromName(name: string, fallback: string): string {
+  const parts = name.split(/\s+/).filter(Boolean).slice(0, 2)
+  const initials = parts.map((p) => p[0]?.toUpperCase() ?? '').join('')
+  return initials || fallback
+}
 
 export interface Toast {
   id: number
@@ -26,6 +42,9 @@ interface AppState {
   signIn: (session: DemoSession) => void
   signOut: () => void
   user: User | null
+  /** Apply display name / org from Settings (or backend) into the live user header. */
+  applyUserProfile: (patch: UserProfilePatch) => void
+  refreshUserProfile: () => Promise<void>
   cases: VetCase[]
   getCase: (id: string) => VetCase | undefined
   addCase: (c: VetCase) => void
@@ -60,6 +79,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [sourceId, setSourceId] = useState<number | null>(null)
   const [backendSyncing, setBackendSyncing] = useState(false)
+  const [profileOverride, setProfileOverride] = useState<UserProfilePatch>({})
+
+  const applyUserProfile = useCallback((patch: UserProfilePatch) => {
+    setProfileOverride((prev) => ({
+      displayName: patch.displayName !== undefined ? patch.displayName : prev.displayName,
+      org: patch.org !== undefined ? patch.org : prev.org,
+    }))
+    // Keep demo session name in sync so Topbar stays correct after refresh before settings load.
+    setSession((prev) => {
+      if (!prev || patch.displayName === undefined) return prev
+      const name = patch.displayName.trim() || prev.name
+      const next = { ...prev, name }
+      try {
+        localStorage.setItem('vetmind.demo.session', JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
+
+  const refreshUserProfile = useCallback(async () => {
+    try {
+      const s = await getUserSettings()
+      applyUserProfile({
+        displayName: s.display_name?.trim() ?? '',
+        org: s.org?.trim() ?? '',
+      })
+      try {
+        localStorage.setItem('vetmind.sidebar.collapsed', s.compact_sidebar ? '1' : '0')
+        window.dispatchEvent(new Event('vetmind-sidebar-collapse'))
+      } catch {
+        /* ignore */
+      }
+    } catch {
+      /* backend down — keep session/mock identity */
+    }
+  }, [applyUserProfile])
+
+  useEffect(() => {
+    if (!session && !role) {
+      setProfileOverride({})
+      return
+    }
+    void refreshUserProfile()
+  }, [session?.email, role, refreshUserProfile])
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
   const pushToast = useCallback(
@@ -121,6 +186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSession(null)
     setRoleState(null)
     setSourceId(null)
+    setProfileOverride({})
   }, [])
 
   const setRole = useCallback((r: Role | null) => {
@@ -130,9 +196,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSession(null)
       setRoleState(null)
       setSourceId(null)
+      setProfileOverride({})
       return
     }
     setRoleState(r)
+    setProfileOverride({})
     setSession(() => {
       // Always bind role-switch to seed demo emails so backend JWT matches RBAC.
       const demo: DemoSession = {
@@ -147,6 +215,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSourceId(null)
   }, [])
 
+  const user = useMemo<User | null>(() => {
+    const base = session ? userFromSession(session) : role ? USERS[role] : null
+    if (!base) return null
+    const name = profileOverride.displayName?.trim() || base.name
+    const org = profileOverride.org !== undefined ? profileOverride.org : base.org
+    return {
+      ...base,
+      name,
+      org,
+      initials: initialsFromName(name, base.initials),
+    }
+  }, [session, role, profileOverride])
+
   const value = useMemo<AppState>(
     () => ({
       role,
@@ -154,7 +235,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRole,
       signIn,
       signOut,
-      user: session ? userFromSession(session) : role ? USERS[role] : null,
+      user,
+      applyUserProfile,
+      refreshUserProfile,
       cases,
       getCase: (id) => cases.find((c) => c.id === id || c.backendCaseId === id),
       addCase: (c) => setCases((all) => [c, ...all.filter((x) => x.id !== c.id)]),
@@ -175,6 +258,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [
       role,
       session,
+      user,
       cases,
       kbSources,
       toasts,
@@ -183,6 +267,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRole,
       signIn,
       signOut,
+      applyUserProfile,
+      refreshUserProfile,
       updateCase,
       refreshBackendCases,
       hydrateBackendCase,

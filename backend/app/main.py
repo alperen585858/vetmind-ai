@@ -16,6 +16,7 @@ from app.api.feedback import router as feedback_router
 from app.api.messaging import router as messaging_router
 from app.api.payments import router as payments_router
 from app.api.workflow import router as workflow_router
+from app.api.settings import router as settings_router
 from app.container import AppContainer
 from app.demo_seed import ensure_demo_seed
 
@@ -56,6 +57,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(payments_router)
     app.include_router(messaging_router)
     app.include_router(notifications_router)
+    app.include_router(settings_router)
     app.include_router(llm_feedback_router)
     app.include_router(feedback_router)
 

@@ -24,6 +24,7 @@ from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
+from app.services.user_settings_store import build_user_settings_store
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
 from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
@@ -137,6 +138,7 @@ class AppContainer:
         )
         self.notification_store = build_notification_store(self.settings)
         self.notifications = NotificationService(self.notification_store)
+        self.user_settings = build_user_settings_store(self.settings)
         self.cases = CaseService(
             self.repo,
             self.orchestrator,

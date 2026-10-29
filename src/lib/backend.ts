@@ -149,6 +149,43 @@ export async function backendAuthStatus(): Promise<{
   return request('/auth/status')
 }
 
+export type BackendUserSettings = {
+  subject: string
+  display_name: string
+  org: string
+  email_notifications: boolean
+  push_notifications: boolean
+  report_ready_alerts: boolean
+  message_alerts: boolean
+  compact_sidebar: boolean
+  language: 'tr' | 'en'
+  updated_at: string
+}
+
+export type BackendUserSettingsUpdate = Partial<{
+  display_name: string
+  org: string
+  email_notifications: boolean
+  push_notifications: boolean
+  report_ready_alerts: boolean
+  message_alerts: boolean
+  compact_sidebar: boolean
+  language: 'tr' | 'en'
+}>
+
+export async function getUserSettings(): Promise<BackendUserSettings> {
+  return request('/settings/me')
+}
+
+export async function updateUserSettings(
+  patch: BackendUserSettingsUpdate,
+): Promise<BackendUserSettings> {
+  return request('/settings/me', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  })
+}
+
 export type BackendHealth = {
   status: string
   mode: string
