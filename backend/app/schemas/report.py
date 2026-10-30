@@ -46,6 +46,41 @@ class DifferentialDiagnosis(BaseModel):
     finding_ids: list[str] = Field(default_factory=list)
 
 
+VerdictLabel = Literal["supported", "partially_supported", "unsupported", "contradicted"]
+VerdictError = Literal[
+    "none", "invented_finding", "overstated_certainty", "wrong_location", "irrelevant_source", "unsupported_claim"
+]
+
+
+class SentenceVerdict(BaseModel):
+    """Verifier judgement of one cited claim sentence against the evidence it cites.
+
+    Error types adapt the GREEN error taxonomy (Ostmeier et al., 2024) to cited drafts.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    section: str
+    sentence: str
+    citations: list[str] = Field(default_factory=list)
+    label: VerdictLabel
+    error_type: VerdictError = "none"
+    note: str = ""
+
+
+class ReportVerification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    verifier_model: str
+    verdicts: list[SentenceVerdict] = Field(default_factory=list)
+
+    @property
+    def supported_rate(self) -> float | None:
+        if not self.verdicts:
+            return None
+        return sum(v.label == "supported" for v in self.verdicts) / len(self.verdicts)
+
+
 class ReportSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -81,6 +116,8 @@ class DraftReport(BaseModel):
     used_passage_ids: list[str] = Field(default_factory=list)
     # Inline citation alias → id, e.g. {"F1": finding_id, "S1": rag source_id}.
     citation_map: dict[str, str] = Field(default_factory=dict)
+    # Sentence-level evidence check (optional verifier pass; None when not run).
+    verification: Optional[ReportVerification] = None
     # Ranked differentials (prompt-based providers only; empty for template drafts).
     differentials: list[DifferentialDiagnosis] = Field(default_factory=list)
     # Model text per section, captured when the pipeline draft is created. Expert edits

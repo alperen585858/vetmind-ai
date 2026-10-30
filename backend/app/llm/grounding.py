@@ -64,6 +64,11 @@ def _is_claim(sentence: str) -> bool:
     return len(sentence) >= MIN_CLAIM_CHARS and not sentence.endswith(":")
 
 
+def cited_claims(text: str) -> list[tuple[str, list[str]]]:
+    """Claim sentences that carry markers, with their markers in order."""
+    return [(s, extract_markers(s)) for s in _sentences(text) if _is_claim(s) and MARKER_GROUP_RE.search(s)]
+
+
 def uncited_claims(text: str) -> list[str]:
     """Claim sentences in ``text`` without any [F#]/[S#] marker."""
     return [s for s in _sentences(text) if _is_claim(s) and not MARKER_GROUP_RE.search(s)]
@@ -192,6 +197,7 @@ def check_grounding(report: DraftReport) -> list[str]:
             listed = "; ".join(f'"{_short(s)}"' for s in uncited[:MAX_LISTED_PER_SECTION])
             more = f" (+{len(uncited) - MAX_LISTED_PER_SECTION} more)" if len(uncited) > MAX_LISTED_PER_SECTION else ""
             warnings.append(f"Grounding: {len(uncited)} uncited statement(s) in {name}: {listed}{more}.")
+    warnings.extend(_verification_warnings(report))
     if stats.omitted_findings:
         warnings.append(
             "Grounding: imaging finding(s) not mentioned in the draft: "
@@ -199,3 +205,18 @@ def check_grounding(report: DraftReport) -> list[str]:
             + "."
         )
     return warnings
+
+
+def _verification_warnings(report: DraftReport) -> list[str]:
+    """Judge verdicts that still apply: a sentence the expert has since rewritten is skipped."""
+    if report.verification is None:
+        return []
+    out = []
+    for v in report.verification.verdicts:
+        if v.label == "supported" or v.sentence not in getattr(report, v.section).text:
+            continue
+        note = f" — {v.note}" if v.note else ""
+        out.append(
+            f"Verification: {v.section} sentence is {v.label} ({v.error_type}): \"{_short(v.sentence)}\"{note}"
+        )
+    return out

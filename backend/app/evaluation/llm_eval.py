@@ -176,6 +176,8 @@ class CaseResult:
     blank_sections: list[str] = field(default_factory=list)
     differentials: list[str] = field(default_factory=list)
     pipeline_steps: list[str] = field(default_factory=list)
+    verified_supported_rate: Optional[float] = None
+    verified_problems: int = 0  # unsupported + contradicted + partially supported sentences
     sections: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -221,12 +223,21 @@ def score_report(ec: EvalCase, report: DraftReport, latency_s: float) -> CaseRes
         english_ratio=round(english_ratio(full), 3),
         blank_sections=list(stats.blank_sections),
         pipeline_steps=list(report.generation.pipeline_steps),
+        verified_supported_rate=(
+            round(report.verification.supported_rate, 3)
+            if report.verification and report.verification.supported_rate is not None else None
+        ),
+        verified_problems=(
+            sum(v.label != "supported" for v in report.verification.verdicts) if report.verification else 0
+        ),
         sections=sections,
     )
 
 
 # pipeline_steps entries that are model calls (the *_applied / *_failed markers are not).
-_CALL_STEPS = {"draft", "repair", "differentials", "repair_failed", "differentials_failed"}
+_CALL_STEPS = {
+    "draft", "repair", "differentials", "verify", "repair_failed", "differentials_failed", "verify_failed",
+}
 
 
 @dataclass
@@ -280,6 +291,11 @@ class RunResult:
             "blank_cases": per_pass(sum(bool(c.blank_sections) for c in ok)),
             "english_ratio": avg("english_ratio"),
             "latency_s": avg("latency_s"),
+            "verified_supported_rate": avg("verified_supported_rate"),
+            "verified_problems": (
+                per_pass(sum(c.verified_problems for c in ok))
+                if any(c.verified_supported_rate is not None for c in ok) else None
+            ),
             "repair_applied_rate": (
                 round(sum("repair_applied" in c.pipeline_steps for c in ok) / len(ok), 3)
                 if ok and any(c.pipeline_steps for c in ok) else None
@@ -359,6 +375,8 @@ METRIC_ROWS = (
     ("blank_cases", "Bölüm boş bırakılan vaka", "{:.0f}"),
     ("english_ratio", "İngilizce kelime oranı", "{:.0%}"),
     ("latency_s", "Ortalama süre (sn)", "{:.1f}"),
+    ("verified_supported_rate", "Hakemce desteklenen cümle oranı", "{:.0%}"),
+    ("verified_problems", "Hakemin itiraz ettiği cümle (tur başına)", "{:.1f}"),
     ("calls_per_case", "Vaka başına model çağrısı", "{:.1f}"),
     ("repair_applied_rate", "Onarım uygulanan vaka oranı", "{:.0%}"),
 )

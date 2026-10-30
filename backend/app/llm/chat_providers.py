@@ -41,6 +41,7 @@ from app.llm.prompts import (
     wants_differentials,
 )
 from app.llm.interfaces import LLMGenerationInput
+from app.schemas.report import DraftReport
 from app.llm.structured_output import (
     DIFFERENTIALS_JSON_SCHEMA,
     SECTION_KEYS,
@@ -50,6 +51,13 @@ from app.llm.structured_output import (
     parse_differentials_payload,
     parse_report_payload,
     report_json_schema,
+)
+from app.llm.verifier import (
+    VERDICTS_JSON_SCHEMA,
+    build_verifier_system_prompt,
+    build_verifier_user_prompt,
+    collect_claims,
+    parse_verdicts,
 )
 from app.schemas.enums import ModelExecutionStatus
 
@@ -62,6 +70,7 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 JSON_MODES = ("schema", "object", "none")
 REPORT_TOOL_NAME = "submit_draft_report"
 DIFFERENTIALS_TOOL_NAME = "submit_differentials"
+VERDICTS_TOOL_NAME = "submit_verdicts"
 MAX_REPAIR_SENTENCES = 5
 
 
@@ -94,6 +103,8 @@ class _ChatProviderBase:
         temperature: float | None = 0.2,
         max_tokens: int = 2048,
         prompt_version: str = PROMPT_VERSION,
+        verify: bool = False,
+        verifier_model_id: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if prompt_version not in PROMPT_VERSIONS:
@@ -108,6 +119,9 @@ class _ChatProviderBase:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._prompt_version = prompt_version
+        self._verify = verify
+        # A different judge model on the same endpoint is allowed (and usually better).
+        self._verifier_model = (verifier_model_id or "").strip() or model_id
         self._schema = report_json_schema(wants_differentials(prompt_version))
         self._transport = transport
 
@@ -135,6 +149,8 @@ class _ChatProviderBase:
             language=self._language,
             pipeline_steps=steps,
         )
+        if self._verify:
+            self._verify_report(report, gen, aliases)
         return LLMResponse(
             provider_id=self.provider_id,
             model_id=self.model_id,
@@ -195,6 +211,24 @@ class _ChatProviderBase:
                 steps.append("differentials_failed")
         return wire, "\n".join(raws), steps
 
+    def _verify_report(self, report: DraftReport, gen: LLMGenerationInput, aliases: CitationAliases) -> None:
+        """Best-effort judge pass; on any provider error the draft stays unverified."""
+        claims = collect_claims(report)
+        if not claims:
+            return
+        try:
+            payload, _ = self._complete(
+                build_verifier_system_prompt(self._language),
+                build_verifier_user_prompt(claims, gen, aliases),
+                VERDICTS_JSON_SCHEMA,
+                tool_name=VERDICTS_TOOL_NAME,
+                model=self._verifier_model,
+            )
+            report.verification = parse_verdicts(payload, claims, verifier_model=self._verifier_model)
+            report.generation.pipeline_steps.append("verify")
+        except LLMProviderError:
+            report.generation.pipeline_steps.append("verify_failed")
+
     @staticmethod
     def _draft_problems(wire: ReportWire, aliases: CitationAliases) -> list[str]:
         """Concrete, fixable problems in the text sections, phrased for the repair prompt."""
@@ -217,7 +251,13 @@ class _ChatProviderBase:
         return problems
 
     def _complete(
-        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        tool_name: str = REPORT_TOOL_NAME,
+        model: str | None = None,
     ) -> tuple[str | dict[str, Any], str]:
         """Return (payload for the parser, raw text kept for audit)."""
         raise NotImplementedError
@@ -268,10 +308,16 @@ class OpenAICompatibleProvider(_ChatProviderBase):
         self._json_mode = json_mode
 
     def _complete(
-        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        tool_name: str = REPORT_TOOL_NAME,
+        model: str | None = None,
     ) -> tuple[str | dict[str, Any], str]:
         payload: dict[str, Any] = {
-            "model": self.model_id,
+            "model": model or self.model_id,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -317,10 +363,16 @@ class AnthropicProvider(_ChatProviderBase):
         super().__init__(**kwargs)
 
     def _complete(
-        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        tool_name: str = REPORT_TOOL_NAME,
+        model: str | None = None,
     ) -> tuple[str | dict[str, Any], str]:
         payload: dict[str, Any] = {
-            "model": self.model_id,
+            "model": model or self.model_id,
             "max_tokens": self._max_tokens,
             "system": system,
             "messages": [{"role": "user", "content": user}],

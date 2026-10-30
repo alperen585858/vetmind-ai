@@ -16,6 +16,9 @@ Run:
   # A/B two prompt versions on the same model
   python scripts/llm_eval.py --provider ollama --models llama3.2:3b --prompts v2,v3 --repeat 3
 
+  # With the citation verifier, judged by a different (stronger) model
+  python scripts/llm_eval.py --provider ollama --models llama3.2:3b --verify --verifier-model qwen2.5:7b
+
   # Only some cases
   python scripts/llm_eval.py --provider ollama --models llama3.2:3b --cases brain-mass-01,no-findings-01
 
@@ -50,6 +53,8 @@ def main() -> int:
     parser.add_argument("--cases", default="", help="comma-separated case ids to run (default: all)")
     parser.add_argument("--rag", choices=["lexical", "none"], default="lexical")
     parser.add_argument("--repeat", type=int, default=1, help="run each case N times (mean ± std)")
+    parser.add_argument("--verify", action="store_true", help="run the sentence-level citation verifier")
+    parser.add_argument("--verifier-model", default="", help="judge model id (default: same as writer)")
     parser.add_argument(
         "--prompts", default="", help="comma-separated prompt versions to A/B, e.g. v2,v3 (default: current)"
     )
@@ -67,6 +72,8 @@ def main() -> int:
     base = load_settings()
     if args.provider:
         base = replace(base, llm_provider=args.provider)
+    if args.verify:
+        base = replace(base, llm_verify=True, llm_verifier_model_id=args.verifier_model or None)
     if base.llm_provider in {"mock", "stub", "http"}:
         print("Choose a real provider: --provider ollama|openai|anthropic", file=sys.stderr)
         return 2

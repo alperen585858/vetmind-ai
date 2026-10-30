@@ -34,6 +34,22 @@ describe('parseWarning', () => {
     })
   })
 
+  it('maps verifier verdicts', () => {
+    expect(
+      parseWarning('Verification: impression sentence is contradicted (overstated_certainty): "Kesin meningiom [F1]." — Bulgu şüpheli.'),
+    ).toMatchObject({
+      kind: 'overclaim',
+      title: 'Kanıtla çelişen ifade · abartılmış kesinlik',
+      section: 'Değerlendirme',
+      detail: '“Kesin meningiom [F1].” — Bulgu şüpheli.',
+    })
+    expect(parseWarning('Verification: findings sentence is partially_supported (unsupported_claim): "Kitle ve ödem [F1]."')).toMatchObject({
+      kind: 'uncited',
+      title: 'Kısmen desteklenen ifade',
+      detail: '“Kitle ve ödem [F1].”',
+    })
+  })
+
   it('sorts the most serious issues first', () => {
     const kinds = parseWarnings([
       'Report source is MOCK.',

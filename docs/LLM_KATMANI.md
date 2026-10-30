@@ -95,6 +95,23 @@ Yalnızca `prompt_version` taşıyan raporlara uygulanır (mock şablonlara değ
 | Dışlama | "ekarte edildi", "dışlandı", "ruled out" (ama "ekarte edilemez" serbest) |
 | Hastalık yokluğu | "patoloji saptanmadı", "normal sınırlarda", "no evidence of abnormality" |
 
+### Atıf doğrulayıcı (hakem)
+
+`VETMIND_LLM_VERIFY=true` ile taslaktan sonra bir hakem çağrısı daha yapılır (`llm/verifier.py`):
+findings/impression'daki atıflı her klinik cümle, **yalnızca atıf yaptığı kanıtla** (F# bulgu metni, S# pasaj metni)
+karşılaştırılır. Etiketler: `supported`, `partially_supported`, `unsupported`, `contradicted`.
+Hata türleri GREEN taksonomisinden uyarlanmıştır: `invented_finding`, `overstated_certainty`,
+`wrong_location`, `irrelevant_source`, `unsupported_claim`.
+
+- Hakem, tıbbi doğruluğu değil **kanıtla desteklenmeyi** değerlendirir.
+- `VETMIND_LLM_VERIFIER_MODEL_ID` ile aynı sunucuda farklı bir hakem model seçilebilir
+  (ör. rapor llama, hakem qwen). Açık kaynak doğrulayıcılar (MiniCheck, HHEM, Lynx) yalnızca İngilizce olduğundan
+  hakem prompt'lu bir modeldir.
+- Sonuç `DraftReport.verification` alanında saklanır; desteklenmeyen/çelişen cümleler doğrulama
+  uyarısı olur. Uzman cümleyi değiştirirse o hüküm düşer. Hakem hata verirse taslak doğrulanmamış kalır
+  (`pipeline_steps` → `verify_failed`).
+- Hakemin kendi doğruluğu ayrıca ölçülmelidir (uzman uyumu / TurkMedNLI).
+
 ## 5. Ayarlar
 
 | Env | Varsayılan | Açıklama |
@@ -108,6 +125,8 @@ Yalnızca `prompt_version` taşıyan raporlara uygulanır (mock şablonlara değ
 | `VETMIND_LLM_MAX_TOKENS` | `2048` | Çıktı kesilirse artırın |
 | `VETMIND_LLM_JSON_MODE` | `schema` | OpenAI-uyumlu için: `schema` \| `object` \| `none` (sunucu desteklemiyorsa düşürün) |
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modellerde **90** önerilir |
+| `VETMIND_LLM_VERIFY` | `false` | Atıf doğrulayıcı (hakem) çağrısı |
+| `VETMIND_LLM_VERIFIER_MODEL_ID` | yazar model | Hakem model adı (aynı sunucu) |
 | `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v3` | `v2` yalnız metin · `v3` + ayırıcı tanılar tek çağrıda · `v4` iki adım + onarım (tam ad: `vetmind-report-vN`) |
 
 ## 6. Deneme
@@ -170,6 +189,8 @@ cd backend && source .venv/bin/activate
 python scripts/llm_eval.py --provider ollama --models llama3.2:3b,phi3:mini
 VETMIND_LLM_API_KEY=sk-ant-... python scripts/llm_eval.py --provider anthropic
 ```
+
+`--verify [--verifier-model qwen2.5:7b]` hakem geçişini açar; rapor "hakemce desteklenen cümle oranı" ekler.
 
 Kararsız (küçük) modellerde tek çalıştırma yanıltıcıdır. `--repeat 3` her vakayı 3 tur çalıştırır;
 rapor ortalamayı, turlar arası skor sapmasını ve vaka içi sapmayı (±) verir. Sayım metrikleri tur başına ortalamadır.

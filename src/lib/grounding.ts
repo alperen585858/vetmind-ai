@@ -29,6 +29,19 @@ const OVERCLAIM_TR: Record<string, string> = {
   'absence of disease': 'Hastalık yokluğu ifadesi',
 }
 
+const VERDICT_TR: Record<string, string> = {
+  contradicted: 'Kanıtla çelişen ifade',
+  unsupported: 'Kanıtla desteklenmeyen ifade',
+  partially_supported: 'Kısmen desteklenen ifade',
+}
+
+const VERDICT_ERROR_TR: Record<string, string> = {
+  invented_finding: 'uydurma bulgu',
+  overstated_certainty: 'abartılmış kesinlik',
+  wrong_location: 'yanlış konum',
+  irrelevant_source: 'alakasız kaynak',
+}
+
 export const KIND_ORDER: WarningKind[] = ['overclaim', 'unknown_ref', 'uncited', 'omitted', 'system']
 
 export function parseWarning(raw: string): ReviewWarning {
@@ -64,6 +77,17 @@ export function parseWarning(raw: string): ReviewWarning {
   if (m) {
     const names = m[1].split(/,\s*/).map((k) => SECTION_TR[k] ?? k).join(', ')
     return { kind: 'omitted', title: 'Model bölümü boş bıraktı', detail: `${names} — yer tutucu metin ya da otomatik bulgu listesi eklendi; bu bölümleri elle yazın.`, raw }
+  }
+  m = raw.match(/^Verification: (\w+) sentence is (\w+) \((\w+)\): "(.*?)"(?: — (.*))?$/s)
+  if (m) {
+    const [, section, label, error, sentence, note] = m
+    return {
+      kind: label === 'partially_supported' ? 'uncited' : 'overclaim',
+      title: `${VERDICT_TR[label] ?? label}${error !== 'unsupported_claim' ? ` · ${VERDICT_ERROR_TR[error] ?? error}` : ''}`,
+      section: SECTION_TR[section] ?? section,
+      detail: note ? `“${sentence}” — ${note}` : `“${sentence}”`,
+      raw,
+    }
   }
   m = raw.match(/^Grounding: imaging finding\(s\) not mentioned in the draft: (.*?)\.?$/)
   if (m) {
