@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, mo
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMMalformedResponseError, LLMRequest
 from app.llm.prompts import CitationAliases
-from app.llm.rag_grounding import apply_used_passages_to_report
 from app.schemas.enums import ReportStatus
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
 
@@ -138,9 +137,19 @@ def build_draft_report(
         cited = [aliases.findings[a] for a in extract_markers(text) if a in aliases.findings]
         return ReportSection(text=text, cited_finding_ids=cited)
 
+    # Passages the draft actually cites ([S#] in any section), in first-cited order.
+    # rag_citations keeps every retrieved passage so S# numbering stays reconstructible
+    # (feedback export); the UI shows only used_passage_ids.
+    all_text = "\n".join(getattr(wire, k) for k in SECTION_KEYS)
+    cited_sources = list(
+        dict.fromkeys(aliases.sources[a] for a in extract_markers(all_text) if a in aliases.sources)
+    )
+    rag_note = DraftReport.model_fields["rag_note"].default
+    if gen.rag_passages and not cited_sources:
+        rag_note += " Taslak hiçbir kaynak pasajına atıf yapmadı; listelenenler yalnızca erişim sonuçlarıdır."
+
     report_kind, synthetic = _report_provenance_from_findings(gen.findings_source_kind)
-    # Chat providers do not return used_passage_ids yet — legacy honesty note via helper.
-    report = DraftReport(
+    return DraftReport(
         report_id=f"llm-rpt-{uuid4().hex[:12]}",
         case_id=gen.case_id,
         status=ReportStatus.DRAFT,
@@ -159,6 +168,8 @@ def build_draft_report(
         recommendations=section("recommendations"),
         synthetic=synthetic,
         clinically_validated=False,
+        rag_citations=list(gen.rag_passages),
+        used_passage_ids=cited_sources,
+        rag_note=rag_note,
         citation_map=aliases.as_map(),
     )
-    return apply_used_passages_to_report(report, list(gen.rag_passages), None)

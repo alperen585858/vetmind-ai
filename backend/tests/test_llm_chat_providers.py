@@ -114,6 +114,8 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     assert report.clinically_validated is False
     assert report.synthetic is True  # mock imaging findings → synthetic draft
     assert report.citation_map["S1"] == "kb-meningioma"
+    assert report.used_passage_ids == ["kb-meningioma", "kb-gme"]
+    assert [p.source_id for p in report.rag_citations] == ["kb-meningioma", "kb-gme"]
     assert report.findings.cited_finding_ids == [f.finding_id for f in findings.findings]
     assert report.impression.cited_finding_ids == [findings.findings[0].finding_id]
     assert resp.raw_text == content
@@ -139,6 +141,26 @@ def test_openai_provider_accepts_fenced_json_and_ollama_has_no_auth_header() -> 
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert report.generation.provider_id == "ollama"
     assert report.generation.model_version == "qwen2.5:14b"
+
+
+def test_used_passages_only_lists_cited_sources() -> None:
+    request, _, _ = _request()
+    body = _report_json(request.generation)
+    body["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir [F1]. Meningiom ön planda [S2, F1]."
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.used_passage_ids == ["kb-gme"]
+    assert len(report.rag_citations) == 2  # all retrieved kept so S# numbering is reconstructible
+
+    body["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir [F1]."
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.used_passage_ids == []
+    assert "hiçbir kaynak pasajına atıf yapmadı" in report.rag_note
 
 
 def test_openai_truncated_output_is_malformed() -> None:

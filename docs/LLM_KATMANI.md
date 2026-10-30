@@ -33,6 +33,13 @@ StructuredFindings + RAG pasajları
   → ReportValidator → grounding.check_grounding → validation_warnings
 ```
 
+### Kullanılan kaynaklar
+
+Model metinde hangi `[S#]` pasajlarına atıf yaptıysa onların `source_id` değerleri `DraftReport.used_passage_ids`
+alanına yazılır (ilk atıf sırasıyla); arayüz yalnızca bunları gösterir. `rag_citations` alınan tüm pasajları tutar,
+böylece `S#` numaraları geri bildirim dışa aktarımında yeniden kurulabilir. Hiç atıf yoksa liste boştur ve
+`rag_note` bunu açıkça yazar.
+
 ### Neden kısaltma (F1, S1)?
 
 Gerçek `finding_id` değerleri uzun. Model kısa etiketleri daha tutarlı kullanıyor. Eşleme
