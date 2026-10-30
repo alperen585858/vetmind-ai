@@ -79,6 +79,7 @@ def report_json_schema(with_differentials: bool = True) -> dict[str, Any]:
 
 # Matches one bracket group of markers: [F1], [S2], [F1, S2].
 MARKER_GROUP_RE = re.compile(r"\[\s*([FS]\d+(?:\s*[,;]\s*[FS]\d+)*)\s*\]")
+_PAREN_MARKERS_RE = re.compile(r"\(\s*([FS]\d+(?:\s*[,;]\s*[FS]\d+)*)\s*\)")
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 
@@ -108,6 +109,15 @@ _LIKELIHOOD = {
     "low": "low", "düşük": "low", "dusuk": "low", "unlikely": "low",
 }
 
+
+# When there are no findings to report and the model leaves "findings" blank, this is the
+# correct section content — written by code, not a placeholder for missing model work.
+NO_FINDINGS_TEXT = {
+    "tr": "Görüntü modeli raporlanabilir yapılandırılmış bulgu döndürmedi (analiz durumu: {status}). "
+    "Bu, çalışmanın normal olduğu anlamına gelmez; görüntülerin tamamı uzman radyolog tarafından incelenmelidir.",
+    "en": "The imaging model returned no reportable structured findings (analysis status: {status}). "
+    "This does not mean the study is normal; the full study must be reviewed by a radiologist.",
+}
 
 # When the model leaves "findings" blank but structured findings exist, the section is
 # rebuilt from them (a restatement with [F#] citations, not new claims). The first line
@@ -199,7 +209,8 @@ class ReportWire(BaseModel):
             return ""
         if not isinstance(value, str):
             raise ValueError("section must be a string")
-        return value.strip()
+        # "(F1)" / "(F1, S2)" → "[F1]" / "[F1, S2]": same citation, the form our checks read.
+        return _PAREN_MARKERS_RE.sub(r"[\1]", value).strip()
 
     @model_validator(mode="after")
     def _not_all_empty(self) -> "ReportWire":
@@ -273,6 +284,8 @@ def build_draft_report(
         text = getattr(wire, key)
         if not text and key == "findings" and gen.findings and not no_findings:
             text = auto_findings_text(gen, aliases, language)
+        if not text and key == "findings" and no_findings:
+            text = NO_FINDINGS_TEXT.get(language, NO_FINDINGS_TEXT["en"]).format(status=gen.execution_status.value)
         text = text or fallback[key]
         cited = [aliases.findings[a] for a in extract_markers(text) if a in aliases.findings]
         return ReportSection(text=text, cited_finding_ids=cited)

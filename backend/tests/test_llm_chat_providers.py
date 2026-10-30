@@ -467,3 +467,31 @@ def test_v4_skips_differentials_without_findings() -> None:
     report = _v4(body, calls=calls).generate(LLMRequest(generation=gen)).report
     assert len(calls) == 1
     assert report.generation.pipeline_steps == ["draft"]
+
+
+def test_parenthesized_markers_become_citations() -> None:
+    wire = parse_report_payload(
+        {"technique": "a", "findings": "Kitle izlenmektedir (F1). Ödem (F1, S2). FCE (fibrokartilaginöz emboli).",
+         "impression": "c", "recommendations": "d"}
+    )
+    assert wire.findings == "Kitle izlenmektedir [F1]. Ödem [F1, S2]. FCE (fibrokartilaginöz emboli)."
+
+
+def test_no_findings_case_gets_written_findings_section_not_placeholder() -> None:
+    request, _, _ = _request()
+    gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
+    body = {"technique": "Köpek, beyin MR.", "findings": "", "impression": "Otomatik yorum yapılamaz.",
+            "recommendations": "Uzman incelemesi gereklidir."}
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", prompt_version=SINGLE_CALL, transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(LLMRequest(generation=gen)).report
+    assert report.findings.text.startswith("Görüntü modeli raporlanabilir yapılandırılmış bulgu döndürmedi")
+    assert not any("left section(s) empty" in w for w in check_grounding(report))
+
+
+def test_prompt_v5_adds_citation_example() -> None:
+    v4 = build_system_prompt("tr", "vetmind-report-v4")
+    v5 = build_system_prompt("tr", "vetmind-report-v5")
+    assert "Example of the expected citation style" in v5 and "Example of the expected" not in v4
+    assert "never (F1)" in v5

@@ -17,8 +17,9 @@ PROMPT_VERSION = "vetmind-report-v4"
 # v2: four text sections only. v3: + differentials in the same call.
 # v4: two steps — text sections (v2 load) + one targeted repair, then differentials in a
 #     separate call built on the drafted impression.
-PROMPT_VERSIONS = ("vetmind-report-v2", "vetmind-report-v3", "vetmind-report-v4")
-TWO_STEP_VERSION = "vetmind-report-v4"
+# v5: v4 + a short worked example of the citation style (few-shot).
+PROMPT_VERSIONS = ("vetmind-report-v2", "vetmind-report-v3", "vetmind-report-v4", "vetmind-report-v5")
+TWO_STEP_VERSIONS = ("vetmind-report-v4", "vetmind-report-v5")
 
 
 def wants_differentials(version: str) -> bool:
@@ -26,7 +27,11 @@ def wants_differentials(version: str) -> bool:
 
 
 def is_two_step(version: str) -> bool:
-    return version == TWO_STEP_VERSION
+    return version in TWO_STEP_VERSIONS
+
+
+def has_example(version: str) -> bool:
+    return version == "vetmind-report-v5"
 
 LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
 
@@ -66,10 +71,25 @@ _TEXT_ONLY_ENDING = """
 Respond with a single JSON object with exactly these string keys: technique, findings, impression, recommendations. No prose outside the JSON."""
 
 
+# Illustrative only: a topic outside the evaluation set so it cannot leak expected answers.
+_CITATION_EXAMPLE = """
+
+Example of the expected citation style (a different, made-up case — never copy its content):
+Given [F1] suspected asymmetric enlargement of the left lateral ventricle, [F2] possible periventricular T2 hyperintensity,
+and [S1] a passage on hydrocephalus, a good answer is:
+{"technique": "Köpek, beyin MR incelemesi; otomatik analiz tamamlandı.",
+ "findings": "- Sol lateral ventrikülde asimetrik genişleme şüphesi [F1].\\n- Periventriküler T2 hiperintensite olası [F2].",
+ "impression": "Bulgular asimetrik ventrikülomegali ile uyumlu olabilir [F1]. Periventriküler sinyal değişikliği interstisyel ödemle ilişkili olabilir [F2, S1].",
+ "recommendations": "BOS analizi ve kontrastlı seriler değerlendirilebilir [S1]. Uzman radyolog incelemesi gereklidir."}
+Every findings line and every impression sentence ends with a bracketed marker exactly like this — never (F1) or a bare F1."""
+
+
 def build_system_prompt(language: str = "tr", version: str = PROMPT_VERSION) -> str:
     lang = LANGUAGE_NAMES.get(language, language)
     single_call_differentials = wants_differentials(version) and not is_two_step(version)
     ending = _DIFFERENTIALS_SECTION if single_call_differentials else _TEXT_ONLY_ENDING
+    if has_example(version):
+        ending = _CITATION_EXAMPLE + ending
     return f"""You draft veterinary diagnostic imaging reports for VetMind AI.
 Every draft is reviewed, edited and approved by a board-certified veterinary radiologist before anyone sees it. You never make the final call.
 
