@@ -17,10 +17,11 @@ export const ROLE_BADGE: Record<Role, string> = {
 }
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { role, setRole, user, pushToast } = useApp()
+  const { role, setRole, user, pushToast, authMode } = useApp()
   const nav = useNavigate()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const showRoleSwitch = authMode.roleSwitchAllowed
 
   useEffect(() => {
     const h = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false)
@@ -60,44 +61,51 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         <NotificationBell />
 
-        <div className="relative" ref={ref}>
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-haspopup="listbox"
-            onClick={() => setOpen((o) => !o)}
-            className="flex items-center gap-2 rounded-lg border border-dashed border-teal-400 bg-teal-50/60 px-2.5 py-1.5 text-xs font-medium text-teal-800 hover:bg-teal-50"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden /> <span className="hidden sm:inline">Rol değiştir</span>
-            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-          </button>
-          {open && (
-            <div
-              role="listbox"
-              aria-label="Rol seçimi"
-              className="absolute right-0 mt-2 w-72 animate-fade-up rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+        {showRoleSwitch ? (
+          <div className="relative" ref={ref}>
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              onClick={() => setOpen((o) => !o)}
+              className="flex items-center gap-2 rounded-lg border border-dashed border-teal-400 bg-teal-50/60 px-2.5 py-1.5 text-xs font-medium text-teal-800 hover:bg-teal-50"
             >
-              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Rol seçin</p>
-              {(Object.keys(USERS) as Role[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  role="option"
-                  aria-selected={r === role}
-                  onClick={() => switchRole(r)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50 ${r === role ? 'bg-slate-50' : ''}`}
-                >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ring-1 ring-inset ${ROLE_BADGE[r]}`}>{USERS[r].initials}</span>
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium text-navy-900">{ROLE_LABELS[r]}</span>
-                    <span className="block text-xs text-slate-500">{USERS[r].name}</span>
-                  </span>
-                  {r === role && <Check className="h-4 w-4 text-teal-600" aria-hidden />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+              <RefreshCcw className="h-3.5 w-3.5" aria-hidden /> <span className="hidden sm:inline">Rol değiştir</span>
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            {open && (
+              <div
+                role="listbox"
+                aria-label="Rol seçimi"
+                className="absolute right-0 mt-2 w-72 animate-fade-up rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              >
+                <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Demo rol seçimi
+                </p>
+                <p className="px-3 pb-2 text-[10px] leading-snug text-slate-500">
+                  Yalnızca auth kapalı demo modunda. Korumalı deploy’da gizlenir.
+                </p>
+                {(Object.keys(USERS) as Role[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    role="option"
+                    aria-selected={r === role}
+                    onClick={() => switchRole(r)}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50 ${r === role ? 'bg-slate-50' : ''}`}
+                  >
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ring-1 ring-inset ${ROLE_BADGE[r]}`}>{USERS[r].initials}</span>
+                    <span className="flex-1">
+                      <span className="block text-sm font-medium text-navy-900">{ROLE_LABELS[r]}</span>
+                      <span className="block text-xs text-slate-500">{USERS[r].name}</span>
+                    </span>
+                    {r === role && <Check className="h-4 w-4 text-teal-600" aria-hidden />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-3 border-l border-slate-200 pl-3 sm:pl-4">
           <span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ring-1 ring-inset ${ROLE_BADGE[role]}`} aria-hidden>

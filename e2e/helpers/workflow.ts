@@ -73,19 +73,23 @@ export async function expectMockProcessing(page: Page) {
   await expect(page.getByText(/DEMO\s*\/\s*MOCK ANALYSIS/i)).toBeVisible({ timeout: 20_000 })
 }
 
+/** Canonical expert path: RadiologistWorkspace (/calisma). /inceleme redirects here. */
 export async function openExpertReviewForCase(page: Page, caseId: string) {
-  await page.goto(`/vakalar/${caseId}/inceleme`)
+  await page.goto(`/vakalar/${caseId}/calisma`)
   // Hydration after full navigation (memory state is empty on hard goto).
   await expect(
-    page.getByText(/Uzman İnceleme|Uzman inceleme yükleniyor/i).first(),
+    page.getByText(/Çalışma alanı|Taslak|Bulgular|Onayla|Rapor/i).first(),
   ).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByRole('button', { name: /Onayla ve Yayınla/i })).toBeVisible({
+  await expect(page.getByRole('button', { name: /^Onayla$/i })).toBeVisible({
     timeout: 30_000,
   })
 }
 
 export async function approveReport(page: Page) {
-  await page.getByRole('button', { name: /Onayla ve Yayınla/i }).click()
+  await page.getByRole('button', { name: /^Onayla$/i }).click()
+  // Confirm modal
+  await expect(page.getByRole('button', { name: /Onayı onayla/i })).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('button', { name: /Onayı onayla/i }).click()
   await page.waitForURL(/\/raporlar\//, { timeout: 30_000 })
 }
 

@@ -447,7 +447,22 @@ export default function NewCase() {
             course: clinical.course || undefined,
             medications: clinical.medications || undefined,
             relevant_history: clinical.history || undefined,
-            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'}`,
+            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'} · ${patient.sex}${patient.neutered ? ' (kısır)' : ''} · ${patient.weight || '?'} kg`,
+            sex: patient.sex || undefined,
+            weight_kg: patient.weight > 0 ? patient.weight : undefined,
+            neutered: patient.neutered,
+            neuro_exam: {
+              consciousness: neuro.consciousness,
+              gait: neuro.gait,
+              limbs: neuro.limbs,
+              posturalThoracic: neuro.posturalThoracic,
+              posturalPelvic: neuro.posturalPelvic,
+              reflexThoracic: neuro.reflexThoracic,
+              reflexPelvic: neuro.reflexPelvic,
+              cranialNerves: neuro.cranialNerves,
+              deepPain: neuro.deepPain,
+              hyperesthesia: neuro.hyperesthesia,
+            },
           },
         })
       }

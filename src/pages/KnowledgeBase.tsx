@@ -126,8 +126,16 @@ export default function KnowledgeBase() {
         actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>Kaynak Ekle</Button>}
       />
 
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
+          DEMO FICTION
+        </span>
+        Soldaki seed corpus ({seedSources.length} kaynak) frontend mock’tur. Backend RAG / özel dokümanlar ayrıdır;
+        arama önce API’ye gider, başarısızsa yerel lexical skora düşer — klinik onaylı KB değildir.
+      </div>
+
       <Card className="mb-6">
-        <CardHeader title="Lexical RAG arama" subtitle="Bilgi tabanında arama" icon={<Sparkles className="h-5 w-5" />} />
+        <CardHeader title="Lexical RAG arama" subtitle="Backend RAG + seed mock ayrımı" icon={<Sparkles className="h-5 w-5" />} />
         <div className="p-5">
           <form
             onSubmit={(e) => {

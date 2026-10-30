@@ -331,7 +331,7 @@ export default function Processing() {
                 <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
                   AI taslağı gör
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>
+                <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
                   Uzman inceleme
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void refresh()}>

@@ -1487,7 +1487,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
               </Button>
             )}
             {c.status === 'uzman_incelemesinde' && (
-              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>
+              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
                 Uzman inceleme
               </Button>
             )}

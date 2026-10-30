@@ -136,6 +136,10 @@ export default function Landing() {
             çalışan, klinik odaklı bir hizmet prototipidir. Pratikteki meslektaşlarımıza hızlı ve yapılandırılmış
             görüntüleme desteği sunmak için tasarlandı.
           </p>
+          <p className="mt-4 rounded-xl bg-navy-950/25 px-4 py-3 text-sm leading-relaxed text-sky-50 ring-1 ring-inset ring-white/20">
+            Demo hesaplarında arayüz rol kapıları yalnızca UX’tir. Gerçek yetki backend JWT / RBAC ile sağlanır;
+            varsayılan AI çıktıları MOCK / SYNTHETIC etiketlidir — klinik üretim sistemi değildir.
+          </p>
         </div>
       </section>
 

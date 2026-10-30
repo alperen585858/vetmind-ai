@@ -25,6 +25,7 @@ def build_imaging_model_input(
     *,
     capabilities: list[ModelCapability] | None = None,
     preferred_series_uids: list[str] | None = None,
+    pixel_analysis_opt_in: bool = False,
 ) -> ImagingModelInput:
     """Create the AI-facing study package. Safe for mock: metadata_only=True.
 
@@ -116,7 +117,9 @@ def build_imaging_model_input(
         pass
 
     # Align with ModelRouter: anatomy + input compatibility + availability filters.
-    prepared = list_routable_model_ids(case, caps)
+    prepared = list_routable_model_ids(
+        case, caps, pixel_analysis_opt_in=pixel_analysis_opt_in
+    )
 
     confidence: ClassificationConfidence | None = None
     if case.study.classification_confidence:
@@ -126,7 +129,10 @@ def build_imaging_model_input(
             confidence = None
 
     auth_summary = summarize_pixel_authorization(
-        case, model_ids=prepared, capabilities=caps
+        case,
+        model_ids=prepared,
+        capabilities=caps,
+        pixel_analysis_opt_in=pixel_analysis_opt_in,
     )
     warnings.append(
         "pixel_authorization="
@@ -134,10 +140,15 @@ def build_imaging_model_input(
         f"codes={list(auth_summary.reason_codes)}"
     )
     if auth_summary.authorized:
-        warnings.append(
-            "Policy authorized pixel analysis for a capable model; "
-            "no pixel tensors are attached and no decoding is performed in this phase."
-        )
+        if pixel_analysis_opt_in:
+            warnings.append(
+                "Policy authorized pixel analysis; decode runs only on explicit pixel contracts."
+            )
+        else:
+            warnings.append(
+                "Policy authorized pixel analysis for a capable model; "
+                "no pixel tensors are attached and no decoding is performed in this phase."
+            )
 
     sel_summary = ModelInputSelectionSummary(
         mode=selection.mode,

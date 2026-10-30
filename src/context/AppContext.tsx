@@ -10,6 +10,7 @@ import {
 } from '../lib/auth'
 import {
   BackendUnavailableError,
+  backendAuthStatus,
   getBackendCase,
   getUserSettings,
   listBackendCases,
@@ -35,6 +36,14 @@ export interface Toast {
   tone: 'success' | 'info' | 'warning' | 'error'
 }
 
+/** Live /auth/status snapshot — drives demo-only UI (role switcher, Gate hints). */
+export type BackendAuthMode = {
+  authEnabled: boolean
+  deploymentMode: string
+  /** True when JWT auth is off and deployment is not protected (demo/local). */
+  roleSwitchAllowed: boolean
+}
+
 interface AppState {
   role: Role | null
   session: DemoSession | null
@@ -45,6 +54,8 @@ interface AppState {
   /** Apply display name / org from Settings (or backend) into the live user header. */
   applyUserProfile: (patch: UserProfilePatch) => void
   refreshUserProfile: () => Promise<void>
+  authMode: BackendAuthMode
+  refreshAuthMode: () => Promise<void>
   cases: VetCase[]
   getCase: (id: string) => VetCase | undefined
   addCase: (c: VetCase) => void
@@ -61,6 +72,12 @@ interface AppState {
   sourceId: number | null
   openSource: (id: number) => void
   closeSource: () => void
+}
+
+const DEFAULT_AUTH_MODE: BackendAuthMode = {
+  authEnabled: false,
+  deploymentMode: 'demo',
+  roleSwitchAllowed: true,
 }
 
 const Ctx = createContext<AppState | null>(null)
@@ -80,6 +97,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sourceId, setSourceId] = useState<number | null>(null)
   const [backendSyncing, setBackendSyncing] = useState(false)
   const [profileOverride, setProfileOverride] = useState<UserProfilePatch>({})
+  const [authMode, setAuthMode] = useState<BackendAuthMode>(DEFAULT_AUTH_MODE)
+
+  const refreshAuthMode = useCallback(async () => {
+    try {
+      const status = await backendAuthStatus()
+      const authEnabled = Boolean(status.auth_enabled)
+      const deploymentMode = status.deployment_mode || 'demo'
+      const roleSwitchAllowed = !authEnabled && deploymentMode !== 'protected'
+      setAuthMode({ authEnabled, deploymentMode, roleSwitchAllowed })
+    } catch {
+      setAuthMode(DEFAULT_AUTH_MODE)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshAuthMode()
+  }, [refreshAuthMode])
 
   const applyUserProfile = useCallback((patch: UserProfilePatch) => {
     setProfileOverride((prev) => ({
@@ -238,6 +272,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       applyUserProfile,
       refreshUserProfile,
+      authMode,
+      refreshAuthMode,
       cases,
       getCase: (id) => cases.find((c) => c.id === id || c.backendCaseId === id),
       addCase: (c) => setCases((all) => [c, ...all.filter((x) => x.id !== c.id)]),
@@ -259,6 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       role,
       session,
       user,
+      authMode,
       cases,
       kbSources,
       toasts,
@@ -269,6 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOut,
       applyUserProfile,
       refreshUserProfile,
+      refreshAuthMode,
       updateCase,
       refreshBackendCases,
       hydrateBackendCase,

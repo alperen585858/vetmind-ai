@@ -211,8 +211,11 @@ export default function SystemStatus() {
       </Card>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">
+          DEMO FICTION
+        </span>
         <p className="text-xs text-slate-500">
-          Aşağıdaki servis ve GPU kartları özet görünümüdür; canlı durum için /health ve model readiness kullanın.
+          Aşağıdaki servis / GPU / dağıtım kartları illustrative’dır; canlı durum için yalnızca /health ve model readiness kullanın.
         </p>
       </div>
 
@@ -221,8 +224,8 @@ export default function SystemStatus() {
           <Card key={s.name} className="p-4">
             <div className="flex items-start justify-between gap-2">
               <p className="font-semibold text-navy-900">{s.name}</p>
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                Aktif
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                Illustrative
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">{s.detail}</p>
@@ -234,7 +237,7 @@ export default function SystemStatus() {
         <Card className="xl:col-span-2">
           <CardHeader
             title="GPU telemetri"
-            subtitle="Sistem kaynak özeti"
+            subtitle="DEMO FICTION · gerçek VRAM telemetrisi yok"
             icon={<Cpu className="h-5 w-5" />}
           />
           <div className="grid gap-4 p-5 sm:grid-cols-3">
@@ -293,7 +296,7 @@ export default function SystemStatus() {
       </div>
 
       <Card className="mt-6">
-        <CardHeader title="Son dağıtımlar" icon={<Rocket className="h-5 w-5" />} />
+        <CardHeader title="Son dağıtımlar" subtitle="DEMO FICTION · mock changelog" icon={<Rocket className="h-5 w-5" />} />
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/70">

@@ -532,6 +532,10 @@ export interface BackendStructuredClinicalHistory {
   medications?: string | null
   relevant_history?: string | null
   handoff_notes?: string | null
+  sex?: string | null
+  weight_kg?: number | null
+  neutered?: boolean | null
+  neuro_exam?: Record<string, string | string[] | boolean | number | null> | null
 }
 
 export interface BackendCaseSummary {

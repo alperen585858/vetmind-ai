@@ -971,27 +971,33 @@ function AdminDashboard() {
           </div>
         }
       />
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
+          DEMO FICTION
+        </span>
+        GPU eğrisi, servis kartları ve dağıtım listesi illustrative’dır. Canlı durum için Sistem Durumu → /health.
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="Nöroloji aktif" />
-        <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça indeksli`} />
+        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="DEMO · katalog" />
+        <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça (seed + özel)`} />
         <StatCard label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
         <StatCard
           label="Servis kartları"
           value={`${SERVICES.length}`}
           icon={<Activity className="h-5 w-5" />}
           tone="amber"
-          hint="Canlı /health Sistem Durumu’nda"
+          hint="DEMO FICTION · /health ayrı"
         />
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="GPU kullanımı" subtitle="NVIDIA GPU #0 · son 1 saat" icon={<Cpu className="h-5 w-5" />} action={<Link to="/sistem" className="text-sm font-medium text-teal-700 hover:underline">Sistem Durumu</Link>} />
+          <CardHeader title="GPU kullanımı" subtitle="DEMO FICTION · illustrative eğri" icon={<Cpu className="h-5 w-5" />} action={<Link to="/sistem" className="text-sm font-medium text-teal-700 hover:underline">Sistem Durumu</Link>} />
           <div className="p-4">
             <GpuChart />
           </div>
         </Card>
         <Card>
-          <CardHeader title="Son dağıtımlar" />
+          <CardHeader title="Son dağıtımlar" subtitle="DEMO FICTION" />
           <ul className="divide-y divide-slate-100">
             {DEPLOYMENTS.slice(0, 3).map((d) => (
               <li key={d.version} className="flex items-center justify-between px-5 py-3">

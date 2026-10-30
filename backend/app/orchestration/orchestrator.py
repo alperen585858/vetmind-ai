@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
@@ -42,6 +43,9 @@ class AIOrchestrator:
         validator: ReportValidator,
         scenario_policy: ScenarioRoutingPolicy | None = None,
         execution_policy: ModelExecutionPolicy | None = None,
+        *,
+        pixel_analysis_opt_in: bool = False,
+        quarantine_root: Path | None = None,
     ) -> None:
         self._router = router
         self._models = model_registry
@@ -50,8 +54,12 @@ class AIOrchestrator:
         self._scenario_policy = scenario_policy or ScenarioRoutingPolicy()
         # Default exclusive_real with empty caps is a no-op filter (no REAL matches).
         self._execution_policy = execution_policy or ModelExecutionPolicy()
+        self._pixel_analysis_opt_in = bool(pixel_analysis_opt_in)
+        self._quarantine_root = quarantine_root
         self._prep = MetadataOnlyPreparationPipeline(
-            capabilities=list(self._router.list_capabilities())
+            capabilities=list(self._router.list_capabilities()),
+            pixel_analysis_opt_in=self._pixel_analysis_opt_in,
+            quarantine_root=self._quarantine_root,
         )
 
     @property
@@ -100,7 +108,11 @@ class AIOrchestrator:
         try:
             # Always refresh via metadata-only prep (F4) — adapters must not mutate case.
             caps = self._router.list_capabilities()
-            self._prep = MetadataOnlyPreparationPipeline(capabilities=list(caps))
+            self._prep = MetadataOnlyPreparationPipeline(
+                capabilities=list(caps),
+                pixel_analysis_opt_in=self._pixel_analysis_opt_in,
+                quarantine_root=self._quarantine_root,
+            )
             case.model_input = self._prep.prepare(case=case)
             model_input = case.model_input
             messages.append(

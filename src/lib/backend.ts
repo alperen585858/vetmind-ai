@@ -336,6 +336,10 @@ export async function createAndAnalyzeCase(input: {
     medications?: string
     relevant_history?: string
     handoff_notes?: string
+    sex?: string
+    weight_kg?: number
+    neutered?: boolean
+    neuro_exam?: Record<string, string | string[] | boolean | number | null>
   }
 }): Promise<BackendPipelineResult> {
   const { modality, anatomical_region } = scenarioRouting(input.scenario)

@@ -46,6 +46,14 @@ def _parse_ts(value: datetime | str | None) -> datetime | None:
         return None
 
 
+@dataclass(frozen=True)
+class RetentionApplySummary:
+    planned: list[RetentionPlanItem]
+    applied: list[str]
+    skipped_blocked: list[str]
+    dry_run: bool
+
+
 def plan_case_retention(cases: Iterable[CaseRecord], policy: RetentionPolicy, *, now: datetime | None = None) -> list[RetentionPlanItem]:
     """Dry-run retention decisions. Never mutates storage."""
     now = now or datetime.now(timezone.utc)
@@ -99,8 +107,46 @@ def plan_case_retention(cases: Iterable[CaseRecord], policy: RetentionPolicy, *,
     return items
 
 
-def cleanup_temp_under_quarantine(store: QuarantineStore, *, older_than_hours: int) -> list[str]:
-    """Remove ``.tmp-*`` directories under quarantine older than the threshold."""
+def apply_case_retention(
+    cases: Iterable[CaseRecord],
+    policy: RetentionPolicy,
+    *,
+    quarantine: QuarantineStore | None = None,
+    dry_run: bool = True,
+    now: datetime | None = None,
+) -> RetentionApplySummary:
+    """Execute (or simulate) retention actions from ``plan_case_retention``."""
+    plan = plan_case_retention(cases, policy, now=now)
+    applied: list[str] = []
+    skipped: list[str] = []
+    for item in plan:
+        if item.blocked:
+            skipped.append(f"{item.kind}:{item.target}")
+            continue
+        if dry_run:
+            applied.append(f"would_delete:{item.kind}:{item.target}")
+            continue
+        if item.kind == "dicom_ingest" and quarantine is not None:
+            quarantine.remove_ingest(item.target)
+            applied.append(f"deleted:{item.kind}:{item.target}")
+        elif item.kind == "report":
+            # Draft report purge is repo-specific; admin apply only removes quarantine bytes here.
+            applied.append(f"skipped_repo_mutation:{item.kind}:{item.target}")
+    return RetentionApplySummary(
+        planned=plan,
+        applied=applied,
+        skipped_blocked=skipped,
+        dry_run=dry_run,
+    )
+
+
+def cleanup_temp_under_quarantine(
+    store: QuarantineStore,
+    *,
+    older_than_hours: int,
+    dry_run: bool = False,
+) -> list[str]:
+    """Remove (or list) ``.tmp-*`` directories under quarantine older than the threshold."""
     removed: list[str] = []
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max(0, older_than_hours))
     root = store.root
@@ -111,6 +157,9 @@ def cleanup_temp_under_quarantine(store: QuarantineStore, *, older_than_hours: i
             continue
         mtime = datetime.fromtimestamp(child.stat().st_mtime, tz=timezone.utc)
         if mtime < cutoff:
+            if dry_run:
+                removed.append(child.name)
+                continue
             try:
                 store.cleanup_temp_dir(child)
                 removed.append(child.name)
