@@ -1317,7 +1317,12 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
         <div className={`space-y-5 ${compact ? '' : 'xl:col-span-2'}`}>
           <Card>
             <CardHeader title="Vaka Özeti" subtitle={`${ai.model} · ${fmtDate(ai.generatedAt)}`} icon={<Brain className="h-5 w-5" />} />
-            <p className="p-5 text-[15px] leading-relaxed text-navy-800">{ai.summary}</p>
+            <CitedText
+              text={ai.summary}
+              citationMap={c.backendDraft?.citation_map}
+              sources={c.backendDraft?.rag_citations}
+              className="p-5 text-[15px] leading-relaxed text-navy-800"
+            />
           </Card>
           <Card>
             <CardHeader title="Dikkat Edilmesi Gereken Bulgular" icon={<AlertCircle className="h-5 w-5" />} />
