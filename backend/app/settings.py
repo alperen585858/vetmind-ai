@@ -87,6 +87,8 @@ class Settings:
     analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
     feedback_log_path: Path | None = None
+    document_ocr_endpoint: str | None = None
+    document_ocr_timeout_s: float = 30.0
     # Load scripted demo cases on startup when the case store is empty (app.demo_seed).
     demo_seed: bool = False
     note: str = (
@@ -325,6 +327,12 @@ def load_settings() -> Settings:
     else:
         feedback_log_path = None
 
+    document_ocr_endpoint = os.getenv("VETMIND_DOCUMENT_OCR_ENDPOINT") or None
+    try:
+        document_ocr_timeout_s = float(os.getenv("VETMIND_DOCUMENT_OCR_TIMEOUT_S", "30"))
+    except ValueError:
+        document_ocr_timeout_s = 30.0
+
     return Settings(
         storage_backend=backend,
         sqlite_path=sqlite_path,
@@ -392,6 +400,8 @@ def load_settings() -> Settings:
         analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
         feedback_log_path=feedback_log_path,
+        document_ocr_endpoint=document_ocr_endpoint,
+        document_ocr_timeout_s=max(1.0, document_ocr_timeout_s),
         demo_seed=_env_bool("VETMIND_DEMO_SEED", False),
     )
 

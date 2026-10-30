@@ -22,6 +22,7 @@ from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
+from app.ingest.documents import build_document_text_adapter
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
@@ -199,12 +200,18 @@ class AppContainer:
             tenant_isolation=self.settings.tenant_isolation,
             audit=self.audit,
             malware_scanner=self.malware_scanner,
+            feedback=self.feedback,
+        )
+        doc_adapter = build_document_text_adapter(
+            ocr_endpoint=self.settings.document_ocr_endpoint,
+            ocr_timeout_s=self.settings.document_ocr_timeout_s,
         )
         self.documents = DocumentService(
             self.repo,
             self.quarantine,
             capabilities=capabilities,
             tenant_isolation=self.settings.tenant_isolation,
+            document_adapter=doc_adapter,
         )
         # Mutable login directory (admin can add/update users via WorkflowService).
         self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)

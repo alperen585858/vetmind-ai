@@ -318,7 +318,8 @@ OpenAPI: http://127.0.0.1:8000/docs
 | `/vakalar` | `CaseList.tsx` | vet, expert | list / refresh |
 | `/vakalar/:id` | `CaseDetail.tsx` | vet, expert | get case, findings, RAG panel |
 | `/vakalar/:id/isleme` | `Processing.tsx` | vet, expert | pipeline animasyonu / job bilgisi |
-| `/vakalar/:id/inceleme` | `ExpertReview.tsx` | expert | `submitBackendReview` |
+| `/vakalar/:id/calisma` | `RadiologistWorkspace.tsx` | expert | `submitBackendReview` (canonical) |
+| `/vakalar/:id/inceleme` | redirect → `/calisma` | expert | legacy alias |
 | `/kuyruk` | `ReviewQueue.tsx` | expert | kuyruk UI |
 | `/raporlar`, `/raporlar/:id` | Report* | vet, owner, expert | onaylı rapor + RAG |
 | `/moduller` | `Modules.tsx` | admin | — |

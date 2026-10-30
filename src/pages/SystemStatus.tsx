@@ -3,14 +3,18 @@ import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, Al
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
+import { Modal } from '../components/Modal'
 import { DEPLOYMENTS, SERVICES } from '../data/mock'
 import { fmtDate } from '../lib/format'
 import {
   BackendUnavailableError,
+  applyRetentionPlan,
   fetchBackendHealth,
   fetchModelReadiness,
+  fetchRetentionPlan,
   type BackendHealth,
   type BackendModelReadiness,
+  type RetentionPlanResponse,
 } from '../lib/backend'
 
 export default function SystemStatus() {
@@ -21,6 +25,11 @@ export default function SystemStatus() {
   const [loading, setLoading] = useState(true)
   const [readiness, setReadiness] = useState<BackendModelReadiness | null>(null)
   const [readinessError, setReadinessError] = useState<string | null>(null)
+  const [retentionPlan, setRetentionPlan] = useState<RetentionPlanResponse | null>(null)
+  const [retentionError, setRetentionError] = useState<string | null>(null)
+  const [retentionLoading, setRetentionLoading] = useState(false)
+  const [applyOpen, setApplyOpen] = useState(false)
+  const [applying, setApplying] = useState(false)
 
   const loadHealth = () => {
     setLoading(true)
@@ -63,6 +72,27 @@ export default function SystemStatus() {
   useEffect(() => {
     loadHealth()
   }, [])
+
+  const loadRetentionDryRun = () => {
+    setRetentionLoading(true)
+    setRetentionError(null)
+    void fetchRetentionPlan()
+      .then((plan) => {
+        setRetentionPlan(plan)
+        setRetentionError(null)
+      })
+      .catch((err) => {
+        setRetentionPlan(null)
+        setRetentionError(
+          err instanceof BackendUnavailableError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Retention plan alınamadı',
+        )
+      })
+      .finally(() => setRetentionLoading(false))
+  }
 
   const backendOk = health?.status === 'ok'
 
@@ -294,6 +324,85 @@ export default function SystemStatus() {
           />
         </div>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader
+          title="Veri saklama (retention)"
+          subtitle="Dry-run plan · onaylı apply (immutable raporlar korunur)"
+          icon={<Timer className="h-5 w-5" />}
+        />
+        <div className="flex flex-wrap gap-2 px-5 pb-3">
+          <Button variant="secondary" size="sm" disabled={retentionLoading} onClick={loadRetentionDryRun}>
+            {retentionLoading ? 'Plan alınıyor…' : 'Dry-run plan'}
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={!retentionPlan || retentionLoading}
+            onClick={() => setApplyOpen(true)}
+          >
+            Apply (onaylı)
+          </Button>
+        </div>
+        {retentionError && <p className="px-5 pb-4 text-sm text-amber-800">{retentionError}</p>}
+        {retentionPlan && (
+          <dl className="grid gap-2 px-5 pb-5 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-slate-500">planned actions</dt>
+              <dd className="font-mono">{retentionPlan.planned.length}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">blocked</dt>
+              <dd className="font-mono">{retentionPlan.skipped_blocked.length}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">temp cleanup (dry-run)</dt>
+              <dd className="font-mono">{retentionPlan.temp_cleanup_would_remove ?? '—'}</dd>
+            </div>
+            {retentionPlan.policy && (
+              <div className="sm:col-span-2 text-xs text-slate-600">
+                policy: dicom_days={String(retentionPlan.policy.dicom_days)} · reports_days=
+                {String(retentionPlan.policy.reports_days)} · temp_hours={retentionPlan.policy.temp_hours}
+              </div>
+            )}
+          </dl>
+        )}
+      </Card>
+
+      <Modal
+        open={applyOpen}
+        onClose={() => setApplyOpen(false)}
+        title="Retention apply onayı"
+      >
+        <p className="text-sm text-slate-700">
+          Bu işlem yapılandırılmış saklama politikasını uygular. Onaylı / immutable raporlar bloklanır; yine de yalnızca
+          staging ortamında çalıştırın.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setApplyOpen(false)}>
+            Vazgeç
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={applying}
+            onClick={() => {
+              setApplying(true)
+              void applyRetentionPlan()
+                .then((res) => {
+                  setRetentionPlan(res)
+                  setApplyOpen(false)
+                })
+                .catch((err) =>
+                  setRetentionError(err instanceof Error ? err.message : 'Apply başarısız'),
+                )
+                .finally(() => setApplying(false))
+            }}
+          >
+            {applying ? 'Uygulanıyor…' : 'Apply onayla'}
+          </Button>
+        </div>
+      </Modal>
 
       <Card className="mt-6">
         <CardHeader title="Son dağıtımlar" subtitle="DEMO FICTION · mock changelog" icon={<Rocket className="h-5 w-5" />} />

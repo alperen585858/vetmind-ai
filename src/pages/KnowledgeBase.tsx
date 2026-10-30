@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card, CardHeader } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
-import { BackendUnavailableError, addRagDocument, listCustomRagDocuments, searchRag, type RagCustomDocument } from '../lib/backend'
+import {
+  BackendUnavailableError,
+  addRagDocument,
+  bulkRagDocuments,
+  listCustomRagDocuments,
+  searchRag,
+  type RagCustomDocument,
+} from '../lib/backend'
 import { fmtDate, today } from '../lib/format'
 import type { KbSource } from '../types'
 
@@ -45,6 +52,7 @@ function fromBackendDoc(d: RagCustomDocument, i: number): KbSource {
     chunks: 1,
     indexedAt: today(),
     keywords: d.keywords,
+    ragApproved: Boolean(d.approved),
   }
 }
 
@@ -65,6 +73,8 @@ export default function KnowledgeBase() {
   const [modal, setModal] = useState(false)
   const emptyForm = { title: '', passage: '', type: 'Bilimsel yayın' as KbSource['type'], license: 'Beklemede' as KbSource['license'] }
   const [form, setForm] = useState(emptyForm)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const bulkInputRef = useRef<HTMLInputElement>(null)
 
   const run = (query = q) => {
     if (!query.trim()) return
@@ -110,7 +120,11 @@ export default function KnowledgeBase() {
       setCustom(docs.map(fromBackendDoc))
       setModal(false)
       setForm(emptyForm)
-      pushToast({ tone: 'success', title: 'Kaynak eklendi ve indekslendi', body: 'Artık RAG aramasında ve rapor taslaklarında kullanılabilir.' })
+      pushToast({
+        tone: 'success',
+        title: 'Kaynak indekslendi',
+        body: 'Demo vektör deposuna eklendi; klinik onaylı bilgi bankası değildir.',
+      })
     } catch (err) {
       pushToast({ tone: 'error', title: 'Kaynak eklenemedi', body: err instanceof Error ? err.message : undefined })
     } finally {
@@ -123,7 +137,72 @@ export default function KnowledgeBase() {
       <PageHeader
         title="Bilgi Tabanı — Nöroloji"
         subtitle={`${kbSources.length} kaynak · lexical RAG arama`}
-        actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>Kaynak Ekle</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>
+              Kaynak Ekle
+            </Button>
+            <input
+              ref={bulkInputRef}
+              type="file"
+              accept=".jsonl,application/json"
+              className="sr-only"
+              disabled={bulkLoading}
+              onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  setBulkLoading(true)
+                  void file
+                    .text()
+                    .then((raw) => {
+                      const lines = raw.split(/\r?\n/).filter((l) => l.trim())
+                      const documents = lines.map((line) => JSON.parse(line) as {
+                        title: string
+                        section?: string
+                        passage: string
+                        keywords?: string[]
+                        approved?: boolean
+                      })
+                      return bulkRagDocuments(
+                        documents.map((d) => ({
+                          title: d.title,
+                          section: d.section ?? 'Bulk',
+                          passage: d.passage,
+                          keywords: d.keywords,
+                          approved: d.approved ?? false,
+                        })),
+                      )
+                    })
+                    .then(async (res) => {
+                      const docs = await listCustomRagDocuments()
+                      setCustom(docs.map(fromBackendDoc))
+                      pushToast({
+                        tone: 'success',
+                        title: `${res.added} kaynak toplu eklendi`,
+                        body: res.note,
+                      })
+                    })
+                    .catch((err) =>
+                      pushToast({
+                        tone: 'error',
+                        title: 'Toplu yükleme başarısız',
+                        body: err instanceof Error ? err.message : undefined,
+                      }),
+                    )
+                    .finally(() => setBulkLoading(false))
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={bulkLoading}
+              onClick={() => bulkInputRef.current?.click()}
+            >
+              {bulkLoading ? 'Yükleniyor…' : 'JSONL toplu yükle'}
+            </Button>
+          </div>
+        }
       />
 
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -213,7 +292,14 @@ export default function KnowledgeBase() {
                 <tr key={s.id} className="hover:bg-slate-50/60">
                   <td className="td font-mono text-xs text-slate-500">{s.id}</td>
                   <td className="td">
-                    <button onClick={() => openSource(s.id)} className="text-left font-medium text-navy-900 hover:text-teal-700">{s.title}</button>
+                    <button onClick={() => openSource(s.id)} className="text-left font-medium text-navy-900 hover:text-teal-700">
+                      {s.title}
+                    </button>
+                    {s.id >= 20_000 && s.ragApproved !== true && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200">
+                        Onaylı KB değil
+                      </span>
+                    )}
                   </td>
                   <td className="td">{s.type}</td>
                   <td className="td">

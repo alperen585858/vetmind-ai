@@ -28,7 +28,7 @@ VETMIND_VISION_EXECUTION_POLICY=exclusive_real
 3. `exclusive_real` = bağlantı bozulursa **sessizce sahte modele dönülmez**; analiz hata verir. Bu bilinçli.
 4. Vaka oluştururken / DICOM onayında **analiz izni** (`imaging_analysis_consent_verified`) işaretli olsun.
 5. Kontrol: `GET /api/v1/models/readiness` ve `GET /api/v1/health` → `vision_endpoint: true`, `mode` artık sadece `mock` olmamalı.
-6. Piksel (ham görüntü) yolu varsayılan **kapalı**. Açmak ayrı güvenlik/etik onayı ister.
+6. Piksel (ham görüntü) yolu varsayılan **kapalı** (`VETMIND_PIXEL_ANALYSIS_OPT_IN=0`). Açmak ayrı güvenlik/etik onayı + capability gerektirir; mock adapter pikselleri analiz etmez.
 
 **HTTP yeniden deneme:** Vision POST `retry=0` (bilinçli). Geçici 503’te yeniden deneme yok; karşı servisi sağlam tutun.
 
@@ -98,6 +98,51 @@ JSONL satır örneği:
 
 Doktor red/düzeltme kayıtları: `GET /api/v1/feedback` / export — model gelince eğitim sinyali buradan alınır.
 
+Uzman inceleme UI: **`/vakalar/:id/calisma`** (RadiologistWorkspace). `/inceleme` yalnızca redirect.
+
+---
+
+## 3b) Belge OCR (JPEG/PNG) stub
+
+Wire format: `backend/fixtures/integration/document_ocr_request.example.json` / `document_ocr_response.example.json`
+
+```bash
+VETMIND_DOCUMENT_OCR_ENDPOINT=http://SUNUCU:PORT/ocr
+# VETMIND_DOCUMENT_OCR_TIMEOUT_S=30
+```
+
+Endpoint yoksa JPEG/PNG yalnızca caption stub metni üretir — klinik transkripsiyon iddiası yok.
+
+---
+
+## 3c) Retention (admin)
+
+Dry-run: `GET /api/v1/admin/retention/plan` · Apply (onaylı): `POST /api/v1/admin/retention/apply`  
+Env: `VETMIND_RETENTION_DICOM_DAYS`, `VETMIND_RETENTION_REPORTS_DAYS`, `VETMIND_RETENTION_TEMP_HOURS`, `VETMIND_RETENTION_LOGS_DAYS` (`backend/.env.example`).
+
+---
+
+## 3d) Async jobs (RQ + Redis)
+
+Varsayılan: `VETMIND_JOB_BACKEND=thread`. Ölçek için:
+
+```bash
+# Terminal 1 — deps
+cd backend && docker compose up -d redis   # veya postgres+redis
+# Terminal 2 — API
+VETMIND_JOB_BACKEND=rq VETMIND_REDIS_URL=redis://127.0.0.1:6379/0 \
+  .venv/bin/uvicorn app.main:app --reload
+# Terminal 3 — worker (opsiyonel paketler: requirements-optional.txt)
+VETMIND_JOB_BACKEND=rq VETMIND_REDIS_URL=redis://127.0.0.1:6379/0 \
+  .venv/bin/python -m app.workers.rq_worker
+```
+
+Smoke: `pytest tests/test_rq_job_backend_smoke.py` — Redis yoksa `skip`.
+
+Pixel decode: `VETMIND_PIXEL_ANALYSIS_OPT_IN=1` + capability `allows_pixel_analysis` (varsayılan kapalı).
+
+Manuel rapor (AI draft yok): `POST /api/v1/cases/{id}/report/manual-init` → `source_kind=manual`.
+
 ---
 
 ## 4) Gerçek hasta verisi gelmeden önce güvenlik
@@ -146,6 +191,7 @@ Bunlar `GET /api/v1/models/readiness` → `remaining_steps_to_first_real_model` 
 | Sağlık | `GET /api/v1/health` — `mode`, `llm_provider`, `vision_endpoint` |
 | Model hazır mı? | `GET /api/v1/models/readiness` |
 | Testler | `cd backend && .venv/bin/pytest` |
+| Korumalı E2E | `E2E_PROTECTED=1 npx playwright test --project=e2e-protected` |
 | Uzun iş iptal | `POST /api/v1/jobs/{job_id}/cancel` (işbirlikçi; LLM sonrası taslak atılır) |
 
 ---

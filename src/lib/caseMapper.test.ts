@@ -36,6 +36,22 @@ describe('caseMapper list/detail helpers', () => {
     expect(expertReviewLabel(mapped.status)).toBe('Bekliyor')
   })
 
+  it('maps backend species other to Diğer', () => {
+    expect(
+      summaryToVetCase({
+        case_id: 'case-x',
+        patient_name: 'Exotic',
+        species: 'other',
+        breed: '',
+        modality: 'MR',
+        anatomical_region: 'BRAIN',
+        status: 'created',
+        created_at: '2026-10-22T10:00:00Z',
+        classification_confirmed: false,
+      }).patient.species,
+    ).toBe('Diğer')
+  })
+
   it('maps reserved classification lifecycle to draft', () => {
     expect(caseStatusFromLifecycle('awaiting_classification_confirmation')).toBe('taslak')
     expect(caseStatusFromLifecycle('failed')).toBe('analiz_basarisiz')

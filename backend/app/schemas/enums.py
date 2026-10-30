@@ -44,6 +44,8 @@ class SourceKind(str, Enum):
     MOCK = "mock"
     REAL = "real"
     MIXED = "mixed"
+    # Radiologist-authored draft after failed/unsupported AI path (not model output).
+    MANUAL = "manual"
 
 
 class ReportStatus(str, Enum):

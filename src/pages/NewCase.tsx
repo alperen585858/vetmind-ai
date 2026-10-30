@@ -665,7 +665,7 @@ export default function NewCase() {
             <h2 className="mb-5 text-lg font-semibold text-navy-900">Hasta Bilgileri</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Hasta adı *"><input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder="ör. Paşa" /></Field>
-              <Field label="Tür"><Pills options={['Köpek', 'Kedi'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
+              <Field label="Tür"><Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
               <Field label="Irk *"><input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder="ör. Dachshund" /></Field>
               <Field label="Cinsiyet"><Pills options={['Erkek', 'Dişi'] as const} value={patient.sex} onChange={(v) => P('sex', v)} /></Field>
               <Field label="Kısırlaştırma durumu"><Pills options={['Kısırlaştırılmış', 'Kısırlaştırılmamış'] as const} value={patient.neutered ? 'Kısırlaştırılmış' : 'Kısırlaştırılmamış'} onChange={(v) => P('neutered', v === 'Kısırlaştırılmış')} /></Field>

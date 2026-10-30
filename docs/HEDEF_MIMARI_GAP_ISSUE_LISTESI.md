@@ -9,7 +9,9 @@ Bu belge, fotoğraftaki hedef mimariyi **bileşen bileşen** mevcut kodla karş�
 
 **Bağlama kılavuzu (AI/LLM/veri gelince):** [INTEGRATION_PLAYBOOK.md](INTEGRATION_PLAYBOOK.md) · [PHASE_20_FINAL_AI_READINESS.md](PHASE_20_FINAL_AI_READINESS.md)
 
-**2026-10-25 senkron (kod kazanımları):** ISS-CLS-01 hibrit iskelet (metadata + series_hint) · ISS-AUD-01 FeedbackStore · ISS-FUS-01 ontology/laterality · ISS-FE-01 DEMO FICTION etiketleri — aşağıdaki tablolarda **DONE** işaretli. Kalan aktif iş: plug-in hazırlığı (RAG used-passages tüm provider’lar, wire fixture, korumalı fail-fast, bulk KB).
+**2026-10-25 senkron (kod kazanımları):** ISS-CLS-01 hibrit iskelet (metadata + series_hint) · ISS-AUD-01 FeedbackStore · ISS-FUS-01 ontology/laterality · ISS-FE-01 DEMO FICTION etiketleri — aşağıdaki tablolarda **DONE** işaretli.
+
+**2026-10-30 pre-data sprint:** `/calisma` canonical (ExpertReview kaldırıldı) · FE retention dry-run/apply · RAG `approved` + bulk KB UI · DICOM classification override → FeedbackStore · Document OCR adapter stub (`VETMIND_DOCUMENT_OCR_ENDPOINT`) · pixel opt-in dokümante · A/B plug-in yüzeyleri (bulk KB, wire fixtures, protected E2E projesi) **DONE** notu — klinik üretim **BOUNDARY / NO-GO** değişmedi.
 
 İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [PROJE_MIMARI_DEGERLENDIRME.md](../PROJE_MIMARI_DEGERLENDIRME.md) · [audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](audits/PHASE_8_SECURITY_ASYNC.md)
 
@@ -78,7 +80,7 @@ Vision Vision Vision     VLM           │
 | 2 | Secure Ingestion & Storage | `storage/quarantine.py` | ⚠️ Stub güvenli | SHA256+manifest var; AV / encryption-at-rest yok |
 | 3 | DICOM Metadata / Series Parser | `dicom/parser.py`, `imaging/series_selection.py` | ✅ Kısmi | Metadata parse + series seçimi; piksel decode üretim yolu kapalı |
 | 4 | Hybrid Classification | `dicom/classifier.py` | ✅ İskelet | Metadata + series_hint hibrit sinyal; eğitilmiş vision sınıflandırıcı BOUNDARY |
-| 5 | Document Processing | `ingest/documents.py`, `document_service.py` | ⚠️ Stub | PDF/text extract; OCR/caption yok |
+| 5 | Document Processing | `ingest/documents.py`, `document_service.py` | ⚠️ Stub | PDF/text + optional OCR HTTP stub; tanı yok |
 | 6 | Model Router + Execution Policy | `routing/model_router.py`, `scenario_policy.py`, `execution_policy.py` | ✅ İskelet | Capability + exclusive_real çalışır; gerçek model yok |
 | 7 | MRI Vision Model | `models/mock_vision.py` (`mock-brain-mri-*`, cervical) | ❌ Mock | Fixture; eğitilmiş MR modeli yok |
 | 8 | CT Vision Model | `mock-ct-3d-v1` | ❌ Mock | Fixture; eğitilmiş CT modeli yok |
@@ -92,7 +94,7 @@ Vision Vision Vision     VLM           │
 | 16 | LLM Orchestrator / Gateway | `orchestration/orchestrator.py`, `llm/gateway.py` | ✅ İskelet | Akış doğru; varsayılan mock LLM |
 | 17 | Veterinary LLM | `llm/mock_provider.py` (+ http/stub) | ❌ Mock | Veteriner-domain eğitilmiş LLM yok |
 | 18 | Report Validator | `validation/report_validator.py` | ✅ Yapısal | Klinik doğrulama bilinçli engelli |
-| 19 | Radiologist Review | `POST .../review`, FE ExpertReview / workspace | ✅ | Approve/reject/revision + immutable sürüm |
+| 19 | Radiologist Review | `POST .../review`, FE `RadiologistWorkspace` (`/calisma`) | ✅ | Approve/reject/revision + reason codes + immutable sürüm |
 | 20 | Approved Report | `report_versioning.py`, PDF | ✅ | Immutable onaylı sürüm + print/PDF |
 | 21 | Feedback / Audit Store | `feedback/store.py`, `security/audit.py` | ✅ İskelet | Reject/revision → FeedbackEvent + export; otomatik retrain BOUNDARY |
 
@@ -112,7 +114,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | **ISS-ING-02** | BOUNDARY | Encryption-at-rest yok | `storage/encryption.py` → `NullEncryptor` | Quarantine blob’lar plaintext |
 | **ISS-ING-03** | BOUNDARY | Malware / AV taraması yok (demo noop) | `storage/malware_scan.py` → `NoopScanner` | Korumalı deploy’da fail-closed; gerçek AV yok |
 | **ISS-ING-04** | P2 | Quarantine yalnızca yerel disk; object storage (S3 vb.) yok | `data/quarantine/` | Ölçek / HA / yedekleme zayıf |
-| **ISS-ING-05** | P2 | Document path’te OCR yok; JPEG/PNG yalnızca caption stub | `ingest/documents.py` | Diyagramdaki Document Processing eksik |
+| **ISS-ING-05** | ✅/P2 | Document OCR HTTP adapter yüzeyi (stub); varsayılan caption stub | `ingest/documents.py`, fixtures | Gerçek OCR motoru BOUNDARY |
 | **ISS-ING-06** | P3 | PDF extract `pypdf` opsiyonel; yoksa stub mesaj | `ingest/documents.py` | Bazı ortamlarda metin çıkmaz |
 | **ISS-ING-07** | BOUNDARY | De-identification / PHI redaction pipeline üretim seviyesinde yok | `security/redaction.py` sınırlı | Klinik veri güvenliği NO-GO |
 
@@ -174,7 +176,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
 | **ISS-VAL-01** | BOUNDARY | Report Validator yalnızca yapısal; klinik validasyon bayrağı bilinçli engelli | `clinically_validated=True` yasak | Otonom klinik onay yok (doğru sınır) |
-| **ISS-VAL-02** | P2 | Unsupported / failed vakalarda AI draft yok; tam manuel rapor yazar ürün yolu zayıf | Case lifecycle | Diyagram dışı boşluk |
+| **ISS-VAL-02** | ✅ DONE | `POST .../report/manual-init` + FE CTA; `source_kind=manual` | `case_service.init_manual_report`, RadiologistWorkspace | AI draft onayından ayrı manuel yol |
 | **ISS-VAL-03** | P3 | Validator fail → yine review kuyruğuna düşebilir (PARTIAL) | orchestrator | UX netliği |
 | **ISS-REV-01** | ✅/P3 | Radiologist Review mevcut (approve/reject/revision) | review API + FE | Hedefe yakın; SSO/IdP yok |
 | **ISS-REV-02** | P2 | Frontend rol Gate UX-only; korumalı veri için backend auth zorunlu | `App.tsx` Gate | Auth kapalı demo’da yanılsama |
@@ -186,7 +188,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 |----|-----|-------|---------------|------|
 | **ISS-AUD-01** | ✅ DONE | FeedbackStore + API export + FE reason codes | `feedback/store.py` | Otomatik retrain / RLHF BOUNDARY |
 | **ISS-AUD-02** | P2 | Security audit JSONL var ama operasyonel model audit / drift / version monitor yok | `security/audit.py` | Observability eksik |
-| **ISS-AUD-03** | P2 | Retention / legal hold kısmi | `security/retention.py` | Regülasyon paketi yok |
+| **ISS-AUD-03** | ✅/P2 | Retention dry-run + admin apply API + FE panel | `admin_retention.py`, `SystemStatus` | Legal hold / regülasyon paketi yok |
 | **ISS-AUD-04** | P3 | Audit path opsiyonel; test/demo’da memory | settings `audit_log_path` | Prod hijyeni dokümante edilmeli |
 
 ### 3.9 Güvenlik, concurrency, platform (çapraz kesit)
@@ -231,7 +233,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | Secure ingestion | 4/10 | Quarantine var; AV/encryption yok |
 | DICOM parse / series | 7/10 | Metadata + selection iyi; piksel kapalı |
 | Hybrid classification | 3/10 | Rule-based; hybrid değil |
-| Document processing | 3/10 | Text/PDF stub; OCR yok |
+| Document processing | 4/10 | Text/PDF + OCR HTTP stub; motor yok |
 | Model router + policy | 8/10 | İskelet olgun |
 | MRI/CT/XR/VLM | 1/10 | Hepsi mock/stub |
 | Normalizer / fusion | 6/10 | Provenance iyi; klinik fusion zayıf |
@@ -258,12 +260,12 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 ### P2 — diyagrama yaklaştırma (prototip sertleştirme)
 5. ~~Hybrid classification iskelet~~ → **ISS-CLS-01 DONE** (vision 2. sinyal BOUNDARY).  
-6. OCR / document caption adapter yüzeyi (**ISS-ING-05**).  
+6. ~~OCR / document caption adapter yüzeyi~~ → **ISS-ING-05 DONE** (HTTP stub; motor BOUNDARY).  
 7. RAG used-passages tüm LLM path’leri + finding link (**ISS-RAG-04/05**).  
 8. ~~Conflict ontology / laterality~~ → **ISS-FUS-01 DONE**.  
 9. Cancel probe’u LLM aşamasına taşımak (**ISS-LLM-04**).  
 10. Multi-node analyze gate (**ISS-SEC-04**).  
-11. Bulk KB ingest + `approved=false` default.
+11. ~~Bulk KB ingest + `approved=false` default~~ → **DONE** (API + Bilgi Tabanı JSONL UI).
 
 ### BOUNDARY — klinik üretim (ayrı program)
 10. Eğitilmiş / valide MRI·CT·XR·VLM + piksel pipeline.  

@@ -1,0 +1,6 @@
+{
+  "filename": "clinical-note-scan.png",
+  "content_kind": "png",
+  "content_base64": "<base64-bytes>",
+  "note": "Demo OCR adapter request. Gateway must redact PHI before forwarding."
+}

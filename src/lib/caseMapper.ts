@@ -60,6 +60,7 @@ function neuroFromStructured(
 
 export function speciesFromBackend(species: string): Species {
   if (species === 'feline') return 'Kedi'
+  if (species === 'other') return 'Diğer'
   return 'Köpek'
 }
 
