@@ -513,8 +513,11 @@ export async function analyzeCaseAsyncAndWait(
   caseId: string,
   opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
 ): Promise<BackendPipelineResult> {
-  const timeoutMs = opts?.timeoutMs ?? 15_000
-  const intervalMs = opts?.intervalMs ?? 120
+  // Real LLM drafts (draft + repair + differentials + verifier) take ~1 min on a laptop;
+  // the backend job keeps running regardless, so wait long and poll gently.
+  const timeoutMs = opts?.timeoutMs ?? 300_000
+  let intervalMs = opts?.intervalMs ?? 120
+  const maxIntervalMs = Math.max(intervalMs, 1_500)
   const signal = opts?.signal
   let jobId: string | undefined
   try {
@@ -578,6 +581,7 @@ export async function analyzeCaseAsyncAndWait(
         }
       }
       await sleep(intervalMs, signal)
+      intervalMs = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5))
     }
     throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
   } catch (err) {
