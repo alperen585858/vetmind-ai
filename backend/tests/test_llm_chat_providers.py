@@ -194,6 +194,25 @@ def test_blank_findings_are_rebuilt_from_structured_findings() -> None:
     assert not any("not mentioned" in w for w in warnings)
 
 
+def test_prompt_v2_is_text_only() -> None:
+    request, _, _ = _request()
+    captured: dict = {}
+    provider = OpenAICompatibleProvider(
+        model_id="m",
+        api_key="k",
+        prompt_version="vetmind-report-v2",
+        transport=_openai_transport(json.dumps(_report_json(request.generation)), captured),
+    )
+    report = provider.generate(request).report
+    schema = captured["body"]["response_format"]["json_schema"]["schema"]
+    assert "differentials" not in schema["properties"] and "differentials" not in schema["required"]
+    assert "differentials" not in captured["body"]["messages"][0]["content"]
+    assert report.generation.prompt_version == "vetmind-report-v2"
+    assert report.differentials == []  # ignored even if the model sends some
+    with pytest.raises(LLMConfigError):
+        OpenAICompatibleProvider(model_id="m", api_key="k", prompt_version="v9")
+
+
 def test_openai_truncated_output_is_malformed() -> None:
     request, _, _ = _request()
     provider = OpenAICompatibleProvider(
@@ -326,9 +345,12 @@ def test_factory_builds_chat_providers() -> None:
     assert isinstance(p, OpenAICompatibleProvider)
     assert p.provider_id == "ollama" and p._base_url == "http://localhost:11434/v1"
     p = build_llm_provider(
-        _settings(llm_provider="openai", llm_model_id="gpt-x", llm_api_key="k", llm_report_language="en")
+        _settings(
+            llm_provider="openai", llm_model_id="gpt-x", llm_api_key="k", llm_report_language="en",
+            llm_prompt_version="vetmind-report-v2",
+        )
     )
-    assert p._language == "en"
+    assert p._language == "en" and p._prompt_version == "vetmind-report-v2"
 
 
 @pytest.mark.parametrize(

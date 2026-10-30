@@ -264,6 +264,7 @@ export interface LlmFeedbackSummary {
 
 export interface LlmEvalCase {
   case_id: string
+  attempt?: number
   ok: boolean
   error: string
   score: number | null
@@ -275,6 +276,7 @@ export interface LlmEvalRun {
   provider_id: string
   model_id: string
   prompt_version: string
+  repeats?: number
   summary: Record<string, number | null>
   cases: LlmEvalCase[]
 }

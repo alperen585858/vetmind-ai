@@ -15,7 +15,6 @@ from app.auth.rbac import CAP_ADMIN
 from app.container import AppContainer
 from app.llm.factory import ANTHROPIC_KINDS, OLLAMA_KINDS, OPENAI_KINDS
 from app.llm.feedback import collect_feedback, export_chat_jsonl, export_jsonl, summarize
-from app.llm.prompts import PROMPT_VERSION
 
 router = APIRouter(prefix="/api/v1/llm", tags=["llm"], dependencies=[Depends(require_auth)])
 
@@ -36,7 +35,7 @@ def llm_status(
         "provider_id": provider.provider_id,
         "model_id": provider.model_id,
         "model_version": provider.model_version,
-        "prompt_version": PROMPT_VERSION if kind in PROMPT_PROVIDERS else None,
+        "prompt_version": container.settings.llm_prompt_version if kind in PROMPT_PROVIDERS else None,
         "report_language": container.settings.llm_report_language,
     }
 

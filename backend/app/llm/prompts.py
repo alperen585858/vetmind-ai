@@ -13,6 +13,13 @@ from app.llm.interfaces import LLMGenerationInput
 from app.schemas.enums import ModelExecutionStatus
 
 PROMPT_VERSION = "vetmind-report-v3"
+# Selectable for A/B evaluation (scripts/llm_eval.py --prompts) and VETMIND_LLM_PROMPT_VERSION.
+# v2: four text sections only. v3: + structured differentials list.
+PROMPT_VERSIONS = ("vetmind-report-v2", "vetmind-report-v3")
+
+
+def wants_differentials(version: str) -> bool:
+    return version != "vetmind-report-v2"
 
 LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
 
@@ -36,8 +43,25 @@ def build_aliases(gen: LLMGenerationInput) -> CitationAliases:
     )
 
 
-def build_system_prompt(language: str = "tr") -> str:
+_DIFFERENTIALS_SECTION = """
+- differentials: an ADDITIONAL structured list; it never replaces the text sections. Write findings and impression in full first.
+  2-5 differential diagnoses ranked from most to least likely, consistent with the impression. Each item has:
+  name (in the report language), likelihood ("high" | "moderate" | "low" — a relative ranking, never a percentage),
+  supporting and against (short phrases taken only from the given history and findings; may be empty),
+  citations (the markers it rests on, e.g. ["F1", "S2"]; at least one).
+  Use an empty list when no findings were returned or analysis failed.
+
+The four text sections must never be empty strings, even when you also return differentials.
+Respond with a single JSON object with exactly these keys: technique, findings, impression, recommendations (strings) and differentials (array). No prose outside the JSON."""
+
+_TEXT_ONLY_ENDING = """
+
+Respond with a single JSON object with exactly these string keys: technique, findings, impression, recommendations. No prose outside the JSON."""
+
+
+def build_system_prompt(language: str = "tr", version: str = PROMPT_VERSION) -> str:
     lang = LANGUAGE_NAMES.get(language, language)
+    ending = _DIFFERENTIALS_SECTION if wants_differentials(version) else _TEXT_ONLY_ENDING
     return f"""You draft veterinary diagnostic imaging reports for VetMind AI.
 Every draft is reviewed, edited and approved by a board-certified veterinary radiologist before anyone sees it. You never make the final call.
 
@@ -55,16 +79,7 @@ Sections:
 - technique: species, modality, region and analysis status in one or two sentences.
 - findings: one line per imaging finding, with location, description and certainty.
 - impression: the most likely interpretation and differential diagnoses, ranked, with citations.
-- recommendations: concrete next steps (additional sequences, tests, consultation). Always end with the need for radiologist review.
-- differentials: an ADDITIONAL structured list; it never replaces the text sections. Write findings and impression in full first.
-  2-5 differential diagnoses ranked from most to least likely, consistent with the impression. Each item has:
-  name (in the report language), likelihood ("high" | "moderate" | "low" — a relative ranking, never a percentage),
-  supporting and against (short phrases taken only from the given history and findings; may be empty),
-  citations (the markers it rests on, e.g. ["F1", "S2"]; at least one).
-  Use an empty list when no findings were returned or analysis failed.
-
-The four text sections must never be empty strings, even when you also return differentials.
-Respond with a single JSON object with exactly these keys: technique, findings, impression, recommendations (strings) and differentials (array). No prose outside the JSON."""
+- recommendations: concrete next steps (additional sequences, tests, consultation). Always end with the need for radiologist review.{ending}"""
 
 
 def _history_block(gen: LLMGenerationInput) -> str:

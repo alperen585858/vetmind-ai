@@ -66,6 +66,7 @@ class Settings:
     llm_temperature: float | None = 0.2
     llm_max_tokens: int = 2048
     llm_json_mode: str = "schema"  # schema | object | none (OpenAI-compatible only)
+    llm_prompt_version: str = "vetmind-report-v3"
     auth_enabled: bool = False
     auth_api_key: str | None = None
     jwt_secret: str = DEFAULT_JWT_SECRET
@@ -262,6 +263,7 @@ def load_settings() -> Settings:
     except ValueError:
         llm_max_tokens = 2048
     llm_json_mode = os.getenv("VETMIND_LLM_JSON_MODE", "schema").strip().lower() or "schema"
+    llm_prompt_version = os.getenv("VETMIND_LLM_PROMPT_VERSION", "vetmind-report-v3").strip() or "vetmind-report-v3"
 
     auth_enabled = _env_bool("VETMIND_AUTH_ENABLED", False)
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
@@ -380,6 +382,7 @@ def load_settings() -> Settings:
         llm_temperature=llm_temperature,
         llm_max_tokens=max(256, llm_max_tokens),
         llm_json_mode=llm_json_mode,
+        llm_prompt_version=llm_prompt_version,
         auth_enabled=auth_enabled,
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,

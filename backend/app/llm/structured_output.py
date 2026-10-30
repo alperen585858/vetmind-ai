@@ -54,6 +54,14 @@ REPORT_JSON_SCHEMA: dict[str, Any] = {
     },
 }
 
+
+def report_json_schema(with_differentials: bool = True) -> dict[str, Any]:
+    if with_differentials:
+        return REPORT_JSON_SCHEMA
+    props = {k: v for k, v in REPORT_JSON_SCHEMA["properties"].items() if k != "differentials"}
+    return {**REPORT_JSON_SCHEMA, "required": list(SECTION_KEYS), "properties": props}
+
+
 # Matches one bracket group of markers: [F1], [S2], [F1, S2].
 MARKER_GROUP_RE = re.compile(r"\[\s*([FS]\d+(?:\s*[,;]\s*[FS]\d+)*)\s*\]")
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)

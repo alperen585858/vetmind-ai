@@ -26,8 +26,15 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
-from app.llm.prompts import PROMPT_VERSION, build_aliases, build_system_prompt, build_user_prompt
-from app.llm.structured_output import REPORT_JSON_SCHEMA, build_draft_report, parse_report_payload
+from app.llm.prompts import (
+    PROMPT_VERSION,
+    PROMPT_VERSIONS,
+    build_aliases,
+    build_system_prompt,
+    build_user_prompt,
+    wants_differentials,
+)
+from app.llm.structured_output import build_draft_report, parse_report_payload, report_json_schema
 
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
@@ -67,8 +74,11 @@ class _ChatProviderBase:
         language: str = "tr",
         temperature: float | None = 0.2,
         max_tokens: int = 2048,
+        prompt_version: str = PROMPT_VERSION,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        if prompt_version not in PROMPT_VERSIONS:
+            raise LLMConfigError(f"Unknown prompt version {prompt_version!r}. Allowed: {', '.join(PROMPT_VERSIONS)}.")
         self.provider_id = provider_id
         self.model_id = model_id
         self.model_version = model_version or model_id
@@ -78,14 +88,18 @@ class _ChatProviderBase:
         self._language = language
         self._temperature = temperature
         self._max_tokens = max_tokens
+        self._prompt_version = prompt_version
+        self._schema = report_json_schema(wants_differentials(prompt_version))
         self._transport = transport
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         aliases = build_aliases(request.generation)
-        system = build_system_prompt(self._language)
+        system = build_system_prompt(self._language, self._prompt_version)
         user = build_user_prompt(request.generation, aliases, instructions=request.instructions)
         payload, raw_text = self._complete(system, user)
         wire = parse_report_payload(payload)
+        if not wants_differentials(self._prompt_version):
+            wire.differentials = []
         report = build_draft_report(
             wire,
             request,
@@ -93,7 +107,7 @@ class _ChatProviderBase:
             provider_id=self.provider_id,
             model_id=self.model_id,
             model_version=self.model_version,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=self._prompt_version,
             language=self._language,
         )
         return LLMResponse(
@@ -167,7 +181,7 @@ class OpenAICompatibleProvider(_ChatProviderBase):
         if self._json_mode == "schema":
             payload["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": "vetmind_draft_report", "strict": True, "schema": REPORT_JSON_SCHEMA},
+                "json_schema": {"name": "vetmind_draft_report", "strict": True, "schema": self._schema},
             }
         elif self._json_mode == "object":
             payload["response_format"] = {"type": "json_object"}
@@ -210,7 +224,7 @@ class AnthropicProvider(_ChatProviderBase):
                 {
                     "name": REPORT_TOOL_NAME,
                     "description": "Submit the structured veterinary imaging draft report.",
-                    "input_schema": REPORT_JSON_SCHEMA,
+                    "input_schema": self._schema,
                 }
             ],
             "tool_choice": {"type": "tool", "name": REPORT_TOOL_NAME},

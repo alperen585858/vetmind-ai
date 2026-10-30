@@ -97,6 +97,7 @@ Yalnızca `prompt_version` taşıyan raporlara uygulanır (mock şablonlara değ
 | `VETMIND_LLM_MAX_TOKENS` | `2048` | Çıktı kesilirse artırın |
 | `VETMIND_LLM_JSON_MODE` | `schema` | OpenAI-uyumlu için: `schema` \| `object` \| `none` (sunucu desteklemiyorsa düşürün) |
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modellerde **90** önerilir |
+| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v3` | `vetmind-report-v2` (yalnız metin) \| `vetmind-report-v3` (+ ayırıcı tanılar) |
 
 ## 6. Deneme
 
@@ -157,6 +158,14 @@ Gerçek hasta verisinde yerel model (Ollama / vLLM) tercih edilmeli ve KVKK değ
 cd backend && source .venv/bin/activate
 python scripts/llm_eval.py --provider ollama --models llama3.2:3b,phi3:mini
 VETMIND_LLM_API_KEY=sk-ant-... python scripts/llm_eval.py --provider anthropic
+```
+
+Kararsız (küçük) modellerde tek çalıştırma yanıltıcıdır. `--repeat 3` her vakayı 3 tur çalıştırır;
+rapor ortalamayı, turlar arası skor sapmasını ve vaka içi sapmayı (±) verir. Sayım metrikleri tur başına ortalamadır.
+Prompt karşılaştırması (A/B) için aynı modelde iki sürüm:
+
+```bash
+python scripts/llm_eval.py --provider ollama --models llama3.2:3b --prompts v2,v3 --repeat 3
 ```
 
 Çıktı: `backend/eval/results/<tarih>.md` (okunur tablo) ve `.json` (vaka bazında ham veri).

@@ -13,7 +13,7 @@ import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from statistics import mean
+from statistics import mean, pstdev
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -162,6 +162,7 @@ class CaseResult:
     case_id: str
     ok: bool
     latency_s: float
+    attempt: int = 1
     error: str = ""
     citation_coverage: Optional[float] = None
     finding_coverage: Optional[float] = None
@@ -229,25 +230,48 @@ class RunResult:
     model_id: str
     prompt_version: str
     cases: list[CaseResult]
+    repeats: int = 1
+
+    def case_ids(self) -> list[str]:
+        return list(dict.fromkeys(c.case_id for c in self.cases))
+
+    def case_scores(self, case_id: str) -> list[float]:
+        return [c.score or 0.0 for c in self.cases if c.case_id == case_id]
+
+    def pass_scores(self) -> list[float]:
+        """Mean score of each full pass over the set (one value per repeat)."""
+        by_attempt: dict[int, list[float]] = {}
+        for c in self.cases:
+            by_attempt.setdefault(c.attempt, []).append(c.score or 0.0)
+        return [mean(v) for _, v in sorted(by_attempt.items())]
 
     def summary(self) -> dict[str, Optional[float]]:
         ok = [c for c in self.cases if c.ok]
+        passes = max(1, self.repeats)
 
         def avg(attr: str) -> Optional[float]:
             vals = [getattr(c, attr) for c in ok if getattr(c, attr) is not None]
             return round(mean(vals), 3) if vals else None
 
+        def per_pass(count: int) -> float:
+            # Counts are reported per pass over the set, so repeats don't inflate them.
+            return round(count / passes, 2)
+
+        case_stds = [pstdev(v) for v in (self.case_scores(cid) for cid in self.case_ids()) if len(v) > 1]
+        pass_scores = self.pass_scores()
         return {
             "score": round(mean(c.score or 0.0 for c in self.cases), 1) if self.cases else None,
+            "score_std": round(pstdev(pass_scores), 1) if len(pass_scores) > 1 else None,
+            "case_score_std": round(mean(case_stds), 1) if case_stds else None,
             "success_rate": round(len(ok) / len(self.cases), 3) if self.cases else None,
             "citation_coverage": avg("citation_coverage"),
             "finding_coverage": avg("finding_coverage"),
             "differential_recall": avg("differential_recall"),
             "must_mention_recall": avg("must_mention_recall"),
-            "overclaim_cases": float(sum(bool(c.overclaims) for c in ok)),
-            "forbidden_cases": float(sum(bool(c.forbidden_hits) for c in ok)),
-            "unknown_refs": float(sum(c.unknown_refs for c in ok)),
-            "blank_cases": float(sum(bool(c.blank_sections) for c in ok)),
+            "overclaim_cases": per_pass(sum(bool(c.overclaims) for c in ok)),
+            "forbidden_cases": per_pass(sum(bool(c.forbidden_hits) for c in ok)),
+            "unknown_refs": per_pass(sum(c.unknown_refs for c in ok)),
+            "blank_cases": per_pass(sum(bool(c.blank_sections) for c in ok)),
             "english_ratio": avg("english_ratio"),
             "latency_s": avg("latency_s"),
         }
@@ -258,6 +282,7 @@ class RunResult:
             "provider_id": self.provider_id,
             "model_id": self.model_id,
             "prompt_version": self.prompt_version,
+            "repeats": self.repeats,
             "summary": self.summary(),
             "cases": [{**asdict(c), "score": c.score} for c in self.cases],
         }
@@ -269,39 +294,46 @@ def run_eval(
     *,
     rag: RagRetriever | None = None,
     label: str | None = None,
+    repeats: int = 1,
     on_case=None,
 ) -> RunResult:
+    """Run every case ``repeats`` times (full passes, so drift over time spreads evenly)."""
     gateway = LLMGateway(provider, rag=rag)
     results: list[CaseResult] = []
     prompt_version = ""
-    for ec in eval_set.cases:
-        case, findings = to_pipeline_inputs(ec)
-        started = time.perf_counter()
-        try:
-            report = gateway.generate_draft(case, findings)
-            res = score_report(ec, report, time.perf_counter() - started)
-            prompt_version = report.generation.prompt_version or prompt_version
-        except LLMProviderError as exc:
-            res = CaseResult(
-                case_id=ec.id,
-                ok=False,
-                latency_s=round(time.perf_counter() - started, 2),
-                error=f"{exc.kind.value}: {exc}",
-            )
-        results.append(res)
-        if on_case:
-            on_case(res)
+    for attempt in range(1, max(1, repeats) + 1):
+        for ec in eval_set.cases:
+            case, findings = to_pipeline_inputs(ec)
+            started = time.perf_counter()
+            try:
+                report = gateway.generate_draft(case, findings)
+                res = score_report(ec, report, time.perf_counter() - started)
+                prompt_version = report.generation.prompt_version or prompt_version
+            except LLMProviderError as exc:
+                res = CaseResult(
+                    case_id=ec.id,
+                    ok=False,
+                    latency_s=round(time.perf_counter() - started, 2),
+                    error=f"{exc.kind.value}: {exc}",
+                )
+            res.attempt = attempt
+            results.append(res)
+            if on_case:
+                on_case(res)
     return RunResult(
         label=label or provider.model_id,
         provider_id=provider.provider_id,
         model_id=provider.model_id,
         prompt_version=prompt_version,
         cases=results,
+        repeats=max(1, repeats),
     )
 
 
 METRIC_ROWS = (
     ("score", "Toplam skor (0–100)", "{:.1f}"),
+    ("score_std", "Skor sapması — tekrarlar arası (±)", "{:.1f}"),
+    ("case_score_std", "Vaka içi ortalama sapma (±)", "{:.1f}"),
     ("success_rate", "Başarılı üretim", "{:.0%}"),
     ("citation_coverage", "Kaynaklı cümle oranı", "{:.0%}"),
     ("finding_coverage", "Bulgu kapsama", "{:.0%}"),
@@ -323,8 +355,12 @@ def _fmt(value: Optional[float], pattern: str) -> str:
 def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "LLM değerlendirme sonuçları") -> str:
     lines = [f"# {title}", ""]
     lines.append(f"Set: **{eval_set.name}** (v{eval_set.version}, {len(eval_set.cases)} vaka)")
-    if runs and runs[0].prompt_version:
-        lines.append(f"Prompt: `{runs[0].prompt_version}`")
+    prompts = list(dict.fromkeys(r.prompt_version for r in runs if r.prompt_version))
+    if prompts:
+        lines.append("Prompt: " + ", ".join(f"`{p}`" for p in prompts))
+    repeats = max((r.repeats for r in runs), default=1)
+    if repeats > 1:
+        lines.append(f"Tekrar: her vaka {repeats} kez çalıştırıldı; sayılar tur başına ortalamadır.")
     lines += ["", "> Skorlar atıf, kapsama ve güvenlik davranışını ölçer; klinik doğruluk değildir.", ""]
 
     summaries = [r.summary() for r in runs]
@@ -336,20 +372,26 @@ def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "L
     lines += ["", "## Vaka bazında skor", ""]
     lines.append("| Vaka | " + " | ".join(f"`{r.label}`" for r in runs) + " |")
     lines.append("|---|" + "---|" * len(runs))
-    for i, ec in enumerate(eval_set.cases):
+    for ec in eval_set.cases:
         cells = []
         for r in runs:
-            c = r.cases[i]
-            note = "" if c.ok else " ⚠️ hata"
-            if c.ok and (c.forbidden_hits or c.overclaims):
-                note = " ⚠️"
-            cells.append(f"{_fmt(c.score, '{:.0f}')}{note}")
+            attempts = [c for c in r.cases if c.case_id == ec.id]
+            scores = [c.score or 0.0 for c in attempts]
+            if not scores:
+                cells.append("—")
+                continue
+            cell = f"{mean(scores):.0f}" + (f" ± {pstdev(scores):.0f}" if len(scores) > 1 else "")
+            if any(not c.ok for c in attempts):
+                cell += " ⚠️ hata"
+            elif any(c.forbidden_hits or c.overclaims for c in attempts):
+                cell += " ⚠️"
+            cells.append(cell)
         lines.append(f"| {ec.id} — {ec.title} | " + " | ".join(cells) + " |")
 
     issues = [
-        (r.label, ec.id, c)
+        (r.label, f"{c.case_id}" + (f" (#{c.attempt})" if r.repeats > 1 else ""), c)
         for r in runs
-        for ec, c in zip(eval_set.cases, r.cases)
+        for c in r.cases
         if not c.ok or c.forbidden_hits or c.overclaims or c.unknown_refs or c.blank_sections
     ]
     if issues:
