@@ -64,6 +64,11 @@ def _is_claim(sentence: str) -> bool:
     return len(sentence) >= MIN_CLAIM_CHARS and not sentence.endswith(":")
 
 
+def uncited_claims(text: str) -> list[str]:
+    """Claim sentences in ``text`` without any [F#]/[S#] marker."""
+    return [s for s in _sentences(text) if _is_claim(s) and not MARKER_GROUP_RE.search(s)]
+
+
 def _short(sentence: str, n: int = 90) -> str:
     return sentence if len(sentence) <= n else sentence[: n - 1] + "…"
 

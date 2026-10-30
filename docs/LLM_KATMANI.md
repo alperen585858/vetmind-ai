@@ -61,6 +61,17 @@ arayüz `[S1]` gibi atıfları buradan gerçek kaynağa bağlayabilir.
 (`high` / `moderate` / `low` — yüzde değil, göreli sıralama), lehine / aleyhine kısa ifadeler ve dayandığı
 `F#` / `S#` atıfları. Liste metin bölümlerinin yerine geçmez.
 
+**v4 — iki adımlı üretim + onarım** (`VETMIND_LLM_PROMPT_VERSION=vetmind-report-v4`):
+1. *draft:* yalnız dört metin bölümü (v2 yükü).
+2. *repair* (gerekirse, tek sefer): boş findings/impression, atıfsız klinik cümle (bulgu varsa) veya geçersiz
+   işaret varsa modele kendi taslağı ve somut sorun listesi verilir; düzeltilmiş taslak **yalnızca daha az sorun
+   içeriyorsa** kullanılır (`repair_applied`).
+3. *differentials:* ayrı çağrı, taslaktaki bulgu ve yorum üzerine; bulgu yoksa hiç çağrılmaz.
+Yalnız ilk çağrı taslağı düşürebilir; onarım ve ayırıcı tanı hataları sessizce atlanır ve
+`generation.pipeline_steps` alanına yazılır (ör. `["draft", "repair", "repair_applied", "differentials"]`).
+Gerekçe: küçük modellerde şema zorlaması biçimi garanti eder ama içerik eksik kalabilir
+(bkz. [ACIK_KAYNAK_ARASTIRMA.md](ACIK_KAYNAK_ARASTIRMA.md) §5); iş bölünerek yük azaltılır.
+
 **Kodla zorlanan kurallar** (prompt'a güvenilmez):
 - Bulgu yoksa ya da analiz başarısız/desteklenmiyorsa ayırıcı tanı listesi atılır.
 - Model "findings" bölümünü boş bırakırsa ama yapılandırılmış bulgu varsa, bölüm bulgulardan
@@ -97,7 +108,7 @@ Yalnızca `prompt_version` taşıyan raporlara uygulanır (mock şablonlara değ
 | `VETMIND_LLM_MAX_TOKENS` | `2048` | Çıktı kesilirse artırın |
 | `VETMIND_LLM_JSON_MODE` | `schema` | OpenAI-uyumlu için: `schema` \| `object` \| `none` (sunucu desteklemiyorsa düşürün) |
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modellerde **90** önerilir |
-| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v3` | `vetmind-report-v2` (yalnız metin) \| `vetmind-report-v3` (+ ayırıcı tanılar) |
+| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v3` | `v2` yalnız metin · `v3` + ayırıcı tanılar tek çağrıda · `v4` iki adım + onarım (tam ad: `vetmind-report-vN`) |
 
 ## 6. Deneme
 

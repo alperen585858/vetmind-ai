@@ -366,3 +366,100 @@ def test_factory_builds_chat_providers() -> None:
 def test_factory_rejects_incomplete_chat_config(kw) -> None:
     with pytest.raises(LLMConfigError):
         build_llm_provider(_settings(**kw))
+
+
+def _sequence_transport(*responses, calls: list) -> httpx.MockTransport:
+    """Serve chat-completion responses in order; ints are HTTP error statuses."""
+    queue = list(responses)
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(req.content))
+        item = queue.pop(0)
+        if isinstance(item, int):
+            return httpx.Response(item)
+        content = item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+
+    return httpx.MockTransport(handler)
+
+
+def _v4(*responses, calls: list) -> OpenAICompatibleProvider:
+    return OpenAICompatibleProvider(
+        model_id="m", api_key="k", prompt_version="vetmind-report-v4",
+        transport=_sequence_transport(*responses, calls=calls),
+    )
+
+
+def _text_only(gen) -> dict:
+    body = _report_json(gen)
+    body.pop("differentials")
+    return body
+
+
+def test_v4_clean_draft_skips_repair_and_adds_differentials() -> None:
+    request, _, findings = _request()
+    calls: list = []
+    diffs = {"differentials": _report_json(request.generation)["differentials"]}
+    report = _v4(_text_only(request.generation), diffs, calls=calls).generate(request).report
+
+    assert len(calls) == 2
+    assert "differentials" not in calls[0]["response_format"]["json_schema"]["schema"]["properties"]
+    assert calls[1]["response_format"]["json_schema"]["schema"]["required"] == ["differentials"]
+    assert "DRAFTED IMPRESSION:" in calls[1]["messages"][1]["content"]
+    assert report.generation.pipeline_steps == ["draft", "differentials"]
+    assert [d.name for d in report.differentials] == ["Meningiom", "Granülomatöz meningoensefalit"]
+    assert report.differentials[0].finding_ids == [findings.findings[0].finding_id]
+
+
+def test_v4_repairs_blank_and_uncited_sections() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = _text_only(request.generation)
+    broken["findings"] = ""
+    broken["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir. Kontrast tutulumu bunu destekler [S9]."
+    fixed = _text_only(request.generation)
+    report = _v4(broken, fixed, {"differentials": []}, calls=calls).generate(request).report
+
+    repair_msg = calls[1]["messages"][1]["content"]
+    assert "YOUR PREVIOUS DRAFT:" in repair_msg
+    assert 'The "findings" section is empty' in repair_msg
+    assert "Ekstra-aksiyel neoplazi olası görünmektedir." in repair_msg
+    assert "S9" in repair_msg
+    assert report.generation.pipeline_steps == ["draft", "repair", "repair_applied", "differentials"]
+    assert report.findings.text == fixed["findings"]
+
+
+def test_v4_keeps_original_when_repair_is_not_better() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = _text_only(request.generation)
+    broken["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir ve ileri tetkik gerekir."
+    worse = dict(broken, findings="", impression="")
+    report = _v4(broken, worse, {"differentials": []}, calls=calls).generate(request).report
+    assert report.generation.pipeline_steps == ["draft", "repair", "differentials"]
+    assert report.impression.text == broken["impression"]
+
+
+def test_v4_failed_optional_steps_do_not_fail_the_draft() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = dict(_text_only(request.generation), findings="")
+    report = _v4(broken, 503, "not json at all", calls=calls).generate(request).report
+    assert report.generation.pipeline_steps == ["draft", "repair_failed", "differentials_failed"]
+    assert report.findings.text.startswith("Otomatik bulgu listesi")  # safeguard still applies
+    assert report.differentials == []
+
+
+def test_v4_skips_differentials_without_findings() -> None:
+    request, _, _ = _request()
+    gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
+    calls: list = []
+    body = {
+        "technique": "Köpek, beyin MR incelemesi.",
+        "findings": "Görüntü modeli bulgu döndürmedi; bu, çalışmanın normal olduğu anlamına gelmez.",
+        "impression": "Otomatik yorum yapılamaz; tüm çalışma uzman tarafından incelenmelidir.",
+        "recommendations": "Uzman radyolog incelemesi gereklidir.",
+    }
+    report = _v4(body, calls=calls).generate(LLMRequest(generation=gen)).report
+    assert len(calls) == 1
+    assert report.generation.pipeline_steps == ["draft"]

@@ -55,6 +55,21 @@ REPORT_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
+DIFFERENTIALS_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["differentials"],
+    "properties": {"differentials": REPORT_JSON_SCHEMA["properties"]["differentials"]},
+}
+
+
+def parse_differentials_payload(payload: str | dict[str, Any]) -> list["DifferentialWire"]:
+    """Second-step output: {"differentials": [...]}; bad items are dropped."""
+    data = _load_json_object(payload)
+    items = data.get("differentials")
+    return ReportWire._drop_bad_differentials(items)  # type: ignore[call-arg]
+
+
 def report_json_schema(with_differentials: bool = True) -> dict[str, Any]:
     if with_differentials:
         return REPORT_JSON_SCHEMA
@@ -205,8 +220,7 @@ def extract_markers(text: str) -> list[str]:
     return list(seen)
 
 
-def parse_report_payload(payload: str | dict[str, Any]) -> ReportWire:
-    """Accept a dict (tool call input) or model text (optionally fenced) and validate it."""
+def _load_json_object(payload: str | dict[str, Any]) -> dict[str, Any]:
     if isinstance(payload, str):
         text = _FENCE_RE.sub("", payload.strip())
         start, end = text.find("{"), text.rfind("}")
@@ -218,6 +232,12 @@ def parse_report_payload(payload: str | dict[str, Any]) -> ReportWire:
             raise LLMMalformedResponseError(f"LLM response is not valid JSON: {exc.msg}.") from exc
     if not isinstance(payload, dict):
         raise LLMMalformedResponseError("LLM response JSON must be an object.")
+    return payload
+
+
+def parse_report_payload(payload: str | dict[str, Any]) -> ReportWire:
+    """Accept a dict (tool call input) or model text (optionally fenced) and validate it."""
+    payload = _load_json_object(payload)
     try:
         return ReportWire.model_validate(payload)
     except ValidationError as exc:
@@ -238,6 +258,7 @@ def build_draft_report(
     model_version: str,
     prompt_version: str,
     language: str = "tr",
+    pipeline_steps: list[str] | None = None,
 ) -> DraftReport:
     gen = request.generation
     fallback = EMPTY_SECTION_TEXT.get(language, EMPTY_SECTION_TEXT["en"])
@@ -292,6 +313,7 @@ def build_draft_report(
             synthetic=synthetic,
             clinically_validated=False,
             prompt_version=prompt_version,
+            pipeline_steps=list(pipeline_steps or []),
         ),
         technique=section("technique"),
         findings=section("findings"),

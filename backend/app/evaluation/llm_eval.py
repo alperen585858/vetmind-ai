@@ -175,6 +175,7 @@ class CaseResult:
     english_ratio: Optional[float] = None
     blank_sections: list[str] = field(default_factory=list)
     differentials: list[str] = field(default_factory=list)
+    pipeline_steps: list[str] = field(default_factory=list)
     sections: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -219,8 +220,13 @@ def score_report(ec: EvalCase, report: DraftReport, latency_s: float) -> CaseRes
         forbidden_hits=[e for e in ec.expected.forbidden if term_found(full, e)],
         english_ratio=round(english_ratio(full), 3),
         blank_sections=list(stats.blank_sections),
+        pipeline_steps=list(report.generation.pipeline_steps),
         sections=sections,
     )
+
+
+# pipeline_steps entries that are model calls (the *_applied / *_failed markers are not).
+_CALL_STEPS = {"draft", "repair", "differentials", "repair_failed", "differentials_failed"}
 
 
 @dataclass
@@ -274,6 +280,14 @@ class RunResult:
             "blank_cases": per_pass(sum(bool(c.blank_sections) for c in ok)),
             "english_ratio": avg("english_ratio"),
             "latency_s": avg("latency_s"),
+            "repair_applied_rate": (
+                round(sum("repair_applied" in c.pipeline_steps for c in ok) / len(ok), 3)
+                if ok and any(c.pipeline_steps for c in ok) else None
+            ),
+            "calls_per_case": (
+                round(mean(sum(st in _CALL_STEPS for st in c.pipeline_steps) for c in ok), 2)
+                if ok and any(c.pipeline_steps for c in ok) else None
+            ),
         }
 
     def to_json(self) -> dict:
@@ -345,6 +359,8 @@ METRIC_ROWS = (
     ("blank_cases", "Bölüm boş bırakılan vaka", "{:.0f}"),
     ("english_ratio", "İngilizce kelime oranı", "{:.0%}"),
     ("latency_s", "Ortalama süre (sn)", "{:.1f}"),
+    ("calls_per_case", "Vaka başına model çağrısı", "{:.1f}"),
+    ("repair_applied_rate", "Onarım uygulanan vaka oranı", "{:.0%}"),
 )
 
 

@@ -26,15 +26,32 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
+from app.llm.grounding import uncited_claims
 from app.llm.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
+    CitationAliases,
     build_aliases,
+    build_differentials_system_prompt,
+    build_differentials_user_prompt,
+    build_repair_prompt,
     build_system_prompt,
     build_user_prompt,
+    is_two_step,
     wants_differentials,
 )
-from app.llm.structured_output import build_draft_report, parse_report_payload, report_json_schema
+from app.llm.interfaces import LLMGenerationInput
+from app.llm.structured_output import (
+    DIFFERENTIALS_JSON_SCHEMA,
+    SECTION_KEYS,
+    ReportWire,
+    build_draft_report,
+    extract_markers,
+    parse_differentials_payload,
+    parse_report_payload,
+    report_json_schema,
+)
+from app.schemas.enums import ModelExecutionStatus
 
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
@@ -44,6 +61,8 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 
 JSON_MODES = ("schema", "object", "none")
 REPORT_TOOL_NAME = "submit_draft_report"
+DIFFERENTIALS_TOOL_NAME = "submit_differentials"
+MAX_REPAIR_SENTENCES = 5
 
 
 def _error_detail(res: httpx.Response) -> str:
@@ -93,13 +112,18 @@ class _ChatProviderBase:
         self._transport = transport
 
     def generate(self, request: LLMRequest) -> LLMResponse:
-        aliases = build_aliases(request.generation)
-        system = build_system_prompt(self._language, self._prompt_version)
-        user = build_user_prompt(request.generation, aliases, instructions=request.instructions)
-        payload, raw_text = self._complete(system, user)
-        wire = parse_report_payload(payload)
-        if not wants_differentials(self._prompt_version):
-            wire.differentials = []
+        gen = request.generation
+        aliases = build_aliases(gen)
+        user = build_user_prompt(gen, aliases, instructions=request.instructions)
+        if is_two_step(self._prompt_version):
+            wire, raw_text, steps = self._two_step(gen, aliases, user)
+        else:
+            system = build_system_prompt(self._language, self._prompt_version)
+            payload, raw_text = self._complete(system, user, self._schema)
+            wire = parse_report_payload(payload)
+            if not wants_differentials(self._prompt_version):
+                wire.differentials = []
+            steps = ["draft"]
         report = build_draft_report(
             wire,
             request,
@@ -109,6 +133,7 @@ class _ChatProviderBase:
             model_version=self.model_version,
             prompt_version=self._prompt_version,
             language=self._language,
+            pipeline_steps=steps,
         )
         return LLMResponse(
             provider_id=self.provider_id,
@@ -118,7 +143,82 @@ class _ChatProviderBase:
             raw_text=raw_text,
         )
 
-    def _complete(self, system: str, user: str) -> tuple[str | dict[str, Any], str]:
+    def _two_step(
+        self, gen: LLMGenerationInput, aliases: CitationAliases, user: str
+    ) -> tuple[ReportWire, str, list[str]]:
+        """v4: text sections → one targeted repair if needed → differentials in their own call.
+
+        Only the first call may fail the draft. Repair and differentials are best-effort:
+        on any provider error the draft keeps what it already has.
+        """
+        system = build_system_prompt(self._language, self._prompt_version)
+        text_schema = report_json_schema(with_differentials=False)
+        payload, raw = self._complete(system, user, text_schema)
+        wire = parse_report_payload(payload)
+        wire.differentials = []
+        raws, steps = [raw], ["draft"]
+
+        problems = self._draft_problems(wire, aliases)
+        if problems:
+            draft_json = json.dumps({k: getattr(wire, k) for k in SECTION_KEYS}, ensure_ascii=False)
+            try:
+                fixed_payload, fixed_raw = self._complete(
+                    system, build_repair_prompt(user, draft_json, problems), text_schema
+                )
+                fixed = parse_report_payload(fixed_payload)
+                raws.append(f"--- repair ---\n{fixed_raw}")
+                steps.append("repair")
+                if len(self._draft_problems(fixed, aliases)) < len(problems):
+                    fixed.differentials = []
+                    wire = fixed
+                    steps.append("repair_applied")
+            except LLMProviderError:
+                steps.append("repair_failed")
+
+        no_findings = (
+            gen.no_findings_returned
+            or not gen.findings
+            or gen.execution_status in {ModelExecutionStatus.FAILED, ModelExecutionStatus.UNSUPPORTED}
+        )
+        if not no_findings:
+            try:
+                diff_payload, diff_raw = self._complete(
+                    build_differentials_system_prompt(self._language),
+                    build_differentials_user_prompt(user, wire.findings or "(boş)", wire.impression or "(boş)"),
+                    DIFFERENTIALS_JSON_SCHEMA,
+                    tool_name=DIFFERENTIALS_TOOL_NAME,
+                )
+                wire.differentials = parse_differentials_payload(diff_payload)
+                raws.append(f"--- differentials ---\n{diff_raw}")
+                steps.append("differentials")
+            except LLMProviderError:
+                steps.append("differentials_failed")
+        return wire, "\n".join(raws), steps
+
+    @staticmethod
+    def _draft_problems(wire: ReportWire, aliases: CitationAliases) -> list[str]:
+        """Concrete, fixable problems in the text sections, phrased for the repair prompt."""
+        problems: list[str] = []
+        for key in ("findings", "impression"):
+            text = getattr(wire, key)
+            if not text:
+                problems.append(f'The "{key}" section is empty. Write it, with citation markers.')
+                continue
+            if not aliases.findings:
+                continue  # nothing to cite: "no findings" statements are not repairable claims
+            for sentence in uncited_claims(text)[:MAX_REPAIR_SENTENCES]:
+                problems.append(f'In "{key}", end this sentence with a citation marker: "{sentence[:160]}"')
+        known = aliases.as_map()
+        unknown = list(dict.fromkeys(
+            m for k in SECTION_KEYS for m in extract_markers(getattr(wire, k)) if m not in known
+        ))
+        if unknown:
+            problems.append(f"These markers do not exist; remove or replace them: {', '.join(unknown)}")
+        return problems
+
+    def _complete(
+        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+    ) -> tuple[str | dict[str, Any], str]:
         """Return (payload for the parser, raw text kept for audit)."""
         raise NotImplementedError
 
@@ -167,7 +267,9 @@ class OpenAICompatibleProvider(_ChatProviderBase):
             raise LLMConfigError(f"llm_json_mode must be one of {', '.join(JSON_MODES)}.")
         self._json_mode = json_mode
 
-    def _complete(self, system: str, user: str) -> tuple[str | dict[str, Any], str]:
+    def _complete(
+        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+    ) -> tuple[str | dict[str, Any], str]:
         payload: dict[str, Any] = {
             "model": self.model_id,
             "messages": [
@@ -181,7 +283,7 @@ class OpenAICompatibleProvider(_ChatProviderBase):
         if self._json_mode == "schema":
             payload["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": "vetmind_draft_report", "strict": True, "schema": self._schema},
+                "json_schema": {"name": tool_name, "strict": True, "schema": schema},
             }
         elif self._json_mode == "object":
             payload["response_format"] = {"type": "json_object"}
@@ -214,7 +316,9 @@ class AnthropicProvider(_ChatProviderBase):
         kwargs.setdefault("model_id", ANTHROPIC_DEFAULT_MODEL)
         super().__init__(**kwargs)
 
-    def _complete(self, system: str, user: str) -> tuple[str | dict[str, Any], str]:
+    def _complete(
+        self, system: str, user: str, schema: dict[str, Any], *, tool_name: str = REPORT_TOOL_NAME
+    ) -> tuple[str | dict[str, Any], str]:
         payload: dict[str, Any] = {
             "model": self.model_id,
             "max_tokens": self._max_tokens,
@@ -222,12 +326,12 @@ class AnthropicProvider(_ChatProviderBase):
             "messages": [{"role": "user", "content": user}],
             "tools": [
                 {
-                    "name": REPORT_TOOL_NAME,
-                    "description": "Submit the structured veterinary imaging draft report.",
-                    "input_schema": self._schema,
+                    "name": tool_name,
+                    "description": "Submit the structured veterinary imaging draft output.",
+                    "input_schema": schema,
                 }
             ],
-            "tool_choice": {"type": "tool", "name": REPORT_TOOL_NAME},
+            "tool_choice": {"type": "tool", "name": tool_name},
         }
         if self._temperature is not None:
             payload["temperature"] = self._temperature
@@ -247,7 +351,7 @@ class AnthropicProvider(_ChatProviderBase):
         if not isinstance(blocks, list):
             raise LLMMalformedResponseError("Anthropic response has no content blocks.")
         for block in blocks:
-            if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == REPORT_TOOL_NAME:
+            if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == tool_name:
                 tool_input = block.get("input")
                 if not isinstance(tool_input, dict):
                     break

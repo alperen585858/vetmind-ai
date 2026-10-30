@@ -25,6 +25,8 @@ class GenerationMetadata(BaseModel):
     clinically_validated: bool = False
     # Set by prompt-based providers; enables grounding checks in ReportValidator.
     prompt_version: Optional[str] = None
+    # Calls made for this draft, e.g. ["draft", "repair", "differentials"] (two-step prompt v4).
+    pipeline_steps: list[str] = Field(default_factory=list)
 
 
 class DifferentialDiagnosis(BaseModel):

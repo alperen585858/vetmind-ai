@@ -44,6 +44,8 @@ const EVAL_ROWS: { key: string; label: string; fmt: 'pct' | 'num' | 'sec' | 'sco
   { key: 'blank_cases', label: 'Bölüm boş bırakılan vaka', fmt: 'num', better: 'low' },
   { key: 'english_ratio', label: 'İngilizce kelime oranı', fmt: 'pct', better: 'low' },
   { key: 'latency_s', label: 'Ortalama süre', fmt: 'sec', better: 'low' },
+  { key: 'calls_per_case', label: 'Vaka başına model çağrısı', fmt: 'score', better: 'low' },
+  { key: 'repair_applied_rate', label: 'Onarım uygulanan vaka', fmt: 'pct', better: 'low' },
 ]
 
 function pct(v: number | null | undefined) {
