@@ -41,7 +41,7 @@ export function NotificationBell() {
   }, [refresh])
 
   useEffect(() => {
-    const h = (e: MouseEvent) => {
+    const h = (e: globalThis.MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', h)

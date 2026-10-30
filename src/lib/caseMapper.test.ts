@@ -61,6 +61,7 @@ describe('caseMapper list/detail helpers', () => {
     const record = {
       case_id: 'case-neuro',
       patient_name: 'Rex',
+      study: { dicom_available: false },
       species: 'canine',
       breed: 'Shepherd',
       patient_age_years: 5,
