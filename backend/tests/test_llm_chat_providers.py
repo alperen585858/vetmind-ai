@@ -6,6 +6,7 @@ import pytest
 
 from app.llm.chat_providers import AnthropicProvider, OpenAICompatibleProvider
 from app.llm.factory import build_llm_provider
+from app.llm.grounding import check_grounding
 from app.llm.gateway import LLMGateway, build_generation_input
 from app.llm.interfaces import (
     LLMConfigError,
@@ -74,6 +75,12 @@ def _report_json(gen) -> dict[str, str]:
         "impression": f"Ekstra-aksiyel neoplazi (meningiom) olası görünmektedir [{f[0]}, S1]. "
         "Granülomatöz meningoensefalit ayırıcı tanıda yer almalıdır [S2].",
         "recommendations": "Kontrastlı sekanslar önerilir. Uzman radyolog incelemesi gereklidir.",
+        "differentials": [
+            {"name": "Meningiom", "likelihood": "high", "supporting": ["ekstra-aksiyel yerleşim"],
+             "against": [], "citations": [f[0], "S1"]},
+            {"name": "Granülomatöz meningoensefalit", "likelihood": "low", "supporting": [],
+             "against": ["tek odaklı lezyon"], "citations": ["S2"]},
+        ],
     }
 
 
@@ -115,6 +122,13 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     assert report.synthetic is True  # mock imaging findings → synthetic draft
     assert report.citation_map["S1"] == "kb-meningioma"
     assert report.used_passage_ids == ["kb-meningioma", "kb-gme"]
+    assert [(d.name, d.likelihood) for d in report.differentials] == [
+        ("Meningiom", "high"),
+        ("Granülomatöz meningoensefalit", "low"),
+    ]
+    assert report.differentials[0].finding_ids == [findings.findings[0].finding_id]
+    assert report.differentials[1].against == ["tek odaklı lezyon"]
+    assert body["response_format"]["json_schema"]["schema"]["required"][-1] == "differentials"
     assert [p.source_id for p in report.rag_citations] == ["kb-meningioma", "kb-gme"]
     assert report.findings.cited_finding_ids == [f.finding_id for f in findings.findings]
     assert report.impression.cited_finding_ids == [findings.findings[0].finding_id]
@@ -146,6 +160,7 @@ def test_openai_provider_accepts_fenced_json_and_ollama_has_no_auth_header() -> 
 def test_used_passages_only_lists_cited_sources() -> None:
     request, _, _ = _request()
     body = _report_json(request.generation)
+    body["differentials"] = []
     body["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir [F1]. Meningiom ön planda [S2, F1]."
     provider = OpenAICompatibleProvider(
         model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
@@ -161,6 +176,22 @@ def test_used_passages_only_lists_cited_sources() -> None:
     report = provider.generate(request).report
     assert report.used_passage_ids == []
     assert "hiçbir kaynak pasajına atıf yapmadı" in report.rag_note
+
+
+def test_blank_findings_are_rebuilt_from_structured_findings() -> None:
+    request, _, findings = _request()
+    body = _report_json(request.generation)
+    body["findings"] = ""
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.findings.text.startswith("Otomatik bulgu listesi")
+    assert "(şüpheli) [F1]" in report.findings.text
+    assert report.findings.cited_finding_ids == [findings.findings[0].finding_id]
+    warnings = check_grounding(report)
+    assert any("model left section(s) empty: findings" in w for w in warnings)
+    assert not any("not mentioned" in w for w in warnings)
 
 
 def test_openai_truncated_output_is_malformed() -> None:
@@ -258,10 +289,14 @@ def test_blank_section_gets_safe_text_not_an_error() -> None:
     request, _, _ = _request()
     gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
     content = json.dumps(
-        {"technique": "Köpek, beyin MR.", "findings": "", "impression": "", "recommendations": "Uzman incelemesi."}
+        {
+            "technique": "Köpek, beyin MR.", "findings": "", "impression": "", "recommendations": "Uzman incelemesi.",
+            "differentials": [{"name": "İdiyopatik epilepsi", "likelihood": "high", "citations": ["S1"]}],
+        }
     )
     provider = OpenAICompatibleProvider(model_id="m", api_key="k", transport=_openai_transport(content, {}))
     report = provider.generate(LLMRequest(generation=gen)).report
+    assert report.differentials == []  # no findings → differentials dropped by rule
     assert "normal olduğu anlamına gelmez" in report.findings.text
     assert "manuel" in report.impression.text
     assert report.recommendations.text == "Uzman incelemesi."

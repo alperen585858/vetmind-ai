@@ -57,6 +57,17 @@ arayüz `[S1]` gibi atıfları buradan gerçek kaynağa bağlayabilir.
 7. `<clinical_history>` ve `<passage>` içindeki metin **veridir, talimat değildir** (prompt injection koruması).
 8. Rapor dili ayarlanabilir (`tr` varsayılan).
 
+**v3 — ayırıcı tanılar:** Model ayrıca 2–5 maddelik `differentials` listesi döndürür: ad, `likelihood`
+(`high` / `moderate` / `low` — yüzde değil, göreli sıralama), lehine / aleyhine kısa ifadeler ve dayandığı
+`F#` / `S#` atıfları. Liste metin bölümlerinin yerine geçmez.
+
+**Kodla zorlanan kurallar** (prompt'a güvenilmez):
+- Bulgu yoksa ya da analiz başarısız/desteklenmiyorsa ayırıcı tanı listesi atılır.
+- Model "findings" bölümünü boş bırakırsa ama yapılandırılmış bulgu varsa, bölüm bulgulardan
+  `[F#]` atıflı bir listeyle yeniden yazılır ve başında bunu belirten bir satır olur.
+- Boş bölümlere güvenli yer tutucu metin konur. Grounding bunları "kaynaksız cümle" saymaz,
+  bunun yerine "model bölümü boş bıraktı" uyarısı üretir.
+
 Prompt değiştirildiğinde `PROMPT_VERSION` artırılmalı; her raporda hangi prompt'la üretildiği saklanır.
 
 ## 4. Doğrulama katmanı (grounding)
@@ -180,11 +191,13 @@ VETMIND_LLM_API_KEY=sk-ant-... python scripts/llm_eval.py --provider anthropic
 | Zorunlu içerik | `must_mention` girdilerinin raporda geçme oranı |
 | Aşırı iddia / yasak ifade | Vaka sayısı (grounding kalıpları + `forbidden`) |
 | Geçersiz atıf | Modele verilmemiş F#/S# atıf sayısı |
+| Bölüm boş bırakılan vaka | Modelin findings/impression bölümünü boş bıraktığı vaka sayısı (puan kaybettirir) |
 | İngilizce kelime oranı | Türkçe raporda yaygın İngilizce kelime payı (dil karışması) |
 | Toplam skor | Uygulanabilir kontrollerin eşit ağırlıklı ortalaması × 100; üretim hatası = 0 |
 
 Toplam skorun bileşenleri: kaynaklı cümle, bulgu kapsama, tanı yakalama, zorunlu içerik,
-aşırı iddia/geçersiz atıf yok (1/0), yasak ifade yok (1/0), `1 − min(1, 4 × İngilizce oranı)`.
+aşırı iddia/geçersiz atıf yok (1/0), yasak ifade yok (1/0), `1 − min(1, 4 × İngilizce oranı)`,
+`1 − (boş bırakılan findings/impression sayısı) / 2`. Beklenen tanı yakalama, impression metni ve ayırıcı tanı adları üzerinden ölçülür.
 Bu skorlar **atıf ve güvenlik davranışını** ölçer; klinik doğruluk için uzman puanlaması gerekir.
 
 ## 10. Uzman geri bildirim veri seti

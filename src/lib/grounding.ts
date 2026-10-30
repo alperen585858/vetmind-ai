@@ -18,6 +18,7 @@ const SECTION_TR: Record<string, string> = {
   findings: 'Bulgular',
   impression: 'Değerlendirme',
   recommendations: 'Öneriler',
+  differentials: 'Ayırıcı tanılar',
 }
 
 const OVERCLAIM_TR: Record<string, string> = {
@@ -54,6 +55,15 @@ export function parseWarning(raw: string): ReviewWarning {
       detail: `“${m[3]}” — taslak bulguları temkinli dille ifade etmeli.`,
       raw,
     }
+  }
+  m = raw.match(/^Grounding: (\d+) differential\(s\) without citation: (.*?)\.?$/s)
+  if (m) {
+    return { kind: 'uncited', title: `${m[1]} dayanaksız ayırıcı tanı`, section: SECTION_TR.differentials, detail: m[2], raw }
+  }
+  m = raw.match(/^Grounding: model left section\(s\) empty: (.+?) —/)
+  if (m) {
+    const names = m[1].split(/,\s*/).map((k) => SECTION_TR[k] ?? k).join(', ')
+    return { kind: 'omitted', title: 'Model bölümü boş bıraktı', detail: `${names} — yer tutucu metin ya da otomatik bulgu listesi eklendi; bu bölümleri elle yazın.`, raw }
   }
   m = raw.match(/^Grounding: imaging finding\(s\) not mentioned in the draft: (.*?)\.?$/)
   if (m) {

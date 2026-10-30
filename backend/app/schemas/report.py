@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +25,23 @@ class GenerationMetadata(BaseModel):
     clinically_validated: bool = False
     # Set by prompt-based providers; enables grounding checks in ReportValidator.
     prompt_version: Optional[str] = None
+
+
+class DifferentialDiagnosis(BaseModel):
+    """One ranked differential from a prompt-based LLM draft.
+
+    ``likelihood`` is the model's relative ranking label, never a clinical probability.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    likelihood: Literal["high", "moderate", "low"]
+    supporting: list[str] = Field(default_factory=list)
+    against: list[str] = Field(default_factory=list)
+    # Citation aliases as written by the model, e.g. ["F1", "S2"] (see DraftReport.citation_map).
+    citations: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
 
 
 class ReportSection(BaseModel):
@@ -62,6 +79,8 @@ class DraftReport(BaseModel):
     used_passage_ids: list[str] = Field(default_factory=list)
     # Inline citation alias → id, e.g. {"F1": finding_id, "S1": rag source_id}.
     citation_map: dict[str, str] = Field(default_factory=dict)
+    # Ranked differentials (prompt-based providers only; empty for template drafts).
+    differentials: list[DifferentialDiagnosis] = Field(default_factory=list)
     # Model text per section, captured when the pipeline draft is created. Expert edits
     # never change it, so AI-vs-expert differences survive approval (feedback dataset).
     ai_sections: dict[str, str] = Field(default_factory=dict)

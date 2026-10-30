@@ -4,7 +4,7 @@ from app.llm.mock_provider import MockLLMProvider
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
-from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
+from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
 from app.validation.report_validator import ReportValidator
 
 
@@ -96,3 +96,33 @@ def test_validator_rechecks_after_expert_edit() -> None:
     grounding = [w for w in r.validation_warnings if w.startswith("Grounding")]
     assert any("definitive diagnosis" in w for w in grounding)
     assert any("uncited statement" in w for w in grounding)
+
+
+def test_differentials_are_grounding_checked() -> None:
+    r = _report("Şüpheli kitle izlenmektedir [F1]. Ödem olası [F2].", "Meningiom olası görünmektedir [F1, S1].")
+    r.differentials = [
+        DifferentialDiagnosis(name="Meningiom", likelihood="high", citations=["F1", "S1"]),
+        DifferentialDiagnosis(name="Gliom", likelihood="low", citations=[]),
+        DifferentialDiagnosis(name="Apse", likelihood="low", citations=["S7"]),
+    ]
+    text = " | ".join(check_grounding(r))
+    assert 'differential(s) without citation: "Gliom"' in text
+    assert "differentials cites unknown reference(s) S7" in text
+
+
+def test_differential_citation_counts_as_mentioning_a_finding() -> None:
+    r = _report("Şüpheli kitle izlenmektedir [F1].", "Meningiom olası görünmektedir [F1, S1].")
+    assert any("not mentioned" in w for w in check_grounding(r))
+    r.differentials = [DifferentialDiagnosis(name="Ödem", likelihood="moderate", citations=["F2"])]
+    assert not any("not mentioned" in w for w in check_grounding(r))
+
+
+def test_placeholder_sections_are_reported_not_flagged_as_uncited() -> None:
+    from app.llm.structured_output import EMPTY_SECTION_TEXT
+
+    r = _report(EMPTY_SECTION_TEXT["tr"]["findings"], EMPTY_SECTION_TEXT["tr"]["impression"], citation_map={})
+    warnings = check_grounding(r)
+    assert warnings == [
+        "Grounding: model left section(s) empty: findings, impression — "
+        "placeholder or auto-listed findings were inserted; write these sections manually."
+    ]

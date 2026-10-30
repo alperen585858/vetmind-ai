@@ -38,6 +38,7 @@ const EVAL_ROWS: { key: string; label: string; fmt: 'pct' | 'num' | 'sec' | 'sco
   { key: 'overclaim_cases', label: 'Aşırı iddialı vaka', fmt: 'num', better: 'low' },
   { key: 'forbidden_cases', label: 'Yasak ifade içeren vaka', fmt: 'num', better: 'low' },
   { key: 'unknown_refs', label: 'Geçersiz atıf', fmt: 'num', better: 'low' },
+  { key: 'blank_cases', label: 'Bölüm boş bırakılan vaka', fmt: 'num', better: 'low' },
   { key: 'english_ratio', label: 'İngilizce kelime oranı', fmt: 'pct', better: 'low' },
   { key: 'latency_s', label: 'Ortalama süre', fmt: 'sec', better: 'low' },
 ]

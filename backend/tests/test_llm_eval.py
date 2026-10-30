@@ -81,6 +81,11 @@ def test_good_draft_scores_high_bad_draft_scores_low() -> None:
     assert bad.english_ratio > 0.2
     assert bad.score < 50
 
+    blank = dict(GOOD, findings="", impression="")
+    blank_case = run_eval(s, _provider(blank), rag=LexicalRagRetriever()).cases[0]
+    assert blank_case.blank_sections == ["findings", "impression"]
+    assert blank_case.score < good.score
+
 
 def test_provider_errors_are_recorded_not_raised() -> None:
     s = _set("brain-mass-01", "no-findings-01")

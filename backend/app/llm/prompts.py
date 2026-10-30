@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from app.llm.interfaces import LLMGenerationInput
 from app.schemas.enums import ModelExecutionStatus
 
-PROMPT_VERSION = "vetmind-report-v2"
+PROMPT_VERSION = "vetmind-report-v3"
 
 LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
 
@@ -56,8 +56,15 @@ Sections:
 - findings: one line per imaging finding, with location, description and certainty.
 - impression: the most likely interpretation and differential diagnoses, ranked, with citations.
 - recommendations: concrete next steps (additional sequences, tests, consultation). Always end with the need for radiologist review.
+- differentials: an ADDITIONAL structured list; it never replaces the text sections. Write findings and impression in full first.
+  2-5 differential diagnoses ranked from most to least likely, consistent with the impression. Each item has:
+  name (in the report language), likelihood ("high" | "moderate" | "low" — a relative ranking, never a percentage),
+  supporting and against (short phrases taken only from the given history and findings; may be empty),
+  citations (the markers it rests on, e.g. ["F1", "S2"]; at least one).
+  Use an empty list when no findings were returned or analysis failed.
 
-Respond with a single JSON object with exactly these string keys: technique, findings, impression, recommendations. No prose outside the JSON."""
+The four text sections must never be empty strings, even when you also return differentials.
+Respond with a single JSON object with exactly these keys: technique, findings, impression, recommendations (strings) and differentials (array). No prose outside the JSON."""
 
 
 def _history_block(gen: LLMGenerationInput) -> str:

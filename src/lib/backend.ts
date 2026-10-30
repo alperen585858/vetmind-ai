@@ -1,6 +1,6 @@
 import { currentActorId, getBackendAccessToken, loadSession } from './auth'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
-import type { AIAssessment, ReportSections, Species } from '../types'
+import type { AIAssessment, DifferentialLikelihood, ReportSections, Species } from '../types'
 import type {
   BackendCaseRecord,
   BackendCaseSummary,
@@ -987,13 +987,22 @@ export async function submitBackendReview(caseId: string, payload: {
   })
 }
 
+export const LIKELIHOOD_TR: Record<DifferentialLikelihood, string> = {
+  high: 'Yüksek',
+  moderate: 'Orta',
+  low: 'Düşük',
+}
+
 export function draftToSections(report: BackendDraftReport): ReportSections {
   return {
     klinikOzet: report.technique.text,
     bulgular: report.findings.text,
     degerlendirme: report.impression.text,
-    ayiriciTanilar:
-      'Sentetik taslak: LLM ayırıcı tanı listesi üretmedi. İzlenebilirlik için rapor bölümleri structured finding_id değerlerine atıf yapar.',
+    ayiriciTanilar: report.differentials?.length
+      ? report.differentials
+          .map((d, i) => `${i + 1}. ${d.name} — ${LIKELIHOOD_TR[d.likelihood]} olasılık${d.citations.length ? ` [${d.citations.join(', ')}]` : ''}`)
+          .join('\n')
+      : 'Sentetik taslak: LLM ayırıcı tanı listesi üretmedi. İzlenebilirlik için rapor bölümleri structured finding_id değerlerine atıf yapar.',
     oneriler: report.recommendations.text,
   }
 }
@@ -1014,7 +1023,15 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
     findings: mapped.length
       ? mapped
       : [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
-    differentials: [],
+    differentials: (report.differentials ?? []).map((d) => ({
+      name: d.name,
+      probability: 0,
+      pro: d.supporting,
+      con: d.against,
+      citations: [],
+      likelihood: d.likelihood,
+      aliases: d.citations,
+    })),
     recommendedTests: [report.recommendations.text],
     validation: findings.warnings
       .filter((w) => !isDisclaimerWarning(w))

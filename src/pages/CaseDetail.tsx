@@ -57,6 +57,13 @@ import {
 } from '../lib/reviewSla'
 import { CitedText } from '../components/CitedText'
 import { GroundingWarnings } from '../components/GroundingWarnings'
+import { LIKELIHOOD_TR } from '../lib/backend'
+
+const LIKELIHOOD_STYLE = {
+  high: 'bg-teal-100 text-teal-800',
+  moderate: 'bg-sky-100 text-sky-800',
+  low: 'bg-slate-100 text-slate-600',
+} as const
 import type { ValidationItem, VetCase } from '../types'
 
 const TABS = [
@@ -1324,17 +1331,43 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             </ul>
           </Card>
           <Card>
-            <CardHeader title="Olası Ayırıcı Tanılar" subtitle="Olasılıklar modelin göreli güvenini gösterir; klinik olasılık değildir." icon={<Stethoscope className="h-5 w-5" />} />
+            <CardHeader title="Olası Ayırıcı Tanılar" subtitle="Olasılık düzeyi modelin göreli sıralamasıdır; klinik olasılık değildir." icon={<Stethoscope className="h-5 w-5" />} />
+            {!ai.differentials.length && (
+              <p className="px-5 py-4 text-sm text-slate-500">Model ayırıcı tanı listesi üretmedi (bulgu yok, analiz başarısız ya da şablon taslak).</p>
+            )}
             <div className="divide-y divide-slate-100">
               {ai.differentials.map((d, i) => (
                 <div key={i} className="px-5 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-navy-900">{i + 1}. {d.name} <Citations ids={d.citations} /></p>
-                    <span className="font-mono text-sm font-semibold text-navy-700">%{d.probability}</span>
+                    {d.likelihood ? (
+                      <>
+                        <div className="flex flex-wrap items-center gap-1 font-semibold text-navy-900">
+                          {i + 1}. {d.name}
+                          {d.aliases?.length ? (
+                            <CitedText
+                              text={`[${d.aliases.join(', ')}]`}
+                              citationMap={c.backendDraft?.citation_map}
+                              sources={c.backendDraft?.rag_citations}
+                              className="inline text-sm font-normal"
+                            />
+                          ) : null}
+                        </div>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${LIKELIHOOD_STYLE[d.likelihood]}`}>
+                          {LIKELIHOOD_TR[d.likelihood]} olasılık
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-navy-900">{i + 1}. {d.name} <Citations ids={d.citations} /></p>
+                        <span className="font-mono text-sm font-semibold text-navy-700">%{d.probability}</span>
+                      </>
+                    )}
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${d.probability >= 50 ? 'bg-teal-500' : d.probability >= 20 ? 'bg-sky-400' : 'bg-slate-400'}`} style={{ width: `${d.probability}%` }} />
-                  </div>
+                  {!d.likelihood && (
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${d.probability >= 50 ? 'bg-teal-500' : d.probability >= 20 ? 'bg-sky-400' : 'bg-slate-400'}`} style={{ width: `${d.probability}%` }} />
+                    </div>
+                  )}
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Lehine bulgular</p>

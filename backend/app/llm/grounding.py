@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.llm.structured_output import MARKER_GROUP_RE, extract_markers
+from app.llm.structured_output import AUTO_FINDINGS_HEADER, EMPTY_SECTION_TEXT, MARKER_GROUP_RE, extract_markers
 from app.schemas.report import DraftReport
 
 SECTIONS = ("technique", "findings", "impression", "recommendations")
@@ -39,6 +39,9 @@ OVERCLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
 )
+
+# Our own placeholder for a section the model left blank: never a model claim.
+_FALLBACK_TEXTS = {text for lang in EMPTY_SECTION_TEXT.values() for text in lang.values()}
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -76,6 +79,8 @@ class GroundingStats:
     overclaims: list[tuple[str, str, str]] = field(default_factory=list)  # (section, label, text)
     finding_aliases: list[str] = field(default_factory=list)
     omitted_findings: list[str] = field(default_factory=list)
+    uncited_differentials: list[str] = field(default_factory=list)  # differential names
+    blank_sections: list[str] = field(default_factory=list)  # filled with placeholder text
 
     @property
     def uncited_count(self) -> int:
@@ -102,6 +107,14 @@ def analyze_grounding(report: DraftReport) -> GroundingStats:
 
     for name in SECTIONS:
         text = getattr(report, name).text
+        if text.strip() in _FALLBACK_TEXTS:
+            stats.blank_sections.append(name)
+            continue
+        if text.startswith(tuple(AUTO_FINDINGS_HEADER.values())):
+            # Rebuilt from structured findings; its [F#] markers still count as mentions.
+            stats.blank_sections.append(name)
+            cited_anywhere.update(extract_markers(text))
+            continue
         markers = extract_markers(text)
         cited_anywhere.update(markers)
         unknown = [m for m in markers if m not in known]
@@ -112,7 +125,18 @@ def analyze_grounding(report: DraftReport) -> GroundingStats:
             if match:
                 stats.overclaims.append((name, label, match.group(0)))
 
+    diff_unknown: list[str] = []
+    for d in report.differentials:
+        cited_anywhere.update(d.citations)
+        diff_unknown += [a for a in d.citations if a not in known and a not in diff_unknown]
+        if not d.citations:
+            stats.uncited_differentials.append(d.name)
+    if diff_unknown:
+        stats.unknown_refs["differentials"] = diff_unknown
+
     for name in CITED_SECTIONS:
+        if name in stats.blank_sections:
+            continue
         claims = [s for s in _sentences(getattr(report, name).text) if _is_claim(s)]
         stats.claim_sentences += len(claims)
         uncited = [s for s in claims if not MARKER_GROUP_RE.search(s)]
@@ -141,6 +165,22 @@ def check_grounding(report: DraftReport) -> list[str]:
                     f"Grounding: {name} contains a {label} statement (\"{text}\"); "
                     "drafts must keep findings hedged."
                 )
+    if stats.blank_sections:
+        warnings.append(
+            f"Grounding: model left section(s) empty: {', '.join(stats.blank_sections)} — "
+            "placeholder or auto-listed findings were inserted; write these sections manually."
+        )
+    if "differentials" in stats.unknown_refs:
+        warnings.append(
+            f"Grounding: differentials cites unknown reference(s) {', '.join(stats.unknown_refs['differentials'])} — "
+            "not in the findings/passages given to the model."
+        )
+    if stats.uncited_differentials:
+        warnings.append(
+            f"Grounding: {len(stats.uncited_differentials)} differential(s) without citation: "
+            + ", ".join(f'"{_short(n, 60)}"' for n in stats.uncited_differentials)
+            + "."
+        )
     for name in CITED_SECTIONS:
         uncited = stats.uncited.get(name)
         if uncited:

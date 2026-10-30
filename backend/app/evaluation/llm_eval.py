@@ -172,6 +172,8 @@ class CaseResult:
     must_mention_recall: Optional[float] = None
     forbidden_hits: list[str] = field(default_factory=list)
     english_ratio: Optional[float] = None
+    blank_sections: list[str] = field(default_factory=list)
+    differentials: list[str] = field(default_factory=list)
     sections: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -187,6 +189,8 @@ class CaseResult:
             0.0 if self.overclaims or self.unknown_refs else 1.0,
             0.0 if self.forbidden_hits else 1.0,
             1.0 - min(1.0, (self.english_ratio or 0.0) * 4),
+            # Findings/impression left blank (placeholder inserted) is a failure, not "no claims".
+            1.0 - len({"findings", "impression"} & set(self.blank_sections)) / 2,
         ]
         vals = [p for p in parts if p is not None]
         return round(100 * mean(vals), 1)
@@ -205,10 +209,15 @@ def score_report(ec: EvalCase, report: DraftReport, latency_s: float) -> CaseRes
         uncited=stats.uncited_count,
         unknown_refs=sum(len(v) for v in stats.unknown_refs.values()),
         overclaims=[f"{s}: {label} ({text})" for s, label, text in stats.overclaims],
-        differential_recall=recall(sections["impression"], ec.expected.differentials),
+        differential_recall=recall(
+            sections["impression"] + "\n" + "\n".join(d.name for d in report.differentials),
+            ec.expected.differentials,
+        ),
+        differentials=[f"{d.name} ({d.likelihood})" for d in report.differentials],
         must_mention_recall=recall(full, ec.expected.must_mention),
         forbidden_hits=[e for e in ec.expected.forbidden if term_found(full, e)],
         english_ratio=round(english_ratio(full), 3),
+        blank_sections=list(stats.blank_sections),
         sections=sections,
     )
 
@@ -238,6 +247,7 @@ class RunResult:
             "overclaim_cases": float(sum(bool(c.overclaims) for c in ok)),
             "forbidden_cases": float(sum(bool(c.forbidden_hits) for c in ok)),
             "unknown_refs": float(sum(c.unknown_refs for c in ok)),
+            "blank_cases": float(sum(bool(c.blank_sections) for c in ok)),
             "english_ratio": avg("english_ratio"),
             "latency_s": avg("latency_s"),
         }
@@ -300,6 +310,7 @@ METRIC_ROWS = (
     ("overclaim_cases", "Aşırı iddialı vaka sayısı", "{:.0f}"),
     ("forbidden_cases", "Yasak ifade içeren vaka", "{:.0f}"),
     ("unknown_refs", "Geçersiz atıf sayısı", "{:.0f}"),
+    ("blank_cases", "Bölüm boş bırakılan vaka", "{:.0f}"),
     ("english_ratio", "İngilizce kelime oranı", "{:.0%}"),
     ("latency_s", "Ortalama süre (sn)", "{:.1f}"),
 )
@@ -339,7 +350,7 @@ def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "L
         (r.label, ec.id, c)
         for r in runs
         for ec, c in zip(eval_set.cases, r.cases)
-        if not c.ok or c.forbidden_hits or c.overclaims or c.unknown_refs
+        if not c.ok or c.forbidden_hits or c.overclaims or c.unknown_refs or c.blank_sections
     ]
     if issues:
         lines += ["", "## Dikkat gerektirenler", ""]
@@ -348,6 +359,7 @@ def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "L
                 [f"yasak: {', '.join(c.forbidden_hits)}"] * bool(c.forbidden_hits)
                 + [f"aşırı iddia: {', '.join(c.overclaims)}"] * bool(c.overclaims)
                 + [f"geçersiz atıf: {c.unknown_refs}"] * bool(c.unknown_refs)
+                + [f"boş bölüm: {', '.join(c.blank_sections)}"] * bool(c.blank_sections)
             )
             lines.append(f"- `{label}` · {case_id}: {detail}")
 
