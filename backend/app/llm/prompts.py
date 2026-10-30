@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from app.llm.interfaces import LLMGenerationInput
 from app.schemas.enums import ModelExecutionStatus
 
-PROMPT_VERSION = "vetmind-report-v3"
+PROMPT_VERSION = "vetmind-report-v4"
 # Selectable for A/B evaluation (scripts/llm_eval.py --prompts) and VETMIND_LLM_PROMPT_VERSION.
 # v2: four text sections only. v3: + differentials in the same call.
 # v4: two steps — text sections (v2 load) + one targeted repair, then differentials in a

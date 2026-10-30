@@ -50,7 +50,9 @@ def _provider(*payloads) -> OpenAICompatibleProvider:
         content = json.dumps(item, ensure_ascii=False)
         return httpx.Response(200, json={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
 
-    return OpenAICompatibleProvider(model_id="fake", api_key="k", transport=httpx.MockTransport(handler))
+    return OpenAICompatibleProvider(
+        model_id="fake", api_key="k", prompt_version="vetmind-report-v3", transport=httpx.MockTransport(handler)
+    )
 
 
 def test_seed_set_is_valid_and_covers_edge_cases() -> None:

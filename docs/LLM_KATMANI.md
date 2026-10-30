@@ -61,7 +61,7 @@ arayüz `[S1]` gibi atıfları buradan gerçek kaynağa bağlayabilir.
 (`high` / `moderate` / `low` — yüzde değil, göreli sıralama), lehine / aleyhine kısa ifadeler ve dayandığı
 `F#` / `S#` atıfları. Liste metin bölümlerinin yerine geçmez.
 
-**v4 — iki adımlı üretim + onarım** (`VETMIND_LLM_PROMPT_VERSION=vetmind-report-v4`):
+**v4 — iki adımlı üretim + onarım (varsayılan)** (`VETMIND_LLM_PROMPT_VERSION=vetmind-report-v4`):
 1. *draft:* yalnız dört metin bölümü (v2 yükü).
 2. *repair* (gerekirse, tek sefer): boş findings/impression, atıfsız klinik cümle (bulgu varsa) veya geçersiz
    işaret varsa modele kendi taslağı ve somut sorun listesi verilir; düzeltilmiş taslak **yalnızca daha az sorun
@@ -127,7 +127,7 @@ Hata türleri GREEN taksonomisinden uyarlanmıştır: `invented_finding`, `overs
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modellerde **90** önerilir |
 | `VETMIND_LLM_VERIFY` | `false` | Atıf doğrulayıcı (hakem) çağrısı |
 | `VETMIND_LLM_VERIFIER_MODEL_ID` | yazar model | Hakem model adı (aynı sunucu) |
-| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v3` | `v2` yalnız metin · `v3` + ayırıcı tanılar tek çağrıda · `v4` iki adım + onarım (tam ad: `vetmind-report-vN`) |
+| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v4` | `v2` yalnız metin · `v3` + ayırıcı tanılar tek çağrıda · `v4` iki adım + onarım (tam ad: `vetmind-report-vN`) |
 
 ## 6. Deneme
 

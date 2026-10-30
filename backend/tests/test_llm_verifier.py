@@ -15,7 +15,8 @@ def _verdicts(*items) -> dict:
 
 def _provider(*responses, calls: list, **kw) -> OpenAICompatibleProvider:
     return OpenAICompatibleProvider(
-        model_id="writer", api_key="k", verify=True, transport=_sequence_transport(*responses, calls=calls), **kw
+        model_id="writer", api_key="k", verify=True, prompt_version="vetmind-report-v3",
+        transport=_sequence_transport(*responses, calls=calls), **kw
     )
 
 
@@ -70,7 +71,7 @@ def test_parse_verdicts_is_lenient_but_never_guesses() -> None:
     request, _, _ = _request()
     gen = request.generation
     provider = OpenAICompatibleProvider(
-        model_id="m", api_key="k",
+        model_id="m", api_key="k", prompt_version="vetmind-report-v3",
         transport=_sequence_transport(_report_json(gen), calls=[]),
     )
     report = provider.generate(request).report

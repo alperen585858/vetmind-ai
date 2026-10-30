@@ -66,7 +66,7 @@ class Settings:
     llm_temperature: float | None = 0.2
     llm_max_tokens: int = 2048
     llm_json_mode: str = "schema"  # schema | object | none (OpenAI-compatible only)
-    llm_prompt_version: str = "vetmind-report-v3"
+    llm_prompt_version: str = "vetmind-report-v4"
     llm_verify: bool = False  # sentence-level citation verifier pass (one extra call)
     llm_verifier_model_id: str | None = None  # judge model on the same endpoint; default = writer
     auth_enabled: bool = False
@@ -265,7 +265,7 @@ def load_settings() -> Settings:
     except ValueError:
         llm_max_tokens = 2048
     llm_json_mode = os.getenv("VETMIND_LLM_JSON_MODE", "schema").strip().lower() or "schema"
-    llm_prompt_version = os.getenv("VETMIND_LLM_PROMPT_VERSION", "vetmind-report-v3").strip() or "vetmind-report-v3"
+    llm_prompt_version = os.getenv("VETMIND_LLM_PROMPT_VERSION", "vetmind-report-v4").strip() or "vetmind-report-v4"
     llm_verify = _env_bool("VETMIND_LLM_VERIFY", False)
     llm_verifier_model_id = (os.getenv("VETMIND_LLM_VERIFIER_MODEL_ID") or "").strip() or None
 

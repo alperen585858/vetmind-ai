@@ -15,7 +15,7 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
-from app.llm.prompts import PROMPT_VERSION, build_aliases, build_system_prompt, build_user_prompt
+from app.llm.prompts import build_aliases, build_system_prompt, build_user_prompt
 from app.llm.structured_output import extract_markers, parse_report_payload
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
@@ -23,6 +23,9 @@ from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
 from app.schemas.rag import RagPassage
 from app.settings import load_settings
 from app.validation.report_validator import ReportValidator
+
+# Tests of single-call behaviour pin v3; the two-step default (v4) has its own tests below.
+SINGLE_CALL = "vetmind-report-v3"
 
 PASSAGES = [
     RagPassage(
@@ -102,7 +105,8 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     captured: dict = {}
     content = json.dumps(_report_json(request.generation), ensure_ascii=False)
     provider = OpenAICompatibleProvider(
-        model_id="gpt-test", api_key="sk-test", transport=_openai_transport(content, captured)
+        model_id="gpt-test", api_key="sk-test", prompt_version=SINGLE_CALL,
+        transport=_openai_transport(content, captured),
     )
     resp = provider.generate(request)
     report = resp.report
@@ -116,7 +120,7 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     assert "Pax" not in user_msg  # patient name never leaves the backend
     assert "<clinical_history>" in user_msg and "[S1]" in user_msg and "[F1]" in user_msg
 
-    assert report.generation.prompt_version == PROMPT_VERSION
+    assert report.generation.prompt_version == SINGLE_CALL
     assert report.generation.provider_id == "openai-compatible"
     assert report.clinically_validated is False
     assert report.synthetic is True  # mock imaging findings → synthetic draft
@@ -263,7 +267,7 @@ def test_anthropic_provider_uses_forced_tool_call() -> None:
             },
         )
 
-    provider = AnthropicProvider(api_key="sk-ant", transport=httpx.MockTransport(handler))
+    provider = AnthropicProvider(api_key="sk-ant", prompt_version=SINGLE_CALL, transport=httpx.MockTransport(handler))
     report = provider.generate(request).report
 
     assert captured["url"] == "https://api.anthropic.com/v1/messages"
