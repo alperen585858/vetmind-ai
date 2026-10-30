@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import assert_case_access, can_access_owned
-from app.ingest.documents import extract_document_text
+from app.ingest.documents import DocumentTextAdapter, DefaultDocumentTextAdapter, extract_document_text
 from app.ingest.filetype import detect_file_kind
 from app.models.model_input_builder import build_imaging_model_input
 from app.routing.capabilities import ModelCapability, default_capabilities
@@ -42,6 +42,7 @@ class DocumentService:
         *,
         capabilities: list[ModelCapability] | None = None,
         tenant_isolation: bool = False,
+        document_adapter: DocumentTextAdapter | None = None,
     ) -> None:
         self._repo = repo
         self._quarantine = quarantine
@@ -49,6 +50,7 @@ class DocumentService:
             list(capabilities) if capabilities is not None else list(default_capabilities())
         )
         self._tenant_isolation = tenant_isolation
+        self._document_adapter = document_adapter or DefaultDocumentTextAdapter()
 
     def upload(
         self,
@@ -113,7 +115,9 @@ class DocumentService:
         )
         documents: list[ExtractedDocument] = []
         for (filename, data), kind, ref in zip(files, kinds, stored, strict=True):
-            text, truncated = extract_document_text(kind, data, filename)
+            text, truncated = extract_document_text(
+                kind, data, filename, adapter=self._document_adapter
+            )
             documents.append(
                 ExtractedDocument(
                     filename=filename,

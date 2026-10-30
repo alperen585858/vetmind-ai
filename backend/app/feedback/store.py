@@ -40,6 +40,26 @@ def _redact(text: str | None) -> str | None:
 
 
 @dataclass(frozen=True)
+class ClassificationCorrectionEvent:
+    """Training signal when user overrides DICOM classification suggestion."""
+
+    event_id: str
+    ingest_id: str
+    case_id: str
+    actor: str
+    clinic_id: str | None
+    suggested_modality: str
+    suggested_anatomical_region: str
+    confirmed_modality: str
+    confirmed_anatomical_region: str
+    created_at: str
+    event_kind: str = "classification_correction"
+
+    def to_json(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class FeedbackEvent:
     event_id: str
     case_id: str
@@ -54,6 +74,7 @@ class FeedbackEvent:
     source_kind: str | None
     rag_passage_ids: tuple[str, ...]
     created_at: str
+    event_kind: str = "review"
 
     def to_json(self) -> dict[str, Any]:
         data = asdict(self)
@@ -117,36 +138,82 @@ class FeedbackStore:
                     fh.write(line + "\n")
         return event
 
+    def record_classification_correction(
+        self,
+        *,
+        ingest_id: str,
+        case_id: str,
+        actor: str,
+        clinic_id: str | None = None,
+        suggested_modality: str,
+        suggested_anatomical_region: str,
+        confirmed_modality: str,
+        confirmed_anatomical_region: str,
+    ) -> ClassificationCorrectionEvent:
+        event = ClassificationCorrectionEvent(
+            event_id=f"fb-{uuid4().hex[:12]}",
+            ingest_id=ingest_id,
+            case_id=case_id,
+            actor=actor,
+            clinic_id=clinic_id,
+            suggested_modality=suggested_modality,
+            suggested_anatomical_region=suggested_anatomical_region,
+            confirmed_modality=confirmed_modality,
+            confirmed_anatomical_region=confirmed_anatomical_region,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        line = json.dumps(event.to_json(), ensure_ascii=False)
+        with self._lock:
+            self._memory.append(event)
+            if self._path is not None:
+                with self._path.open("a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+        return event
+
+    def _parse_line(self, data: dict[str, Any]) -> FeedbackEvent | ClassificationCorrectionEvent:
+        if data.get("event_kind") == "classification_correction":
+            return ClassificationCorrectionEvent(
+                event_id=data["event_id"],
+                ingest_id=data["ingest_id"],
+                case_id=data["case_id"],
+                actor=data["actor"],
+                clinic_id=data.get("clinic_id"),
+                suggested_modality=data["suggested_modality"],
+                suggested_anatomical_region=data["suggested_anatomical_region"],
+                confirmed_modality=data["confirmed_modality"],
+                confirmed_anatomical_region=data["confirmed_anatomical_region"],
+                created_at=data["created_at"],
+            )
+        return FeedbackEvent(
+            event_id=data["event_id"],
+            case_id=data["case_id"],
+            report_version_id=data.get("report_version_id"),
+            actor=data["actor"],
+            clinic_id=data.get("clinic_id"),
+            decision=data["decision"],
+            reason_codes=tuple(data.get("reason_codes") or ()),
+            free_text=data.get("free_text"),
+            model_ids=tuple(data.get("model_ids") or ()),
+            finding_ids=tuple(data.get("finding_ids") or ()),
+            source_kind=data.get("source_kind"),
+            rag_passage_ids=tuple(data.get("rag_passage_ids") or ()),
+            created_at=data["created_at"],
+        )
+
     def list_events(
         self,
         *,
         clinic_id: str | None = None,
         limit: int = 500,
-    ) -> list[FeedbackEvent]:
+    ) -> list[FeedbackEvent | ClassificationCorrectionEvent]:
         with self._lock:
             if self._path is not None and self._path.exists():
-                items: list[FeedbackEvent] = []
+                items: list[FeedbackEvent | ClassificationCorrectionEvent] = []
                 for raw in self._path.read_text(encoding="utf-8").splitlines():
                     if not raw.strip():
                         continue
                     data = json.loads(raw)
-                    items.append(
-                        FeedbackEvent(
-                            event_id=data["event_id"],
-                            case_id=data["case_id"],
-                            report_version_id=data.get("report_version_id"),
-                            actor=data["actor"],
-                            clinic_id=data.get("clinic_id"),
-                            decision=data["decision"],
-                            reason_codes=tuple(data.get("reason_codes") or ()),
-                            free_text=data.get("free_text"),
-                            model_ids=tuple(data.get("model_ids") or ()),
-                            finding_ids=tuple(data.get("finding_ids") or ()),
-                            source_kind=data.get("source_kind"),
-                            rag_passage_ids=tuple(data.get("rag_passage_ids") or ()),
-                            created_at=data["created_at"],
-                        )
-                    )
+                    items.append(self._parse_line(data))
             else:
                 items = list(self._memory)
         if clinic_id is not None:

@@ -447,7 +447,22 @@ export default function NewCase() {
             course: clinical.course || undefined,
             medications: clinical.medications || undefined,
             relevant_history: clinical.history || undefined,
-            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'}`,
+            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'} · ${patient.sex}${patient.neutered ? ' (kısır)' : ''} · ${patient.weight || '?'} kg`,
+            sex: patient.sex || undefined,
+            weight_kg: patient.weight > 0 ? patient.weight : undefined,
+            neutered: patient.neutered,
+            neuro_exam: {
+              consciousness: neuro.consciousness,
+              gait: neuro.gait,
+              limbs: neuro.limbs,
+              posturalThoracic: neuro.posturalThoracic,
+              posturalPelvic: neuro.posturalPelvic,
+              reflexThoracic: neuro.reflexThoracic,
+              reflexPelvic: neuro.reflexPelvic,
+              cranialNerves: neuro.cranialNerves,
+              deepPain: neuro.deepPain,
+              hyperesthesia: neuro.hyperesthesia,
+            },
           },
         })
       }
@@ -650,7 +665,7 @@ export default function NewCase() {
             <h2 className="mb-5 text-lg font-semibold text-navy-900">Hasta Bilgileri</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Hasta adı *"><input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder="ör. Paşa" /></Field>
-              <Field label="Tür"><Pills options={['Köpek', 'Kedi'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
+              <Field label="Tür"><Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
               <Field label="Irk *"><input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder="ör. Dachshund" /></Field>
               <Field label="Cinsiyet"><Pills options={['Erkek', 'Dişi'] as const} value={patient.sex} onChange={(v) => P('sex', v)} /></Field>
               <Field label="Kısırlaştırma durumu"><Pills options={['Kısırlaştırılmış', 'Kısırlaştırılmamış'] as const} value={patient.neutered ? 'Kısırlaştırılmış' : 'Kısırlaştırılmamış'} onChange={(v) => P('neutered', v === 'Kısırlaştırılmış')} /></Field>

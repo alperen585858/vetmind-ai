@@ -336,6 +336,10 @@ export async function createAndAnalyzeCase(input: {
     medications?: string
     relevant_history?: string
     handoff_notes?: string
+    sex?: string
+    weight_kg?: number
+    neutered?: boolean
+    neuro_exam?: Record<string, string | string[] | boolean | number | null>
   }
 }): Promise<BackendPipelineResult> {
   const { modality, anatomical_region } = scenarioRouting(input.scenario)
@@ -600,6 +604,7 @@ export interface RagCustomDocument {
   section: string
   passage: string
   keywords: string[]
+  approved?: boolean
 }
 
 /** Sources added from Bilgi Tabanı (seed corpus excluded). */
@@ -607,13 +612,59 @@ export async function listCustomRagDocuments(): Promise<RagCustomDocument[]> {
   return request('/rag/documents')
 }
 
-export async function addRagDocument(input: { title: string; section: string; passage: string }): Promise<{
+export async function addRagDocument(input: {
+  title: string
+  section: string
+  passage: string
+  approved?: boolean
+}): Promise<{
   source_id: string
   title: string
   section: string
   count: number
+  approved?: boolean
 }> {
   return request('/rag/documents', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export async function bulkRagDocuments(
+  documents: {
+    title: string
+    section: string
+    passage: string
+    keywords?: string[]
+    approved?: boolean
+    source_id?: string
+  }[],
+): Promise<{ added: number; source_ids: string[]; count: number; note: string }> {
+  return request('/rag/documents/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ documents }),
+  })
+}
+
+export interface RetentionPlanResponse {
+  dry_run: boolean
+  planned: { kind: string; target: string; reason: string; blocked: boolean; block_reason?: string | null }[]
+  applied: string[]
+  skipped_blocked: string[]
+  temp_cleanup_would_remove?: number
+  temp_cleanup_removed?: number
+  audit_log_lines_removed?: number
+  policy?: {
+    dicom_days: number | null
+    reports_days: number | null
+    temp_hours: number
+    preserve_approved_reports: boolean
+  }
+}
+
+export async function fetchRetentionPlan(): Promise<RetentionPlanResponse> {
+  return request('/admin/retention/plan')
+}
+
+export async function applyRetentionPlan(): Promise<RetentionPlanResponse> {
+  return request('/admin/retention/apply', { method: 'POST' })
 }
 
 export async function confirmDicomClassification(input: {
@@ -729,6 +780,11 @@ export async function markReportDelivered(caseId: string): Promise<BackendCaseRe
 
 export async function markReportViewed(caseId: string): Promise<BackendCaseRecord> {
   return request(`/cases/${caseId}/report/viewed`, { method: 'POST' })
+}
+
+/** Bootstrap blank radiologist draft for failed / unsupported cases (no AI draft). */
+export async function initManualReport(caseId: string): Promise<BackendDraftReport> {
+  return request(`/cases/${caseId}/report/manual-init`, { method: 'POST' })
 }
 
 export async function saveBackendDraftReport(

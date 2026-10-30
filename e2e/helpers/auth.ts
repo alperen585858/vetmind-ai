@@ -17,6 +17,10 @@ export async function loginAsExpert(page: Page) {
   await loginAs(page, 'expert@demo.local')
 }
 
+export async function loginAsOwner(page: Page) {
+  await loginAs(page, 'owner@demo.local')
+}
+
 /** Switch demo role via Topbar (also refreshes JWT when backend auth is on). */
 export async function switchRole(page: Page, roleLabel: RegExp | string) {
   await page.getByRole('button', { name: /Rol değiştir/i }).click()

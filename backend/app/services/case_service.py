@@ -50,11 +50,18 @@ from app.schemas.enums import (
     PipelineOutcome,
     ReportStatus,
     ReviewAction,
+    SourceKind,
 )
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
-from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
+from app.schemas.report import (
+    DraftReport,
+    GenerationMetadata,
+    ReportSection,
+    ReportVersionSnapshot,
+    ReportVersionSummary,
+)
 from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.report_versioning import (
@@ -620,6 +627,100 @@ class CaseService:
                 emitted += 1
         return emitted
 
+    def init_manual_report(
+        self,
+        case_id: str,
+        *,
+        principal: AuthPrincipal | None = None,
+        editor_id: str | None = None,
+    ) -> DraftReport:
+        """Bootstrap a blank radiologist draft for failed/unsupported cases (no AI draft).
+
+        Moves the case to awaiting_review so normal save/approve apply. Provenance is
+        ``source_kind=manual`` — never claim mock/real model output.
+        """
+        case = self.get_case(case_id, principal=principal)
+        if case.draft_report is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Case already has a draft report; edit it instead of re-initializing.",
+            )
+        if case.status not in {
+            CaseLifecycleStatus.MANUAL_REVIEW,
+            CaseLifecycleStatus.FAILED,
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Manual report init is only for failed or unsupported (manual_review) cases "
+                    f"(current status={case.status.value})."
+                ),
+            )
+        author = editor_id or (principal.subject if principal else "manual-radiologist")
+        if principal is not None:
+            author = bind_reviewer_id(principal, author)
+        now = _now()
+        placeholder = (
+            "[Manuel taslak — radyolog doldurur. AI çıktısı değildir; klinik sertifikasyon iddiası yoktur.]"
+        )
+        report = DraftReport(
+            report_id=f"rpt-manual-{uuid4().hex[:12]}",
+            case_id=case.case_id,
+            status=ReportStatus.DRAFT,
+            generation=GenerationMetadata(
+                provider_id="manual-radiologist",
+                model_id="manual",
+                model_version="1.0.0",
+                source_kind=SourceKind.MANUAL,
+                generated_at=now,
+                synthetic=True,
+                clinically_validated=False,
+            ),
+            technique=ReportSection(text=placeholder),
+            findings=ReportSection(text=placeholder),
+            impression=ReportSection(text=placeholder),
+            recommendations=ReportSection(text=placeholder),
+            validation_warnings=[
+                "Manuel radyolog taslağı — AI draft değildir.",
+                "Yapısal doğrulama klinik doğruluğu kanıtlamaz.",
+            ],
+            expert_review_status=ExpertReviewStatus.PENDING,
+            synthetic=True,
+            clinically_validated=False,
+            rag_note=(
+                "Bu taslak manuel başlatıldı; RAG alıntısı yoktur. "
+                "Onay, AI model doğrulaması anlamına gelmez."
+            ),
+            ai_sections={},
+            version=1,
+            created_at=now,
+            updated_at=now,
+            revision_notes="manual-init",
+        )
+        case.draft_report = report
+        case.status = CaseLifecycleStatus.AWAITING_REVIEW
+        apply_review_sla(case)
+        upsert_version_snapshot(
+            case,
+            snapshot_from_draft(
+                case,
+                report,
+                author_or_source=author,
+                revision_notes="manual-init",
+                immutable=False,
+            ),
+        )
+        append_activity(
+            case,
+            kind="manual_report_init",
+            actor_subject=author,
+            detail="Manuel taslak başlatıldı (AI draft yok)",
+        )
+        case.updated_at = now
+        self._repo.save_case(case)
+        self._emit_audit("report.manual_init", principal=principal, resource=case_id)
+        return report
+
     def save_draft_report(
         self,
         case_id: str,
@@ -1159,20 +1260,26 @@ class CaseService:
         if case.status == CaseLifecycleStatus.FAILED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot approve: analysis failed and produced no AI draft.",
+                detail=(
+                    "Cannot approve: analysis failed and produced no AI draft. "
+                    "Use POST .../report/manual-init then edit and approve the manual draft."
+                ),
             )
         if case.status == CaseLifecycleStatus.MANUAL_REVIEW:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
                     "Cannot approve an AI draft for an unsupported case. "
-                    "This case requires manual radiologist review, which is distinct from AI draft approval."
+                    "Use POST .../report/manual-init for a radiologist-authored draft, then approve."
                 ),
             )
         if case.draft_report is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot approve: there is no AI-generated draft report.",
+                detail=(
+                    "Cannot approve: there is no draft report. "
+                    "For failed/unsupported cases call POST .../report/manual-init first."
+                ),
             )
 
         report = case.draft_report.model_copy(deep=True)

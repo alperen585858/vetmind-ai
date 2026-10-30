@@ -40,17 +40,23 @@ class AuthorizedPixelBridge:
         capabilities: list[ModelCapability],
         limits: ResourceLimits | None = None,
         artifact_root: Path | None = None,
+        pixel_analysis_opt_in: bool = False,
     ) -> None:
         self._quarantine = quarantine
         self._capabilities = list(capabilities)
         self._limits = limits or ResourceLimits()
         self._artifact_root = artifact_root
+        self._pixel_analysis_opt_in = bool(pixel_analysis_opt_in)
         self._decoder = AuthorizedDicomDecoder(
             quarantine_root=quarantine.root if quarantine else None
         )
         self._assembler = SliceOrderedVolumeAssembler()
         self._preprocessor = ContractImagePreprocessor()
-        self._meta = MetadataOnlyPreparationPipeline(capabilities=self._capabilities)
+        self._meta = MetadataOnlyPreparationPipeline(
+            capabilities=self._capabilities,
+            pixel_analysis_opt_in=self._pixel_analysis_opt_in,
+            quarantine_root=quarantine.root if quarantine else None,
+        )
 
     def prepare_for_model(
         self,
@@ -65,7 +71,12 @@ class AuthorizedPixelBridge:
     ) -> PreparedTensorBundle:
         by_id = {c.model_id: c for c in self._capabilities}
         cap = by_id.get(model_id)
-        decision = evaluate_pixel_access(case, model_id=model_id, capability=cap)
+        decision = evaluate_pixel_access(
+            case,
+            model_id=model_id,
+            capability=cap,
+            pixel_analysis_opt_in=self._pixel_analysis_opt_in,
+        )
         if not decision.authorized:
             codes = ", ".join(decision.reason_codes) or "unauthorized"
             raise IncompatibleInputError(f"Pixel access denied: {codes}")

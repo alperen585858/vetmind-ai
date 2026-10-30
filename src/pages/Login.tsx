@@ -114,7 +114,8 @@ export default function Login() {
               <span className="text-sky-600"> DICOM metadata yükleyin,</span> uzman onayıyla ilerleyin.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-navy-600">
-              Veteriner radyoloji iş akışına güvenli giriş yapın; DICOM yükleme ve uzman onay sürecine devam edin.
+              Veteriner radyoloji iş akışına giriş yapın; DICOM yükleme ve uzman onay sürecine devam edin.
+              Varsayılan kurulumda arayüz rol kapıları yalnızca UX’tir — korumalı veri için backend auth açılmalıdır.
             </p>
             <ul className="mt-8 space-y-2 text-sm text-navy-700">
               <li className="flex items-center gap-2">
@@ -123,7 +124,7 @@ export default function Login() {
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                VRM işbirliğiyle klinik odaklı prototip
+                Bitirme prototipi · klinik üretim / otonom tanı değildir
               </li>
             </ul>
           </div>

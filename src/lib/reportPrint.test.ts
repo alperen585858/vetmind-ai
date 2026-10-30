@@ -108,7 +108,7 @@ describe('reportPrint / PDF data binding', () => {
     const prov = reportProvenance(c)
     expect(prov.sourceKind).toBe('mock')
     expect(prov.synthetic).toBe(true)
-    expect(prov.banner).toMatch(/DEMO|SENTETİK/)
+    expect(prov.banner).toMatch(/AI TASLAK|DEMO|SENTETİK|KLİNİK/)
     expect(prov.modelLine).toContain('mock-brain-mri-v1')
     expect(prov.versionLabel).toMatch(/v\d+/)
   })

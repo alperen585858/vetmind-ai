@@ -16,7 +16,8 @@ import { draftToSections, pipelineToAssessment } from './backend'
 import { USERS } from '../data/mock'
 import { cleanClinicalHistory, displayClinic } from './displayClean'
 
-const EMPTY_NEURO: NeuroExam = {
+/** Defaults mean “not provided”, not a normal clinical exam. */
+const UNKNOWN_NEURO: NeuroExam = {
   consciousness: 'Uyanık',
   gait: 'Normal',
   limbs: [],
@@ -29,8 +30,37 @@ const EMPTY_NEURO: NeuroExam = {
   hyperesthesia: 'Yok',
 }
 
+function neuroFromStructured(
+  raw: Record<string, string | string[] | boolean | number | null> | null | undefined,
+): NeuroExam {
+  if (!raw || typeof raw !== 'object') return { ...UNKNOWN_NEURO }
+  const str = (k: string, fallback: string) => {
+    const v = raw[k]
+    return typeof v === 'string' && v.trim() ? v : fallback
+  }
+  const list = (k: string): string[] => {
+    const v = raw[k]
+    if (Array.isArray(v)) return v.map(String)
+    if (typeof v === 'string' && v.trim()) return v.split(',').map((s) => s.trim()).filter(Boolean)
+    return []
+  }
+  return {
+    consciousness: str('consciousness', UNKNOWN_NEURO.consciousness) as NeuroExam['consciousness'],
+    gait: str('gait', UNKNOWN_NEURO.gait) as NeuroExam['gait'],
+    limbs: list('limbs'),
+    posturalThoracic: str('posturalThoracic', UNKNOWN_NEURO.posturalThoracic) as NeuroExam['posturalThoracic'],
+    posturalPelvic: str('posturalPelvic', UNKNOWN_NEURO.posturalPelvic) as NeuroExam['posturalPelvic'],
+    reflexThoracic: str('reflexThoracic', UNKNOWN_NEURO.reflexThoracic) as NeuroExam['reflexThoracic'],
+    reflexPelvic: str('reflexPelvic', UNKNOWN_NEURO.reflexPelvic) as NeuroExam['reflexPelvic'],
+    cranialNerves: list('cranialNerves'),
+    deepPain: str('deepPain', UNKNOWN_NEURO.deepPain) as NeuroExam['deepPain'],
+    hyperesthesia: str('hyperesthesia', UNKNOWN_NEURO.hyperesthesia) as NeuroExam['hyperesthesia'],
+  }
+}
+
 export function speciesFromBackend(species: string): Species {
   if (species === 'feline') return 'Kedi'
+  if (species === 'other') return 'Diğer'
   return 'Köpek'
 }
 
@@ -89,6 +119,7 @@ function basePatient(
     name,
     species,
     breed: breed || '—',
+    // Unknown until structured history provides demographics — do not invent.
     sex: 'Erkek',
     neutered: false,
     age: 0,
@@ -96,6 +127,23 @@ function basePatient(
     ownerName: ownerLabel?.trim() || '—',
     ownerPhone: '',
   }
+}
+
+function applyPatientDemographics(
+  patient: Patient,
+  structured?: {
+    sex?: string | null
+    weight_kg?: number | null
+    neutered?: boolean | null
+  } | null,
+): Patient {
+  if (!structured) return patient
+  if (structured.sex === 'Erkek' || structured.sex === 'Dişi') patient.sex = structured.sex
+  if (typeof structured.weight_kg === 'number' && structured.weight_kg > 0) {
+    patient.weight = structured.weight_kg
+  }
+  if (typeof structured.neutered === 'boolean') patient.neutered = structured.neutered
+  return patient
 }
 
 function ownerLabelFromBackend(ownerSubject?: string | null, petOwnerSubject?: string | null): string {
@@ -122,7 +170,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     no: s.case_id.replace(/^case-/, 'VM-').toUpperCase(),
     patient,
     clinical: emptyClinical(),
-    neuro: EMPTY_NEURO,
+    neuro: { ...UNKNOWN_NEURO },
     documents: [],
     status,
     module: 'Nöroloji',
@@ -177,9 +225,13 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     clinical.history = structured.relevant_history || clinical.history
   }
   const owner = ownerLabelFromBackend(r.owner_subject, r.pet_owner_subject)
-  const patient = basePatient(r.patient_name, species, r.breed, owner)
+  const patient = applyPatientDemographics(
+    basePatient(r.patient_name, species, r.breed, owner),
+    structured,
+  )
   if (r.patient_age_years != null) patient.age = r.patient_age_years
   const created = r.created_at.slice(0, 10)
+  const neuro = neuroFromStructured(structured?.neuro_exam ?? undefined)
 
   let ai = undefined
   let aiDraft = undefined
@@ -247,7 +299,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     no: r.case_id.replace(/^case-/, 'VM-').toUpperCase(),
     patient,
     clinical,
-    neuro: EMPTY_NEURO,
+    neuro,
     documents: docs,
     status,
     module: 'Nöroloji',

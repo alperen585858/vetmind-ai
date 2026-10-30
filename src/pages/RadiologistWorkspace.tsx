@@ -34,6 +34,8 @@ import {
   getPetMedicalHistory,
   listBackendWorklist,
   listReportVersions,
+  draftToSections,
+  initManualReport,
   saveBackendDraftReport,
   submitBackendReview,
   type PetHistoryEntry,
@@ -49,6 +51,12 @@ import {
 } from '../lib/reviewSla'
 import type { BackendCaseSummary, ReportSections } from '../types'
 
+const REASON_CODE_OPTIONS: { id: string; label: string }[] = [
+  { id: 'wrong_finding', label: 'Yanlış bulgu' },
+  { id: 'missing_finding', label: 'Eksik bulgu' },
+  { id: 'report_quality', label: 'Rapor kalitesi' },
+]
+
 export default function RadiologistWorkspace() {
   const { id = '' } = useParams()
   const nav = useNavigate()
@@ -61,6 +69,7 @@ export default function RadiologistWorkspace() {
   const [saving, setSaving] = useState(false)
   const [modal, setModal] = useState<null | 'approve' | 'revizyon' | 'reddedildi'>(null)
   const [reason, setReason] = useState('')
+  const [reasonCodes, setReasonCodes] = useState<string[]>([])
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [worklist, setWorklist] = useState<BackendCaseSummary[]>([])
@@ -201,14 +210,59 @@ export default function RadiologistWorkspace() {
       </Card>
     )
   }
+  const needsManualInit =
+    !text &&
+    (c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz' || c.backendOutcome === 'unsupported' || c.backendOutcome === 'failed')
+
   if (!text) {
     return (
       <Card>
         <EmptyState
           icon={<AlertTriangle className="h-6 w-6" />}
           title="Düzenlenebilir taslak yok"
-          text="Bu çalışma alanı AI/uzman taslağı olan vakalar içindir."
-          action={<Link to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">Vaka detayı</Link>}
+          text={
+            needsManualInit
+              ? 'AI taslağı üretilmedi (unsupported/failed). Manuel radyolog taslağı başlatabilirsiniz — AI çıktısı değildir.'
+              : 'Bu çalışma alanı AI/uzman taslağı olan vakalar içindir.'
+          }
+          action={
+            needsManualInit && (c.backendCaseId || c.id).startsWith('case-') ? (
+              <Button
+                disabled={saving}
+                onClick={() => {
+                  const caseKey = c.backendCaseId || c.id
+                  setSaving(true)
+                  void initManualReport(caseKey)
+                    .then(async (draft) => {
+                      const sections = draftToSections(draft)
+                      setText(sections)
+                      updateCase(c.id, {
+                        report: sections,
+                        aiDraft: sections,
+                        backendDraft: draft,
+                        status: 'uzman_incelemesinde',
+                      })
+                      await hydrateBackendCase(caseKey)
+                      pushToast({ tone: 'success', title: 'Manuel taslak başlatıldı' })
+                    })
+                    .catch((err) =>
+                      pushToast({
+                        tone: 'error',
+                        title: 'Manuel taslak başlatılamadı',
+                        body: err instanceof Error ? err.message : undefined,
+                      }),
+                    )
+                    .finally(() => setSaving(false))
+                }}
+              >
+                {saving ? 'Başlatılıyor…' : 'Manuel taslak başlat'}
+              </Button>
+            ) : (
+              <Link to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
+                Vaka detayı
+              </Link>
+            )
+          }
         />
       </Card>
     )
@@ -256,6 +310,8 @@ export default function RadiologistWorkspace() {
         await submitBackendReview(caseKey, {
           action,
           comment: reason || undefined,
+          reason_codes:
+            action !== 'approve' && reasonCodes.length ? reasonCodes : undefined,
           edited_technique: text.klinikOzet,
           edited_findings: text.bulgular,
           edited_impression: text.degerlendirme,
@@ -269,6 +325,8 @@ export default function RadiologistWorkspace() {
           action === 'approve' ? 'Rapor onaylandı' : action === 'reject' ? 'Rapor reddedildi' : 'Revizyon istendi',
       })
       setModal(null)
+      setReason('')
+      setReasonCodes([])
       if (action === 'approve') nav(`/raporlar/${caseRow.id}`)
       else nav('/kuyruk')
     } catch (err) {
@@ -547,15 +605,46 @@ export default function RadiologistWorkspace() {
             Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez.
           </p>
         ) : (
-          <label className="block">
-            <span className="label">Gerekçe</span>
-            <textarea
-              className="input min-h-[100px]"
-              placeholder="Klinik / teknik gerekçe"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </label>
+          <>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Gerekçe kodları (Feedback Store)
+            </p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {REASON_CODE_OPTIONS.map((opt) => {
+                const on = reasonCodes.includes(opt.id)
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      setReasonCodes((prev) =>
+                        on ? prev.filter((x) => x !== opt.id) : [...prev, opt.id],
+                      )
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+                      on
+                        ? 'bg-teal-50 text-teal-900 ring-teal-300'
+                        : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            <label className="block">
+              <span className="label">Gerekçe (zorunlu)</span>
+              <textarea
+                className="input min-h-[100px]"
+                placeholder="Klinik / teknik gerekçe"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+            <p className="mt-2 text-xs text-slate-500">
+              En az 10 karakter + bir kod. Kodlar training-signal olarak kaydedilir (PHI yok).
+            </p>
+          </>
         )}
         <div className="mt-3 flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={() => setModal(null)}>
@@ -564,6 +653,11 @@ export default function RadiologistWorkspace() {
           <Button
             size="sm"
             variant={modal === 'reddedildi' ? 'danger' : 'primary'}
+            disabled={
+              modal !== 'approve' &&
+              modal !== null &&
+              (reason.trim().length < 10 || reasonCodes.length < 1)
+            }
             onClick={() =>
               void decide(
                 modal === 'approve' ? 'approve' : modal === 'revizyon' ? 'request_revision' : 'reject',

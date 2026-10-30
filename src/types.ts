@@ -165,7 +165,7 @@ export type CaseStatus =
   /** Unsupported modality/region — manual review, no approvable AI draft. */
   | 'manuel_inceleme'
 
-export type Species = 'Köpek' | 'Kedi'
+export type Species = 'Köpek' | 'Kedi' | 'Diğer'
 export type Priority = 'STAT' | 'Acil' | 'Yüksek' | 'Normal'
 export type Severity = 'Yüksek' | 'Orta' | 'Düşük'
 export type DocType = 'MR Raporu' | 'BT Raporu' | 'Laboratuvar Sonucu' | 'Önceki Rapor'
@@ -532,6 +532,10 @@ export interface BackendStructuredClinicalHistory {
   medications?: string | null
   relevant_history?: string | null
   handoff_notes?: string | null
+  sex?: string | null
+  weight_kg?: number | null
+  neutered?: boolean | null
+  neuro_exam?: Record<string, string | string[] | boolean | number | null> | null
 }
 
 export interface BackendCaseSummary {
@@ -696,4 +700,6 @@ export interface KbSource {
   indexedAt: string
   keywords: string[]
   indexing?: boolean
+  /** Backend custom RAG doc only; seed mock sources omit this. */
+  ragApproved?: boolean
 }

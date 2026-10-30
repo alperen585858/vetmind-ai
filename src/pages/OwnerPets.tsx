@@ -14,7 +14,7 @@ export default function OwnerPets() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [species, setSpecies] = useState<'canine' | 'feline'>('canine')
+  const [species, setSpecies] = useState<'canine' | 'feline' | 'other'>('canine')
   const [breed, setBreed] = useState('')
   const [age, setAge] = useState('')
   const [history, setHistory] = useState('')
@@ -105,9 +105,14 @@ export default function OwnerPets() {
             </label>
             <label className="label">
               Tür
-              <select className="input mt-1" value={species} onChange={(e) => setSpecies(e.target.value as 'canine' | 'feline')}>
+              <select
+                className="input mt-1"
+                value={species}
+                onChange={(e) => setSpecies(e.target.value as 'canine' | 'feline' | 'other')}
+              >
                 <option value="canine">Köpek</option>
                 <option value="feline">Kedi</option>
+                <option value="other">Diğer</option>
               </select>
             </label>
             <label className="label">

@@ -55,6 +55,7 @@ class IntegrationBridge:
         quarantine: QuarantineStore | None = None,
         limits: ResourceLimits | None = None,
         artifact_root: Path | None = None,
+        pixel_analysis_opt_in: bool = False,
     ) -> None:
         self._limits = limits or ResourceLimits()
         root = artifact_root
@@ -66,6 +67,7 @@ class IntegrationBridge:
             capabilities=capabilities,
             limits=self._limits,
             artifact_root=root,
+            pixel_analysis_opt_in=pixel_analysis_opt_in,
         )
 
     def analyze(self, case: CaseRecord, config: BridgeAdapterConfig) -> StructuredFindings:

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useApp } from './context/AppContext'
@@ -16,7 +16,6 @@ import NewCase from './pages/NewCase'
 import DicomUpload from './pages/DicomUpload'
 import Processing from './pages/Processing'
 import CaseDetail from './pages/CaseDetail'
-import ExpertReview from './pages/ExpertReview'
 import RadiologistWorkspace from './pages/RadiologistWorkspace'
 import ReviewQueue from './pages/ReviewQueue'
 import ReportList from './pages/ReportList'
@@ -32,13 +31,22 @@ import AdminUsers from './pages/AdminUsers'
 import Settings from './pages/Settings'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
-  const { role } = useApp()
+  const { role, authMode } = useApp()
   if (role && roles.includes(role)) return <>{children}</>
+  const hint = authMode.roleSwitchAllowed
+    ? 'Bu içerik seçili rol için görüntülenemez. Demo modunda üst bardan rol değiştirebilirsiniz. Rol kapıları yalnızca UX’tir; korumalı veri için backend auth zorunludur.'
+    : 'Bu içerik hesabınızın rolü için görüntülenemez. Doğru hesapla yeniden giriş yapın. Sunucu RBAC asıl yetki kaynağıdır.'
   return (
     <Card>
-      <EmptyState icon={<ShieldAlert className="h-6 w-6" />} title="Bu sayfaya erişim yetkiniz yok" text="Bu içerik seçili rol için görüntülenemez. Üst bardan rol değiştirerek erişebilirsiniz." />
+      <EmptyState icon={<ShieldAlert className="h-6 w-6" />} title="Bu sayfaya erişim yetkiniz yok" text={hint} />
     </Card>
   )
+}
+
+/** Legacy /inceleme → canonical radiologist workspace. */
+function ExpertReviewRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/vakalar/${id}/calisma`} replace />
 }
 
 export default function App() {
@@ -61,7 +69,14 @@ export default function App() {
             <Route path="dicom-yukle" element={<Gate roles={['vet']}><DicomUpload /></Gate>} />
             <Route path="vakalar/:id" element={<Gate roles={['vet', 'expert', 'clinic_owner', 'owner']}><CaseDetail /></Gate>} />
             <Route path="vakalar/:id/isleme" element={<Gate roles={['vet', 'expert']}><Processing /></Gate>} />
-            <Route path="vakalar/:id/inceleme" element={<Gate roles={['expert']}><ExpertReview /></Gate>} />
+            <Route
+              path="vakalar/:id/inceleme"
+              element={
+                <Gate roles={['expert']}>
+                  <ExpertReviewRedirect />
+                </Gate>
+              }
+            />
             <Route path="vakalar/:id/calisma" element={<Gate roles={['expert']}><RadiologistWorkspace /></Gate>} />
             <Route path="kuyruk" element={<Gate roles={['expert']}><ReviewQueue /></Gate>} />
             <Route path="hayvanlar" element={<Gate roles={['owner']}><OwnerPets /></Gate>} />

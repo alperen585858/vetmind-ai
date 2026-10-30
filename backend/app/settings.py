@@ -38,6 +38,21 @@ class Settings:
     vision_max_instances: int = 512
     vision_max_tensor_bytes: int = 256 * 1024 * 1024
     vision_transmit_pixels: bool = False
+    # Build-level opt-in for pixel decode / bridge (default deny; synthetic probes exempt).
+    pixel_analysis_opt_in: bool = False
+    # Optional local PyTorch Vision (weights + entrypoint required for loaded state).
+    local_torch_model_id: str | None = None
+    local_torch_weights_path: str | None = None
+    local_torch_entrypoint: str | None = None
+    local_torch_model_version: str = "0.0.0-unconfigured"
+    local_torch_device: str = "cpu"
+    local_torch_timeout_s: float = 30.0
+    local_torch_priority: int = 2
+    local_torch_enabled: bool = True
+    local_torch_source_kind: str = "real"
+    local_torch_modalities: tuple[str, ...] = ()
+    local_torch_regions: tuple[str, ...] = ()
+    local_torch_species: tuple[str, ...] = ()
     # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe)
     # | openai (any OpenAI-compatible API) | ollama | anthropic.
     llm_provider: str = "mock"
@@ -72,6 +87,8 @@ class Settings:
     analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
     feedback_log_path: Path | None = None
+    document_ocr_endpoint: str | None = None
+    document_ocr_timeout_s: float = 30.0
     # Load scripted demo cases on startup when the case store is empty (app.demo_seed).
     demo_seed: bool = False
     note: str = (
@@ -193,6 +210,36 @@ def load_settings() -> Settings:
         vision_max_tensor_bytes = 256 * 1024 * 1024
     vision_max_tensor_bytes = max(1024 * 1024, vision_max_tensor_bytes)
     vision_transmit_pixels = _env_bool("VETMIND_VISION_TRANSMIT_PIXELS", False)
+    pixel_analysis_opt_in = _env_bool("VETMIND_PIXEL_ANALYSIS_OPT_IN", False)
+
+    local_torch_model_id = os.getenv("VETMIND_LOCAL_TORCH_MODEL_ID") or None
+    local_torch_weights_path = os.getenv("VETMIND_LOCAL_TORCH_WEIGHTS_PATH") or None
+    local_torch_entrypoint = os.getenv("VETMIND_LOCAL_TORCH_ENTRYPOINT") or None
+    local_torch_model_version = (
+        os.getenv("VETMIND_LOCAL_TORCH_MODEL_VERSION", "0.0.0-unconfigured").strip()
+        or "0.0.0-unconfigured"
+    )
+    local_torch_device = os.getenv("VETMIND_LOCAL_TORCH_DEVICE", "cpu").strip() or "cpu"
+    try:
+        local_torch_timeout_s = float(os.getenv("VETMIND_LOCAL_TORCH_TIMEOUT_S", "30"))
+    except ValueError:
+        local_torch_timeout_s = 30.0
+    try:
+        local_torch_priority = int(os.getenv("VETMIND_LOCAL_TORCH_PRIORITY", "2"))
+    except ValueError:
+        local_torch_priority = 2
+    local_torch_enabled = os.getenv("VETMIND_LOCAL_TORCH_ENABLED", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    local_torch_source_kind = (
+        os.getenv("VETMIND_LOCAL_TORCH_SOURCE_KIND", "real").strip().lower() or "real"
+    )
+    local_torch_modalities = _csv_tuple("VETMIND_LOCAL_TORCH_MODALITIES")
+    local_torch_regions = _csv_tuple("VETMIND_LOCAL_TORCH_REGIONS")
+    local_torch_species = _csv_tuple("VETMIND_LOCAL_TORCH_SPECIES")
 
     llm_provider = os.getenv("VETMIND_LLM_PROVIDER", "mock").strip().lower() or "mock"
     llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
@@ -280,6 +327,12 @@ def load_settings() -> Settings:
     else:
         feedback_log_path = None
 
+    document_ocr_endpoint = os.getenv("VETMIND_DOCUMENT_OCR_ENDPOINT") or None
+    try:
+        document_ocr_timeout_s = float(os.getenv("VETMIND_DOCUMENT_OCR_TIMEOUT_S", "30"))
+    except ValueError:
+        document_ocr_timeout_s = 30.0
+
     return Settings(
         storage_backend=backend,
         sqlite_path=sqlite_path,
@@ -303,6 +356,19 @@ def load_settings() -> Settings:
         vision_max_instances=vision_max_instances,
         vision_max_tensor_bytes=vision_max_tensor_bytes,
         vision_transmit_pixels=vision_transmit_pixels,
+        pixel_analysis_opt_in=pixel_analysis_opt_in,
+        local_torch_model_id=local_torch_model_id,
+        local_torch_weights_path=local_torch_weights_path,
+        local_torch_entrypoint=local_torch_entrypoint,
+        local_torch_model_version=local_torch_model_version,
+        local_torch_device=local_torch_device,
+        local_torch_timeout_s=max(1.0, local_torch_timeout_s),
+        local_torch_priority=max(0, local_torch_priority),
+        local_torch_enabled=local_torch_enabled,
+        local_torch_source_kind=local_torch_source_kind,
+        local_torch_modalities=local_torch_modalities,
+        local_torch_regions=local_torch_regions,
+        local_torch_species=local_torch_species,
         llm_provider=llm_provider,
         llm_endpoint=llm_endpoint,
         llm_provider_id=llm_provider_id,
@@ -334,6 +400,8 @@ def load_settings() -> Settings:
         analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
         feedback_log_path=feedback_log_path,
+        document_ocr_endpoint=document_ocr_endpoint,
+        document_ocr_timeout_s=max(1.0, document_ocr_timeout_s),
         demo_seed=_env_bool("VETMIND_DEMO_SEED", False),
     )
 

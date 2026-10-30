@@ -62,6 +62,10 @@ export default function Register() {
           <p className="text-sm text-navy-300">
             E-posta ve şifrenizle hesap oluşturun; giriş sonrası rolünüze uygun panele yönlendirilirsiniz.
           </p>
+          <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-xs leading-relaxed text-amber-100 ring-1 ring-inset ring-amber-500/30">
+            Bu kayıt yalnızca tarayıcıda (demo hesap) saklanır. Backend API dizini için Admin → Kullanıcılar
+            üzerinden kullanıcı oluşturun; aksi halde özel e-postalar JWT / RBAC ile eşleşmeyebilir.
+          </p>
 
           <label className="mt-5 block text-xs font-medium text-navy-300">
             Ad soyad

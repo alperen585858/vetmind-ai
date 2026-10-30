@@ -21,6 +21,7 @@ DENIED_STUDY_INTEGRITY = "DENIED_STUDY_INTEGRITY"
 DENIED_SOURCE_PERMISSION_UNVERIFIED = "DENIED_SOURCE_PERMISSION_UNVERIFIED"
 DENIED_CONSENT_UNVERIFIED = "DENIED_CONSENT_UNVERIFIED"
 DENIED_NO_CANDIDATE_MODEL = "DENIED_NO_CANDIDATE_MODEL"
+DENIED_PIXEL_OPT_IN = "DENIED_PIXEL_OPT_IN"
 AUTHORIZED_POLICY_ONLY = "AUTHORIZED_POLICY_ONLY"
 
 
@@ -58,6 +59,7 @@ def evaluate_pixel_access(
     *,
     model_id: str,
     capability: ModelCapability | None,
+    pixel_analysis_opt_in: bool = False,
 ) -> PixelAuthorizationDecision:
     """Default-deny pixel authorization for a single model capability."""
     reasons: list[str] = []
@@ -74,6 +76,15 @@ def evaluate_pixel_access(
 
     if not capability.allows_pixel_analysis:
         reasons.append(DENIED_MODEL_NOT_PIXEL_CAPABLE)
+
+    from app.routing.capabilities import AVAILABILITY_SYNTHETIC
+
+    if (
+        capability.allows_pixel_analysis
+        and not pixel_analysis_opt_in
+        and capability.availability != AVAILABILITY_SYNTHETIC
+    ):
+        reasons.append(DENIED_PIXEL_OPT_IN)
 
     if not case.classification_confirmed:
         reasons.append(DENIED_CLASSIFICATION_UNCONFIRMED)
@@ -107,6 +118,7 @@ def summarize_pixel_authorization(
     *,
     model_ids: list[str],
     capabilities: list[ModelCapability],
+    pixel_analysis_opt_in: bool = False,
 ) -> PixelAuthorizationSummary:
     """Aggregate per-model decisions into a safe summary for ImagingModelInput."""
     by_id = {c.model_id: c for c in capabilities}
@@ -120,7 +132,12 @@ def summarize_pixel_authorization(
     all_codes: list[str] = []
     any_authorized = False
     for mid in model_ids:
-        decision = evaluate_pixel_access(case, model_id=mid, capability=by_id.get(mid))
+        decision = evaluate_pixel_access(
+            case,
+            model_id=mid,
+            capability=by_id.get(mid),
+            pixel_analysis_opt_in=pixel_analysis_opt_in,
+        )
         all_codes.extend(decision.reason_codes)
         if decision.authorized:
             any_authorized = True

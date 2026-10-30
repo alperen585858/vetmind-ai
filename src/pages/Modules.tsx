@@ -21,6 +21,12 @@ export default function Modules() {
         title="Uzmanlık Modülleri"
         subtitle="Her modül kendi bilgi tabanı, ince ayarlı modeli ve rapor şablonuyla platforma eklenir."
       />
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
+          DEMO FICTION
+        </span>
+        Modül kataloğu ve vaka sayıları illustrative’dır; backend’de gerçek multi-module registry yoktur. Yalnızca Nöroloji demo akışı bağlanmıştır.
+      </div>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {MODULES.map((m) => {
           const active = m.status === 'Aktif'

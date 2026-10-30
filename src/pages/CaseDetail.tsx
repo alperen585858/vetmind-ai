@@ -259,9 +259,15 @@ export default function CaseDetail() {
               İşlem hattını izle
             </Button>
           )}
-          {role === 'expert' && (c.status === 'uzman_incelemesinde' || c.status === 'revizyon' || c.status === 'manuel_inceleme') && (
+          {role === 'expert' &&
+            (c.status === 'uzman_incelemesinde' ||
+              c.status === 'revizyon' ||
+              c.status === 'manuel_inceleme' ||
+              c.status === 'analiz_basarisiz') && (
             <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-              Çalışma alanı
+              {c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz'
+                ? 'Manuel taslak / çalışma alanı'
+                : 'Çalışma alanı'}
             </Button>
           )}
           {role === 'vet' && (
@@ -316,13 +322,33 @@ export default function CaseDetail() {
       {c.status === 'analiz_basarisiz' && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p><strong>Analiz başarısız (AI adapter):</strong> {c.statusNote ?? 'Onaylanabilir AI taslak yoktur. Bu, uzman revizyon talebi değildir.'}</p>
+          <div>
+            <p>
+              <strong>Analiz başarısız (AI adapter):</strong>{' '}
+              {c.statusNote ?? 'Onaylanabilir AI taslak yoktur. Bu, uzman revizyon talebi değildir.'}
+            </p>
+            {role === 'expert' && (
+              <Button className="mt-2" size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+                Manuel taslak başlat
+              </Button>
+            )}
+          </div>
         </div>
       )}
       {c.status === 'manuel_inceleme' && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p><strong>Manuel inceleme:</strong> {c.statusNote ?? 'Desteklenmeyen vaka — AI draft onayı kapalıdır.'}</p>
+          <div>
+            <p>
+              <strong>Manuel inceleme:</strong>{' '}
+              {c.statusNote ?? 'Desteklenmeyen vaka — AI draft onayı kapalıdır. Manuel taslak başlatılabilir.'}
+            </p>
+            {role === 'expert' && (
+              <Button className="mt-2" size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+                Manuel taslak / çalışma alanı
+              </Button>
+            )}
+          </div>
         </div>
       )}
       {c.status === 'reddedildi' && c.statusNote && (
@@ -1487,7 +1513,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
               </Button>
             )}
             {c.status === 'uzman_incelemesinde' && (
-              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/inceleme`)}>
+              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
                 Uzman inceleme
               </Button>
             )}

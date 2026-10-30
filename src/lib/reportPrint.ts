@@ -35,7 +35,7 @@ export function printSectionsForCase(c: VetCase): PrintSection[] {
 
 export type ProvenanceLabel = {
   banner: string
-  sourceKind: 'mock' | 'real' | 'mixed' | 'unknown'
+  sourceKind: 'mock' | 'real' | 'mixed' | 'manual' | 'unknown'
   synthetic: boolean
   modelLine: string
   reviewStatus: string
@@ -48,7 +48,10 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
   const draft: BackendDraftReport | undefined = c.backendDraft
   const sourceKindRaw = (findings?.source_kind || draft?.generation?.source_kind || '').toLowerCase()
   const sourceKind =
-    sourceKindRaw === 'real' || sourceKindRaw === 'mixed' || sourceKindRaw === 'mock'
+    sourceKindRaw === 'real' ||
+    sourceKindRaw === 'mixed' ||
+    sourceKindRaw === 'mock' ||
+    sourceKindRaw === 'manual'
       ? sourceKindRaw
       : c.fromBackend
         ? 'mock'
@@ -60,7 +63,9 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
   const modelLine = modelVersion ? `${modelId} · v${modelVersion}` : String(modelId)
 
   let banner = 'AI TASLAK — KLİNİK KULLANIMA UYGUN DEĞİLDİR'
-  if (sourceKind === 'real') {
+  if (sourceKind === 'manual') {
+    banner = 'MANUEL RADYOLOG TASLAĞI — AI çıktısı değildir; klinik sertifikasyon iddiası yoktur'
+  } else if (sourceKind === 'real') {
     banner = 'GERÇEK MODEL TASLAĞI — Uzman incelemesi zorunludur; klinik sertifikasyon iddiası yoktur'
   } else if (sourceKind === 'mixed') {
     banner = 'KARMA KAYNAK — Kaynaklar karışıktır; klinik doğrulama değildir'

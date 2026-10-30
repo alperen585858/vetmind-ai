@@ -4,6 +4,7 @@ from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
 from app.models.bridge_resources import ResourceLimits
 from app.models.http_vision import build_optional_http_vision
+from app.models.local_torch import LocalTorchConfig, LocalTorchVisionAdapter, build_optional_local_torch
 from app.models.mock_vision import default_model_registry
 from app.models.registry import ModelRegistry
 from app.orchestration.orchestrator import AIOrchestrator
@@ -14,12 +15,14 @@ from app.routing.capabilities import default_capabilities
 from app.routing.execution_policy import ModelExecutionPolicy, parse_vision_execution_mode
 from app.routing.model_router import ModelRouter
 from app.routing.registry_validation import validate_registry_capabilities
+from app.routing.local_config import local_capability_from_settings, validate_local_torch_settings
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
 from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
+from app.ingest.documents import build_document_text_adapter
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
@@ -48,6 +51,7 @@ class AppContainer:
     ) -> None:
         self.settings = settings or load_settings()
         validate_security_settings(self.settings)
+        validate_local_torch_settings(self.settings)
         self.repo = repo if repo is not None else build_repository(self.settings)
         self.storage_backend = (
             "memory"
@@ -99,6 +103,34 @@ class AppContainer:
             self.models[remote.model_id] = remote
             capabilities.insert(0, remote_cap)
 
+        local_cap = local_capability_from_settings(self.settings)
+        if local_cap is not None:
+            local_adapter = build_optional_local_torch(
+                model_id=local_cap.model_id,
+                weights_path=self.settings.local_torch_weights_path,
+                entrypoint=self.settings.local_torch_entrypoint,
+                version=local_cap.model_version,
+                device=self.settings.local_torch_device,
+                capabilities=capabilities,
+                quarantine=self.quarantine,
+                limits=None,
+            )
+            if local_adapter is None:
+                local_adapter = LocalTorchVisionAdapter(
+                    LocalTorchConfig(
+                        model_id=local_cap.model_id,
+                        version=local_cap.model_version,
+                        weights_path=self.settings.local_torch_weights_path,
+                        entrypoint=self.settings.local_torch_entrypoint,
+                        device=self.settings.local_torch_device,
+                        timeout_s=self.settings.local_torch_timeout_s,
+                    ),
+                    capabilities=capabilities,
+                    quarantine=self.quarantine,
+                )
+            self.models[local_cap.model_id] = local_adapter
+            capabilities.insert(0, local_cap)
+
         # F8: fail fast if enabled capabilities lack adapters or IDs conflict.
         validate_registry_capabilities(capabilities, self.models)
         self.model_registry_view = ModelRegistry(capabilities, self.models)
@@ -112,8 +144,15 @@ class AppContainer:
         self.vision_execution_mode = parse_vision_execution_mode(
             self.settings.vision_execution_policy
         )
-        self.router = ModelRouter(capabilities=capabilities)
-        self.imaging_prep = MetadataOnlyPreparationPipeline(capabilities=capabilities)
+        self.router = ModelRouter(
+            capabilities=capabilities,
+            pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
+        )
+        self.imaging_prep = MetadataOnlyPreparationPipeline(
+            capabilities=capabilities,
+            pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
+            quarantine_root=self.settings.quarantine_root,
+        )
         self.scenario_policy = ScenarioRoutingPolicy()
         self.execution_policy = ModelExecutionPolicy(
             mode=self.vision_execution_mode,
@@ -130,6 +169,8 @@ class AppContainer:
             self.validator,
             scenario_policy=self.scenario_policy,
             execution_policy=self.execution_policy,
+            pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
+            quarantine_root=self.settings.quarantine_root,
         )
         self.job_backend = build_job_backend(
             backend=self.settings.job_backend,
@@ -159,12 +200,18 @@ class AppContainer:
             tenant_isolation=self.settings.tenant_isolation,
             audit=self.audit,
             malware_scanner=self.malware_scanner,
+            feedback=self.feedback,
+        )
+        doc_adapter = build_document_text_adapter(
+            ocr_endpoint=self.settings.document_ocr_endpoint,
+            ocr_timeout_s=self.settings.document_ocr_timeout_s,
         )
         self.documents = DocumentService(
             self.repo,
             self.quarantine,
             capabilities=capabilities,
             tenant_isolation=self.settings.tenant_isolation,
+            document_adapter=doc_adapter,
         )
         # Mutable login directory (admin can add/update users via WorkflowService).
         self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)

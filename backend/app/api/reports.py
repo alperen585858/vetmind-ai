@@ -44,6 +44,16 @@ def get_report(
     return service.get_report(case_id, version=version, principal=principal)
 
 
+@router.post("/cases/{case_id}/report/manual-init", response_model=DraftReport)
+def init_manual_report(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> DraftReport:
+    """Bootstrap a blank radiologist draft for failed/unsupported cases (no AI draft)."""
+    return service.init_manual_report(case_id, principal=principal)
+
+
 @router.put("/cases/{case_id}/report/draft", response_model=DraftReport)
 def save_draft_report(
     case_id: str,

@@ -7,6 +7,11 @@ const e2eData = path.join(root, 'e2e', '.data')
 const sqlitePath = path.join(e2eData, 'e2e.sqlite3')
 const quarantineRoot = path.join(e2eData, 'quarantine')
 const auditPath = path.join(e2eData, 'audit.jsonl')
+const protectedE2e = process.env.E2E_PROTECTED === '1'
+const sqliteProtected = path.join(e2eData, 'e2e-protected.sqlite3')
+const quarantineProtected = path.join(e2eData, 'quarantine-protected')
+const activeSqlite = protectedE2e ? sqliteProtected : sqlitePath
+const activeQuarantine = protectedE2e ? quarantineProtected : quarantineRoot
 
 /**
  * Browser E2E — system Google Chrome (channel: chrome).
@@ -31,6 +36,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chrome',
+      testIgnore: [/protected\.spec\.ts/],
       use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1280, height: 800 } },
     },
     {
@@ -38,6 +44,15 @@ export default defineConfig({
       testMatch: /demo-journey\.spec\.ts/,
       use: { ...devices['Pixel 5'], channel: 'chrome' },
     },
+    ...(protectedE2e
+      ? [
+          {
+            name: 'e2e-protected',
+            testMatch: /protected\.spec\.ts/,
+            use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1280, height: 800 } },
+          },
+        ]
+      : []),
   ],
   webServer: process.env.E2E_NO_WEBSERVER
     ? undefined
@@ -46,23 +61,25 @@ export default defineConfig({
           command: [
             // Fresh isolated storage each run — stale sqlite was a flaky root cause.
             'rm -f',
-            JSON.stringify(sqlitePath),
+            JSON.stringify(activeSqlite),
             JSON.stringify(auditPath),
             '&&',
             'rm -rf',
-            JSON.stringify(quarantineRoot),
+            JSON.stringify(activeQuarantine),
             '&&',
             'mkdir -p',
             JSON.stringify(e2eData),
-            JSON.stringify(quarantineRoot),
+            JSON.stringify(activeQuarantine),
             '&&',
             'cd backend &&',
             `VETMIND_STORAGE=sqlite`,
-            `VETMIND_SQLITE_PATH=${JSON.stringify(sqlitePath)}`,
-            `VETMIND_QUARANTINE_ROOT=${JSON.stringify(quarantineRoot)}`,
+            `VETMIND_SQLITE_PATH=${JSON.stringify(activeSqlite)}`,
+            `VETMIND_QUARANTINE_ROOT=${JSON.stringify(activeQuarantine)}`,
             `VETMIND_AUDIT_LOG_PATH=${JSON.stringify(auditPath)}`,
             `VETMIND_ANALYZE_GATE_PATH=${JSON.stringify(path.join(e2eData, 'analyze_gate.count'))}`,
-            `VETMIND_AUTH_ENABLED=0`,
+            `VETMIND_AUTH_ENABLED=${protectedE2e ? '1' : '0'}`,
+            `VETMIND_DEPLOYMENT_MODE=${protectedE2e ? 'protected' : 'demo'}`,
+            `VETMIND_JWT_SECRET=${protectedE2e ? 'e2e-protected-jwt-secret-min-32-chars!!' : 'vetmind-demo-secret-change-me'}`,
             // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
             `VETMIND_ASYNC_DELAY_MS=50`,
             `VETMIND_RAG=lexical`,

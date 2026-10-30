@@ -180,7 +180,7 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 5. İşleme ekranında `DEMO / MOCK ANALYSIS` ve job alanlarını gör.  
 6. **Vakalar → Backend’den yenile** (SQLite kalıcılık; restart sonrası da kalır).  
 7. Vaka detay → **Bulgular** → mock / SYNTHETIC provenance.  
-8. Üst barda rolü **Uzman Hekim (VRM)** yap → inceleme → **Onayla ve Yayınla**.  
+8. Üst barda rolü **Uzman Hekim (VRM)** yap → **Çalışma alanı** (`/calisma`) → **Onayla**.  
 9. Vaka geçmişinde sürüm / immutable; **Raporlar** → onaylı rapor; **PDF olarak indir**.  
 10. İsteğe bağlı: Admin → **Bilgi Tabanı** (RAG search), **Sistem Durumu** (`/health`).
 
@@ -462,7 +462,8 @@ Capability sabitleri: `backend/app/auth/rbac.py` (`cases:write`, `review`, `rag:
 | `/vakalar` | CaseList | vet, expert | list / refresh |
 | `/vakalar/:id` | CaseDetail | vet, expert | case, findings, history, RAG |
 | `/vakalar/:id/isleme` | Processing | vet, expert | job poll |
-| `/vakalar/:id/inceleme` | ExpertReview | expert | review submit (+ hydrate) |
+| `/vakalar/:id/calisma` | RadiologistWorkspace (canonical) | expert | review submit (+ hydrate) |
+| `/vakalar/:id/inceleme` | redirect → `/calisma` | expert | legacy alias |
 | `/kuyruk` | ReviewQueue | expert | kuyruk UI |
 | `/raporlar`, `/raporlar/:id` | Report* | vet, owner, expert | onaylı rapor + print |
 | `/moduller` | Modules | admin | — |

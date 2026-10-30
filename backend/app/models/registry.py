@@ -131,9 +131,17 @@ class ModelRegistry:
             seen.add(cap.model_id)
             registered = cap.model_id in self._adapters
             availability = cap.availability
+            adapter = self._adapters.get(cap.model_id)
+            if registered and cap.adapter_kind == "local_torch" and hasattr(adapter, "availability"):
+                if getattr(adapter, "availability", "") != "configured":
+                    availability = AVAILABILITY_NOT_CONFIGURED
             if cap.enabled and not registered:
                 availability = AVAILABILITY_NOT_CONFIGURED
-            elif registered and availability == AVAILABILITY_NOT_CONFIGURED:
+            elif (
+                registered
+                and availability == AVAILABILITY_NOT_CONFIGURED
+                and cap.adapter_kind != "local_torch"
+            ):
                 availability = AVAILABILITY_AVAILABLE
             species = (
                 tuple(sorted(s.value for s in cap.species))

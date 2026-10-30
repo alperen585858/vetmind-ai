@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,6 +82,12 @@ class StructuredClinicalHistory(BaseModel):
     medications: Optional[str] = None
     relevant_history: Optional[str] = None
     handoff_notes: Optional[str] = None
+    # Optional patient demographics from clinic wizard (not PHI-validated).
+    sex: Optional[str] = Field(default=None, max_length=40)
+    weight_kg: Optional[float] = Field(default=None, ge=0, le=200)
+    neutered: Optional[bool] = None
+    # Neurological exam snapshot as plain string map (wizard → review UI).
+    neuro_exam: Optional[dict[str, Any]] = None
 
 
 class CaseCreate(BaseModel):

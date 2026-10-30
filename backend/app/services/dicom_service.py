@@ -25,6 +25,7 @@ from app.schemas.enums import (
     Species,
 )
 from app.schemas.findings import StudyInfo
+from app.feedback.store import FeedbackStore
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.repository import CaseRepository
 from app.storage.malware_scan import MalwareScanner, assert_upload_clean
@@ -51,9 +52,11 @@ class DicomService:
         tenant_isolation: bool = False,
         audit: AuditLogger | None = None,
         malware_scanner: MalwareScanner | None = None,
+        feedback: FeedbackStore | None = None,
     ) -> None:
         self._repo = repo
         self._quarantine = quarantine
+        self._feedback = feedback
         # Live router capabilities when provided (includes optional remote Vision id).
         self._capabilities = list(capabilities) if capabilities is not None else list(default_capabilities())
         self._tenant_isolation = tenant_isolation
@@ -299,4 +302,32 @@ class DicomService:
         record.accepted = True
         record.case_id = saved.case_id
         self._repo.save_ingestion(record)
+        if (
+            self._feedback is not None
+            and override
+            and (
+                modality != classification.suggested_modality
+                or region != classification.suggested_anatomical_region
+            )
+        ):
+            actor = (
+                principal.subject
+                if principal and principal.via != "disabled"
+                else "demo-anonymous"
+            )
+            clinic = (
+                principal.clinic_id
+                if principal and principal.via != "disabled"
+                else record.clinic_id
+            )
+            self._feedback.record_classification_correction(
+                ingest_id=record.ingest_id,
+                case_id=saved.case_id,
+                actor=actor,
+                clinic_id=clinic,
+                suggested_modality=classification.suggested_modality.value,
+                suggested_anatomical_region=classification.suggested_anatomical_region.value,
+                confirmed_modality=modality.value,
+                confirmed_anatomical_region=region.value,
+            )
         return saved

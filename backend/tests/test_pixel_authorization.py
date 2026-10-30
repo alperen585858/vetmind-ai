@@ -7,6 +7,7 @@ from app.models.pixel_authorization import (
     DENIED_CONSENT_UNVERIFIED,
     DENIED_MOCK_ADAPTER,
     DENIED_MODEL_NOT_PIXEL_CAPABLE,
+    DENIED_PIXEL_OPT_IN,
     DENIED_SOURCE_PERMISSION_UNVERIFIED,
     DENIED_STUDY_INTEGRITY,
     evaluate_pixel_access,
@@ -134,13 +135,24 @@ def test_study_integrity_denied_without_dicom() -> None:
     assert DENIED_STUDY_INTEGRITY in decision.reason_codes
 
 
+def test_pixel_opt_in_denied_without_env_flag() -> None:
+    case = _dicom_case(
+        imaging_source_permission_verified=True,
+        imaging_analysis_consent_verified=True,
+    )
+    cap = _future_pixel_cap()
+    decision = evaluate_pixel_access(case, model_id=cap.model_id, capability=cap)
+    assert decision.authorized is False
+    assert DENIED_PIXEL_OPT_IN in decision.reason_codes
+
+
 def test_authorized_future_model_fixture_without_loading_pixels() -> None:
     case = _dicom_case(
         imaging_source_permission_verified=True,
         imaging_analysis_consent_verified=True,
     )
     caps = [_future_pixel_cap(), *default_capabilities()]
-    pkg = build_imaging_model_input(case, capabilities=caps)
+    pkg = build_imaging_model_input(case, capabilities=caps, pixel_analysis_opt_in=True)
     assert pkg.pixel_analysis_authorized is True
     assert AUTHORIZED_POLICY_ONLY in pkg.pixel_authorization.reason_codes
     assert pkg.metadata_only is True
@@ -152,7 +164,10 @@ def test_authorized_future_model_fixture_without_loading_pixels() -> None:
         imaging_analysis_consent_verified=True,
     )
     summary = summarize_pixel_authorization(
-        case2, model_ids=["future-pixel-brain-v1"], capabilities=caps
+        case2,
+        model_ids=["future-pixel-brain-v1"],
+        capabilities=caps,
+        pixel_analysis_opt_in=True,
     )
     blob = " ".join(summary.reason_codes) + summary.note
     assert "/secret/" not in blob

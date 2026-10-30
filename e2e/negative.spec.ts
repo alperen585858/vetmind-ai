@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { loginAsExpert, loginAsVet, switchRole } from './helpers/auth'
 import {
+  approveReport,
   confirmAndRunDemoAnalysis,
   loadBrainMriDemo,
   openDicomUpload,
@@ -36,8 +37,8 @@ test.describe('Negative browser scenarios', () => {
     await loadBrainMriDemo(page)
     const caseId = await confirmAndRunDemoAnalysis(page, `Gate-${Date.now().toString(36)}`)
 
-    // Vet must not access expert review
-    await page.goto(`/vakalar/${caseId}/inceleme`)
+    // Vet must not access expert workspace (legacy /inceleme redirects to /calisma)
+    await page.goto(`/vakalar/${caseId}/calisma`)
     await expect(page.getByText(/erişim yetkiniz yok|yetki/i)).toBeVisible({ timeout: 15_000 })
   })
 
@@ -61,8 +62,7 @@ test.describe('Negative browser scenarios', () => {
 
     await loginAsExpert(page)
     await openExpertReviewForCase(page, caseId)
-    await page.getByRole('button', { name: /Onayla ve Yayınla/i }).click()
-    await page.waitForURL(/\/raporlar\//, { timeout: 30_000 })
+    await approveReport(page)
 
     await page.reload()
     await expect(page.getByText(/Veteriner Radyoloji Değerlendirme Raporu/i)).toBeVisible({
@@ -166,6 +166,37 @@ test.describe('Negative browser scenarios', () => {
     await expect(page.getByText(/FAILED|failed|iptal|cancel|başarısız|DEMO|MOCK|Job|completed|AI/i).first()).toBeVisible({
       timeout: 20_000,
     })
+  })
+})
+
+test.describe('Expert review reason codes', () => {
+  test('reject requires reason code and text on workspace', async ({ page, request }) => {
+    const patient = `Reject-${Date.now().toString(36)}`
+    const created = await request.post('http://127.0.0.1:8000/api/v1/cases', {
+      data: {
+        patient_name: patient,
+        species: 'canine',
+        breed: 'Mix',
+        modality: 'MR',
+        anatomical_region: 'BRAIN',
+        clinical_history: 'E2E reject path',
+        scenario: 'brain_mri_suspected',
+      },
+    })
+    expect(created.ok()).toBeTruthy()
+    const caseId = (await created.json()).case_id as string
+    const analyzed = await request.post(`http://127.0.0.1:8000/api/v1/cases/${caseId}/analyze`)
+    expect(analyzed.ok()).toBeTruthy()
+
+    await loginAsExpert(page)
+    await openExpertReviewForCase(page, caseId)
+    await page.getByRole('button', { name: /^Reddet$/i }).click()
+    await page.getByRole('button', { name: /^Gönder$/i }).click()
+    await expect(page.getByText(/10 karakter|kod/i).first()).toBeVisible({ timeout: 5_000 })
+    await page.getByRole('button', { name: 'Yanlış bulgu' }).click()
+    await page.locator('textarea').last().fill('E2E red gerekçesi — lateralite uyumsuz.')
+    await page.getByRole('button', { name: /^Gönder$/i }).click()
+    await expect(page).toHaveURL(/\/kuyruk/, { timeout: 20_000 })
   })
 })
 

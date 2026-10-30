@@ -681,6 +681,7 @@ export default function DicomUpload() {
             >
               <option value="Köpek">Köpek</option>
               <option value="Kedi">Kedi</option>
+              <option value="Diğer">Diğer</option>
             </select>
           </label>
           <label className="block text-xs font-semibold text-slate-600">

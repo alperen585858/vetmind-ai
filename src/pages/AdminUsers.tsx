@@ -53,7 +53,7 @@ export default function AdminUsers() {
     <>
       <PageHeader
         title="Kullanıcılar ve roller"
-        subtitle="Klinik üyelikleri · demo IdP dizini (kalıcı workflow store)"
+        subtitle="Klinik üyelikleri · demo IdP dizini (kalıcı workflow store). Self-serve /kayit yalnızca tarayıcı hesabıdır; API RBAC için burada kullanıcı oluşturun."
         crumbs={[{ label: 'Sistem', to: '/' }, { label: 'Kullanıcılar' }]}
       />
       {error && (

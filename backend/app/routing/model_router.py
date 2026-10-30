@@ -26,9 +26,77 @@ class RouteDecision:
     matched_capabilities: tuple[str, ...] = ()
 
 
+def cap_input_compatible(
+    cap: ModelCapability,
+    case: CaseRecord,
+    *,
+    pixel_analysis_opt_in: bool = False,
+) -> bool:
+    """Reject pixel-requiring models when authorization/geometry cannot satisfy them."""
+    from app.models.pixel_authorization import evaluate_pixel_access
+
+    reqs = cap.input_requirements or frozenset({INPUT_METADATA_ONLY})
+    needs_pixels = bool(reqs & {INPUT_PIXELS_2D, INPUT_PIXELS_3D})
+    if not needs_pixels:
+        return True
+    if not cap.allows_pixel_analysis:
+        return False
+    decision = evaluate_pixel_access(
+        case,
+        model_id=cap.model_id,
+        capability=cap,
+        pixel_analysis_opt_in=pixel_analysis_opt_in,
+    )
+    if not decision.authorized:
+        return False
+    series = _series_refs_from_case(case)
+    selection = select_series_for_modality(series, case.modality)
+    spatial_n = sum(
+        1 for f in selection.frames if parse_image_position(f.image_position_patient)
+    )
+    ok, _reason = case_dimensionality_ok(
+        modality=case.modality,
+        frame_count=len(selection.frames),
+        spatial_frame_count=spatial_n,
+        requires_2d=INPUT_PIXELS_2D in reqs,
+        requires_3d=INPUT_PIXELS_3D in reqs,
+    )
+    return ok
+
+
+def _series_refs_from_case(case: CaseRecord) -> list[ModelInputSeriesRef]:
+    if case.model_input is not None and case.model_input.series:
+        return list(case.model_input.series)
+    series: list[ModelInputSeriesRef] = []
+    if case.dicom_study is None:
+        return series
+    for ser in case.dicom_study.series:
+        frames = [
+            ModelInputFrameRef(
+                sop_instance_uid=inst.sop_instance_uid,
+                series_instance_uid=ser.series_instance_uid,
+                instance_number=inst.instance_number,
+                has_pixel_data=inst.has_pixel_data,
+                image_position_patient=inst.image_position_patient,
+            )
+            for inst in ser.instances
+        ]
+        series.append(
+            ModelInputSeriesRef(
+                series_instance_uid=ser.series_instance_uid,
+                modality=ser.modality,
+                frame_count=len(frames),
+                frames=frames,
+            )
+        )
+    return series
+
+
 def list_routable_capabilities(
     case: CaseRecord,
     capabilities: list[ModelCapability],
+    *,
+    pixel_analysis_opt_in: bool = False,
 ) -> list[ModelCapability]:
     """Capabilities that would be selected by ModelRouter (anatomy + input-compatible).
 
@@ -44,17 +112,24 @@ def list_routable_capabilities(
     return [
         cap
         for cap in anatomy
-        if ModelRouter._input_compatible(cap, case)  # noqa: SLF001
+        if cap_input_compatible(cap, case, pixel_analysis_opt_in=pixel_analysis_opt_in)
     ]
 
 
 def list_routable_model_ids(
     case: CaseRecord,
     capabilities: list[ModelCapability],
+    *,
+    pixel_analysis_opt_in: bool = False,
 ) -> list[str]:
     """Deduplicated model_ids from list_routable_capabilities (stable order)."""
     return list(
-        dict.fromkeys(c.model_id for c in list_routable_capabilities(case, capabilities))
+        dict.fromkeys(
+            c.model_id
+            for c in list_routable_capabilities(
+                case, capabilities, pixel_analysis_opt_in=pixel_analysis_opt_in
+            )
+        )
     )
 
 
@@ -65,8 +140,14 @@ class ModelRouter:
     preprocessing/pixel constraints against ModelCapability entries.
     """
 
-    def __init__(self, capabilities: list[ModelCapability] | None = None) -> None:
+    def __init__(
+        self,
+        capabilities: list[ModelCapability] | None = None,
+        *,
+        pixel_analysis_opt_in: bool = False,
+    ) -> None:
         self._capabilities = list(capabilities if capabilities is not None else default_capabilities())
+        self._pixel_analysis_opt_in = bool(pixel_analysis_opt_in)
 
     def replace_capabilities(self, capabilities: list[ModelCapability]) -> None:
         self._capabilities = list(capabilities)
@@ -130,36 +211,12 @@ class ModelRouter:
             return False
         return True
 
-    @staticmethod
-    def _input_compatible(cap: ModelCapability, case: CaseRecord) -> bool:
-        """Reject pixel-requiring models when authorization/geometry cannot satisfy them."""
-        # Lazy import: avoids capabilities ↔ pixel_authorization ↔ router cycle.
-        from app.models.pixel_authorization import evaluate_pixel_access
-
-        reqs = cap.input_requirements or frozenset({INPUT_METADATA_ONLY})
-        needs_pixels = bool(reqs & {INPUT_PIXELS_2D, INPUT_PIXELS_3D})
-        if not needs_pixels:
-            return True
-        # Required pixel path: capability flag + policy authorization.
-        if not cap.allows_pixel_analysis:
-            return False
-        decision = evaluate_pixel_access(case, model_id=cap.model_id, capability=cap)
-        if not decision.authorized:
-            return False
-        # Dimensionality vs selected series (Phase 20).
-        series = ModelRouter._series_refs(case)
-        selection = select_series_for_modality(series, case.modality)
-        spatial_n = sum(
-            1 for f in selection.frames if parse_image_position(f.image_position_patient)
+    def _input_compatible(self, cap: ModelCapability, case: CaseRecord) -> bool:
+        return cap_input_compatible(
+            cap,
+            case,
+            pixel_analysis_opt_in=self._pixel_analysis_opt_in,
         )
-        ok, _reason = case_dimensionality_ok(
-            modality=case.modality,
-            frame_count=len(selection.frames),
-            spatial_frame_count=spatial_n,
-            requires_2d=INPUT_PIXELS_2D in reqs,
-            requires_3d=INPUT_PIXELS_3D in reqs,
-        )
-        return ok
 
     @staticmethod
     def _series_refs(case: CaseRecord) -> list[ModelInputSeriesRef]:
