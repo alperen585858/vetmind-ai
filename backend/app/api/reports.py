@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
@@ -100,6 +101,24 @@ def submit_review(
     principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
 ) -> CaseRecord:
     return service.submit_review(case_id, payload, principal=principal)
+
+
+class RegenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reviewer_id: str = Field(min_length=1, max_length=80)
+    note: str = Field(min_length=10, max_length=2000, description="What the expert wants changed.")
+
+
+@router.post("/cases/{case_id}/report/regenerate", response_model=CaseRecord)
+def regenerate_report(
+    case_id: str,
+    payload: RegenerateRequest,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> CaseRecord:
+    """Rewrite the AI draft from the expert's revision request (new version, awaiting review)."""
+    return service.regenerate_report(case_id, payload.note, payload.reviewer_id, principal=principal)
 
 
 @router.get("/cases/{case_id}/report/pdf")

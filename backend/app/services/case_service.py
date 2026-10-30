@@ -34,6 +34,7 @@ from app.schemas.workflow import (
     InfoRequestCreate,
     InfoRequestReply,
 )
+from app.llm.interfaces import LLMProviderError
 from app.services.activity import append_activity
 from app.review_sla import (
     OPEN_REVIEW_STATUSES,
@@ -1255,6 +1256,65 @@ class CaseService:
                         clinic_id=saved.clinic_id,
                     )
             return saved
+
+    REGENERATABLE_STATUSES = {CaseLifecycleStatus.AWAITING_REVIEW, CaseLifecycleStatus.REVISION_REQUESTED}
+
+    def regenerate_report(
+        self,
+        case_id: str,
+        expert_note: str,
+        reviewer_id: str,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseRecord:
+        """Rewrite the AI draft with the expert's revision request (LLM only, imaging not re-run).
+
+        The new draft becomes a new report version awaiting review; the reviewed version stays
+        in history. On provider failure the current draft is left untouched.
+        """
+        with self._lock:
+            case = self.get_case(case_id, principal=principal)
+            if principal is not None:
+                reviewer_id = bind_reviewer_id(principal, reviewer_id)
+            if case.status not in self.REGENERATABLE_STATUSES or case.draft_report is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="AI rewrite needs a draft awaiting review or with a revision request.",
+                )
+            if case.structured_findings is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail="Case has no imaging findings to rewrite from."
+                )
+            base_version = case.draft_report.version
+            working = case.model_copy(deep=True)
+
+        try:
+            report = self._orchestrator.regenerate_report(working, expert_note)
+        except LLMProviderError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM rewrite failed ({exc.kind.value}); the current draft is unchanged.",
+            ) from exc
+
+        with self._lock:
+            latest = self.get_case(case_id, principal=principal)
+            if (
+                latest.status not in self.REGENERATABLE_STATUSES
+                or latest.draft_report is None
+                or latest.draft_report.version != base_version
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="The draft changed while the rewrite was running; reload and try again.",
+                )
+            attach_pipeline_draft(latest, report, notes=f"Uzman revizyon talebiyle yeniden üretildi: {expert_note}")
+            latest.status = CaseLifecycleStatus.AWAITING_REVIEW
+            apply_review_sla(latest)
+            append_activity(latest, kind="ai_regenerated", actor_subject=reviewer_id, detail=expert_note)
+            latest.updated_at = _now()
+            saved = self._repo.save_case(latest)
+        self._emit_audit("report.regenerate", principal=principal, resource=case_id)
+        return saved
 
     def _approve_ai_draft(self, case: CaseRecord, feedback: ReviewFeedback) -> CaseRecord:
         if case.status == CaseLifecycleStatus.FAILED:

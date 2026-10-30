@@ -118,6 +118,17 @@ Hata türleri GREEN taksonomisinden uyarlanmıştır: `invented_finding`, `overs
   (`pipeline_steps` → `verify_failed`).
 - Hakemin kendi doğruluğu ayrıca ölçülmelidir (uzman uyumu / TurkMedNLI).
 
+### Uzman revizyonuyla yeniden üretim
+
+`POST /api/v1/cases/{id}/report/regenerate` (`{reviewer_id, note}`, yalnızca uzman): uzmanın gerekçesi ve incelediği
+taslak (ikisi de öykü gibi maskelenir) modele `EXPERT REVISION REQUEST` bloğu olarak verilir; görüntü analizi
+tekrarlanmaz, bulgular aynı kalır, RAG yeniden çalışır. Yeni taslak yeni bir rapor sürümü olur (`awaiting_review`),
+eski sürüm geçmişte kalır; onarım, ayırıcı tanı ve hakem adımları da çalışır. Sağlayıcı hata verirse mevcut taslak
+değişmez (502). Çalışma sırasında taslak değişirse (ör. başka biri onayladıysa) 409 döner.
+
+Arayüz: Radyolog çalışma alanı → **Revizyon** → gerekçe + kod → **Yapay zekâ ile yeniden yaz**. Revizyon talebi ve
+gerekçe kodları önce normal şekilde kaydedilir (geri bildirim verisi), sonra yeniden yazma çalışır.
+
 ## 5. Ayarlar
 
 | Env | Varsayılan | Açıklama |

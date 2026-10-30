@@ -128,7 +128,7 @@ class _ChatProviderBase:
     def generate(self, request: LLMRequest) -> LLMResponse:
         gen = request.generation
         aliases = build_aliases(gen)
-        user = build_user_prompt(gen, aliases, instructions=request.instructions)
+        user = build_user_prompt(gen, aliases, instructions=request.instructions, revision=request.revision)
         if is_two_step(self._prompt_version):
             wire, raw_text, steps = self._two_step(gen, aliases, user)
         else:

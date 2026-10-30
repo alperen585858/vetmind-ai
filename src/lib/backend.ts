@@ -974,6 +974,14 @@ export async function getJob(jobId: string) {
   return request<{ job_id: string; status: string; outcome: string | null; error_message: string | null }>(`/jobs/${jobId}`)
 }
 
+/** Expert revision request → LLM rewrites the draft as a new version (can take ~10-60 s). */
+export async function regenerateBackendReport(caseId: string, note: string) {
+  return request<BackendCaseRecord>(`/cases/${caseId}/report/regenerate`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer_id: currentActorId(), note }),
+  })
+}
+
 export async function submitBackendReview(caseId: string, payload: {
   action: 'approve' | 'reject' | 'request_revision'
   comment?: string

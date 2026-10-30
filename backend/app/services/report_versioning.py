@@ -125,7 +125,7 @@ def list_version_summaries(case: CaseRecord) -> list[ReportVersionSummary]:
     return out
 
 
-def attach_pipeline_draft(case: CaseRecord, draft: DraftReport) -> DraftReport:
+def attach_pipeline_draft(case: CaseRecord, draft: DraftReport, *, notes: str | None = None) -> DraftReport:
     """Assign version metadata for a newly generated pipeline draft and snapshot it."""
     now = _now()
     if not case.report_versions:
@@ -139,7 +139,7 @@ def attach_pipeline_draft(case: CaseRecord, draft: DraftReport) -> DraftReport:
     draft.updated_at = now
     draft.immutable = False
     draft.reviewed_by = None
-    draft.revision_notes = "Pipeline draft generated"
+    draft.revision_notes = notes or "Pipeline draft generated"
     if not draft.ai_sections:
         draft.ai_sections = {
             k: getattr(draft, k).text for k in ("technique", "findings", "impression", "recommendations")

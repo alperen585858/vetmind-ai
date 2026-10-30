@@ -12,6 +12,7 @@ import {
   Loader2,
   Save,
   Send,
+  Sparkles,
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -37,6 +38,7 @@ import {
   draftToSections,
   initManualReport,
   saveBackendDraftReport,
+  regenerateBackendReport,
   submitBackendReview,
   type PetHistoryEntry,
 } from '../lib/backend'
@@ -77,6 +79,7 @@ export default function RadiologistWorkspace() {
   const [internalNote, setInternalNote] = useState('')
   const [infoAsk, setInfoAsk] = useState('')
   const [showDicom, setShowDicom] = useState(true)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -335,6 +338,45 @@ export default function RadiologistWorkspace() {
         title: 'İşlem başarısız',
         body: err instanceof Error ? err.message : undefined,
       })
+    }
+  }
+
+  /** Record the revision request (reason codes = training signal), then let the model rewrite. */
+  async function regenerateWithAI() {
+    if (!text || !caseRow || !caseKey.startsWith('case-')) return
+    setRegenerating(true)
+    try {
+      await submitBackendReview(caseKey, {
+        action: 'request_revision',
+        comment: reason,
+        reason_codes: reasonCodes.length ? reasonCodes : undefined,
+        edited_technique: text.klinikOzet,
+        edited_findings: text.bulgular,
+        edited_impression: text.degerlendirme,
+        edited_recommendations: text.oneriler,
+      })
+      const updated = await regenerateBackendReport(caseKey, reason)
+      const mapped = await hydrateBackendCase(caseKey)
+      if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+      // Case status can read the same before and after, so refresh history explicitly.
+      const history = await listReportVersions(caseKey)
+      setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+      setModal(null)
+      setReason('')
+      setReasonCodes([])
+      pushToast({
+        tone: 'success',
+        title: `Yeni taslak hazır (v${updated.draft_report?.version ?? '?'})`,
+        body: 'Yapay zekâ gerekçenizi dikkate alarak yeniden yazdı. Önceki sürüm geçmişte duruyor.',
+      })
+    } catch (err) {
+      pushToast({
+        tone: 'error',
+        title: 'Yeniden yazma başarısız',
+        body: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -646,17 +688,35 @@ export default function RadiologistWorkspace() {
             </p>
           </>
         )}
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setModal(null)}>
+        {modal === 'revizyon' && caseKey.startsWith('case-') && (
+          <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
+            <strong>Yapay zekâ ile yeniden yaz:</strong> revizyon talebi kaydedilir, ardından model gerekçenizi
+            dikkate alarak yeni bir taslak sürümü yazar. Görüntü analizi tekrarlanmaz.
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setModal(null)} disabled={regenerating}>
             İptal
           </Button>
+          {modal === 'revizyon' && caseKey.startsWith('case-') && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              disabled={regenerating || reason.trim().length < 10 || reasonCodes.length < 1}
+              onClick={() => void regenerateWithAI()}
+            >
+              {regenerating ? 'Yeni taslak yazılıyor…' : 'Yapay zekâ ile yeniden yaz'}
+            </Button>
+          )}
           <Button
             size="sm"
             variant={modal === 'reddedildi' ? 'danger' : 'primary'}
             disabled={
-              modal !== 'approve' &&
-              modal !== null &&
-              (reason.trim().length < 10 || reasonCodes.length < 1)
+              regenerating ||
+              (modal !== 'approve' &&
+                modal !== null &&
+                (reason.trim().length < 10 || reasonCodes.length < 1))
             }
             onClick={() =>
               void decide(

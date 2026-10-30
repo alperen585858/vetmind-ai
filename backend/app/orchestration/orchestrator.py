@@ -22,6 +22,7 @@ from app.schemas.enums import (
 from app.review_sla import apply_review_sla
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
+from app.schemas.report import DraftReport
 from app.validation.report_validator import ReportValidator
 
 
@@ -65,6 +66,17 @@ class AIOrchestrator:
     @property
     def validator(self) -> ReportValidator:
         return self._validator
+
+    def regenerate_report(self, case: CaseRecord, expert_note: str) -> DraftReport:
+        """LLM-only rerun for an expert revision request. Imaging adapters are not re-run.
+
+        Raises LLMProviderError on provider failure (no mock fallback); the caller keeps the old draft.
+        """
+        if case.structured_findings is None or case.draft_report is None:
+            raise ValueError("Case has no findings/draft to revise.")
+        report = self._llm.revise_draft(case, case.structured_findings, case.draft_report, expert_note)
+        self._validator.validate(report, case.structured_findings)
+        return report
 
     def run(
         self,

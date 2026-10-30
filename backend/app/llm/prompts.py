@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.llm.interfaces import LLMGenerationInput
+from app.llm.interfaces import LLMGenerationInput, RevisionContext
 from app.schemas.enums import ModelExecutionStatus
 
 PROMPT_VERSION = "vetmind-report-v5"
@@ -156,8 +156,27 @@ def _passages_block(gen: LLMGenerationInput, aliases: CitationAliases) -> str:
     return "\n".join(lines)
 
 
+def _revision_block(revision: RevisionContext) -> str:
+    import json
+
+    previous = json.dumps(revision.previous_sections, ensure_ascii=False, indent=1)
+    return (
+        "EXPERT REVISION REQUEST\n"
+        "A board-certified veterinary radiologist reviewed your previous draft for this case and asked for changes. "
+        "Rewrite the draft so it addresses the request. Keep every system rule: cite markers, keep certainty "
+        "hedged, use only the given findings and passages. If the request asks for something the findings or "
+        "passages cannot support, say so in the draft instead of inventing it.\n"
+        f"<expert_request>\n{revision.expert_note}\n</expert_request>\n"
+        f"PREVIOUS DRAFT (the version the expert reviewed):\n{previous}"
+    )
+
+
 def build_user_prompt(
-    gen: LLMGenerationInput, aliases: CitationAliases, *, instructions: str | None = None
+    gen: LLMGenerationInput,
+    aliases: CitationAliases,
+    *,
+    instructions: str | None = None,
+    revision: RevisionContext | None = None,
 ) -> str:
     source = gen.findings_source_kind.value
     if gen.findings_model_id:
@@ -178,6 +197,8 @@ def build_user_prompt(
         _findings_block(gen, aliases),
         _passages_block(gen, aliases),
     ]
+    if revision is not None:
+        parts.append(_revision_block(revision))
     task = "TASK\nWrite the draft report following the system rules."
     if instructions:
         task += f"\nAdditional instruction: {instructions}"
