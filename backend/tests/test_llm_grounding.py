@@ -126,3 +126,19 @@ def test_placeholder_sections_are_reported_not_flagged_as_uncited() -> None:
         "Grounding: model left section(s) empty: findings, impression — "
         "placeholder or auto-listed findings were inserted; write these sections manually."
     ]
+
+
+def test_hedged_phrases_are_not_overclaims() -> None:
+    hedged = _report(
+        "Küçük T2 hiperintensite izlenmektedir, kesinlikle tanımlanamamış [F1]. Ödem olası [F2].",
+        "Meningiom olası; kesin tanı için biyopsi gerekir [F1, S1]. "
+        "Further evaluation is recommended to confirm the diagnosis [S1].",
+    )
+    assert not [w for w in check_grounding(hedged) if "statement" in w]
+
+
+def test_no_disease_claims_are_flagged() -> None:
+    r = _report("Kitle [F1]. Ödem [F2].", "Given the clinical history, no disease is present [S1].")
+    assert any("absence of disease" in w for w in check_grounding(r))
+    r = _report("Kitle [F1]. Ödem [F2].", "Hastalık bulunmamaktadır [S1].")
+    assert any("absence of disease" in w for w in check_grounding(r))

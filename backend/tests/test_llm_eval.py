@@ -147,3 +147,11 @@ def test_single_run_has_no_spread() -> None:
     summary = run.summary()
     assert summary["score_std"] is None and summary["case_score_std"] is None
     assert " ± " not in render_markdown([run], _set("brain-mass-01"))
+
+
+def test_forbidden_ignores_hedged_use() -> None:
+    from app.evaluation.llm_eval import forbidden_found
+
+    assert not forbidden_found("Kesin tanı için biyopsi gerekir.", "kesin tanı|definitive diagnosis")
+    assert forbidden_found("Kesin tanı meningiomdur.", "kesin tanı|definitive diagnosis")
+    assert forbidden_found("Given the history, no disease is present.", "no disease|hastalık yoktur")

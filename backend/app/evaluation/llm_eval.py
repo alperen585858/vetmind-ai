@@ -19,7 +19,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.llm.gateway import LLMGateway
-from app.llm.grounding import analyze_grounding
+from app.llm.grounding import analyze_grounding, is_hedged
 from app.llm.interfaces import LLMProvider, LLMProviderError
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
@@ -135,6 +135,17 @@ def term_found(text: str, entry: str) -> bool:
     return any(alt.strip() and _norm(alt.strip()) in hay for alt in entry.split("|"))
 
 
+def forbidden_found(text: str, entry: str) -> bool:
+    """Like term_found, but a hedged use ("kesin tanı için …", "to confirm the diagnosis") is allowed."""
+    for alt in (a.strip() for a in entry.split("|")):
+        if not alt:
+            continue
+        for m in re.finditer(re.escape(alt), text, re.I):
+            if not is_hedged(text, m.start(), m.end()):
+                return True
+    return False
+
+
 def recall(text: str, entries: list[str]) -> Optional[float]:
     if not entries:
         return None
@@ -219,7 +230,7 @@ def score_report(ec: EvalCase, report: DraftReport, latency_s: float) -> CaseRes
         ),
         differentials=[f"{d.name} ({d.likelihood})" for d in report.differentials],
         must_mention_recall=recall(full, ec.expected.must_mention),
-        forbidden_hits=[e for e in ec.expected.forbidden if term_found(full, e)],
+        forbidden_hits=[e for e in ec.expected.forbidden if forbidden_found(full, e)],
         english_ratio=round(english_ratio(full), 3),
         blank_sections=list(stats.blank_sections),
         pipeline_steps=list(report.generation.pipeline_steps),

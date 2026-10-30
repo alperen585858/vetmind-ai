@@ -34,11 +34,42 @@ OVERCLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\b(patoloji|lezyon|anormallik)\w*\s+(saptanmad|izlenmed|yoktur|bulunmamaktad)\w*"
             r"|\b(normal sınırlarda|çalışma normal)\b"
             r"|\bno (evidence of )?(abnormalit|patholog|lesion)\w*"
-            r"|\b(normal study|within normal limits)\b",
+            r"|\b(normal study|within normal limits)\b"
+            r"|\bno (disease|abnormality) (is |was )?(present|detected|seen|identified)"
+            r"|\bhastalık\s+(yoktur|bulunmamaktad|saptanmad)\w*",
             re.I,
         ),
     ),
 )
+
+# A matched phrase used as a goal or negated is hedged, not a claim:
+# "kesin tanı için biyopsi gerekir", "kesinlikle tanımlanamamış", "to confirm the diagnosis",
+# "kesin tanı konulamaz", "cannot be definitively …".
+_HEDGE_AFTER = re.compile(
+    r"^[\s,]*(?:"
+    r"için\b|amacıyla\b|açısından\b|koymak\b|konula(?:ma|mı|bil)|"
+    r"(?:\w+\s+){0,2}\w*(?:ma|me)(?:z|mış|miş|maktadır|mektedir|dı|di)(?:t[ıi]r|d[ıi]r)?\b|"
+    r"(?:\w+\s+){0,2}değil"
+    r")",
+    re.I,
+)
+_HEDGE_BEFORE = re.compile(
+    r"(?:\bto|\bcannot|\bcan't|\bnot|\bunable to|\bwithout a|\bno)\s+(?:be\s+)?$", re.I
+)
+
+
+def is_hedged(text: str, start: int, end: int) -> bool:
+    return bool(
+        _HEDGE_AFTER.match(text[end: end + 60]) or _HEDGE_BEFORE.search(text[max(0, start - 25): start])
+    )
+
+
+def find_overclaim(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
+    """First match of ``pattern`` that is not hedged by negation or a purpose clause."""
+    for m in pattern.finditer(text):
+        if not is_hedged(text, m.start(), m.end()):
+            return m
+    return None
 
 # Our own placeholder for a section the model left blank: never a model claim.
 _FALLBACK_TEXTS = {text for lang in EMPTY_SECTION_TEXT.values() for text in lang.values()}
@@ -131,7 +162,7 @@ def analyze_grounding(report: DraftReport) -> GroundingStats:
         if unknown:
             stats.unknown_refs[name] = unknown
         for label, pattern in OVERCLAIM_PATTERNS:
-            match = pattern.search(text)
+            match = find_overclaim(pattern, text)
             if match:
                 stats.overclaims.append((name, label, match.group(0)))
 

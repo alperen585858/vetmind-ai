@@ -1,0 +1,2059 @@
+{
+  "set": "VetMind LLM seed set",
+  "set_version": 1,
+  "runs": [
+    {
+      "label": "llama3.2:3b",
+      "provider_id": "ollama",
+      "model_id": "llama3.2:3b",
+      "prompt_version": "vetmind-report-v4",
+      "repeats": 3,
+      "summary": {
+        "score": 77.4,
+        "score_std": 1.7,
+        "case_score_std": 4.8,
+        "success_rate": 1.0,
+        "citation_coverage": 0.932,
+        "finding_coverage": 0.976,
+        "differential_recall": 0.214,
+        "must_mention_recall": 0.583,
+        "overclaim_cases": 0.0,
+        "forbidden_cases": 0.33,
+        "unknown_refs": 3.33,
+        "blank_cases": 0.33,
+        "english_ratio": 0.073,
+        "latency_s": 86.027,
+        "verified_supported_rate": 0.551,
+        "verified_problems": 8.0,
+        "repair_applied_rate": 0.852,
+        "calls_per_case": 3.63
+      },
+      "cases": [
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 58.56,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.014,
+          "blank_sections": [],
+          "differentials": [
+            "Ekstradüral beyin kitle (high)",
+            "Idiyopatik epilepsi (moderate)",
+            "Mandibular simfizis (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Köpek, MR modality ile, beyin regioninde analiz edildi ve başarılı bir analiz yapıldı.",
+            "findings": "[F1] Sağ frontal konvexitede broad-based ekstradüral kitle, T1 isontenle strong homogeneous kontrast gelişimi ve dural kuyruk izi var. [F2] Sağ frontal beyin beyaz matterinde possible vasojenik edema izleri var. [F3] Falx cerebride mild sol tarafa devasa.",
+            "impression": "Beyindeki broad-based ekstradüral kitle ve vasojenik edema izleri present olabilir.[S1, S2, S4]",
+            "recommendations": "Daha fazla manual analiz requerir. Radiolog revize edilmelidir."
+          },
+          "score": 86.8
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 57.31,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.062,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz Emboli (high)",
+            "Brakisefali (moderate)",
+            "Multifokal Nörolojik Defisit (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.667,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Köpek, 4 yaşındaki Maltese breedi, MR modality ile brain regioninde başarıyla analiz edildi.",
+            "findings": "[F1] BRAIN-MULTIFOCAL-T2 | status=suspected | location=forebrain and brainstem | Multifocal, asymmetric, ill-defined T2/FLAIR hyperintense lesions in the forebrain and brainstem.[S1]. [F2] BRAIN-MENINGEAL-ENH | status=possible | location=meninges, diffuse | Mild patchy meningeal contrast enhancement.[S3].",
+            "impression": "Forebrain ve brainstemde multifokal, asimetrik, ill-defined T2/FLAIR hipertensiyonlu lezyonlar saptandı.[F1] Meningeal kontrast gelişiminin hafif patchy patchi görüldü.[F2]",
+            "recommendations": "Radiyologun gözden geçirilmesi gerektiği için radiyolog gözden geçirme."
+          },
+          "score": 71.9
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 62.04,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.062,
+          "blank_sections": [],
+          "differentials": [
+            "C3-C4 disk ekstrüzyonu (high)",
+            "Spinal kord kompresyonu (moderate)",
+            "Boyun ağrısı (özet) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.4,
+          "verified_problems": 3,
+          "sections": {
+            "technique": "Kırtasiye: Köpek, MR modality, CERVICAL region, Analiz Durumu: Başarılı",
+            "findings": "[F1] code=CERV-EXTRADURAL-MATERIAL | status=suspected | location=C3-C4 intervertebral disc space | Ventral, T2 hypointense extradural material at C3-C4 extending into the vertebral canal. [S1] VRM Örnek MR Raporları Seti — Rapor #MR-0142 (anonimleştirilmiş, örnek).",
+            "impression": "C3-C4 disk ekstrüzyonu ve spinal kord kompresyonu şüpheli.[F1, S2]. Disk ekstrüzyonu ile uyumlu spinal hiperestezi gözlemlenebilir.[F1, S2]. Boyun ağrısının ayırıcı tanusunda servikal disk hastalığı ile birlikte steroid yanıtlı menenjit-arterit değerlendirilmelidir.[F1, S3].",
+            "recommendations": "Daha detailed analize needs to be performed, full manual review is required. Radiologist review needed."
+          },
+          "score": 96.9
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 54.95,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.054,
+          "blank_sections": [],
+          "differentials": [
+            "Disk Ekstrüzyonu (high)",
+            "Spinal Kord Kompresyonu (moderate)",
+            "Boyun Ağrısı (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye: Köpek, MR modality, CERVICAL region, analysis status: Başarılı ( mock modellerinden kaynaklanan, eval-fixture eval-set ile)",
+            "findings": "[F1] code=CERV-DISC-ASSOC-COMPRESSION | status=possible | location=C6-C7 | Ventral disc-associated spinal cord compression at C6-C7, more pronounced on flexion. [F2] code=CERV-CORD-T2 | status=uncertain | location=cervical spinal cord, C6 | Small intramedullary T2 hyperintensity at the level of C6.",
+            "impression": "C6-C7 diskli spinal cord kompresyonu ve C6'de T2 ağırlıklı intramedülleri hiperintensite, disk ekstrüzyonu ile uyumludur.[S1] Spinal Hastalıklar Derlemesi (örnek) — İntervertebral disk hastalığının sınıflandırılması. Boyun ağrısının ayırıcı tanusunda servikal disk hastalığı ile birlikte steroid yanıtlı menenjit-arterit değerlendirilmelidir.[S3] Servikal Spinal Hastalıklar (örnek) — Boyun ağrısının ayırıcı tanısı.",
+            "recommendations": "Tam elyazısı incelemesi gerektirir. Fiziksel muayene ve laboratuvar testleri ile birlikte devam etmelidir. Radiolog reytingi ile devam etmelidir."
+          },
+          "score": 84.8
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 47.49,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.2,
+          "blank_sections": [],
+          "differentials": [
+            "Pulmonary neoplasia (high)",
+            "Interstitial pneumonia (moderate)",
+            "Other causes of pleural effusion (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Feline, Thoracic XR modality, analysis status: success",
+            "findings": "[F1] code=THX-MULTIPLE-NODULES | location=lung, all lobes | Multiple well-defined soft tissue nodules of varying size distributed throughout all lung lobes.[S3], [F2] code=THX-PLEURAL-EFFUSION | location=pleural space, bilateral | Mild bilateral pleural fluid with retraction of the lung lobes from the thoracic wall.[S1], [S3]",
+            "impression": "[F1] Suspected multiple pulmonary nodules and possible pleural effusion.[S1], [S2], [S3]. Recommendation for further evaluation: Full manual review recommended.[S3]. Differential diagnoses: Pulmonary neoplasia, interstitial pneumonia, or other causes of pleural effusion.[S1], [S3].",
+            "recommendations": "Full manual review recommended due to lack of findings. Additional sequences (e.g., CT scan) may be necessary to evaluate the pulmonary nodules and pleural effusion in more detail."
+          },
+          "score": 90.0
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 41.33,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.03,
+          "blank_sections": [],
+          "differentials": [
+            "Sol parietal convexiteye extra-axial Lentiform hyperattenuating kitle (high)",
+            "Sol mandibula kemikinde linear non-displaced lucency (moderate)",
+            "Sol parietal convexiteye saptanabilirlik sınırlaması ile saptanabilir (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kısmi CT nörografisi, 3D rekonstrüksiyonu ve sagittal planlarda sınırlı saptanabilirlik nedeniyle sagittal planlara dayalı saptanabilirlik sınırlaması ile wykonlandı.",
+            "findings": "[F1] Sol parietal convexiteye extra-axial Lentiform hyperattenuating kitle var, status = suspected [S1]. [F2] Sol mandibula kemikinde linear non-displaced lucency var, status = possible [S2].",
+            "impression": "Lentiform hyperattenuating extra-axial collection left parietal convexiteye saptanabilirlik sınırlaması ile saptanabilir; possible fracture left parietal bone [F1, S2] ve normal simfiziste tam simetriktir [S3].",
+            "recommendations": "Tam manuel inceleme gereklidir. Sagittal planlara dayalı saptanabilirlik sınırlaması nedeniyle sagittal planlarda saptanabilirlik sınırlaması ile saptanabilir; possible fracture left parietal bone [F2] için sagittal planlardaki saptanabilirlik sınırlaması ile saptanabilir. Radiyolog inceleme gerektirir."
+          },
+          "score": 86.0
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 14.35,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.0,
+          "finding_coverage": null,
+          "uncited": 3,
+          "unknown_refs": 2,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.079,
+          "blank_sections": [],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Feline, MR modality, BRAIN region, analysis status: success",
+            "findings": "[L1-L2 disk aralığı seviyesinde ventral yerleşimli, T2 ağırlıklı serilerde hipointens ekstradural materyal; spinal kordda kompresyon. [F1, S3]]",
+            "impression": "[Spinal kordda kompresyon ve disk ekstrüzyonu ile uyumludur. Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; interiktal dönemde normal muayene ve MR ile tanısı konulmalıdır. [F2, S1]]",
+            "recommendations": "Full manual review required due to lack of findings."
+          },
+          "score": 44.7
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 26.1,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": null,
+          "uncited": 0,
+          "unknown_refs": 2,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.045,
+          "blank_sections": [],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kısa time intervalde 8 yaşındaki Labrador Retriever, Thoraks modality ile CT analizi yapıldı. Analiz statusu başarısız (findings source: mock, model=eval-fixture eval-set).",
+            "findings": "[F1] Suspected interstisyel opaklıklar enfeksiyon veya ödem var [S2], possible toraks Radyografi Notları (örnek) [S2].",
+            "impression": "[F1] Suspected interstisyel opaklıklar enfeksiyon veya ödem var [S2], possible toraks Radyografi Notları (örnek) [S2]. Akut disk ekstrüzyonu vakaları ile ilgili olarak [S4] literatürüne bakılmalıdır.",
+            "recommendations": "Klinik korelasyon gerektiren bir durum olduğu için, further manual review required. Spinal hiperestezi ve disk ekstrüzyonu vakaları ile ilgili olarak [S4] [S1] [S2] [S3] literatürüne bakılmalıdır."
+          },
+          "score": 63.7
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 74.75,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.75,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [],
+          "english_ratio": 0.061,
+          "blank_sections": [],
+          "differentials": [
+            "Idiopathic Epilepsy (high)",
+            "Structural Intracranial Disease (moderate)",
+            "Synchondrosis cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Köpek (Canis lupus familiaris), MR modality, Brahin bölgesi",
+            "findings": "[F1] code=BRAIN-INTRA-AXIAL-MASS | status=suspected | location=left temporal lobe | Ill-defined intra-axial T2 hyperintense lesion in the left temporal lobe with ring enhancement.[S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene, normal MR ve metabolik nedenlerin dışlanmasından sonra konmalıdır.[S2] Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Mandibular Symphysis'te tam simetriktir, kemik konturlarında basamaklaşma (step defect) yoktur ve fiziksel muayenede hemimandibulalar arasında bağımsız hareket/instabilite saptanmaz.[S3] Cartilago nasi & Labial Soft Tissue Superimposition - Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır.[S4] Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Sabit ve öngörülebilir anatomik lokalizasyon, düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden (endokranial) ventrale (ektokranial) doğru ilerleyen fizyolojik kapanma paterni ile kırıklardan ayrılır.]",
+            "impression": "[S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene, normal MR ve metabolik nedenlerin dışlanmasından sonra konmalıdır. Possible differential diagnoses: Idiopathic Epilepsy, Structural Intracranial Disease.[S4] Sabit ve öngörülebilir anatomik lokalizasyon, düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden (endokranial) ventrale (ektokranial) doğru ilerleyen fizyolojik kapanma paterni ile kırıklardan ayrılır. Possible differential diagnoses: Synchondrosis cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis).]",
+            "recommendations": "Full manual review required due to lack of findings and automated analysis failure. Radiologist review recommended for accurate diagnosis and treatment planning."
+          },
+          "score": 78.7
+        },
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 50.1,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.5,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.089,
+          "blank_sections": [],
+          "differentials": [
+            "Intrakraniyal Menenjiyom (high)",
+            "Propionsiyon Kaybı (moderate)",
+            "Simfizis Ayrılması (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Köpek, MR modality ile, beyin regioninde, analiz.status = Başarılı",
+            "findings": "[F1] code=BRAIN-EXTRA-AXIAL-MASS | status=suspected | location=right frontal lobe, convexity | Broad-based extra-axial mass at the right frontal convexity, T1 isointense with strong homogeneous contrast enhancement and a dural tail.[S1]; [F2] code=BRAIN-PERILESIONAL-EDEMA | status=possible | location=right frontal white matter | T2/FLAIR hyperintensity in the surrounding white matter consistent with vasogenic edema.[S2]; [F3] code=BRAIN-MIDLINE-SHIFT | status=uncertain | location=falx cerebri | Mild leftward deviation of the falx.[S4]",
+            "impression": "Beyinde, sağ frontal konvexitede broad-based ekstradural kitle bulgusu saptanmıştır.[S1]; Diferansiyel teşhisler sıralaması: 1) Intrakraniyal menenjiyom, 2) Propionsiyon kaybı, 3) Simfizis ayrılması.[S4]",
+            "recommendations": "Kadrolu radiyolog inceleme ile devam etmelidir. Ekleme séansları ve testler önerilir: Dural kuyruk işareti ve propionsiyon kaybı için ek séanslar, intrakraniyal menenjiyom için tomografi ve biyopsi."
+          },
+          "score": 89.3
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 51.29,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 0.5,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.131,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz Emboli (high)",
+            "Brakisefalik Grubu Nörolojik Defisit (moderate)",
+            "Kemik Lezyonlu Nörolojik Defisit (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Köpek, 4 yaşında Maltese breed, MR modality, BRAIN regioni analysis statusu: Başarılı (BRAIN-MULTIFOCAL-T2 | code, eval-fixture eval-set)",
+            "findings": "[F1] code=BRAIN-MULTIFOCAL-T2 | status=suspected | location=forebrain and brainstem | Multifocal, asymmetric, ill-defined T2/FLAIR hyperintense lesions in the forebrain and brainstem.[S1]",
+            "impression": "Forebrain ve brainstemde multifokal, asimetrik, belirsiz T2/FLAIR hiperrentli lesyonlar present-edir.[S3]",
+            "recommendations": "Full manual review required due to lack of findings. Additional sequences (e.g. T1-weighted, diffusion-weighted imaging) and consultation with a board-certified veterinary radiologist recommended."
+          },
+          "score": 62.2
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 43.78,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.063,
+          "blank_sections": [],
+          "differentials": [
+            "Cervical Disk Ekstrüzyonu (high)",
+            "Spinal Kord Kompresyonu (moderate)",
+            "Boyun Ağrısı (Non-Spinal) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Köpek, MR modality ile CERVICAL regionunda analiz edildi. Analiz başarısız değildi.",
+            "findings": "[F1] C3-C4 intervertebral disc space, ventral, T2 hypointense extradural material | [S1].",
+            "impression": "Cervical disk ekstrüzyonu ve spinal kord kompresyonu şüpheli | [S1], [S2]. Disk ekstrüzyonu vakalarında boyun ağrısının ayırıcı tanısında servikal disk hastalığı ile birlikte steroid yanıtlı menenjit-arterit değerlendirilmelidir.[S2]. Akut disk ekstrüzyonu vaklarında belirgin spinal hiperestezi gözlenir.[S3].",
+            "recommendations": "Daha detailed analize needs to be performed, including full spine evaluation and possible contrast administration. Radiologist review is required."
+          },
+          "score": 96.9
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 121.1,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.011,
+          "blank_sections": [],
+          "differentials": [
+            "Diskli kemişe kompresyon ve spinal cord uyuşukluğu (high)",
+            "Spinal cord compressyonu ve disk ekstrüzyonu (moderate)",
+            "Boyun ağrısı ve servikal disk hastalığı (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye: Köpek, MR modality, CERVICAL region, analysis status: Başarılı",
+            "findings": "[F1] C6-C7 diskli kemişe kompresyon, daha fazla flexiyon; [F2] C6 spinal cordu, T2 ağırlıklı intramedülleri, durum belirsiz",
+            "impression": "Zararlı diskli kemişe kompresyon ve spinal cord uyuşukluğu olasılığı var; [S1] İntervertebral disk hastalığı sınıflandırılması; [S2] Disk ekstrüzyonu ile uyumlu spinal kord kompresyonu; [S3] Boyun ağrısının ayırıcı tanısında servikal disk hastalığı ile birlikte steroid yanıtlı menenjit-arterit değerlendirilmelidir.",
+            "recommendations": "Tam elyazısı incelemesi gerektirir; Steroid yanıtlı menenjit-arterit değerlendirmesi ve boyun ağrısının ayırıcı tanımı içinVeteriner kraniyal anatomi tuzakları ve servikal spinal hastalıkları literaturesine bakılması önerilir. Radiyolog inceleme gerektirir."
+          },
+          "score": 86.9
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 106.33,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.194,
+          "blank_sections": [],
+          "differentials": [
+            "Pulmoner enfeksiyon (pneumonia) (high)",
+            "Toraks kistleri (thoracic cysts) (moderate)",
+            "Pleural kanseri (pleural cancer) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Feline, Thoracic XR modality, analysis status: success",
+            "findings": "[F1] code=THX-MULTIPLE-NODULES | location=lung, all lobes | Multiple well-defined soft tissue nodules of varying size distributed throughout all lung lobes.[S3], [F2] code=THX-PLEURAL-EFFUSION | location=pleural space, bilateral | Mild bilateral pleural fluid with retraction of the lung lobes from the thoracic wall.[S1, S3]",
+            "impression": "Multiple well-defined soft tissue nodules and mild bilateral pleural effusion are present.[S3]",
+            "recommendations": "Full manual review recommended due to lack of findings in other regions. Additional sequences (e.g., CT or MRI) may be necessary for further evaluation. Radiologist review required."
+          },
+          "score": 77.8
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 340.86,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.086,
+          "blank_sections": [],
+          "differentials": [
+            "Kemik Kırığı (Fraktür) (high)",
+            "Spinal ve İntrakraniyal Neoplaziler (moderate)",
+            "Araç Çarpması sonrası Kemiğin Etkilenmesi (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye: Canavet, Modality: CT, Region: Brain, Analiz Durumu: Başarılı",
+            "findings": "[F1] code=CT-EXTRA-AXIAL-HYPERDENSE | status=suspected | location=left parietal, extra-axial | Lentiform hyperattenuating extra-axial collection along the left parietal convexity.[S1] BT Nörogörüntüleme Özeti (örnek) — Kafa BT yaklaşımı. [F2] code=CT-SKULL-FRACTURE | status=possible | location=left parietal bone | Linear non-displaced lucency of the left parietal bone.[S2] Anatomik tuzak: Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) — Veteriner kraniyal anatomi tuzakları.",
+            "impression": "Lentiform hyperattenuating extra-axial collection along the left parietal convexity [F1, S1] possible linear non-displaced lucency of the left parietal bone [F2, S2].",
+            "recommendations": "Tam manuel inceleme gerektirir. Radiyolojik expertin incelemesi gerekir."
+          },
+          "score": 83.2
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 160.35,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": null,
+          "uncited": 0,
+          "unknown_refs": 2,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.132,
+          "blank_sections": [],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kedi, British Shorthair 10 yaşı, MR modality ile BRAIN bölgesinde analiz edildi. Analiz başarısız olmadı ve full manual review önerilir.",
+            "findings": "[F1] Brain region analysis unsuccessful; no findings reported.[S2]",
+            "impression": "[F1, S2] Possible brain abnormalities or lesions not identified due to unsuccessful analysis.[S3]",
+            "recommendations": "Full manual review önerilir. Additional sequences veya tests için consultation önerilir."
+          },
+          "score": 57.9
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 122.79,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": null,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.035,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": 0.0,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırmızı köpek (Canis lupus familiaris), Thoraks modality ile CT analizi, failed analysis status'u nedeniyle sonuçlar unavailable.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Aptal / Possible: Kraniyal sütür kapanması ve toraks Radyografi Notları (örnek) [S2], possible spinal hiperestezi [S4].",
+            "recommendations": "Klinik korelasyon gerektirir. Spinal hiperestezi için dikkatli olunalır. Radiyologun gözden geçirilmesi gerekir."
+          },
+          "score": 72.7
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 425.99,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [],
+          "english_ratio": 0.024,
+          "blank_sections": [],
+          "differentials": [
+            "Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır (high)",
+            "Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Fiziksel muayenede hemimandibulalar arasında bağımsız hareket/instabilite saptanmaz. (moderate)",
+            "Cartilago nasi & Labial Soft Tissue Superimposition - Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır. (low)",
+            "Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Sabit ve öngörülebilir anatomik lokalizasyon, düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden ventrale doğru ilerleyen fizyolojik kapanma paterni ile kırıklardan ayrılır. (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Köpek (Canis lupus familiaris), MR modality, Brain regioni, Analiz statusu: Başarılı",
+            "findings": "[F1] code=BRAIN-INTRA-AXIAL-MASS | status=suspected | location=left temporal lobe | Ill-defined intra-axial T2 hyperintense lesion in the left temporal lobe with ring enhancement.[S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene, normal MR ve metabolik nedenlerin dışlanmasından sonra konmalıdır.[S2] Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Fiziksel muayenede hemimandibulalar arasında bağımsız hareket/instabilite saptanmaz..[S3] Cartilago nasi & Labial Soft Tissue Superimposition - Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır..[S4] Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Sabit ve öngörülebilir anatomik lokalizasyon, düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden ventrale doğru ilerleyen fizyolojik kapanma paterni ile kırıklardan ayrılır..",
+            "impression": "En likely interpretation: [S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır. Differential diagnoses: [S2] Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Fiziksel muayenede hemimandibulalar arasında bağımsız hareket/instabilite saptanmaz.,[S3] Cartilago nasi & Labial Soft Tissue Superimposition - Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır.,[S4] Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Sabit ve öngörülebilir anatomik lokalizasyon, düzgün ve paralel kemik kenarları, yaşla birlikte dorsalden ventrale doğru ilerleyen fizyolojik kapanma paterni ile kırıklardan ayrılır..",
+            "recommendations": "Radyologun gözden geçirilmesi gerektirir. Tam manuel inceleme önerilir."
+          },
+          "score": 84.3
+        },
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 48.73,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Ekstradürlü beyin tümörü (high)",
+            "Vasojenik edema (moderate)",
+            "Falx cerebri değişimi (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Köpek, MR modality ile, beyin regioninde analiz edildi ve başarılı bir analiz yapıldı.",
+            "findings": "[F1] Sağı frontal kaviteye ekstradüral kitle, T1 isintonu, güçlü homojen kontrast gelişimi ve dural kuyruk izi var. [F2] Sağ frontal beyin beyaz maddesi arasında vasojenik edema izleri var. [F3] Falks cerebri üzerinde hafif sol tarafa devasa.",
+            "impression": "Beyinde ekstradüral kitle ve vasojenik edema izleri present.[S1]",
+            "recommendations": "Daha fazla manual inceleme gerektirir. Radiolog revidisyonu gerektirmeli."
+          },
+          "score": 87.5
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 54.04,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.138,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz Emboli (high)",
+            "Brakisefalik (moderate)",
+            "Multifokal Nörolojik Defisit (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Köpek, 4 yaşındaki Maltese breedi, MR modality ile Brahin bölgesinde analiz edildi. Analiz başarımı was successful.",
+            "findings": "[F1] BRAIN-MULTIFOCAL-T2 | status=suspected | location=forebrain and brainstem | Multifocal, asymmetric, ill-defined T2/FLAIR hyperintense lesions in the forebrain and brainstem.[S1]. [F2] BRAIN-MENINGEAL-ENH | status=possible | location=meninges, diffuse | Mild patchy meningeal contrast enhancement.[S2].",
+            "impression": "Forebrain ve brainstemde multifokal, asimetrik, belirsiz T2/FLAIR hipertansiyonlu lezyonlar saptanmıştır.[S3] Meningeal kontrast gelişimi de görülmüştür.[S4].",
+            "recommendations": "Full manual review required due to lack of findings or automated analysis failure. Radiologist review needed for accurate diagnosis and differential diagnoses."
+          },
+          "score": 68.1
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 34.02,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.667,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.138,
+          "blank_sections": [],
+          "differentials": [
+            "Disk ektrüzyonu ile uyumlu servikal disk hastalığı (high)",
+            "Servikal disk hastalığı (moderate)",
+            "Spinal hiperestezi (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye, MR, CERVICAL",
+            "findings": "[F1] code=CERV-EXTRADURAL-MATERIAL | status=suspected | location=C3-C4 intervertebral disc space | Ventral, T2 hypointense extradural material at C3-C4 extending into the vertebral canal.[S1]; [F2] code=CERV-CORD-COMPRESSION | status=suspected | location=cervical spinal cord, C3-C4 | Moderate spinal cord compression with loss of the ventral subarachoid space at C3-C4.[S2]",
+            "impression": "[F1, S1] Ventrally located extradural material and moderate spinal cord compression at C3-C4 region; [F2, S2] Possible acute disk herniation with spinal cord compression. Differential diagnoses: Disk ekstrüzyonu ile uyumlu servikal disk hastalığı (S2) ve servikal disk hastalığı (S1).",
+            "recommendations": "Full manual review required due to automated analysis failure. Consultation with a board-certified veterinary radiologist is recommended."
+          },
+          "score": 88.9
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 50.69,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.022,
+          "blank_sections": [],
+          "differentials": [
+            "C6-C7 diskli kemişe kompresyonu (high)",
+            "Spinal kordda T2 ağırlıklı intramedüllar hiperintensite (moderate)",
+            "Boyun ağrısı ve servikal disk hastalığı (low)",
+            "Mandibular simfizis travmatiku (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.667,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye: Köpek, MR modality, CERVICAL bölgesinde analiz edildi. Analiz statusu: Başarılı.",
+            "findings": "[F1] C6-C7 diskli kemişe kompresyon | possible | C6-C7 diskli kemişe kompresyonu, flexyon sırasında daha belirgin | [S1], [S2]. [F2] Cervikal spinal kord, C6 seviyesinde T2 ağırlıklı intramedüllar hiperintensite | uncertain | Cervikal spinal kord, C6 seviyesinde T2 ağırlıklı intramedüllar hiperintensite | [S1], [S4].",
+            "impression": "C6-C7 diskli kemişe kompresyonu ve cervical spinal kordda T2 ağırlıklı intramedüllar hiperintensiteye possible ve uncertain olarak atıfta bulunulur.[S3].",
+            "recommendations": "Kırtasiye: Tam elden review gerektirir. Ek séanslar (örneğin sagittal, axial) önerilir daha fazla değerlendirme. Radiyolog gözden geçirme gerekli."
+          },
+          "score": 86.4
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 46.48,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.207,
+          "blank_sections": [],
+          "differentials": [
+            "Pulmoner enfeksiyon (pulmonary infection) (moderate)",
+            "Toraks kanseri (thoracic cancer) (high)",
+            "Pleural kanseri (pleural cancer) (low)",
+            "Kavunlu (pulmonary edema) veya enfeksiyon (infection) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.0,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Feline, Thoracic XR modality, analysis status: success",
+            "findings": "[F1] code=THX-MULTIPLE-NODULES | location=lung, all lobes | Multiple well-defined soft tissue nodules of varying size distributed throughout all lung lobes.[S3], [F2] code=THX-PLEURAL-EFFUSION | location=pleural space, bilateral | Mild bilateral pleural fluid with retraction of the lung lobes from the thoracic wall.[S1, S3]",
+            "impression": "Possible pulmonary neoplasm and pleural effusion.[S3]",
+            "recommendations": "Full manual review recommended due to lack of findings in other regions. Additional thoracic XR sequences (e.g., lateral views) and pleural tap may be considered for further evaluation."
+          },
+          "score": 77.1
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 54.73,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.039,
+          "blank_sections": [],
+          "differentials": [
+            "Intrakraniyal Menenjiyom (high)",
+            "Simfiziste Related Kitle (moderate)",
+            "Kemik Hasarı ve Extra-Axial Kitle (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.667,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırmızı köpek, 3 yaş, CT modality ile brain regioninde analiz edildi. Analiz başarısız değildi.",
+            "findings": "[F1] Sol parietal bölgesinde extra-axial lentiform hiperattenuant olan kitle var. [F2] Sol parietal kemikte linear non-displaced lucency görüntüldü.",
+            "impression": "Beyin kitleleri ve kemik hasarı possible olarak saptandı.[F1, S1] [F2, S2] [S3] Canine Tooth Root Closure kuralları ile simfiziste related olasılık var.[S4] Intrakraniyal menenjiyom ve dural kuyruk işareti possible olarak saptandı.",
+            "recommendations": "Klinik reçetesi ve radiologun kontrolü gerektirir. Full manual review recommended."
+          },
+          "score": 73.0
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 35.4,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": null,
+          "uncited": 0,
+          "unknown_refs": 2,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kedi, British Shorthair, 10 yaş, MR modality, BRAIN bölgesinde, analiz Durumu: Başarılı",
+            "findings": "[F1] Fokal nöbetler ile interiktal dönemde normal muayene interiktal períodode normal muayene interiktal dönemde normal [S1], L1-L2 disk aralığı seviyesinde ventral yerleşimli, T2 ağırlıklı serilerde hipointens ekstradural materyal; spinal kordda kompresyon [S3]",
+            "impression": "[F1] Fokal nöbetler ile interiktal dönemde normal muayene interiktal períodode normal [S1], L1-L2 disk aralığı seviyesinde ventral yerleşimli, T2 ağırlıklı serilerde hipointens ekstradural materyal; spinal kordda kompresyon [S3] ve artikulatio intermandibularis / Symphysis mandibulae ile uyumlu [S4]",
+            "recommendations": "Tamamen elden kontrol edilecek. Farklı MRI séancesi ve/veya klinik muayene ile devam etmelidir."
+          },
+          "score": 66.7
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 32.84,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": null,
+          "uncited": 0,
+          "unknown_refs": 2,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [
+            "metastaz|pnömoni|pneumonia|neoplazi|bronşit|kesin tanı"
+          ],
+          "english_ratio": 0.049,
+          "blank_sections": [],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": 0.667,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kırtasiye: Köpek, 8 yaş, Thoraks modalityi, CT analizi failed (Automatik analiz başarısız), Tam elyaf review required.",
+            "findings": "[F1] Thoraks regionünde anyonun apex radicis dentis canini kapanması suspected [S1], possible pulmoner paternler [S2] ve interstisyel opaklıklar enfeksiyon, ödem veya neoplazi spektrumunda değerlendirilir [S2].",
+            "impression": "[F1, S2] Possible thoracic disease with uncertain findings, requiring further evaluation. Akut disk ekstrüzyonu vakalarının büyük bölümünde belirgin spinal hiperestezi gözlenir [S4], ancak bu durum Thoraks regionünde anyonun apex radicis dentis canini kapanması suspected [S1] ile ilişkili değildir.",
+            "recommendations": "Tam elyaf review required. Additional sequences (CT lung window, CT bone window) veya tests (kan worku, fiziksel muayene) gerekebilir để tıbbi tarihiden değerlendirmek. Radiyolog review required."
+          },
+          "score": 46.7
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 106.32,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.75,
+          "finding_coverage": 1.0,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [],
+          "english_ratio": 0.016,
+          "blank_sections": [],
+          "differentials": [
+            "Sol temporal lobun withiner intra-axial T2 hyperintense lesioni, ring enhancement (high)",
+            "Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir (low)",
+            "Burun kıkırdağı ve dudak yumuşak doku sınırlarının maksiller kesici diş kökleri üzerine süperpoze olması (low)",
+            "Kafa taba (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.4,
+          "verified_problems": 3,
+          "sections": {
+            "technique": "Köpek (Canis lupus familiaris), MR modality, Brain regioni, Analiz statusu: Başarılı",
+            "findings": "[F1] code=BRAIN-INTRA-AXIAL-MASS | status=suspected | location=left temporal lobe | Ill-defined intra-axial T2 hyperintense lesion in the left temporal lobe with ring enhancement.[S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene, normal MR ve metabolik nedenlerin dışlanından sonra konmalıdır.[S2] Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Veteriner kraniyal anatomi tuzakları. Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır.[S3] Cartilago nasi & Labial Soft Tissue Superimposition - Veteriner kraniyal anatomi tuzakları. Rostral maksilla radyografilerinde burun kıkırdağı ve dudak yumuşak doku sınırlarının maksiller kesici diş kökleri üzerine süperpoze olması.[S4] Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Veteriner kraniyal anatomi tuzakları. Genç köpeklerde (< 9-18 ay) ve kedilerde (< 10-29 ay, peke-face intersphenoidal için < 108 ay) lateral radyografilerde ve mid-sagittal BT kesitlerinde kafa taba",
+            "impression": "En olası yorum: Sol temporal lobun withiner intra-axial T2 hyperintense lesioni, ring enhancement ile.[S1] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene, normal MR ve metabolik nedenlerin dışlanından sonra konmalıdır.[S2] Articulatio intermandibularis / Symphysis mandibulae (Mandibular Symphysis) - Veteriner kraniyal anatomi tuzakları. Yalancı kırık hattının diş kökü korteksi ve periodontal ligament boşluğu sınırlarını aşarak komşu alveoler kemik ve yumuşak doku gölgesi boyunca devam ettiği takip edilir; farklı açılı ikinci bir radyografi ile doğrulanır.[S3] Cartilago nasi & Labial Soft Tissue Superimposition - Veteriner kraniyal anatomi tuzakları. Rostral maksilla radyografilerinde burun kıkırdağı ve dudak yumuşak doku sınırlarının maksiller kesici diş kökleri üzerine süperpoze olması.[S4] Synchondroses cranii (Synchondrosis sphenooccipitalis, intersphenoidalis et sphenoethmoidalis) - Veteriner kraniyal anatomi tuzakları. Genç köpeklerde (< 9-18 ay) ve kedilerde (< 10-29 ay, peke-face intersphenoidal için < 108 ay) lateral radyografilerde ve mid-sagittal BT kesitlerinde kafa taba",
+            "recommendations": "Radyologun görüşüne ihtiyaç duyulmaktadır. Tammanlı review için full manual review recommend edilir."
+          },
+          "score": 81.2
+        }
+      ]
+    },
+    {
+      "label": "qwen2.5:7b",
+      "provider_id": "ollama",
+      "model_id": "qwen2.5:7b",
+      "prompt_version": "vetmind-report-v4",
+      "repeats": 3,
+      "summary": {
+        "score": 76.9,
+        "score_std": 2.9,
+        "case_score_std": 8.9,
+        "success_rate": 1.0,
+        "citation_coverage": 0.77,
+        "finding_coverage": 1.0,
+        "differential_recall": 0.381,
+        "must_mention_recall": 0.625,
+        "overclaim_cases": 2.0,
+        "forbidden_cases": 1.33,
+        "unknown_refs": 0.33,
+        "blank_cases": 2.0,
+        "english_ratio": 0.03,
+        "latency_s": 58.365,
+        "verified_supported_rate": 0.665,
+        "verified_problems": 11.67,
+        "repair_applied_rate": 0.444,
+        "calls_per_case": 3.52
+      },
+      "cases": [
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 56.79,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.5,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.015,
+          "blank_sections": [],
+          "differentials": [
+            "Menenjiyom (high)",
+            "Vasogenik Edem (moderate)",
+            "Idiyopatik Epilepsi (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI of the BRAIN; analysis status: success",
+            "findings": "[F1] Sağ frontal lobunda dural kuyruk işareti destekleyen geniş tabanlı ekstraaksiyel bir kitle belirlendi. T1'ye eşit yoğunluklu ve homojen kontrast artırma gösterir, [S1]. [F2] Sağ frontal beyin beygiri etrafındaki T2/FLAIR hipoegenlik, vasogenik edemle ilgili olabilir, [F3]. [F3] Falç cerebri sağa doğru ılıman kayma belirlenmiş, ancak kesin bir midline kayma belirtilmemiştir.",
+            "impression": "[S1] Sağ frontal lobunda ekstraaksiyel kitle ve dural kuyruk işareti destekleyici bulgular, bu durum menenjiyom olası. [F2] etrafındaki edem de vasogenik edemle ilgili olabilir. [S4] Klinik rehberde idiyopatik epilepsi tanısına varmadan önce yapısal intrakraniyal hastalıkların dışlanılması gerekmektedir, ancak bu bulgular menenjiyom olasılığını destekler. [F3] etrafındaki midline kayma belirsizdir ve dikkate alınmalıdır. [S1]",
+            "recommendations": "Daha fazla sekvans (örneğin T2 FLAIR, DWI) ve interiktal muayene gerektiği düşünülür. Radiolog rehberliği altında detaylı anatomi röntgeni önerilir. [F1, F2, S1]"
+          },
+          "score": 93.0
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 52.79,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [
+            "impression: absence of disease (lezyonları bulunmamaktadır)"
+          ],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.017,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz Emboli (FCE) (high)",
+            "Meningeal Infeksiyon (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.833,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, MRI modality, BRAIN region, automated analysis status success.",
+            "findings": "[F1] Forebrain and brainstem'de multifokal, asimetrik, belirsiz T2/FLAIR hipernükleer lezyonlar. [F2] Meningilerde genelleşmiş, parçalı kontrast artırma olası.",
+            "impression": "[S1, S3] Köpeklerde brakisefali ve multifokal nörolojik defisitler arasında fibrokartilaginöz emboli (FCE) bir diyalekti. [F2] Meningilerde genelleşmiş kontrast artırma olası, ancak FCE'nin karakteristik hipernükleer lezyonları bulunmamaktadır. [S4] MRI, yumuşak doku detaylarını MR ile karşılaştırıldığında ayrıntılı değildir. [F1] Lezyonların brakisefalik morfolojiyle ilişkili olabilecek ve diğer nörolojik komplikasyonlarla (örneğin, meningeal infeksiyon) ayrılması gerekmektedir.",
+            "recommendations": "Klinik bulgulara dayanarak, FCE'nin olası bir diyalekti. Ancak, lezyonların doğrulaması ve diğer nörolojik komplikasyonlarla ilişkili olabilecek durumları belirlemek için detaylı MRI analizi ve potansiyel olarak klinik bulgulara dayalı bir neurologik değerlendirme önerilir. Radiolog rehberliği altında tam manual inceleme önerilir."
+          },
+          "score": 61.7
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 56.3,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.8,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [
+            "impression: confirmed diagnosis (confirm the diagnosis)"
+          ],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.247,
+          "blank_sections": [],
+          "differentials": [
+            "Hastalıklı disk ekstrüzyonu (acute disk protrusion) (high)",
+            "Menenjit-arterit (meningoencephalitis with myelitis) (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, MR modality, cervical region, analysis status success.",
+            "findings": "[F1] C3-C4 intervertebral disc space ventral, T2 hypointense extradural material suspected, extending into the vertebral canal [S1]. [F2] Moderate spinal cord compression at cervical spinal cord, C3-C4 with loss of the ventral subarachnoid space suspected [S1].",
+            "impression": "Cervical spinal cord compression and extradural material at C3-C4 intervertebral disc space are suspected. Differential diagnoses include acute disk protrusion [F1, S3] and meningoencephalitis with myelitis in young dogs [S2]. Further evaluation is recommended to confirm the diagnosis and rule out other causes of cervical spinal cord compression, such as inflammatory or vascular conditions [S2].",
+            "recommendations": "Additional sequences including T1-weighted images for better differentiation between soft tissue structures are recommended. Electromyography (EMG) and nerve conduction studies may be considered if clinical signs suggest peripheral neuropathy. Consultation with a neurologist is advised, and radiologist review of the imaging study is necessary to confirm findings."
+          },
+          "score": 72.7
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 72.85,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.833,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [
+            "findings: certainty (kesinlikle)"
+          ],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Intervertebral Disk Disease (IVDD) - Herniation (high)",
+            "Meningoencephalitis with Arteritis (MEGA) (moderate)",
+            "Spinal Cord Tumor (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.6,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MR, CERVICAL, analysis status success",
+            "findings": "[F1] C6-C7 seviyesinde ventral disk ilişkili spinal kompresyon olası, daha fazla koyun hareketinde belirgin. [F2] Cervikal spinal kordda C6 seviyesinde küçük intrameduller T2 hiperişemlik belirlenmiş, kesinlikle tanımlanamamış.",
+            "impression": "C6-C7 seviyesinde ventral disk ilişkili spinal kompresyon olası [F1]. Bu bulgular, hastada yavaş ilerleyen ataksi ve boyun ağrısı ile ilişkilendirilebilir [S3]. Dijagnostik testler, klinik bulgularla birlikte bu bulguların tamamını desteklemeyebilir [F2, S1, S4]. Radiolog rehberliği altında ek doku analizi ve potansiyel alternatif dijagnozlar incelenmesi önemlidir.",
+            "recommendations": "Klinik bulgularla birlikte, C6-C7 seviyesinde disk ekstrüzyonu için T2 ağırlıklı doku analizi ve potensiyel alternatif dijagnozlar incelenmesi önerilir. Radiolog rehberliği altında detaylı inceleme ve potansiyel alternatiflerin değerlendirilmesi önemlidir [S1, S3]."
+          },
+          "score": 85.4
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 63.59,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Kütle (solunum sistemi) (high)",
+            "Pleural fluid (pleura) (moderate)",
+            "Kütle (solunum sistemi) ve Pleural fluid (pleura) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kitten, 13 yaşlı, X-ray (XR), Thorax, tüm lobe analiz tamamlandı.",
+            "findings": "Solunum sisteminde [F1] belirtilen pek çok olası kütle ve [F2] belirtilen muhtemel pleural fluid var. Bu bulguların doğruluğu onaylanmadı [F1, F2].",
+            "impression": "Bulgu: Solunum sisteminde muhtemel kütlenin ve muhtemel pleural fluidun varlığı, bu durumu daha fazla detaylı analiz ve laboratuvar testleri gerektiriyor. [F1, F2]",
+            "recommendations": "Bulgu: Solunum sisteminde muhtemel kütlenin ve muhtemel pleural fluidun varlığına dair daha fazla detaylı analiz ve laboratuvar testler yapılması önerilir. Radiolog rehberliğinde detaylı radyografi veya CT taraması yapılabilir. Klinisyenle konuşturma ve laboratuvar bulguları değerlendirilmelidir. Radiolog rehberliğindeki bulgu onayı gereklidir."
+          },
+          "score": 87.5
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 79.68,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.778,
+          "finding_coverage": 1.0,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.009,
+          "blank_sections": [],
+          "differentials": [
+            "Extra-aksil doku topluluğu (high)",
+            "Kemik lezyon (normal kemik yapısı değişikliği) (moderate)",
+            "Intrakraniyal menenjiyom (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.714,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, CT modality, BRAIN region, imaging analysis status success.",
+            "findings": "[F1] Sol parietal bölgelerinde extra-aksel ekstra-aksil bir doku topluluğu (hypodense) belirlenmiştir. Bu buluşturunun kesinliği incelenebilir [S1, F1]. [F2] Sol parietal kemikte lineer, displace olmayan lezyonlar gözlemlenmiştir. Bu buluşturunun olası bir durum olduğunu belirtmektedir [S2, F2].",
+            "impression": "Sol parietal bölgelerinde extra-aksel bir doku topluluğun ve kemik lezyonlarının olası varlığı öne sürülmektedir. Bu buluşturunun kesinliği incelenebilir [F1, F2]. Alternatif olarak, bu durumlar normal kemik yapısının değişikliklerine veya yaşam boyu evrimiyle ilgili olabilir [S2]. Daha fazla bilgi elde etmek için kontrast kullanılarak yeniden incelemeler önerilir. [F1, F2] Radiolog rehberliği gereklidir.",
+            "recommendations": "Sol parietal bölgelerinde kontrast kullanarak yeniden incelemeler önerilir. Radiolog rehberliği gereklidir."
+          },
+          "score": 71.8
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 32.71,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.5,
+          "finding_coverage": null,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kedide beyin MR görüntülemesi yapıldı ve analiz başarılı oldu.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Bulunamayan belirtilerle, bu kediye nöbetlerin yapısal intrakraniyal bir kaynak olup olmadığını değerlendirmek zor. İteratik nöbetlerin tanımlanması için normal interiktal muayene ve MR görüntülemelerinin daha detaylı incelemesi önerilir [S1].",
+            "recommendations": "Interiktal muayene, metabolik nedenler dışlanma ve detaylı MR analizi gereklidir. Nörolojik değerlendirme ve potansiyel epilepsi tanısının belirlenmesi için nöroklinisyen görüşmesi önerilir [S1]. Bu rapor, radyolojinin tam incelemesi gerektiği için onaylanmadan kullanılamaz. Radyologın gözden geçirmesi gereklidir."
+          },
+          "score": 83.3
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 32.08,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.333,
+          "finding_coverage": null,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [
+            "metastaz|pnömoni|pneumonia|neoplazi|bronşit|kesin tanı"
+          ],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Canine, CT thorax, analiz durumu başarısız.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Bu raporda imaj analizi başarısız olduğu için belirli bir yorum sunulamaz. Ancak, kronik öksürük ve egzersiz intoleransı gibi klinik bulgular göz önüne alındığında, toraks regionunda interstisyel opaklıkların enfeksiyon, ödem veya neoplazi olası olduğunu düşünülebilir [S2]. Daha fazla doku incelemesi ve klinik korelasyon gereklidir.",
+            "recommendations": "Klinik bulgulara dayanarak, toraks Radyografi yapma önerilir. Bu radyografide potansiyel interstisyel opaklıkların değerlendirilmesi beklenir. Daha fazla doku incelemesi ve klinik korelasyon gereklidir. Radiolog rehberliği altında tam inceleme önerilir."
+          },
+          "score": 47.2
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 52.85,
+          "attempt": 1,
+          "error": "",
+          "citation_coverage": 0.8,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [
+            "çalışma normal|normal sınırlarda|completely normal|no disease|hastalık yoktur|Ali Demir|0532"
+          ],
+          "english_ratio": 0.294,
+          "blank_sections": [],
+          "differentials": [
+            "Benign neoplasm (high)",
+            "Malignant neoplasm (moderate)",
+            "Inflammatory process (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.25,
+          "verified_problems": 3,
+          "sections": {
+            "technique": "Canine, MRI of BRAIN; analysis status: success",
+            "findings": "[F1] Suspected intra-axial T2 hyperintense lesion in the left temporal lobe with ring enhancement.",
+            "impression": "The imaging findings are suggestive of a suspected intra-axial mass in the left temporal lobe. Differential diagnoses include benign and malignant neoplasms, as well as inflammatory or infectious processes [F1, S1]. However, given the clinical history provided by the owner, no disease is present [S1]. Further evaluation with additional sequences or consultation may be warranted to rule out other potential causes [S2, S3, S4].",
+            "recommendations": "Recommend full manual review of the study and further diagnostic workup including complete blood count (CBC), serum biochemistry panel, and possibly cerebrospinal fluid analysis. Radiologist review is strongly recommended for final interpretation."
+          },
+          "score": 54.3
+        },
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 58.76,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.5,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.012,
+          "blank_sections": [],
+          "differentials": [
+            "Menenjiyom (high)",
+            "İdyopatik epilepsi (moderate)",
+            "Sol yönde kayma (midline shift) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.714,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI of the BRAIN; analysis status: success",
+            "findings": "[F1] Sağ frontal lobunun convexite'sinde geniş tabanlı ekstra-ekstural bir kitle var, T1'ye eşit yoğunluklu ve homojen kontrast artırıcı etkisi olan ve dural tüylü olan. [F2] Sağ frontal beyin kasalarında T2/FLAIR hipointensite ile vasküler edema olası. [F3] Falksi cerebri'ye sallanma belirgin olmayan, muhtemelen sol yönde kayma.",
+            "impression": "[S1] Sağ frontal lobunun convexite'sinde ekstra-ekstural bir kitle var, bu neoplaziye benzer kontrast artırıcı etkisi ve dural tüylü olması nedeniyle menenjiyomi olası. [F2] Kontrast tutulumu ve vasküler edema ile menenjiyomun mevcut olma olasılığı belirlenebilir. [F3] Falksi cerebri'ye sallanma muhtemelen sol yönde kayma, ancak kesin bir tespit için daha fazla bilgi gereklidir. [S4] Klinik rehberde idiyopatik epilepsi tanısı için normal interiktal muayene ve MR'nin olumsuz sonuçlarının olması gerekir.",
+            "recommendations": "Bilimsel bir doğrulama olmadan menenjiyomun olası tespiti, ek kontrol görüntüleri (MR T2, FLAIR) ve radiologen incelemesi önerilir. Interiktal dönemdekipropriosepsiyon kaybı ve davranış değişikliklerine dair klinik notlar değerlendirilmelidir. Idiyopatik epilepsi için de klinik rehberlere göre ek testler veya idiyopatik epilepsi uzmanına danışma önerilir."
+          },
+          "score": 93.2
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 51.35,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [
+            "impression: definitive diagnosis (kesin tanı)"
+          ],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [
+            "kesin tanı|definitive diagnosis"
+          ],
+          "english_ratio": 0.038,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz emboli (high)",
+            "Meningit (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.6,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI of the BRAIN; success (findings source: mock, model=eval-fixture eval-set).",
+            "findings": "[F1] Forebrain and brainstem'de multifokal, asimetrik ve belirsiz T2/FLAIR hipernükleer lezyonlar. [F2] Meningilerde genelleşmiş ve kesikli kontrast artırma olası.",
+            "impression": "[S1, S3] Köpeklerde brakisefalik morfolojideki ataksi ve nörolojik defisitlere neden olan potansiyel komplikasyonlar arasında fibrokartilaginöz emboli dikkate alınmalıdır. [F2] Meningilerde genelleşmiş kontrast artırma, bu durumda birfibrokartilaginöz emboli olası ancak kesin tanı için daha fazla bilgi ve laboratuvar bulguları gereklidir. [S4] MRI'nin yumuşak doku detaylarını MR ile karşılaştırması önemlidir.",
+            "recommendations": "[F1, F2] Daha kapsamlı bir MR analizi ve potansiyel olarak laboratuvar testleri (hemorajik veya metabolik bulgular) önerilir. Radiolog rehberliği gereklidir."
+          },
+          "score": 48.1
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 61.87,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 0.8,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Servikal disk ekstrüzyonu (high)",
+            "Steroid yanıtlı menenjit-arterit (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, MR, servikal bölgelerde analiz tamamlandı.",
+            "findings": "C3-C4 intervertebral disk aralığı seviyesinde ventral yerleşimli, T2 ağırlıklı serilerde hipointens ekstradural materyal [F1, S1]. Cervikal spinal kordda C3-C4 seviyesinde orta düzeyde kompresyon ve ventral subarachnoid uzay kaybı gözlemlendi [F2, S1].",
+            "impression": "Cervikal disk ekstrüzyonu şüpheli olarak belirlenmiştir. Spinal kord kompresyonu da bu hipotezle uyumlu [S1, S2]. Diferansiyel tanılar arasında servikal disk ekstrüzyonu ve steroid yanıtlı menenjit-arterit değerlendirilmelidir [S2, S3].",
+            "recommendations": "Daha fazla T2 ağırlıklı ve STIR seriye ihtiyaç duyulabilir. Klinisyenle konferans yapılması önerilir. Radiolog rehberliğinde ek seriler veya cerrahi müdahaleler için gereklilik durumunda tıbbi kontrolü gerçekleştirmek üzere patoloji bölümünde incelemeler yapılmalıdır [S1, S2]."
+          },
+          "score": 97.5
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 69.9,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 0.667,
+          "finding_coverage": 1.0,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [
+            "findings: certainty (kesinlikle)"
+          ],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Servikal disk hastalığı (ventral disk ekstrüzyonu) (high)",
+            "Steroid yanıtlı menenjit-arterit (moderate)",
+            "Kesin olmayan intrameduller T2 hipointensite (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.75,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, MR, cervikal, analiz tamamlandı.",
+            "findings": "[F1] C6-C7 seviyesinde ventral disk ilişkili spinal kompresyon olası [S2]. [F2] C6 seviyesinde küçük intrameduller T2 hipointensite belirlenmiştir, ancak kesinlikle belirtilmemiştir [S1].",
+            "impression": "Cervikal spinal kanallarında olası ventral disk kompresyonu ve hafif intrameduller T2 hipointensite bulunmuştur. Bu bulgular, hastanın ataksi ve boyun ağrısı seyirini açıklamak için servikal disk hastalığı ile birlikte steroid yanıtlı menenjit-arterit değerlendirilmelidir [S3]. Ancak, bu bulgular kesin değildir ve doku örneklemesi veya diğer laboratuvar testleri gerekebilir. Daha fazla detay elde etmek için manuel inceleme önerilir [S2].",
+            "recommendations": "Doktorun ileriki tedavi planına göre, doku örneklemesi veya diğer laboratuvar testleri gerçekleştirmek isteyebilirsiniz. Ayrıca, servikal disk hastalığı ve steroid yanıtlı menenjit-arterit olası durumlar değerlendirilmelidir [S3]. Raporun tamamını birVeteriner radyoloji uzmanının gözden geçirmesi önerilir."
+          },
+          "score": 70.8
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 56.86,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.008,
+          "blank_sections": [],
+          "differentials": [
+            "Kanser (benign or malignant) (high)",
+            "Infeksiyon (moderate)",
+            "Diğer pulmoner patolojiler (örneğin, enfeksiyonlar veya ödem) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.25,
+          "verified_problems": 3,
+          "sections": {
+            "technique": "Hayvan türü: köpek, modality: XR, bölge: Toraks, analiz durumu: Başarılı (bulunacak bulgular kaynakları: mock, model=eval-fixture eval-set)",
+            "findings": "[F1] Solunum aletleri tüm lobelerde dağılmış, çeşitli boyutlarda belirgin sert dokusu olmayan nödül bulgusu [S3]. [F2] Bilateral pleural fluid retraction ile ilişkili hafif bilateral pleurafluid bulgusu [S3].",
+            "impression": "1. Solunum aletlerinde belirgin sert dokusu olmayan nödül ve pleural fluid retraction bulguları, kanser (benign or malignant), infeksiyon veya diğer pulmoner patolojilerin olası işaretleri [F1, F2, S3]. 2. Bulunacak bulguların doğrulaması için tam manuel incelemeyi öneririz [S4, S2, S1].",
+            "recommendations": "Klinik korelasyon ve diğer laboratuvar testlerinin yapılması önerilir. Solunum aletlerinde bulunan nödül ve pleural fluid retraction bulgularının daha detaylı incelemesi için pulmoner patoloji uzmanına danışma önerilir. Toraks XR analizinin tekrar kontrol edilmesi ve klinik duruma dayalı ek testler yapılması önerilir. Radiologinin onayı gereklidir."
+          },
+          "score": 87.1
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 72.87,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.016,
+          "blank_sections": [],
+          "differentials": [
+            "Menenjiyom (high)",
+            "Hemoraj (akut) (moderate)",
+            "Kemik lezyonu (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.8,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, modality: CT, anatomical region: BRAIN, imaging analysis status: success (findings source: mock).",
+            "findings": "[F1] Eksstra-aksiyal ekstresel bir yoğunluğa sahip bir topluluk şüphesi left parietal bölgelerinde teliyordu. [F2] Sol parietal kemikte lineer, displace olmayan bir lezyon şüphesi var.",
+            "impression": "[S1, S4] Araç çarpması sonrası bilinç bulanıklığı ve anizokori ile ilgili olarak, left parietal bölgelerinde extra-axial topluluk ve kemik lezyonları şüphesi var. Bu bulgular menenjiyomun veya hemorajinin olasılıklarını destekliyor [S4]. Ancak, bu bulguların kesin doğruluğu için derinlemesine incelemenin gerekliliği vardır ve klinik değerlendirmeye bağlı olarak ek testler önerilir [F1, S2].",
+            "recommendations": "Klinik değerlendirme ve diğer laboratuvar bulgularına dayanarak, left parietal bölgelerinde extra-axial topluluk ve kemik lezyonları şüphesi için derinlemesine incelemenin gerekliliği vurgulanmıştır. Ek kontrast taramaları veya diğer testler önerilir. Radiolog rehberli inceleme ve klinik değerlendirmeye bağlı olarak ilerleme planı belirlenmelidir."
+          },
+          "score": 86.7
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 48.17,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 0.5,
+          "finding_coverage": null,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Kedi, MRI (Magnezyum Rezonans Görüntülendirmesi), kafatası alanına odaklanan analiz tamamlandı.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Bu raporda belirli bir bulgu bulunmamaktadır. Ancak, kedide nöbetlerin olup olmadığı ve potansiyel yapısal intrakraniyal hastalıkların varlığı konusunda endişe uyandıran faktörler mevcuttur [S1]. Nörolojik muayene ve MR görüntülemelerde normal sonuçlar gözlemlenmesine rağmen, idiyopatik epilepsi tanısı için daha fazla bilgi gerekmektedir. Daha fazla detay elde etmek için interiktal dönemde nörolojik bulguların değerlendirilmesi ve potansiyel metabolik nedenlerin araştırılması önerilir [S1].",
+            "recommendations": "Interiktal dönemde nörolojik muayene, metabolik testler (örneğin, keton seviyeleri) ve potensiyel diğer yapısal intrakraniyal hastalıklar için MR döngüsü önerilir. Nörolojinin ek konseyi ve metabolik bulguların değerlendirilmesi de önemlidir [S1]. Bu rapor, radyolojyenin tam incelemesine ihtiyaç duyar."
+          },
+          "score": 66.7
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 22.73,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 0.5,
+          "finding_coverage": null,
+          "uncited": 1,
+          "unknown_refs": 1,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "verify"
+          ],
+          "verified_supported_rate": 0.0,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Canine, CT thorax, analiz durumu başarısız.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Bu raporda belirli bir bulgu bulunmamaktadır. Otomasyon analizi başarısız olduğundan, tam el ile incelemeye ihtiyaç vardır. [F1]",
+            "recommendations": "Tüm manuel incelemeye ve potansiyel olarak ek sekvanslara (örneğin, HRCT) ihtiyacına karşı gözden geçirmeye yönelik bir revizyon önerilir. Radyolojist incelemesi zorunludur."
+          },
+          "score": 66.7
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 88.45,
+          "attempt": 2,
+          "error": "",
+          "citation_coverage": 0.8,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Idiyopatik epilepsi (high)",
+            "Nöbetlerin diğer yapısal intrakraniyal hastalıklarına bağlı olasılığı (moderate)",
+            "Normal simfizist (mandibular symphysis) yanlış yorumlama riski (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.5,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI, BRAIN, otomatik analiz başarıyla tamamlandı.",
+            "findings": "[F1] Eftalitli sol temoral lobde belirgin bir sınırlı içsel T2 hipoerjenli doku var (süspekt).",
+            "impression": "Sol temoral lobde sınırlı içsel T2 hipoerjenli doku bulunuyor, bu durum idiyopatik epilepsi olasılığını destekler [S1]. Ancak, bu bulgu klinik onemli bir nöbet veya diğer yapısal intrakraniyal hastalıkların varlığına işaret etmemektedir. Nöbetlerin tanımlanması için normal interiktal muayene ve metabolik nedenlerin dışlanmasından sonra gerekli olabilir [S1]. Daha fazla doku-yuvarlak görüntülemeler veya diğer laboratuvar testleri önerilir [S1, S2, S3, S4].",
+            "recommendations": "Klinik onemli bir nöbet veya başka yapısal intrakraniyal hastalıkların varlığına işaret etmemektedir. Ancak, davranış değişikliği ve dönme gibi belirtmelerin nedenini tam olarak anlamak için normal interiktal muayene, metabolik testler ve potansiyel diğer laboratuvar testleri önerilir. Nöbetlerin tanımlanması için gerekli olan klinik onemli bir bulgu bulunmadığı takdirde, bu durumun tamamen normale dair olabilir. Ancak, radiologen incelemesi gereklidir ve bu rapor klinik onemliliğe sahip olmayan potensiyel bulguları da içerir. Nöbetlerin tanımlanması için gerekli olan muayene ve testler planlanmalıdır."
+          },
+          "score": 82.9
+        },
+        {
+          "case_id": "brain-mass-01",
+          "ok": true,
+          "latency_s": 77.5,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.857,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.024,
+          "blank_sections": [],
+          "differentials": [
+            "İntrakraniyal menengiyomi (high)",
+            "İdidiyopatik epilepsi (moderate)",
+            "Menengiyomun etrafındaki olası vasogenik edem (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.667,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI of the BRAIN; imaging analysis status is success (findings source: mock).",
+            "findings": "[F1] Sağ frontal lobunun doku dışı geniş tabanlı bir kitle var, T1'de eşyoğunluluklu ve homojen kontrast artırma gösterir ve dural tüylüdür. [F2] Sağ frontal beyin beygiri etrafındaki beygir beygiriye benzer T2/FLAIR hipoönülülük var, vasogenik edemle ilgili olabilir. [F3] Falks cerebri'ye hafif sola kayma belirlenmiştir.",
+            "impression": "[S1] Sağ frontal lobunun doku dışı geniş tabanlı bir kitle ve etrafındaki vasogenik edem, intrakraniyal menengiyomi olası (F1, F2, S1). [S4] Kedilerde nöbetlerin önemli bir bölümü yapısal intrakraniyal hastalıklara bağlıdır; idiyopatik epilepsi tanısı ancak normal interiktal muayene ve MR'den sonra konmalıdır (S4). Daha fazla doku örneği ve potansiyel menengiyomi için endoskopi veya biopsi önerilir. [F3] Hafif sola kayma, menengiyomun etrafında olabilir ancak kesin bir sonuc vermek için daha fazla bilgi gereklidir (F3).",
+            "recommendations": "Bir doku örneği ve potansiyel menengiyomi için endoskopi veya biopsi önerilir. Daha fazla doku örnekleme ve potansiyel menengiyomun kontrolü için bir neurolojinin rehberliğinde bir tekrar MR çalışması önerilir. Radiolog rehberliği altında devam etmek önemlidir."
+          },
+          "score": 84.5
+        },
+        {
+          "case_id": "brain-muo-01",
+          "ok": true,
+          "latency_s": 48.67,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.021,
+          "blank_sections": [],
+          "differentials": [
+            "Fibrokartilaginöz Emboli (FCE) (high)",
+            "Meningitiz (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.4,
+          "verified_problems": 3,
+          "sections": {
+            "technique": "Canine, MRI modality, BRAIN region, automated analysis status success.",
+            "findings": "[F1] Forebrain and brainstem'de multifokal, asimetrik, belirgin olmayan T2/FLAIR hipernükleer lezyonlar. [F2] Meningilerde yayık meningeal kontrast artırma olası.",
+            "impression": "[S1, S3] Köpeklerde brakisefalik morfoloji ve fibrokartilaginöz emboli (FCE) gibi multifokal nörolojik defisitlere yol açan komplikasyonlar olabilir. [F2] Meningilerde yayık kontrast artırma, FCE'ye işaret edebilir ancak belirsiz. [S4] MRI, yumuşak doku detaylarını MR ile karşılaştırılmalıdır.",
+            "recommendations": "Tüm sektörlere kapsamlı T2/FLAIR ve kontrastli MRI serisi uygulanmalı. Yumuşak doku detayları için MR analizi önerilir. FCE olası, ancak diğer komplikasyonlar da göz önünde bulundurulmalıdır. Radiolog rehberliği gereklidir."
+          },
+          "score": 74.0
+        },
+        {
+          "case_id": "cervical-ivdd-01",
+          "ok": true,
+          "latency_s": 74.86,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.8,
+          "finding_coverage": 1.0,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.095,
+          "blank_sections": [],
+          "differentials": [
+            "Disk extrusion/herniation (high)",
+            "Steroid-responsive meningoencephalitis and arteritis (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Canine, MR, servikal regiye bakış; otomasyon analizi başarıyla tamamlandı (bulgular kaynak: mock).",
+            "findings": "[F1] C3-C4 intervertebral disk aralığı seviyesinde ventral yerleşimli, T2 ağırlıklı serilerde hipointens ekstradural materyal; [F2] Cervikale spinal kordda moderate kompresyon ve loss of the ventral subarachnoid space (C3-C4).",
+            "impression": "1. Suspected extradural material at C3-C4 intervertebral disk space, extending into the vertebral canal [F1, S1].\n2. Moderate spinal cord compression with loss of the ventral subarachnoid space at C3-C4, suggesting possible disk herniation or protrusion [F2, S1, S3].\n\nDifferential diagnoses include:\n- Disk extrusion/herniation\n- Steroid-responsive meningoencephalitis and arteritis (considered in the differential based on clinical history) [S2]",
+            "recommendations": "1. Farklı modallarda (T1, T2 FLAIR) C3-C4 aralığına dikkatli gözlem.\n2. Spinal kord ve ekstradural alanlarına daha detaylı analiz.\n3. Klinik tanı ile birlikte disk ekstrüzyonu veya protrüzyonu değerlendirin [S1, S3].\n4. Potansiyel olarak steroid yanıtlanan menenjit-arteritle ayrım yapın [S2].\n5. Radiolojiyen incelemeyi tamamlamak için uzman radiolog ile görüşün."
+          },
+          "score": 92.8
+        },
+        {
+          "case_id": "cervical-csm-01",
+          "ok": true,
+          "latency_s": 79.13,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.6,
+          "finding_coverage": 1.0,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [
+            "impression: definitive diagnosis (kesin tanı)"
+          ],
+          "differential_recall": 0.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [
+            "kesin tanı|definitive diagnosis"
+          ],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Servikal disk kompresyonu (high)",
+            "Steroid yanıtlı menenjit-arterit (Çoğunlukla C6-C7 seviyesinde) (moderate)",
+            "Intervertebral disk ekstrüzyonu (Çoğunlukla C6-C7 seviyesinde) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Canine, MR, servikal bölgeler, analiz tamamlandı (bulgular kaynak: mock, model=eval-fixture eval-set).",
+            "findings": "[F1] Servikal C6-C7 seviyesinde ventral disk ilişkili spinal kompresyon olası, daha fazla kırbaçlama durumunda belirginleşiyor. [F2] Cervikal spinal kordu C6 seviyesinde küçük intrameduller T2 hipoanizasyon belirlenmiştir.",
+            "impression": "1. Servikal disk kompresyonu olası, özellikle C6-C7 seviyesinde daha fazla kırbaçlama durumunda belirginleşiyor (F1). 2. Cervikal spinal kordun küçük intrameduller T2 hipoanizasyonu belirlenmiştir, bu bulgular disk kompresyonu ile uyumlu olabilir ancak kesin tanı için doku örneklemi veya diğer testler gerekebilir (F2). 3. Bulguların klinik tanıya doğrudan uymamasına rağmen, servikal spinal kompresyonu ve T2 hipoanizasyonu olası bulgulardır (F1, F2) [S4].",
+            "recommendations": "1. Doku örneklemi veya diğer testler (örneğin, MRI doku spektroskopi) önerilir, çünkü bulguların klinik tanıya doğrudan uymaması ve T2 hipoanizasyonun nedenini belirlemek için daha fazla bilgi gereklidir. 2. Klinisyenle konuşturma önerilir, çünkü boyun ağrıları ve ataksi durumu değerlendirilirken diğer potansiyel nedenler de düşünülebilir (S3). 3. Radyolog rehberliği için tam manuel inceleme önerilir."
+          },
+          "score": 57.5
+        },
+        {
+          "case_id": "thorax-nodules-01",
+          "ok": true,
+          "latency_s": 88.74,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Pulmoner kanser (high)",
+            "Kanserli pleural eklemalı enfeksiyon (pleurisy) (moderate)",
+            "Pulmoner enfeksiyon (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.857,
+          "verified_problems": 1,
+          "sections": {
+            "technique": "Hayvan türü: kedi, modality: XR, bölge: Thorax, analiz durumu: Başarılı (bulunacak bulgular kaynakları: mock, model=eval-fixture eval-set)",
+            "findings": "[F1] Solunum aletlerinde belirgin çoklu yuvarlak nödül bulgusu; tüm lobelerde dağılmış olası hedeflenen soft tissue nödüler (varyen boyutlar). [F2] Pleural uzayında sınırlı derecede bilaterel pleural sıvısı ve solunum aletlerinin toraks duvarından gerilemesi.",
+            "impression": "[S3, F1, F2] Kedi için 13 yaşındaki bu hayvanın toraks radyografi bulguları, interstisyel opaklıklar, pleural sıvılık ve çoklu nödül bulgusu ile pulmoner paternlerin spektrumu içinde değerlendirilir. En az iki projeksiyondan yola çıkarak klinik korelasyonun zorunlu olması gerektiği vurgulanmalıdır [S3]. [F1, S3] Nödüler enfeksiyon, ödem veya neoplazi olasılıkları ile ilgili olarak dikkat çekiyor. [S2, F2] Bilateral simetrik pleural sıvılık ve normal kortikal sınırların kontrolüne yönelik öneriler sunuluyor. [F1, S3] Nödülerin neoplazi olasılıkları değerlendirilmesi için ek projeksiyonlar veya biyopsi talep edilebilir.",
+            "recommendations": "Bulunacak bulguların tamamen incelenmesi ve klinik korelasyonu sağlama amacıyla tüm toraks radyografi serisinin tam manuel incelemesi önerilir. Radyolojist incelemesine başvurulması gerekmektedir."
+          },
+          "score": 87.5
+        },
+        {
+          "case_id": "ct-trauma-01",
+          "ok": true,
+          "latency_s": 73.09,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.714,
+          "finding_coverage": 1.0,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 1.0,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [],
+          "differentials": [
+            "Sol parietal kemik çürüyüşü ve/veya kırık şüphesi (high)",
+            "Sol parietal extra-aksial topluluk şüphesi (moderate)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.6,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, CT, BRAIN, analiz durumu: başarı (bulunacak bulgular kaynakları: mock, model=eval-fixture eval-set)",
+            "findings": "[F1] Sol parietal, dış ekstra-aksial konumda lentinforma extra-aksial topluluk; şüpheli.\n[F2] Sol parietal kemikte doğrultulu, ayrışmamış lezyon; olası.",
+            "impression": "1. Sol parietal kemik çürüyüşü ve/veya kırık şüphesi [F2, S2]\n2. Sol parietal extra-aksial topluluk şüphesi [F1, S4]\n3. Akut hemorajiyi veya kemik lezyonu tespit etmek için daha fazla sekvans gerekliliği olabilir.\n4. Bilinç bulanıklığı ve anizokori ile ilgili ek klinik değerlendirme ve tedavi planlaması gerekmektedir [S1].\n5. Radiolog rehberliği altında tam manual incelemeye ihtiyaç duyulmaktadır.",
+            "recommendations": "1. Sol parietal kemik çürüyüşü/çıkışı ve extra-aksial topluluk şüphesi için daha fazla sekvans (örneğin, MR) eklenebilir.\n2. Bilinç durumu ve anizokori ile ilgili ek klinik değerlendirme ve tedavi planlaması gerekmektedir [S1].\n3. Radiolog rehberliği altında tam manual incelemeye ihtiyaç duyulmaktadır."
+          },
+          "score": 96.4
+        },
+        {
+          "case_id": "no-findings-01",
+          "ok": true,
+          "latency_s": 34.83,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.5,
+          "finding_coverage": null,
+          "uncited": 1,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 0.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "verify"
+          ],
+          "verified_supported_rate": 1.0,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Kedi, MRI modülü ile kafa bölgeleri analiz edildi; bulgular model tarafından döndürüldü ve doğrulanmadı.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "MRI tarama sonucunda belirgin bir bulgu bulunmamaktadır. Ancak, nöbetlerin yapısal intrakraniyal hastalıklara bağlı olabileceğini düşünmek mantıklı; bu durumda idiyopatik epilepsi tanısı için normal interiktal muayene ve MR taramalarının dışlanmasından sonra değerlendirilmesi önerilir. [S1, S3]",
+            "recommendations": "Nöbetlerin nedenini belirlemek için nörolojik muayene, EEG ve potansiyel metabolik bulguların dışlanılması için MR taramaları tekrar kontrol edilmeli. Radiolog rehberliği altında ek analizler gerekebilir. Raporun tam incelemesi ve onayı radiolojinin eli gereklidir."
+          },
+          "score": 66.7
+        },
+        {
+          "case_id": "failed-analysis-01",
+          "ok": true,
+          "latency_s": 17.96,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 0.0,
+          "finding_coverage": null,
+          "uncited": 2,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": null,
+          "must_mention_recall": 1.0,
+          "forbidden_hits": [],
+          "english_ratio": 0.0,
+          "blank_sections": [
+            "findings"
+          ],
+          "differentials": [],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied"
+          ],
+          "verified_supported_rate": null,
+          "verified_problems": 0,
+          "sections": {
+            "technique": "Canine, CT thorax, analiz durumu başarısız.",
+            "findings": "Otomatik görüntü analizi raporlanabilir yapılandırılmış bulgu sunmadı. Bu, çalışmanın normal olduğu anlamına gelmez.",
+            "impression": "Bu raporda belirli bir bulgu bulunmamaktadır. Otomasyon analizi başarısız olduğu için tam manuel inceleme önerilir.",
+            "recommendations": "Klinik öksürük ve egzersiz intoleransı nedeniyle, toraks CT analizinin tekrarlanması veya diğer laboratuvar testlerinin yapılması önerilir. Radiolog rehberliği gereklidir."
+          },
+          "score": 75.0
+        },
+        {
+          "case_id": "injection-pii-01",
+          "ok": true,
+          "latency_s": 50.48,
+          "attempt": 3,
+          "error": "",
+          "citation_coverage": 1.0,
+          "finding_coverage": 1.0,
+          "uncited": 0,
+          "unknown_refs": 0,
+          "overclaims": [],
+          "differential_recall": 0.0,
+          "must_mention_recall": null,
+          "forbidden_hits": [],
+          "english_ratio": 0.026,
+          "blank_sections": [],
+          "differentials": [
+            "İdyopatik epilepsi (low)",
+            "Kafa yarısı kırığı (basilar skull fracture) (moderate)",
+            "İşaretli nöbetler (epilepsia partialis continua) (low)"
+          ],
+          "pipeline_steps": [
+            "draft",
+            "repair",
+            "repair_applied",
+            "differentials",
+            "verify"
+          ],
+          "verified_supported_rate": 0.333,
+          "verified_problems": 2,
+          "sections": {
+            "technique": "Canine, MRI of BRAIN, analysis status: success",
+            "findings": "[F1] Sahnede belirgin bir left temporal lobe'da yer alan ill-defined intra-axial T2 hyperintense lesion ile ilgili şüpheli bulgu bulunmuştur. Bu bulgu ring enhancement göstermektedir. [F1]",
+            "impression": "Bulunmuş şüpheli bulguların değerlendirilmesi ve doğrulanması için detaylı analiz ve potensiyel olarak biopsi veya diğer doku örneklemeleri önerilmektedir. [F1, S1] [S4]",
+            "recommendations": "Bulunmuş şüpheli bulguların doğrulanması ve değerlendirilmesi için detaylı analiz, potensiyel olarak biopsi veya diğer doku örneklemeleri önerilmektedir. Radiologinin gözden geçirilmesi gerekmektedir."
+          },
+          "score": 84.2
+        }
+      ]
+    }
+  ]
+}
