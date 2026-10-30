@@ -70,7 +70,8 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **Quarantine** | Yerel disk `backend/data/quarantine/{ingest_id}/` + SHA256 + `manifest.json`; path sanitization |
 | **DICOM** | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma önerisi + onay; demo fixture: Brain MRI, Cervical MRI, Brain CT, Thorax XR |
 | **Doküman** | PDF / JPG / PNG / text sniff → quarantine → metin çıkarma → multimodal VLM stub |
-| **AI pipeline** | Router → mock Vision (MRI/CT/XR/VLM) → fusion → mock/stub/HTTP LLM + RAG → validator |
+| **AI pipeline** | Router → mock Vision (MRI/CT/XR/VLM) → fusion → LLM (mock veya **gerçek model**: Ollama / OpenAI-uyumlu / Claude) + RAG → validator |
+| **LLM katmanı** | Gerçek model bağlantısı, atıflı Türkçe rapor (`[F1]`/`[S1]`), iki adımlı üretim + onarım, yapılandırılmış ayırıcı tanılar, KVKK maskeleme, prompt-injection temizleme, atıf doğrulama + hakem (GREEN tarzı), uzman revizyonuyla yeniden yazma, uzman geri bildirim veri seti, değerlendirme aracı, Model Performansı sayfası — bkz. [§4.4](#44-gerçek-yapay-zekâ-modeliyle-çalıştırma-llm), [§8.3](#83-llm-katmanı) |
 | **Async analyze** | Thread (varsayılan) veya RQ+Redis; job poll, timeout alanları, cooperative cancel |
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
 | **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
@@ -150,11 +151,68 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 | `npm run build` | `tsc` + üretim build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest |
-| `npm run backend:dev` | uvicorn (`.venv`) |
+| `npm run backend:dev` | uvicorn (`.venv`), sahte (mock) LLM |
+| `npm run backend:dev:ai` | uvicorn + **gerçek model**: Ollama `qwen2.5:7b`, prompt v5, hakem açık (§4.4) |
 | `npm run backend:test` | pytest |
 | `npm run e2e` | Playwright (sistem Chrome; browser indirmez) |
 | `npm run e2e:ui` | Playwright UI mode |
 | `npm run build:share` | Paylaşım build (`dist-share`) |
+
+### 4.4 Gerçek yapay zekâ modeliyle çalıştırma (LLM)
+
+Varsayılan kurulum raporları **şablon (mock)** ile yazar. Gerçek bir dil modeliyle rapor yazdırmak için
+bilgisayarda ücretsiz çalışan **Ollama** kullanılır; internet ya da API anahtarı gerekmez, hasta verisi
+bilgisayardan çıkmaz.
+
+**Gereksinimler:** §4'tekilere ek olarak [Ollama](https://ollama.com) · en az **16 GB RAM** önerilir
+(8 GB'ta çalışır ama yavaştır) · ~5 GB boş disk.
+
+**İlk kurulum (bir kez):**
+
+```bash
+# 1) Modeli indir (~4,7 GB)
+ollama pull qwen2.5:7b
+
+# 2) Backend bağımlılıkları (henüz kurulmadıysa)
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ..
+
+# 3) Frontend bağımlılıkları
+npm install
+```
+
+**Her çalıştırmada — iki terminal:**
+
+| Terminal | Komut | Ne yapar |
+|----------|-------|----------|
+| 1 | `npm run backend:dev:ai` | API (8000) — gerçek modelle. **Kapatmayın.** |
+| 2 | `npm run dev` | Arayüz (5173) — tarayıcı otomatik açılır |
+
+Uygulamayı **http://localhost:5173** adresinden kullanın. `http://127.0.0.1:8000` bir web sayfası değildir;
+tarayıcıda açınca `404 Not Found` görmeniz normaldir.
+
+**Windows (PowerShell):** `npm run backend:dev:ai` macOS/Linux sözdizimi kullanır. Windows'ta:
+
+```powershell
+cd backend
+$env:VETMIND_LLM_PROVIDER="ollama"; $env:VETMIND_LLM_MODEL_ID="qwen2.5:7b"; $env:VETMIND_LLM_TIMEOUT_S="180"; $env:VETMIND_LLM_VERIFY="true"
+.venv\Scripts\uvicorn app.main:app --reload --port 8000
+```
+
+**Ne kadar sürer:** Bir rapor dizüstü bilgisayarda **~1 dakika** (taslak → gerekirse onarım → ayırıcı tanılar
+→ hakem denetimi). İşleme ekranının beklemesi normaldir; arayüz 5 dakikaya kadar bekler.
+
+**Sorun giderme:**
+
+| Belirti | Neden / çözüm |
+|---------|---------------|
+| `Error: connect ECONNREFUSED 127.0.0.1:8000` | Arayüz, API'den önce açıldı ya da API kapalı. Önce Terminal 1'i başlatın. |
+| Tarayıcıda `127.0.0.1:8000` → `404 Not Found` | Normal; arayüz 5173'te. |
+| Analiz "LLM hatası" ile başarısız | Model indirilmemiş (`ollama list` ile bakın) ya da Ollama kapalı. Sahte rapora düşülmez; bilinçli. |
+| "timed out" | Eski bir sürüm (15 sn bekliyordu). `git pull` yapın; şimdi 5 dk bekler. |
+| Onayla / Reddet düğmeleri görünmüyor (beyaz) | Uzun süredir açık eski `npm run dev`; `Ctrl+C` ile kapatıp yeniden başlatın. |
+| Çok yavaş | RAM yetersiz ya da başka model de yüklü. `ollama ps` ile bakın; hakemi kapatmak için `VETMIND_LLM_VERIFY=false`. |
+
+Modelsiz çalışmak (arkadaşınızda Ollama yoksa) için eskisi gibi `npm run backend:dev`.
 
 ---
 
@@ -183,6 +241,17 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 8. Üst barda rolü **Uzman Hekim (VRM)** yap → **Çalışma alanı** (`/calisma`) → **Onayla**.  
 9. Vaka geçmişinde sürüm / immutable; **Raporlar** → onaylı rapor; **PDF olarak indir**.  
 10. İsteğe bağlı: Admin → **Bilgi Tabanı** (RAG search), **Sistem Durumu** (`/health`).
+
+### Gerçek LLM ile önerilen senaryo (§4.4 kurulumundan sonra)
+
+1. `vet@demo.local` → yeni vaka / DICOM demo → analizi başlat (~1 dk).
+2. Vaka detay → **AI Ön Değerlendirme**: Türkçe rapor, `F1` / `S2` atıf rozetleri (tıklayınca kaynak pasajı vurgulanır),
+   **Olası Ayırıcı Tanılar** (Yüksek / Orta / Düşük olasılık + atıflar), **Doğrulama katmanı** kartı.
+3. Rol **Uzman** → **Çalışma alanı** → **Revizyon** → gerekçe kodu + gerekçe yaz
+   (ör. "Ayırıcı tanıya histiyositik sarkomu ekle") → **Yapay zekâ ile yeniden yaz** → ~1 dk sonra yeni sürüm (v2);
+   eski sürüm **Rapor geçmişi**'nde.
+4. **Onayla** → onaylı rapor / PDF.
+5. Rol **Admin** → **Model Performansı**: onay oranı, düzeltmesiz onay, en çok düzeltilen bölüm, son değerlendirme tablosu.
 
 Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_thorax_suspected`, `document_context`, …) veya eski yerel prototip pipeline.
 
@@ -358,17 +427,77 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine map eder.
 Mock’lar: `source_kind=MOCK`, `Finding.synthetic=True`.  
 Pixel: default-deny; bugün hiçbir capability `allows_pixel_analysis=True` değil.
 
-### 8.3 LLM
+### 8.3 LLM katmanı
 
-| `VETMIND_LLM_PROVIDER` | Sınıf | Davranış |
-|------------------------|--------|----------|
-| `mock` (default) | `MockLLMProvider` | Şablon taslak |
+Sorumlu: Alperen. Ayrıntı: [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) · araştırma: [docs/ACIK_KAYNAK_ARASTIRMA.md](docs/ACIK_KAYNAK_ARASTIRMA.md).
+
+**Sağlayıcılar** (`VETMIND_LLM_PROVIDER`):
+
+| Değer | Sınıf | Davranış |
+|-------|-------|----------|
+| `mock` (varsayılan) | `MockLLMProvider` | Şablon taslak |
 | `stub` / `deterministic` | `DeterministicStubLLMProvider` | Test çıktısı |
-| `http` | `HttpLLMProvider` | `VETMIND_LLM_ENDPOINT` zorunlu |
-| `openai` / `ollama` / `vllm` | `OpenAICompatibleProvider` | Gerçek model; bkz. [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) |
-| `anthropic` | `AnthropicProvider` | Gerçek model (Claude) |
+| `http` | `HttpLLMProvider` | VetMind wire contract (`VETMIND_LLM_ENDPOINT`) |
+| `ollama` | `OpenAICompatibleProvider` | **Önerilen:** yerel, ücretsiz (`qwen2.5:7b`) |
+| `openai` / `vllm` / `openrouter` / `groq` / `lmstudio` | `OpenAICompatibleProvider` | OpenAI-uyumlu API / sunucu |
+| `anthropic` | `AnthropicProvider` | Claude API |
 
-Dışarıya tam `CaseRecord` gitmez → minimal `LLMGenerationInput` (opaque `case_id`, findings, RAG pasajları).
+**Bir rapor nasıl üretilir (prompt v5, varsayılan):**
+
+```text
+Vaka + bulgular (+ RAG pasajları)
+ → KVKK: öyküde hasta/sahip adı, telefon, e-posta, TC, IBAN, klinik → [HASTA] [TELEFON] …
+ → talimat-benzeri cümleler ("ignore all previous instructions…") öyküden çıkarılır
+ → 1) TASLAK: 4 bölüm (Teknik · Bulgular · Yorum · Öneriler), her iddia [F#] bulgu / [S#] kaynak atıflı
+ → 2) ONARIM (gerekirse, 1 kez): boş bölüm, atıfsız cümle, geçersiz atıf → model kendi taslağını düzeltir;
+       yalnızca daha az sorunlu ise kullanılır
+ → 3) AYIRICI TANILAR: ayrı çağrı; 2–5 tanı, Yüksek/Orta/Düşük (yüzde değil), lehine/aleyhine, atıflı
+ → 4) HAKEM (VETMIND_LLM_VERIFY): her atıflı cümle yalnızca gösterdiği kanıtla karşılaştırılır →
+       destekleniyor / kısmen / desteklenmiyor / çelişiyor (uydurma bulgu, abartılmış kesinlik, yanlış konum, alakasız kaynak)
+ → Doğrulama katmanı (ReportValidator + grounding): uyarılar uzman ekranında Türkçe
+```
+
+**Kodla zorlanan kurallar (prompt'a bırakılmaz):** bulgu yoksa ayırıcı tanı listesi atılır · model "Bulgular"ı boş
+bırakırsa bölüm bulgulardan `[F#]` atıflı yazılır · "kesin tanı", "ekarte edildi", "hastalık yok", "no disease" vb.
+işaretlenir (ama "kesin tanı **için** biyopsi gerekir" gibi temkinli kullanım işaretlenmez) · model hata verirse sahte
+rapora düşülmez · `(F1)` → `[F1]`.
+
+**Uzman tarafı:**
+- **Yapay zekâ ile yeniden yaz** — `POST /api/v1/cases/{id}/report/regenerate`: uzman gerekçesi (maskelenmiş) + incelenen
+  taslak modele gider; görüntü analizi tekrarlanmaz; yeni sürüm oluşur, eskisi geçmişte kalır.
+- **Geri bildirim veri seti** — modelin ilk metni (`ai_sections`) onaydan sonra da saklanır;
+  `GET /api/v1/llm/feedback` (bölüm bazında düzeltme oranı, model/prompt bazında onay),
+  `GET /api/v1/llm/feedback/export?format=chat` (ince ayar için sohbet formatı). Yalnızca admin.
+- **Model Performansı** sayfası (`/model-performansi`, admin).
+
+**Gizlilik:** Modele hasta adı, sahip bilgisi, dosya yolu, kimlik bilgisi gitmez; öykü maskelenir. Kural tabanlıdır;
+gerçek hasta verisinde yerel model (Ollama / vLLM) tercih edilmeli ve KVKK değerlendirmesi yapılmalıdır.
+
+#### LLM değerlendirmesi
+
+`backend/eval/llm_eval_set.json` — 9 başlangıç vakası (beyin kitlesi, MUO, servikal disk, wobbler, akciğer nodülleri,
+kafa travması, **bulgu yok**, **analiz başarısız**, **prompt injection + kişisel veri**).
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/llm_demo.py --dry-run                     # modele giden prompt'u gör (model gerekmez)
+python scripts/llm_eval.py --provider ollama --models qwen2.5:7b --repeat 3
+python scripts/llm_eval.py --provider ollama --models qwen2.5:7b --prompts v4,v5 --repeat 3   # prompt A/B
+python scripts/llm_eval.py --provider ollama --models qwen2.5:7b --verify                    # hakemli
+```
+
+Sonuçlar `backend/eval/results/` (Markdown + JSON) ve Model Performansı sayfasında. Metrikler: kaynaklı cümle oranı,
+bulgu kapsama, beklenen tanı yakalama, zorunlu içerik, aşırı iddia / yasak ifade, geçersiz atıf, boş bölüm, İngilizce
+oranı, hakemce desteklenen cümle, süre, çağrı sayısı; `--repeat` ile ortalama ± sapma.
+**Bunlar atıf ve güvenlik davranışını ölçer; klinik doğruluk değildir.**
+
+**Şimdiye kadarki sonuçlar (9 vaka × 3 tekrar):**
+
+| Ölçüm | Sonuç |
+|-------|-------|
+| Prompt (llama3.2:3b) | v2 78,0 · v3 74,2 · **v4 78,9** — v4 boş bölümü 4'ten **0**'a indirdi, ayırıcı tanıları korudu |
+| Model (v4, hakem qwen) | llama3.2:3b 77,4 · **qwen2.5:7b 79,6** — qwen tanı yakalamada %21 → **%38**, hakem desteği %55 → **%66** |
+| Bulunan ve düzeltilen | gerçek bir prompt-injection başarısı ("no disease is present"), ölçüm aracında temkinli cümleleri aşırı iddia sayan yanlış alarmlar, 15 sn arayüz zaman aşımı |
 
 ### 8.4 RAG
 
@@ -559,8 +688,16 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_VISION_API_KEY` | — | Bearer |
 | `VETMIND_VISION_MODALITIES` / `_REGIONS` | — | Endpoint set ise zorunlu capability beyanı |
 | `VETMIND_VISION_EXECUTION_POLICY` | `exclusive_real` | `exclusive_real` \| `mixed` |
-| `VETMIND_LLM_PROVIDER` | `mock` | `mock` \| `stub` \| `http` |
-| `VETMIND_LLM_ENDPOINT` | — | HTTP LLM URL |
+| `VETMIND_LLM_PROVIDER` | `mock` | `mock` \| `stub` \| `http` \| `ollama` \| `openai` \| `anthropic` (+ `vllm`, `openrouter`, `groq`, `lmstudio`) |
+| `VETMIND_LLM_MODEL_ID` | — | Model adı, ör. `qwen2.5:7b` (`anthropic` boşsa varsayılan model) |
+| `VETMIND_LLM_ENDPOINT` | sağlayıcıya göre | Temel URL (Ollama: `http://localhost:11434/v1`) |
+| `VETMIND_LLM_API_KEY` | — | OpenAI / Anthropic için |
+| `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modelde **180** önerilir |
+| `VETMIND_LLM_PROMPT_VERSION` | `vetmind-report-v5` | `v2` metin · `v3` tek çağrı + tanılar · `v4` iki adım + onarım · `v5` v4 + atıf örneği |
+| `VETMIND_LLM_VERIFY` | `false` | Hakem (atıf doğrulama) çağrısı |
+| `VETMIND_LLM_VERIFIER_MODEL_ID` | yazar model | Farklı hakem modeli (aynı sunucu) |
+| `VETMIND_LLM_REPORT_LANGUAGE` | `tr` | `tr` \| `en` |
+| `VETMIND_LLM_TEMPERATURE` / `_MAX_TOKENS` / `_JSON_MODE` | `0.2` / `2048` / `schema` | Bkz. [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) |
 
 ### Auth / güvenlik
 
@@ -759,6 +896,9 @@ Gerçek modeller / altyapı eklerken orchestrator’ı yeniden yazmak gerekmez:
 | [docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md) | Hedef mimari gap / issue listesi |
 | [docs/PHASE_20_FINAL_AI_READINESS.md](docs/PHASE_20_FINAL_AI_READINESS.md) | İlk gerçek model için 8 adım |
 | [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md) | AI/LLM pipeline, mock↔real, eksikler |
+| [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) | **LLM katmanı:** sağlayıcılar, prompt sürümleri, doğrulama/hakem, KVKK, değerlendirme, geri bildirim |
+| [docs/ACIK_KAYNAK_ARASTIRMA.md](docs/ACIK_KAYNAK_ARASTIRMA.md) | Açık kaynak modeller, doğrulayıcılar, değerlendirme araçları, veri setleri — araştırma |
+| [backend/eval/](backend/eval/) | LLM değerlendirme seti ve sonuçları |
 | [docs/PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) | DICOM + vaka yönetimi |
 | [docs/PHASE_3_AI_READINESS.md](docs/PHASE_3_AI_READINESS.md) | Model adapter hazırlığı |
 | [docs/PHASE_4_REPORT_LIFECYCLE.md](docs/PHASE_4_REPORT_LIFECYCLE.md) | Rapor sürümleri + inceleme |
@@ -779,7 +919,21 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 **Kullanım uyarısı:** Bitirme prototipidir. Klinik karar, tanı veya tedavi önerisi olarak kullanılamaz. Korumalı klinik veri için auth, izolasyon, şifreleme, AV ve model validasyonu tamamlanmadan deploy edilmemelidir.
 
-**Olası sonraki adımlar:**
+**LLM katmanı — yapılabilecekler** (bkz. [araştırma](docs/ACIK_KAYNAK_ARASTIRMA.md)):
+
+| # | İş | Neden | Kim |
+|---|----|-------|-----|
+| 1 | **Referans raporlu test seti** — VRM uzmanlarının yazdığı gerçek (anonim) vakalar + referans rapor | GREEN tarzı klinik hata sayımı ve tezin "klinik doğruluk" sonucu için şart | Buğra + VRM |
+| 2 | **GREEN tarzı referanslı değerlendirme** — üretilen rapor ↔ uzman raporu: uydurma / atlanan bulgu, yanlış konum, yanlış ciddiyet | Atıf kontrolünün ötesinde gerçek kalite ölçümü | Alperen |
+| 3 | **Hakem doğruluğunu ölçmek** — hakem kararlarını uzman kararlarıyla karşılaştırmak; TurkMedNLI alt kümesiyle hakem model seçimi | Hakeme ne kadar güvenebileceğimizi bilmek | Alperen |
+| 4 | **RAG alaka filtresi** — beyin lezyonuna ırk kafatası pasajı gelmesi gibi alakasız sonuçlar modeli yanıltıyor ("Brakisefalik" uydurma tanısı) | Hakem bunu "alakasız kaynak" diye yakalıyor ama kaynağında çözülmeli | Nehir |
+| 5 | **Türkçe veteriner terim sözlüğü** — İngilizce terimlerin (%3–9) Türkçe karşılıkları | Rapor dili tutarlılığı | Alperen + Buğra |
+| 6 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
+| 7 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
+| 8 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
+| 9 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
+
+**Olası sonraki adımlar (platform):**
 
 1. Gerçek şirket Vision / GPU serving (HTTP adapter üzerinde)  
 2. Sentence-transformers + Qdrant / pgvector  
@@ -791,4 +945,4 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 ---
 
-*Son güncelleme: 2026-10-22 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness*
+*Son güncelleme: 2026-10-30 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5)*
