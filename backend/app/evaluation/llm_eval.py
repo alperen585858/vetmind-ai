@@ -13,13 +13,13 @@ import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from statistics import mean
+from statistics import mean, pstdev
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.llm.gateway import LLMGateway
-from app.llm.grounding import analyze_grounding
+from app.llm.grounding import analyze_grounding, is_hedged
 from app.llm.interfaces import LLMProvider, LLMProviderError
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
@@ -135,6 +135,17 @@ def term_found(text: str, entry: str) -> bool:
     return any(alt.strip() and _norm(alt.strip()) in hay for alt in entry.split("|"))
 
 
+def forbidden_found(text: str, entry: str) -> bool:
+    """Like term_found, but a hedged use ("kesin tanı için …", "to confirm the diagnosis") is allowed."""
+    for alt in (a.strip() for a in entry.split("|")):
+        if not alt:
+            continue
+        for m in re.finditer(re.escape(alt), text, re.I):
+            if not is_hedged(text, m.start(), m.end()):
+                return True
+    return False
+
+
 def recall(text: str, entries: list[str]) -> Optional[float]:
     if not entries:
         return None
@@ -162,6 +173,7 @@ class CaseResult:
     case_id: str
     ok: bool
     latency_s: float
+    attempt: int = 1
     error: str = ""
     citation_coverage: Optional[float] = None
     finding_coverage: Optional[float] = None
@@ -172,6 +184,11 @@ class CaseResult:
     must_mention_recall: Optional[float] = None
     forbidden_hits: list[str] = field(default_factory=list)
     english_ratio: Optional[float] = None
+    blank_sections: list[str] = field(default_factory=list)
+    differentials: list[str] = field(default_factory=list)
+    pipeline_steps: list[str] = field(default_factory=list)
+    verified_supported_rate: Optional[float] = None
+    verified_problems: int = 0  # unsupported + contradicted + partially supported sentences
     sections: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -187,6 +204,8 @@ class CaseResult:
             0.0 if self.overclaims or self.unknown_refs else 1.0,
             0.0 if self.forbidden_hits else 1.0,
             1.0 - min(1.0, (self.english_ratio or 0.0) * 4),
+            # Findings/impression left blank (placeholder inserted) is a failure, not "no claims".
+            1.0 - len({"findings", "impression"} & set(self.blank_sections)) / 2,
         ]
         vals = [p for p in parts if p is not None]
         return round(100 * mean(vals), 1)
@@ -205,12 +224,31 @@ def score_report(ec: EvalCase, report: DraftReport, latency_s: float) -> CaseRes
         uncited=stats.uncited_count,
         unknown_refs=sum(len(v) for v in stats.unknown_refs.values()),
         overclaims=[f"{s}: {label} ({text})" for s, label, text in stats.overclaims],
-        differential_recall=recall(sections["impression"], ec.expected.differentials),
+        differential_recall=recall(
+            sections["impression"] + "\n" + "\n".join(d.name for d in report.differentials),
+            ec.expected.differentials,
+        ),
+        differentials=[f"{d.name} ({d.likelihood})" for d in report.differentials],
         must_mention_recall=recall(full, ec.expected.must_mention),
-        forbidden_hits=[e for e in ec.expected.forbidden if term_found(full, e)],
+        forbidden_hits=[e for e in ec.expected.forbidden if forbidden_found(full, e)],
         english_ratio=round(english_ratio(full), 3),
+        blank_sections=list(stats.blank_sections),
+        pipeline_steps=list(report.generation.pipeline_steps),
+        verified_supported_rate=(
+            round(report.verification.supported_rate, 3)
+            if report.verification and report.verification.supported_rate is not None else None
+        ),
+        verified_problems=(
+            sum(v.label != "supported" for v in report.verification.verdicts) if report.verification else 0
+        ),
         sections=sections,
     )
+
+
+# pipeline_steps entries that are model calls (the *_applied / *_failed markers are not).
+_CALL_STEPS = {
+    "draft", "repair", "differentials", "verify", "repair_failed", "differentials_failed", "verify_failed",
+}
 
 
 @dataclass
@@ -220,26 +258,63 @@ class RunResult:
     model_id: str
     prompt_version: str
     cases: list[CaseResult]
+    repeats: int = 1
+
+    def case_ids(self) -> list[str]:
+        return list(dict.fromkeys(c.case_id for c in self.cases))
+
+    def case_scores(self, case_id: str) -> list[float]:
+        return [c.score or 0.0 for c in self.cases if c.case_id == case_id]
+
+    def pass_scores(self) -> list[float]:
+        """Mean score of each full pass over the set (one value per repeat)."""
+        by_attempt: dict[int, list[float]] = {}
+        for c in self.cases:
+            by_attempt.setdefault(c.attempt, []).append(c.score or 0.0)
+        return [mean(v) for _, v in sorted(by_attempt.items())]
 
     def summary(self) -> dict[str, Optional[float]]:
         ok = [c for c in self.cases if c.ok]
+        passes = max(1, self.repeats)
 
         def avg(attr: str) -> Optional[float]:
             vals = [getattr(c, attr) for c in ok if getattr(c, attr) is not None]
             return round(mean(vals), 3) if vals else None
 
+        def per_pass(count: int) -> float:
+            # Counts are reported per pass over the set, so repeats don't inflate them.
+            return round(count / passes, 2)
+
+        case_stds = [pstdev(v) for v in (self.case_scores(cid) for cid in self.case_ids()) if len(v) > 1]
+        pass_scores = self.pass_scores()
         return {
             "score": round(mean(c.score or 0.0 for c in self.cases), 1) if self.cases else None,
+            "score_std": round(pstdev(pass_scores), 1) if len(pass_scores) > 1 else None,
+            "case_score_std": round(mean(case_stds), 1) if case_stds else None,
             "success_rate": round(len(ok) / len(self.cases), 3) if self.cases else None,
             "citation_coverage": avg("citation_coverage"),
             "finding_coverage": avg("finding_coverage"),
             "differential_recall": avg("differential_recall"),
             "must_mention_recall": avg("must_mention_recall"),
-            "overclaim_cases": float(sum(bool(c.overclaims) for c in ok)),
-            "forbidden_cases": float(sum(bool(c.forbidden_hits) for c in ok)),
-            "unknown_refs": float(sum(c.unknown_refs for c in ok)),
+            "overclaim_cases": per_pass(sum(bool(c.overclaims) for c in ok)),
+            "forbidden_cases": per_pass(sum(bool(c.forbidden_hits) for c in ok)),
+            "unknown_refs": per_pass(sum(c.unknown_refs for c in ok)),
+            "blank_cases": per_pass(sum(bool(c.blank_sections) for c in ok)),
             "english_ratio": avg("english_ratio"),
             "latency_s": avg("latency_s"),
+            "verified_supported_rate": avg("verified_supported_rate"),
+            "verified_problems": (
+                per_pass(sum(c.verified_problems for c in ok))
+                if any(c.verified_supported_rate is not None for c in ok) else None
+            ),
+            "repair_applied_rate": (
+                round(sum("repair_applied" in c.pipeline_steps for c in ok) / len(ok), 3)
+                if ok and any(c.pipeline_steps for c in ok) else None
+            ),
+            "calls_per_case": (
+                round(mean(sum(st in _CALL_STEPS for st in c.pipeline_steps) for c in ok), 2)
+                if ok and any(c.pipeline_steps for c in ok) else None
+            ),
         }
 
     def to_json(self) -> dict:
@@ -248,6 +323,7 @@ class RunResult:
             "provider_id": self.provider_id,
             "model_id": self.model_id,
             "prompt_version": self.prompt_version,
+            "repeats": self.repeats,
             "summary": self.summary(),
             "cases": [{**asdict(c), "score": c.score} for c in self.cases],
         }
@@ -259,39 +335,46 @@ def run_eval(
     *,
     rag: RagRetriever | None = None,
     label: str | None = None,
+    repeats: int = 1,
     on_case=None,
 ) -> RunResult:
+    """Run every case ``repeats`` times (full passes, so drift over time spreads evenly)."""
     gateway = LLMGateway(provider, rag=rag)
     results: list[CaseResult] = []
     prompt_version = ""
-    for ec in eval_set.cases:
-        case, findings = to_pipeline_inputs(ec)
-        started = time.perf_counter()
-        try:
-            report = gateway.generate_draft(case, findings)
-            res = score_report(ec, report, time.perf_counter() - started)
-            prompt_version = report.generation.prompt_version or prompt_version
-        except LLMProviderError as exc:
-            res = CaseResult(
-                case_id=ec.id,
-                ok=False,
-                latency_s=round(time.perf_counter() - started, 2),
-                error=f"{exc.kind.value}: {exc}",
-            )
-        results.append(res)
-        if on_case:
-            on_case(res)
+    for attempt in range(1, max(1, repeats) + 1):
+        for ec in eval_set.cases:
+            case, findings = to_pipeline_inputs(ec)
+            started = time.perf_counter()
+            try:
+                report = gateway.generate_draft(case, findings)
+                res = score_report(ec, report, time.perf_counter() - started)
+                prompt_version = report.generation.prompt_version or prompt_version
+            except LLMProviderError as exc:
+                res = CaseResult(
+                    case_id=ec.id,
+                    ok=False,
+                    latency_s=round(time.perf_counter() - started, 2),
+                    error=f"{exc.kind.value}: {exc}",
+                )
+            res.attempt = attempt
+            results.append(res)
+            if on_case:
+                on_case(res)
     return RunResult(
         label=label or provider.model_id,
         provider_id=provider.provider_id,
         model_id=provider.model_id,
         prompt_version=prompt_version,
         cases=results,
+        repeats=max(1, repeats),
     )
 
 
 METRIC_ROWS = (
     ("score", "Toplam skor (0–100)", "{:.1f}"),
+    ("score_std", "Skor sapması — tekrarlar arası (±)", "{:.1f}"),
+    ("case_score_std", "Vaka içi ortalama sapma (±)", "{:.1f}"),
     ("success_rate", "Başarılı üretim", "{:.0%}"),
     ("citation_coverage", "Kaynaklı cümle oranı", "{:.0%}"),
     ("finding_coverage", "Bulgu kapsama", "{:.0%}"),
@@ -300,8 +383,13 @@ METRIC_ROWS = (
     ("overclaim_cases", "Aşırı iddialı vaka sayısı", "{:.0f}"),
     ("forbidden_cases", "Yasak ifade içeren vaka", "{:.0f}"),
     ("unknown_refs", "Geçersiz atıf sayısı", "{:.0f}"),
+    ("blank_cases", "Bölüm boş bırakılan vaka", "{:.0f}"),
     ("english_ratio", "İngilizce kelime oranı", "{:.0%}"),
     ("latency_s", "Ortalama süre (sn)", "{:.1f}"),
+    ("verified_supported_rate", "Hakemce desteklenen cümle oranı", "{:.0%}"),
+    ("verified_problems", "Hakemin itiraz ettiği cümle (tur başına)", "{:.1f}"),
+    ("calls_per_case", "Vaka başına model çağrısı", "{:.1f}"),
+    ("repair_applied_rate", "Onarım uygulanan vaka oranı", "{:.0%}"),
 )
 
 
@@ -312,8 +400,12 @@ def _fmt(value: Optional[float], pattern: str) -> str:
 def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "LLM değerlendirme sonuçları") -> str:
     lines = [f"# {title}", ""]
     lines.append(f"Set: **{eval_set.name}** (v{eval_set.version}, {len(eval_set.cases)} vaka)")
-    if runs and runs[0].prompt_version:
-        lines.append(f"Prompt: `{runs[0].prompt_version}`")
+    prompts = list(dict.fromkeys(r.prompt_version for r in runs if r.prompt_version))
+    if prompts:
+        lines.append("Prompt: " + ", ".join(f"`{p}`" for p in prompts))
+    repeats = max((r.repeats for r in runs), default=1)
+    if repeats > 1:
+        lines.append(f"Tekrar: her vaka {repeats} kez çalıştırıldı; sayılar tur başına ortalamadır.")
     lines += ["", "> Skorlar atıf, kapsama ve güvenlik davranışını ölçer; klinik doğruluk değildir.", ""]
 
     summaries = [r.summary() for r in runs]
@@ -325,21 +417,27 @@ def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "L
     lines += ["", "## Vaka bazında skor", ""]
     lines.append("| Vaka | " + " | ".join(f"`{r.label}`" for r in runs) + " |")
     lines.append("|---|" + "---|" * len(runs))
-    for i, ec in enumerate(eval_set.cases):
+    for ec in eval_set.cases:
         cells = []
         for r in runs:
-            c = r.cases[i]
-            note = "" if c.ok else " ⚠️ hata"
-            if c.ok and (c.forbidden_hits or c.overclaims):
-                note = " ⚠️"
-            cells.append(f"{_fmt(c.score, '{:.0f}')}{note}")
+            attempts = [c for c in r.cases if c.case_id == ec.id]
+            scores = [c.score or 0.0 for c in attempts]
+            if not scores:
+                cells.append("—")
+                continue
+            cell = f"{mean(scores):.0f}" + (f" ± {pstdev(scores):.0f}" if len(scores) > 1 else "")
+            if any(not c.ok for c in attempts):
+                cell += " ⚠️ hata"
+            elif any(c.forbidden_hits or c.overclaims for c in attempts):
+                cell += " ⚠️"
+            cells.append(cell)
         lines.append(f"| {ec.id} — {ec.title} | " + " | ".join(cells) + " |")
 
     issues = [
-        (r.label, ec.id, c)
+        (r.label, f"{c.case_id}" + (f" (#{c.attempt})" if r.repeats > 1 else ""), c)
         for r in runs
-        for ec, c in zip(eval_set.cases, r.cases)
-        if not c.ok or c.forbidden_hits or c.overclaims or c.unknown_refs
+        for c in r.cases
+        if not c.ok or c.forbidden_hits or c.overclaims or c.unknown_refs or c.blank_sections
     ]
     if issues:
         lines += ["", "## Dikkat gerektirenler", ""]
@@ -348,6 +446,7 @@ def render_markdown(runs: list[RunResult], eval_set: EvalSet, *, title: str = "L
                 [f"yasak: {', '.join(c.forbidden_hits)}"] * bool(c.forbidden_hits)
                 + [f"aşırı iddia: {', '.join(c.overclaims)}"] * bool(c.overclaims)
                 + [f"geçersiz atıf: {c.unknown_refs}"] * bool(c.unknown_refs)
+                + [f"boş bölüm: {', '.join(c.blank_sections)}"] * bool(c.blank_sections)
             )
             lines.append(f"- `{label}` · {case_id}: {detail}")
 

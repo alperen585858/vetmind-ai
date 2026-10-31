@@ -1,6 +1,6 @@
 import { currentActorId, getBackendAccessToken, loadSession } from './auth'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
-import type { AIAssessment, ReportSections, Species } from '../types'
+import type { AIAssessment, DifferentialLikelihood, ReportSections, Species } from '../types'
 import type {
   BackendCaseRecord,
   BackendCaseSummary,
@@ -264,6 +264,7 @@ export interface LlmFeedbackSummary {
 
 export interface LlmEvalCase {
   case_id: string
+  attempt?: number
   ok: boolean
   error: string
   score: number | null
@@ -275,6 +276,7 @@ export interface LlmEvalRun {
   provider_id: string
   model_id: string
   prompt_version: string
+  repeats?: number
   summary: Record<string, number | null>
   cases: LlmEvalCase[]
 }
@@ -511,8 +513,11 @@ export async function analyzeCaseAsyncAndWait(
   caseId: string,
   opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
 ): Promise<BackendPipelineResult> {
-  const timeoutMs = opts?.timeoutMs ?? 15_000
-  const intervalMs = opts?.intervalMs ?? 120
+  // Real LLM drafts (draft + repair + differentials + verifier) take ~1 min on a laptop;
+  // the backend job keeps running regardless, so wait long and poll gently.
+  const timeoutMs = opts?.timeoutMs ?? 300_000
+  let intervalMs = opts?.intervalMs ?? 120
+  const maxIntervalMs = Math.max(intervalMs, 1_500)
   const signal = opts?.signal
   let jobId: string | undefined
   try {
@@ -576,6 +581,7 @@ export async function analyzeCaseAsyncAndWait(
         }
       }
       await sleep(intervalMs, signal)
+      intervalMs = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5))
     }
     throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
   } catch (err) {
@@ -712,6 +718,10 @@ export async function confirmDicomAndAnalyze(input: {
 
 export async function listBackendCases(): Promise<BackendCaseSummary[]> {
   return request<BackendCaseSummary[]>('/cases')
+}
+
+export async function deleteBackendCase(caseId: string): Promise<void> {
+  await request<void>(`/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' })
 }
 
 export async function listBackendWorklist(filters?: {
@@ -972,6 +982,14 @@ export async function getJob(jobId: string) {
   return request<{ job_id: string; status: string; outcome: string | null; error_message: string | null }>(`/jobs/${jobId}`)
 }
 
+/** Expert revision request → LLM rewrites the draft as a new version (can take ~10-60 s). */
+export async function regenerateBackendReport(caseId: string, note: string) {
+  return request<BackendCaseRecord>(`/cases/${caseId}/report/regenerate`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer_id: currentActorId(), note }),
+  })
+}
+
 export async function submitBackendReview(caseId: string, payload: {
   action: 'approve' | 'reject' | 'request_revision'
   comment?: string
@@ -987,13 +1005,22 @@ export async function submitBackendReview(caseId: string, payload: {
   })
 }
 
+export const LIKELIHOOD_TR: Record<DifferentialLikelihood, string> = {
+  high: 'Yüksek',
+  moderate: 'Orta',
+  low: 'Düşük',
+}
+
 export function draftToSections(report: BackendDraftReport): ReportSections {
   return {
     klinikOzet: report.technique.text,
     bulgular: report.findings.text,
     degerlendirme: report.impression.text,
-    ayiriciTanilar:
-      'Sentetik taslak: LLM ayırıcı tanı listesi üretmedi. İzlenebilirlik için rapor bölümleri structured finding_id değerlerine atıf yapar.',
+    ayiriciTanilar: report.differentials?.length
+      ? report.differentials
+          .map((d, i) => `${i + 1}. ${d.name} — ${LIKELIHOOD_TR[d.likelihood]} olasılık${d.citations.length ? ` [${d.citations.join(', ')}]` : ''}`)
+          .join('\n')
+      : 'Sentetik taslak: LLM ayırıcı tanı listesi üretmedi. İzlenebilirlik için rapor bölümleri structured finding_id değerlerine atıf yapar.',
     oneriler: report.recommendations.text,
   }
 }
@@ -1014,7 +1041,15 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
     findings: mapped.length
       ? mapped
       : [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
-    differentials: [],
+    differentials: (report.differentials ?? []).map((d) => ({
+      name: d.name,
+      probability: 0,
+      pro: d.supporting,
+      con: d.against,
+      citations: [],
+      likelihood: d.likelihood,
+      aliases: d.citations,
+    })),
     recommendedTests: [report.recommendations.text],
     validation: findings.warnings
       .filter((w) => !isDisclaimerWarning(w))

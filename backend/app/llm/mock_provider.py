@@ -127,6 +127,10 @@ class MockLLMProvider:
                 rag_block += f"\n(Bulunan {unused} pasaja bu demo taslakta atıf yapılmadı.)"
             recs = f"{recs}\n4. Listelenen RAG demo pasajlarını inceleyin; bulguların kanıtı olarak kabul etmeyin."
 
+        if request.revision is not None:
+            # Template provider cannot rewrite; show the request was received (demo visibility).
+            recs = f"{recs}\n\nUzman revizyon talebi alındı (şablon taslak, model yeniden yazmadı): {request.revision.expert_note}"
+
         report = DraftReport(
             report_id=f"rpt-{uuid4().hex[:12]}",
             case_id=gen.case_id,

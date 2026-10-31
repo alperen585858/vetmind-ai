@@ -98,10 +98,23 @@ class LLMGenerationInput(BaseModel):
     )
 
 
+class RevisionContext(BaseModel):
+    """Expert-requested rewrite: the draft the expert reviewed and what they asked to change.
+
+    Both are redacted like the clinical history before they reach any provider.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    previous_sections: dict[str, str] = Field(default_factory=dict)
+    expert_note: str
+
+
 class LLMRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     generation: LLMGenerationInput
+    revision: Optional[RevisionContext] = None
     instructions: str = Field(
         default="Produce a structured veterinary radiology DRAFT. Never claim clinical validation."
     )

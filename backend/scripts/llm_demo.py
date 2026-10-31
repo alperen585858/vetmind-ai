@@ -93,6 +93,15 @@ def main() -> int:
     print(f"Provider: {g.provider_id} · model: {g.model_id} · prompt: {g.prompt_version}")
     for name in ("technique", "findings", "impression", "recommendations"):
         print(f"\n## {name.upper()}\n{getattr(report, name).text}")
+    if report.differentials:
+        print("\n## DIFFERENTIALS")
+        for i, d in enumerate(report.differentials, 1):
+            cites = f" [{', '.join(d.citations)}]" if d.citations else ""
+            print(f"  {i}. {d.name} — {d.likelihood}{cites}")
+            for x in d.supporting:
+                print(f"       + {x}")
+            for x in d.against:
+                print(f"       − {x}")
     if report.citation_map:
         print("\n## CITATIONS")
         for alias, ref in report.citation_map.items():

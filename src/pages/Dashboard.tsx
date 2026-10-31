@@ -55,6 +55,7 @@ import {
   slaRowClass,
   slaTone,
 } from '../lib/reviewSla'
+import { caseBelongsToOwner } from '../lib/caseMapper'
 import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
 
 const WEEKDAYS_TR = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
@@ -201,10 +202,10 @@ function VetDashboard() {
   const selected = filtered[0]
 
   const metricCards = [
-    { label: 'Aktif vakalar', value: open, icon: <FolderOpen className="h-4 w-4" />, tone: 'bg-sky-50 text-sky-700' },
-    { label: 'İnceleme bekleyen', value: review, icon: <Hourglass className="h-4 w-4" />, tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Acil / STAT', value: urgent, icon: <Timer className="h-4 w-4" />, tone: 'bg-violet-50 text-violet-700' },
-    { label: 'Tamamlanan rapor', value: approved, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Aktif vakalar', value: open, icon: <FolderOpen className="h-4 w-4" />, tone: 'bg-sky-50 text-sky-700', to: '/vakalar' },
+    { label: 'İnceleme bekleyen', value: review, icon: <Hourglass className="h-4 w-4" />, tone: 'bg-amber-50 text-amber-700', to: '/vakalar' },
+    { label: 'Acil / STAT', value: urgent, icon: <Timer className="h-4 w-4" />, tone: 'bg-violet-50 text-violet-700', to: '/vakalar' },
+    { label: 'Tamamlanan rapor', value: approved, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'bg-emerald-50 text-emerald-700', to: '/raporlar' },
   ]
 
   const quickLinks = [
@@ -285,13 +286,18 @@ function VetDashboard() {
       {/* Metrics */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((m) => (
-          <Card key={m.label} className="flex items-center gap-3 px-4 py-3.5">
+          <Link
+            key={m.label}
+            to={m.to}
+            aria-label={`${m.label}: ${m.value} — ilgili sayfaya git`}
+            className="flex items-center gap-3 rounded-vm border border-slate-200/80 bg-surface-elevated px-4 py-3.5 shadow-soft transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+          >
             <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>{m.icon}</div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500">{m.label}</p>
               <p className="font-display text-2xl font-semibold tabular-nums tracking-tight text-navy-900">{m.value}</p>
             </div>
-          </Card>
+          </Link>
         ))}
       </div>
 
@@ -675,8 +681,8 @@ function ExpertDashboard() {
         }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${urgentN} STAT/acil`} />
-        <StatCard label="STAT / Acil kuyruk" value={urgentN} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli inceleme" />
+        <StatCard to="/kuyruk" label="Onay bekleyen" value={queue.length} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={`${urgentN} STAT/acil`} />
+        <StatCard to="/kuyruk" label="STAT / Acil kuyruk" value={urgentN} icon={<Timer className="h-5 w-5" />} tone="violet" hint="Öncelikli inceleme" />
         <button
           type="button"
           onClick={openSlaList}
@@ -708,7 +714,7 @@ function ExpertDashboard() {
             </span>
           </div>
         </button>
-        <StatCard label="Onaylı rapor (oturum)" value={approvedCount} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yerel + senkron kayıtlar" />
+        <StatCard to="/raporlar" label="Onaylı rapor (oturum)" value={approvedCount} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yerel + senkron kayıtlar" />
       </div>
 
       {slaTight.length > 0 && (
@@ -782,7 +788,7 @@ const OWNER_TEXT: Record<string, string> = {
 }
 
 function OwnerDashboard() {
-  const { cases, user, refreshBackendCases } = useApp()
+  const { cases, user, session, refreshBackendCases } = useApp()
   const nav = useNavigate()
   const [pets, setPets] = useState<BackendPet[]>([])
   const [subs, setSubs] = useState<BackendImagingSubmission[]>([])
@@ -791,7 +797,10 @@ function OwnerDashboard() {
     void listPets().then(setPets).catch(() => setPets([]))
     void listSubmissions().then(setSubs).catch(() => setSubs([]))
   }, [refreshBackendCases])
-  const mine = cases.filter((c) => c.status === 'onaylandi' || c.patient.ownerName === user?.name)
+  // Match ReportList: only this owner's pets — not every approved case in the DB.
+  const mine = cases.filter((c) =>
+    caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name }),
+  )
   const ready = mine.filter((c) => c.status === 'onaylandi')
   const pendingSubs = subs.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length
   return (
@@ -817,9 +826,9 @@ function OwnerDashboard() {
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Pet profili" value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint="Kayıtlı hayvanlar" />
-        <StatCard label="Bekleyen talep" value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Vet doğrulaması" />
-        <StatCard label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yetkili erişim" />
+        <StatCard to="/hayvanlar" label="Pet profili" value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint="Kayıtlı hayvanlar" />
+        <StatCard to="/basvurular" label="Bekleyen talep" value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint="Vet doğrulaması" />
+        <StatCard to="/raporlar" label="Hazır rapor" value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint="Yetkili erişim" />
       </div>
       {ready.length > 0 && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
@@ -926,10 +935,10 @@ function ClinicOwnerDashboard() {
         }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Toplam vaka" value={stats?.case_count ?? '—'} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
-        <StatCard label="İnceleme bekleyen" value={stats?.awaiting_review ?? '—'} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
-        <StatCard label="Onaylı rapor" value={stats?.approved ?? '—'} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-        <StatCard label="Bekleyen başvuru" value={stats?.pending_submissions ?? '—'} icon={<UploadCloud className="h-5 w-5" />} tone="violet" />
+        <StatCard to="/vakalar" label="Toplam vaka" value={stats?.case_count ?? '—'} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
+        <StatCard to="/vakalar" label="İnceleme bekleyen" value={stats?.awaiting_review ?? '—'} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
+        <StatCard to="/raporlar" label="Onaylı rapor" value={stats?.approved ?? '—'} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
+        <StatCard to="/basvurular" label="Bekleyen başvuru" value={stats?.pending_submissions ?? '—'} icon={<UploadCloud className="h-5 w-5" />} tone="violet" />
       </div>
       <Card className="mt-6">
         <CardHeader title="Klinik personeli" subtitle={stats?.clinic_id || '—'} />
@@ -978,10 +987,11 @@ function AdminDashboard() {
         GPU eğrisi, servis kartları ve dağıtım listesi illustrative’dır. Canlı durum için Sistem Durumu → /health.
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="DEMO · katalog" />
-        <StatCard label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça (seed + özel)`} />
-        <StatCard label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
+        <StatCard to="/moduller" label="Aktif modüller" value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint="DEMO · katalog" />
+        <StatCard to="/bilgi-tabani" label="Bilgi tabanı" value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={`${chunks.toLocaleString('tr-TR')} parça (seed + özel)`} />
+        <StatCard to="/sistem" label="Oturumdaki vakalar" value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint="Senkron + yerel (şişirilmez)" />
         <StatCard
+          to="/sistem"
           label="Servis kartları"
           value={`${SERVICES.length}`}
           icon={<Activity className="h-5 w-5" />}

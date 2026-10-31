@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.llm.structured_output import MARKER_GROUP_RE, extract_markers
+from app.llm.structured_output import AUTO_FINDINGS_HEADER, EMPTY_SECTION_TEXT, MARKER_GROUP_RE, extract_markers
 from app.schemas.report import DraftReport
 
 SECTIONS = ("technique", "findings", "impression", "recommendations")
@@ -34,11 +34,45 @@ OVERCLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\b(patoloji|lezyon|anormallik)\w*\s+(saptanmad|izlenmed|yoktur|bulunmamaktad)\w*"
             r"|\b(normal sınırlarda|çalışma normal)\b"
             r"|\bno (evidence of )?(abnormalit|patholog|lesion)\w*"
-            r"|\b(normal study|within normal limits)\b",
+            r"|\b(normal study|within normal limits)\b"
+            r"|\bno (disease|abnormality) (is |was )?(present|detected|seen|identified)"
+            r"|\bhastalık\s+(yoktur|bulunmamaktad|saptanmad)\w*",
             re.I,
         ),
     ),
 )
+
+# A matched phrase used as a goal or negated is hedged, not a claim:
+# "kesin tanı için biyopsi gerekir", "kesinlikle tanımlanamamış", "to confirm the diagnosis",
+# "kesin tanı konulamaz", "cannot be definitively …".
+_HEDGE_AFTER = re.compile(
+    r"^[\s,]*(?:"
+    r"için\b|amacıyla\b|açısından\b|koymak\b|konula(?:ma|mı|bil)|"
+    r"(?:\w+\s+){0,2}\w*(?:ma|me)(?:z|mış|miş|maktadır|mektedir|dı|di)(?:t[ıi]r|d[ıi]r)?\b|"
+    r"(?:\w+\s+){0,2}değil"
+    r")",
+    re.I,
+)
+_HEDGE_BEFORE = re.compile(
+    r"(?:\bto|\bcannot|\bcan't|\bnot|\bunable to|\bwithout a|\bno)\s+(?:be\s+)?$", re.I
+)
+
+
+def is_hedged(text: str, start: int, end: int) -> bool:
+    return bool(
+        _HEDGE_AFTER.match(text[end: end + 60]) or _HEDGE_BEFORE.search(text[max(0, start - 25): start])
+    )
+
+
+def find_overclaim(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
+    """First match of ``pattern`` that is not hedged by negation or a purpose clause."""
+    for m in pattern.finditer(text):
+        if not is_hedged(text, m.start(), m.end()):
+            return m
+    return None
+
+# Our own placeholder for a section the model left blank: never a model claim.
+_FALLBACK_TEXTS = {text for lang in EMPTY_SECTION_TEXT.values() for text in lang.values()}
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -61,6 +95,16 @@ def _is_claim(sentence: str) -> bool:
     return len(sentence) >= MIN_CLAIM_CHARS and not sentence.endswith(":")
 
 
+def cited_claims(text: str) -> list[tuple[str, list[str]]]:
+    """Claim sentences that carry markers, with their markers in order."""
+    return [(s, extract_markers(s)) for s in _sentences(text) if _is_claim(s) and MARKER_GROUP_RE.search(s)]
+
+
+def uncited_claims(text: str) -> list[str]:
+    """Claim sentences in ``text`` without any [F#]/[S#] marker."""
+    return [s for s in _sentences(text) if _is_claim(s) and not MARKER_GROUP_RE.search(s)]
+
+
 def _short(sentence: str, n: int = 90) -> str:
     return sentence if len(sentence) <= n else sentence[: n - 1] + "…"
 
@@ -76,6 +120,8 @@ class GroundingStats:
     overclaims: list[tuple[str, str, str]] = field(default_factory=list)  # (section, label, text)
     finding_aliases: list[str] = field(default_factory=list)
     omitted_findings: list[str] = field(default_factory=list)
+    uncited_differentials: list[str] = field(default_factory=list)  # differential names
+    blank_sections: list[str] = field(default_factory=list)  # filled with placeholder text
 
     @property
     def uncited_count(self) -> int:
@@ -102,17 +148,36 @@ def analyze_grounding(report: DraftReport) -> GroundingStats:
 
     for name in SECTIONS:
         text = getattr(report, name).text
+        if text.strip() in _FALLBACK_TEXTS:
+            stats.blank_sections.append(name)
+            continue
+        if text.startswith(tuple(AUTO_FINDINGS_HEADER.values())):
+            # Rebuilt from structured findings; its [F#] markers still count as mentions.
+            stats.blank_sections.append(name)
+            cited_anywhere.update(extract_markers(text))
+            continue
         markers = extract_markers(text)
         cited_anywhere.update(markers)
         unknown = [m for m in markers if m not in known]
         if unknown:
             stats.unknown_refs[name] = unknown
         for label, pattern in OVERCLAIM_PATTERNS:
-            match = pattern.search(text)
+            match = find_overclaim(pattern, text)
             if match:
                 stats.overclaims.append((name, label, match.group(0)))
 
+    diff_unknown: list[str] = []
+    for d in report.differentials:
+        cited_anywhere.update(d.citations)
+        diff_unknown += [a for a in d.citations if a not in known and a not in diff_unknown]
+        if not d.citations:
+            stats.uncited_differentials.append(d.name)
+    if diff_unknown:
+        stats.unknown_refs["differentials"] = diff_unknown
+
     for name in CITED_SECTIONS:
+        if name in stats.blank_sections:
+            continue
         claims = [s for s in _sentences(getattr(report, name).text) if _is_claim(s)]
         stats.claim_sentences += len(claims)
         uncited = [s for s in claims if not MARKER_GROUP_RE.search(s)]
@@ -141,12 +206,29 @@ def check_grounding(report: DraftReport) -> list[str]:
                     f"Grounding: {name} contains a {label} statement (\"{text}\"); "
                     "drafts must keep findings hedged."
                 )
+    if stats.blank_sections:
+        warnings.append(
+            f"Grounding: model left section(s) empty: {', '.join(stats.blank_sections)} — "
+            "placeholder or auto-listed findings were inserted; write these sections manually."
+        )
+    if "differentials" in stats.unknown_refs:
+        warnings.append(
+            f"Grounding: differentials cites unknown reference(s) {', '.join(stats.unknown_refs['differentials'])} — "
+            "not in the findings/passages given to the model."
+        )
+    if stats.uncited_differentials:
+        warnings.append(
+            f"Grounding: {len(stats.uncited_differentials)} differential(s) without citation: "
+            + ", ".join(f'"{_short(n, 60)}"' for n in stats.uncited_differentials)
+            + "."
+        )
     for name in CITED_SECTIONS:
         uncited = stats.uncited.get(name)
         if uncited:
             listed = "; ".join(f'"{_short(s)}"' for s in uncited[:MAX_LISTED_PER_SECTION])
             more = f" (+{len(uncited) - MAX_LISTED_PER_SECTION} more)" if len(uncited) > MAX_LISTED_PER_SECTION else ""
             warnings.append(f"Grounding: {len(uncited)} uncited statement(s) in {name}: {listed}{more}.")
+    warnings.extend(_verification_warnings(report))
     if stats.omitted_findings:
         warnings.append(
             "Grounding: imaging finding(s) not mentioned in the draft: "
@@ -154,3 +236,18 @@ def check_grounding(report: DraftReport) -> list[str]:
             + "."
         )
     return warnings
+
+
+def _verification_warnings(report: DraftReport) -> list[str]:
+    """Judge verdicts that still apply: a sentence the expert has since rewritten is skipped."""
+    if report.verification is None:
+        return []
+    out = []
+    for v in report.verification.verdicts:
+        if v.label == "supported" or v.sentence not in getattr(report, v.section).text:
+            continue
+        note = f" — {v.note}" if v.note else ""
+        out.append(
+            f"Verification: {v.section} sentence is {v.label} ({v.error_type}): \"{_short(v.sentence)}\"{note}"
+        )
+    return out

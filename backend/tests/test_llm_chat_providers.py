@@ -6,6 +6,7 @@ import pytest
 
 from app.llm.chat_providers import AnthropicProvider, OpenAICompatibleProvider
 from app.llm.factory import build_llm_provider
+from app.llm.grounding import check_grounding
 from app.llm.gateway import LLMGateway, build_generation_input
 from app.llm.interfaces import (
     LLMConfigError,
@@ -14,7 +15,7 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
-from app.llm.prompts import PROMPT_VERSION, build_aliases, build_system_prompt, build_user_prompt
+from app.llm.prompts import build_aliases, build_system_prompt, build_user_prompt
 from app.llm.structured_output import extract_markers, parse_report_payload
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
@@ -22,6 +23,9 @@ from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
 from app.schemas.rag import RagPassage
 from app.settings import load_settings
 from app.validation.report_validator import ReportValidator
+
+# Tests of single-call behaviour pin v3; the two-step default (v4) has its own tests below.
+SINGLE_CALL = "vetmind-report-v3"
 
 PASSAGES = [
     RagPassage(
@@ -74,6 +78,12 @@ def _report_json(gen) -> dict[str, str]:
         "impression": f"Ekstra-aksiyel neoplazi (meningiom) olası görünmektedir [{f[0]}, S1]. "
         "Granülomatöz meningoensefalit ayırıcı tanıda yer almalıdır [S2].",
         "recommendations": "Kontrastlı sekanslar önerilir. Uzman radyolog incelemesi gereklidir.",
+        "differentials": [
+            {"name": "Meningiom", "likelihood": "high", "supporting": ["ekstra-aksiyel yerleşim"],
+             "against": [], "citations": [f[0], "S1"]},
+            {"name": "Granülomatöz meningoensefalit", "likelihood": "low", "supporting": [],
+             "against": ["tek odaklı lezyon"], "citations": ["S2"]},
+        ],
     }
 
 
@@ -95,7 +105,8 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     captured: dict = {}
     content = json.dumps(_report_json(request.generation), ensure_ascii=False)
     provider = OpenAICompatibleProvider(
-        model_id="gpt-test", api_key="sk-test", transport=_openai_transport(content, captured)
+        model_id="gpt-test", api_key="sk-test", prompt_version=SINGLE_CALL,
+        transport=_openai_transport(content, captured),
     )
     resp = provider.generate(request)
     report = resp.report
@@ -109,11 +120,20 @@ def test_openai_provider_builds_cited_draft_and_passes_validation() -> None:
     assert "Pax" not in user_msg  # patient name never leaves the backend
     assert "<clinical_history>" in user_msg and "[S1]" in user_msg and "[F1]" in user_msg
 
-    assert report.generation.prompt_version == PROMPT_VERSION
+    assert report.generation.prompt_version == SINGLE_CALL
     assert report.generation.provider_id == "openai-compatible"
     assert report.clinically_validated is False
     assert report.synthetic is True  # mock imaging findings → synthetic draft
     assert report.citation_map["S1"] == "kb-meningioma"
+    assert report.used_passage_ids == ["kb-meningioma", "kb-gme"]
+    assert [(d.name, d.likelihood) for d in report.differentials] == [
+        ("Meningiom", "high"),
+        ("Granülomatöz meningoensefalit", "low"),
+    ]
+    assert report.differentials[0].finding_ids == [findings.findings[0].finding_id]
+    assert report.differentials[1].against == ["tek odaklı lezyon"]
+    assert body["response_format"]["json_schema"]["schema"]["required"][-1] == "differentials"
+    assert [p.source_id for p in report.rag_citations] == ["kb-meningioma", "kb-gme"]
     assert report.findings.cited_finding_ids == [f.finding_id for f in findings.findings]
     assert report.impression.cited_finding_ids == [findings.findings[0].finding_id]
     assert resp.raw_text == content
@@ -139,6 +159,62 @@ def test_openai_provider_accepts_fenced_json_and_ollama_has_no_auth_header() -> 
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert report.generation.provider_id == "ollama"
     assert report.generation.model_version == "qwen2.5:14b"
+
+
+def test_used_passages_only_lists_cited_sources() -> None:
+    request, _, _ = _request()
+    body = _report_json(request.generation)
+    body["differentials"] = []
+    body["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir [F1]. Meningiom ön planda [S2, F1]."
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.used_passage_ids == ["kb-gme"]
+    assert len(report.rag_citations) == 2  # all retrieved kept so S# numbering is reconstructible
+
+    body["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir [F1]."
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.used_passage_ids == []
+    assert "hiçbir kaynak pasajına atıf yapmadı" in report.rag_note
+
+
+def test_blank_findings_are_rebuilt_from_structured_findings() -> None:
+    request, _, findings = _request()
+    body = _report_json(request.generation)
+    body["findings"] = ""
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(request).report
+    assert report.findings.text.startswith("Otomatik bulgu listesi")
+    assert "(şüpheli) [F1]" in report.findings.text
+    assert report.findings.cited_finding_ids == [findings.findings[0].finding_id]
+    warnings = check_grounding(report)
+    assert any("model left section(s) empty: findings" in w for w in warnings)
+    assert not any("not mentioned" in w for w in warnings)
+
+
+def test_prompt_v2_is_text_only() -> None:
+    request, _, _ = _request()
+    captured: dict = {}
+    provider = OpenAICompatibleProvider(
+        model_id="m",
+        api_key="k",
+        prompt_version="vetmind-report-v2",
+        transport=_openai_transport(json.dumps(_report_json(request.generation)), captured),
+    )
+    report = provider.generate(request).report
+    schema = captured["body"]["response_format"]["json_schema"]["schema"]
+    assert "differentials" not in schema["properties"] and "differentials" not in schema["required"]
+    assert "differentials" not in captured["body"]["messages"][0]["content"]
+    assert report.generation.prompt_version == "vetmind-report-v2"
+    assert report.differentials == []  # ignored even if the model sends some
+    with pytest.raises(LLMConfigError):
+        OpenAICompatibleProvider(model_id="m", api_key="k", prompt_version="v9")
 
 
 def test_openai_truncated_output_is_malformed() -> None:
@@ -191,7 +267,7 @@ def test_anthropic_provider_uses_forced_tool_call() -> None:
             },
         )
 
-    provider = AnthropicProvider(api_key="sk-ant", transport=httpx.MockTransport(handler))
+    provider = AnthropicProvider(api_key="sk-ant", prompt_version=SINGLE_CALL, transport=httpx.MockTransport(handler))
     report = provider.generate(request).report
 
     assert captured["url"] == "https://api.anthropic.com/v1/messages"
@@ -236,10 +312,14 @@ def test_blank_section_gets_safe_text_not_an_error() -> None:
     request, _, _ = _request()
     gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
     content = json.dumps(
-        {"technique": "Köpek, beyin MR.", "findings": "", "impression": "", "recommendations": "Uzman incelemesi."}
+        {
+            "technique": "Köpek, beyin MR.", "findings": "", "impression": "", "recommendations": "Uzman incelemesi.",
+            "differentials": [{"name": "İdiyopatik epilepsi", "likelihood": "high", "citations": ["S1"]}],
+        }
     )
     provider = OpenAICompatibleProvider(model_id="m", api_key="k", transport=_openai_transport(content, {}))
     report = provider.generate(LLMRequest(generation=gen)).report
+    assert report.differentials == []  # no findings → differentials dropped by rule
     assert "normal olduğu anlamına gelmez" in report.findings.text
     assert "manuel" in report.impression.text
     assert report.recommendations.text == "Uzman incelemesi."
@@ -269,9 +349,12 @@ def test_factory_builds_chat_providers() -> None:
     assert isinstance(p, OpenAICompatibleProvider)
     assert p.provider_id == "ollama" and p._base_url == "http://localhost:11434/v1"
     p = build_llm_provider(
-        _settings(llm_provider="openai", llm_model_id="gpt-x", llm_api_key="k", llm_report_language="en")
+        _settings(
+            llm_provider="openai", llm_model_id="gpt-x", llm_api_key="k", llm_report_language="en",
+            llm_prompt_version="vetmind-report-v2",
+        )
     )
-    assert p._language == "en"
+    assert p._language == "en" and p._prompt_version == "vetmind-report-v2"
 
 
 @pytest.mark.parametrize(
@@ -287,3 +370,128 @@ def test_factory_builds_chat_providers() -> None:
 def test_factory_rejects_incomplete_chat_config(kw) -> None:
     with pytest.raises(LLMConfigError):
         build_llm_provider(_settings(**kw))
+
+
+def _sequence_transport(*responses, calls: list) -> httpx.MockTransport:
+    """Serve chat-completion responses in order; ints are HTTP error statuses."""
+    queue = list(responses)
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(req.content))
+        item = queue.pop(0)
+        if isinstance(item, int):
+            return httpx.Response(item)
+        content = item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
+
+    return httpx.MockTransport(handler)
+
+
+def _v4(*responses, calls: list) -> OpenAICompatibleProvider:
+    return OpenAICompatibleProvider(
+        model_id="m", api_key="k", prompt_version="vetmind-report-v4",
+        transport=_sequence_transport(*responses, calls=calls),
+    )
+
+
+def _text_only(gen) -> dict:
+    body = _report_json(gen)
+    body.pop("differentials")
+    return body
+
+
+def test_v4_clean_draft_skips_repair_and_adds_differentials() -> None:
+    request, _, findings = _request()
+    calls: list = []
+    diffs = {"differentials": _report_json(request.generation)["differentials"]}
+    report = _v4(_text_only(request.generation), diffs, calls=calls).generate(request).report
+
+    assert len(calls) == 2
+    assert "differentials" not in calls[0]["response_format"]["json_schema"]["schema"]["properties"]
+    assert calls[1]["response_format"]["json_schema"]["schema"]["required"] == ["differentials"]
+    assert "DRAFTED IMPRESSION:" in calls[1]["messages"][1]["content"]
+    assert report.generation.pipeline_steps == ["draft", "differentials"]
+    assert [d.name for d in report.differentials] == ["Meningiom", "Granülomatöz meningoensefalit"]
+    assert report.differentials[0].finding_ids == [findings.findings[0].finding_id]
+
+
+def test_v4_repairs_blank_and_uncited_sections() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = _text_only(request.generation)
+    broken["findings"] = ""
+    broken["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir. Kontrast tutulumu bunu destekler [S9]."
+    fixed = _text_only(request.generation)
+    report = _v4(broken, fixed, {"differentials": []}, calls=calls).generate(request).report
+
+    repair_msg = calls[1]["messages"][1]["content"]
+    assert "YOUR PREVIOUS DRAFT:" in repair_msg
+    assert 'The "findings" section is empty' in repair_msg
+    assert "Ekstra-aksiyel neoplazi olası görünmektedir." in repair_msg
+    assert "S9" in repair_msg
+    assert report.generation.pipeline_steps == ["draft", "repair", "repair_applied", "differentials"]
+    assert report.findings.text == fixed["findings"]
+
+
+def test_v4_keeps_original_when_repair_is_not_better() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = _text_only(request.generation)
+    broken["impression"] = "Ekstra-aksiyel neoplazi olası görünmektedir ve ileri tetkik gerekir."
+    worse = dict(broken, findings="", impression="")
+    report = _v4(broken, worse, {"differentials": []}, calls=calls).generate(request).report
+    assert report.generation.pipeline_steps == ["draft", "repair", "differentials"]
+    assert report.impression.text == broken["impression"]
+
+
+def test_v4_failed_optional_steps_do_not_fail_the_draft() -> None:
+    request, _, _ = _request()
+    calls: list = []
+    broken = dict(_text_only(request.generation), findings="")
+    report = _v4(broken, 503, "not json at all", calls=calls).generate(request).report
+    assert report.generation.pipeline_steps == ["draft", "repair_failed", "differentials_failed"]
+    assert report.findings.text.startswith("Otomatik bulgu listesi")  # safeguard still applies
+    assert report.differentials == []
+
+
+def test_v4_skips_differentials_without_findings() -> None:
+    request, _, _ = _request()
+    gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
+    calls: list = []
+    body = {
+        "technique": "Köpek, beyin MR incelemesi.",
+        "findings": "Görüntü modeli bulgu döndürmedi; bu, çalışmanın normal olduğu anlamına gelmez.",
+        "impression": "Otomatik yorum yapılamaz; tüm çalışma uzman tarafından incelenmelidir.",
+        "recommendations": "Uzman radyolog incelemesi gereklidir.",
+    }
+    report = _v4(body, calls=calls).generate(LLMRequest(generation=gen)).report
+    assert len(calls) == 1
+    assert report.generation.pipeline_steps == ["draft"]
+
+
+def test_parenthesized_markers_become_citations() -> None:
+    wire = parse_report_payload(
+        {"technique": "a", "findings": "Kitle izlenmektedir (F1). Ödem (F1, S2). FCE (fibrokartilaginöz emboli).",
+         "impression": "c", "recommendations": "d"}
+    )
+    assert wire.findings == "Kitle izlenmektedir [F1]. Ödem [F1, S2]. FCE (fibrokartilaginöz emboli)."
+
+
+def test_no_findings_case_gets_written_findings_section_not_placeholder() -> None:
+    request, _, _ = _request()
+    gen = request.generation.model_copy(update={"findings": [], "no_findings_returned": True})
+    body = {"technique": "Köpek, beyin MR.", "findings": "", "impression": "Otomatik yorum yapılamaz.",
+            "recommendations": "Uzman incelemesi gereklidir."}
+    provider = OpenAICompatibleProvider(
+        model_id="m", api_key="k", prompt_version=SINGLE_CALL, transport=_openai_transport(json.dumps(body), {})
+    )
+    report = provider.generate(LLMRequest(generation=gen)).report
+    assert report.findings.text.startswith("Görüntü modeli raporlanabilir yapılandırılmış bulgu döndürmedi")
+    assert not any("left section(s) empty" in w for w in check_grounding(report))
+
+
+def test_prompt_v5_adds_citation_example() -> None:
+    v4 = build_system_prompt("tr", "vetmind-report-v4")
+    v5 = build_system_prompt("tr", "vetmind-report-v5")
+    assert "Example of the expected citation style" in v5 and "Example of the expected" not in v4
+    assert "never (F1)" in v5

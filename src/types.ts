@@ -240,6 +240,21 @@ export interface Differential {
   pro: string[]
   con: string[]
   citations: number[]
+  /** Real LLM drafts: relative ranking label instead of a percentage. */
+  likelihood?: DifferentialLikelihood
+  /** Real LLM drafts: citation aliases (F1, S2) resolved via BackendDraftReport.citation_map. */
+  aliases?: string[]
+}
+
+export type DifferentialLikelihood = 'high' | 'moderate' | 'low'
+
+export interface BackendDifferential {
+  name: string
+  likelihood: DifferentialLikelihood
+  supporting: string[]
+  against: string[]
+  citations: string[]
+  finding_ids: string[]
 }
 
 export interface ValidationItem {
@@ -367,6 +382,7 @@ export interface BackendDraftReport {
   used_passage_ids?: string[]
   /** Inline citation alias → id, e.g. { F1: finding_id, S1: rag source_id }. */
   citation_map?: Record<string, string>
+  differentials?: BackendDifferential[]
   /** Model text per section at generation time; unchanged by expert edits. */
   ai_sections?: Record<string, string>
   rag_note?: string
@@ -569,6 +585,8 @@ export interface BackendCaseSummary {
   pet_owner_subject?: string | null
   submission_id?: string | null
   vet_verified?: boolean
+  current_report_version?: number | null
+  report_version_count?: number
 }
 
 export interface BackendCaseRecord {
@@ -668,6 +686,8 @@ export interface VetCase {
   handoffNotes?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number
+  /** Number of report versions (from list summary); >1 means revised. */
+  reportVersionCount?: number
   unreadMessages?: number
   reportAvailableAt?: string
   reportDeliveredAt?: string

@@ -10,6 +10,7 @@ import {
   fetchLlmFeedback,
   fetchLlmStatus,
   type LlmEvalResult,
+  type LlmEvalRun,
   type LlmFeedbackSummary,
   type LlmStatus,
 } from '../lib/backend'
@@ -30,6 +31,8 @@ const DECISION_TR: Record<string, string> = {
 // Same rows and formats as backend/app/evaluation/llm_eval.py METRIC_ROWS.
 const EVAL_ROWS: { key: string; label: string; fmt: 'pct' | 'num' | 'sec' | 'score'; better: 'high' | 'low' }[] = [
   { key: 'score', label: 'Toplam skor (0–100)', fmt: 'score', better: 'high' },
+  { key: 'score_std', label: 'Skor sapması — tekrarlar arası (±)', fmt: 'score', better: 'low' },
+  { key: 'case_score_std', label: 'Vaka içi ortalama sapma (±)', fmt: 'score', better: 'low' },
   { key: 'success_rate', label: 'Başarılı üretim', fmt: 'pct', better: 'high' },
   { key: 'citation_coverage', label: 'Kaynaklı cümle oranı', fmt: 'pct', better: 'high' },
   { key: 'finding_coverage', label: 'Bulgu kapsama', fmt: 'pct', better: 'high' },
@@ -38,8 +41,13 @@ const EVAL_ROWS: { key: string; label: string; fmt: 'pct' | 'num' | 'sec' | 'sco
   { key: 'overclaim_cases', label: 'Aşırı iddialı vaka', fmt: 'num', better: 'low' },
   { key: 'forbidden_cases', label: 'Yasak ifade içeren vaka', fmt: 'num', better: 'low' },
   { key: 'unknown_refs', label: 'Geçersiz atıf', fmt: 'num', better: 'low' },
+  { key: 'blank_cases', label: 'Bölüm boş bırakılan vaka', fmt: 'num', better: 'low' },
   { key: 'english_ratio', label: 'İngilizce kelime oranı', fmt: 'pct', better: 'low' },
   { key: 'latency_s', label: 'Ortalama süre', fmt: 'sec', better: 'low' },
+  { key: 'verified_supported_rate', label: 'Hakemce desteklenen cümle', fmt: 'pct', better: 'high' },
+  { key: 'verified_problems', label: 'Hakemin itiraz ettiği cümle', fmt: 'score', better: 'low' },
+  { key: 'calls_per_case', label: 'Vaka başına model çağrısı', fmt: 'score', better: 'low' },
+  { key: 'repair_applied_rate', label: 'Onarım uygulanan vaka', fmt: 'pct', better: 'low' },
 ]
 
 function pct(v: number | null | undefined) {
@@ -52,6 +60,11 @@ function fmt(v: number | null | undefined, kind: (typeof EVAL_ROWS)[number]['fmt
   if (kind === 'sec') return `${v.toFixed(1)} sn`
   if (kind === 'score') return v.toFixed(1)
   return String(Math.round(v))
+}
+
+function meanCaseScore(run: LlmEvalRun, caseId: string) {
+  const scores = run.cases.filter((c) => c.case_id === caseId).map((c) => c.score ?? 0)
+  return scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : 0
 }
 
 function bestIndex(values: (number | null | undefined)[], better: 'high' | 'low') {
@@ -92,6 +105,8 @@ export default function ModelPerformance() {
     oran: v.edited_rate == null ? 0 : Math.round(v.edited_rate * 100),
   }))
   const runs = evalResult?.runs ?? []
+  const caseIds = Array.from(new Set(runs.flatMap((r) => r.cases.map((c) => c.case_id))))
+  const repeats = Math.max(1, ...runs.map((r) => r.repeats ?? 1))
   const topRate = Math.max(0, ...sectionData.map((d) => d.oran))
   const mostEdited = feedback?.reviews && topRate > 0
     ? sectionData.filter((d) => d.oran === topRate).map((d) => d.name).join(' · ')
@@ -207,7 +222,7 @@ export default function ModelPerformance() {
           <Card className="min-w-0 xl:col-span-3">
             <CardHeader
               title="Model karşılaştırması"
-              subtitle={`${evalResult?.set} · ${runs[0].cases.length} vaka · prompt ${runs[0].prompt_version || '—'} · ${evalResult?.file}`}
+              subtitle={`${evalResult?.set} · ${caseIds.length} vaka${repeats > 1 ? ` × ${repeats} tekrar` : ''} · prompt ${runs[0].prompt_version || '—'} · ${evalResult?.file}`}
               icon={<FlaskConical className="h-5 w-5" />}
             />
             <div className="overflow-x-auto">
@@ -242,14 +257,14 @@ export default function ModelPerformance() {
             </p>
           </Card>
           <Card className="min-w-0 xl:col-span-2">
-            <CardHeader title="Vaka bazında skor" />
+            <CardHeader title="Vaka bazında skor" subtitle={repeats > 1 ? `${repeats} tekrarın ortalaması` : undefined} />
             <div className="h-80 px-3 pb-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
-                  data={runs[0].cases.map((c, i) => ({
-                    name: c.case_id,
-                    ...Object.fromEntries(runs.map((r) => [r.label, r.cases[i]?.score ?? 0])),
+                  data={caseIds.map((id) => ({
+                    name: id,
+                    ...Object.fromEntries(runs.map((r) => [r.label, meanCaseScore(r, id)])),
                   }))}
                   margin={{ top: 10, right: 10, left: 40, bottom: 0 }}
                 >

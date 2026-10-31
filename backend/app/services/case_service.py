@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
+from app.auth.rbac import CAP_ADMIN, CAP_CASE_WRITE
 from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
@@ -34,6 +35,7 @@ from app.schemas.workflow import (
     InfoRequestCreate,
     InfoRequestReply,
 )
+from app.llm.interfaces import LLMProviderError
 from app.services.activity import append_activity
 from app.review_sla import (
     OPEN_REVIEW_STATUSES,
@@ -287,6 +289,10 @@ class CaseService:
             pet_owner_subject=getattr(c, "pet_owner_subject", None),
             submission_id=getattr(c, "submission_id", None),
             vet_verified=bool(getattr(c, "vet_verified", True)),
+            current_report_version=getattr(c, "current_report_version", None)
+            or (c.draft_report.version if c.draft_report is not None else None),
+            report_version_count=len(getattr(c, "report_versions", None) or [])
+            or (1 if c.draft_report is not None else 0),
         )
 
     def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
@@ -793,6 +799,36 @@ class CaseService:
                 case = case.model_copy(update={"internal_notes": []})
         return case
 
+    def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
+        """Permanently remove a case (and its jobs). Demo / list cleanup — not clinical archival."""
+        case = self._repo.get_case(case_id)
+        if case is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+        assert_case_access(principal, case, isolation=self._tenant_isolation)
+
+        # Pet owners may only delete their own finalized reports.
+        if principal.role == "owner" and principal.via == "jwt":
+            if case.status != CaseLifecycleStatus.APPROVED:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+            pet_owner = getattr(case, "pet_owner_subject", None) or case.owner_subject
+            if pet_owner is None or pet_owner != principal.subject:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+        elif principal.via != "disabled" and not (
+            principal.can(CAP_CASE_WRITE)
+            or principal.can(CAP_ADMIN)
+            or principal.role in {"clinic_owner", "expert", "admin", "demo", "service"}
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
+
+        self._repo.delete_case(case_id)
+        nsvc = self._notifications
+        if nsvc is not None and hasattr(nsvc, "delete_for_cases"):
+            try:
+                nsvc.delete_for_cases({case_id})  # type: ignore[union-attr]
+            except Exception:
+                pass
+        self._emit_audit("case.delete", principal=principal, resource=case_id)
+
     def _assert_analyzable(self, case: CaseRecord) -> None:
         if getattr(case, "vet_verified", True) is False:
             raise HTTPException(
@@ -1255,6 +1291,65 @@ class CaseService:
                         clinic_id=saved.clinic_id,
                     )
             return saved
+
+    REGENERATABLE_STATUSES = {CaseLifecycleStatus.AWAITING_REVIEW, CaseLifecycleStatus.REVISION_REQUESTED}
+
+    def regenerate_report(
+        self,
+        case_id: str,
+        expert_note: str,
+        reviewer_id: str,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseRecord:
+        """Rewrite the AI draft with the expert's revision request (LLM only, imaging not re-run).
+
+        The new draft becomes a new report version awaiting review; the reviewed version stays
+        in history. On provider failure the current draft is left untouched.
+        """
+        with self._lock:
+            case = self.get_case(case_id, principal=principal)
+            if principal is not None:
+                reviewer_id = bind_reviewer_id(principal, reviewer_id)
+            if case.status not in self.REGENERATABLE_STATUSES or case.draft_report is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="AI rewrite needs a draft awaiting review or with a revision request.",
+                )
+            if case.structured_findings is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail="Case has no imaging findings to rewrite from."
+                )
+            base_version = case.draft_report.version
+            working = case.model_copy(deep=True)
+
+        try:
+            report = self._orchestrator.regenerate_report(working, expert_note)
+        except LLMProviderError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM rewrite failed ({exc.kind.value}); the current draft is unchanged.",
+            ) from exc
+
+        with self._lock:
+            latest = self.get_case(case_id, principal=principal)
+            if (
+                latest.status not in self.REGENERATABLE_STATUSES
+                or latest.draft_report is None
+                or latest.draft_report.version != base_version
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="The draft changed while the rewrite was running; reload and try again.",
+                )
+            attach_pipeline_draft(latest, report, notes=f"Uzman revizyon talebiyle yeniden üretildi: {expert_note}")
+            latest.status = CaseLifecycleStatus.AWAITING_REVIEW
+            apply_review_sla(latest)
+            append_activity(latest, kind="ai_regenerated", actor_subject=reviewer_id, detail=expert_note)
+            latest.updated_at = _now()
+            saved = self._repo.save_case(latest)
+        self._emit_audit("report.regenerate", principal=principal, resource=case_id)
+        return saved
 
     def _approve_ai_draft(self, case: CaseRecord, feedback: ReviewFeedback) -> CaseRecord:
         if case.status == CaseLifecycleStatus.FAILED:

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -40,6 +41,7 @@ export function StatCard({
   hint,
   tone = 'teal',
   className = '',
+  to,
 }: {
   label: string
   value: ReactNode
@@ -47,6 +49,8 @@ export function StatCard({
   hint?: string
   tone?: 'teal' | 'navy' | 'amber' | 'emerald' | 'violet' | 'sky'
   className?: string
+  /** When set, the whole card navigates to this path. */
+  to?: string
 }) {
   const tones = {
     teal: 'bg-accent-soft text-teal-700',
@@ -56,8 +60,8 @@ export function StatCard({
     violet: 'bg-violet-50 text-violet-700',
     sky: 'bg-sky-50 text-sky-700',
   }
-  return (
-    <Card className={`flex h-full flex-col p-4 ${className}`}>
+  const body = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
         <div className={`shrink-0 rounded-lg p-1.5 [&_svg]:h-4 [&_svg]:w-4 ${tones[tone]}`}>{icon}</div>
@@ -66,6 +70,19 @@ export function StatCard({
         {value}
       </p>
       {hint && <p className="text-caption mt-auto pt-1 text-[11px] leading-snug">{hint}</p>}
-    </Card>
+    </>
   )
+  const shell = `flex h-full flex-col p-4 ${className}`
+  if (to) {
+    return (
+      <Link
+        to={to}
+        aria-label={`${label}: ${typeof value === 'string' || typeof value === 'number' ? value : ''} — ilgili sayfaya git`}
+        className={`rounded-vm border border-slate-200/80 bg-surface-elevated shadow-soft transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${shell}`}
+      >
+        {body}
+      </Link>
+    )
+  }
+  return <Card className={shell}>{body}</Card>
 }

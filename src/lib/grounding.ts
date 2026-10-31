@@ -18,6 +18,7 @@ const SECTION_TR: Record<string, string> = {
   findings: 'Bulgular',
   impression: 'Değerlendirme',
   recommendations: 'Öneriler',
+  differentials: 'Ayırıcı tanılar',
 }
 
 const OVERCLAIM_TR: Record<string, string> = {
@@ -26,6 +27,19 @@ const OVERCLAIM_TR: Record<string, string> = {
   'confirmed diagnosis': 'Doğrulanmış tanı ifadesi',
   'excluded diagnosis': 'Tanı dışlama ifadesi',
   'absence of disease': 'Hastalık yokluğu ifadesi',
+}
+
+const VERDICT_TR: Record<string, string> = {
+  contradicted: 'Kanıtla çelişen ifade',
+  unsupported: 'Kanıtla desteklenmeyen ifade',
+  partially_supported: 'Kısmen desteklenen ifade',
+}
+
+const VERDICT_ERROR_TR: Record<string, string> = {
+  invented_finding: 'uydurma bulgu',
+  overstated_certainty: 'abartılmış kesinlik',
+  wrong_location: 'yanlış konum',
+  irrelevant_source: 'alakasız kaynak',
 }
 
 export const KIND_ORDER: WarningKind[] = ['overclaim', 'unknown_ref', 'uncited', 'omitted', 'system']
@@ -52,6 +66,26 @@ export function parseWarning(raw: string): ReviewWarning {
       title: OVERCLAIM_TR[m[2]] ?? m[2],
       section: SECTION_TR[m[1]] ?? m[1],
       detail: `“${m[3]}” — taslak bulguları temkinli dille ifade etmeli.`,
+      raw,
+    }
+  }
+  m = raw.match(/^Grounding: (\d+) differential\(s\) without citation: (.*?)\.?$/s)
+  if (m) {
+    return { kind: 'uncited', title: `${m[1]} dayanaksız ayırıcı tanı`, section: SECTION_TR.differentials, detail: m[2], raw }
+  }
+  m = raw.match(/^Grounding: model left section\(s\) empty: (.+?) —/)
+  if (m) {
+    const names = m[1].split(/,\s*/).map((k) => SECTION_TR[k] ?? k).join(', ')
+    return { kind: 'omitted', title: 'Model bölümü boş bıraktı', detail: `${names} — yer tutucu metin ya da otomatik bulgu listesi eklendi; bu bölümleri elle yazın.`, raw }
+  }
+  m = raw.match(/^Verification: (\w+) sentence is (\w+) \((\w+)\): "(.*?)"(?: — (.*))?$/s)
+  if (m) {
+    const [, section, label, error, sentence, note] = m
+    return {
+      kind: label === 'partially_supported' ? 'uncited' : 'overclaim',
+      title: `${VERDICT_TR[label] ?? label}${error !== 'unsupported_claim' ? ` · ${VERDICT_ERROR_TR[error] ?? error}` : ''}`,
+      section: SECTION_TR[section] ?? section,
+      detail: note ? `“${sentence}” — ${note}` : `“${sentence}”`,
       raw,
     }
   }

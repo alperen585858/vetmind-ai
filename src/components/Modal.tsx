@@ -17,17 +17,28 @@ export function Modal({
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
+  // Only run when `open` flips — do NOT depend on `onClose` identity (parent re-renders
+  // on every keystroke would re-steal focus from the textarea).
   useEffect(() => {
     if (!open) return
     previouslyFocused.current = document.activeElement as HTMLElement | null
     const t = window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>('button, [href], input, textarea, select')?.focus()
+      const root = panelRef.current
+      if (!root) return
+      const preferred =
+        root.querySelector<HTMLElement>('[data-autofocus], textarea:not([disabled]), input:not([disabled])') ??
+        root.querySelector<HTMLElement>(
+          'button:not([disabled]), [href], select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )
+      preferred?.focus()
     }, 0)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        onCloseRef.current()
       }
       if (e.key !== 'Tab' || !panelRef.current) return
       const focusable = [
@@ -52,12 +63,12 @@ export function Modal({
       document.removeEventListener('keydown', onKey)
       previouslyFocused.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
-      <div className="absolute inset-0 bg-navy-950/40" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-navy-950/40" onClick={() => onCloseRef.current()} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -71,7 +82,7 @@ export function Modal({
           </h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             aria-label="Kapat"
             className="rounded-md p-1 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
           >

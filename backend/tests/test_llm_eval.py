@@ -50,7 +50,9 @@ def _provider(*payloads) -> OpenAICompatibleProvider:
         content = json.dumps(item, ensure_ascii=False)
         return httpx.Response(200, json={"choices": [{"message": {"content": content}, "finish_reason": "stop"}]})
 
-    return OpenAICompatibleProvider(model_id="fake", api_key="k", transport=httpx.MockTransport(handler))
+    return OpenAICompatibleProvider(
+        model_id="fake", api_key="k", prompt_version="vetmind-report-v3", transport=httpx.MockTransport(handler)
+    )
 
 
 def test_seed_set_is_valid_and_covers_edge_cases() -> None:
@@ -81,6 +83,11 @@ def test_good_draft_scores_high_bad_draft_scores_low() -> None:
     assert bad.english_ratio > 0.2
     assert bad.score < 50
 
+    blank = dict(GOOD, findings="", impression="")
+    blank_case = run_eval(s, _provider(blank), rag=LexicalRagRetriever()).cases[0]
+    assert blank_case.blank_sections == ["findings", "impression"]
+    assert blank_case.score < good.score
+
 
 def test_provider_errors_are_recorded_not_raised() -> None:
     s = _set("brain-mass-01", "no-findings-01")
@@ -109,3 +116,42 @@ def test_term_matching_folds_turkish_characters() -> None:
     assert term_found("C3–C4 seviyesinde", "C3-C4")
     assert not term_found("meningiom olası", "gliom|glioma")
     assert english_ratio("Sağ frontal kitle izlenmektedir.") == 0.0
+
+
+def test_repeats_report_mean_and_spread() -> None:
+    s = _set("brain-mass-01", "no-findings-01")
+    blank = dict(GOOD, findings="", impression="")
+    # pass 1: GOOD, GOOD · pass 2: BAD, GOOD · pass 3: blank, GOOD
+    provider = _provider(GOOD, GOOD, BAD, GOOD, blank, GOOD)
+    run = run_eval(s, provider, rag=LexicalRagRetriever(), label="m", repeats=3)
+
+    assert run.repeats == 3 and len(run.cases) == 6
+    assert [c.attempt for c in run.cases] == [1, 1, 2, 2, 3, 3]
+    brain = run.case_scores("brain-mass-01")
+    assert len(brain) == 3 and brain[0] > brain[2] > brain[1]
+    assert len(set(run.case_scores("no-findings-01"))) == 1  # stable case, zero spread
+
+    summary = run.summary()
+    assert summary["score_std"] > 0
+    assert summary["case_score_std"] > 0
+    assert summary["blank_cases"] == round(1 / 3, 2)  # per pass, not inflated by repeats
+
+    md = render_markdown([run], s)
+    assert "Tekrar: her vaka 3 kez" in md
+    assert "brain-mass-01 — " in md and " ± " in md
+    assert "(#2)" in md  # BAD attempt listed with its attempt number
+
+
+def test_single_run_has_no_spread() -> None:
+    run = run_eval(_set("brain-mass-01"), _provider(GOOD), rag=LexicalRagRetriever())
+    summary = run.summary()
+    assert summary["score_std"] is None and summary["case_score_std"] is None
+    assert " ± " not in render_markdown([run], _set("brain-mass-01"))
+
+
+def test_forbidden_ignores_hedged_use() -> None:
+    from app.evaluation.llm_eval import forbidden_found
+
+    assert not forbidden_found("Kesin tanı için biyopsi gerekir.", "kesin tanı|definitive diagnosis")
+    assert forbidden_found("Kesin tanı meningiomdur.", "kesin tanı|definitive diagnosis")
+    assert forbidden_found("Given the history, no disease is present.", "no disease|hastalık yoktur")

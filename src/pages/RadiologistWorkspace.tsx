@@ -12,6 +12,7 @@ import {
   Loader2,
   Save,
   Send,
+  Sparkles,
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -37,6 +38,7 @@ import {
   draftToSections,
   initManualReport,
   saveBackendDraftReport,
+  regenerateBackendReport,
   submitBackendReview,
   type PetHistoryEntry,
 } from '../lib/backend'
@@ -77,6 +79,7 @@ export default function RadiologistWorkspace() {
   const [internalNote, setInternalNote] = useState('')
   const [infoAsk, setInfoAsk] = useState('')
   const [showDicom, setShowDicom] = useState(true)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -317,24 +320,79 @@ export default function RadiologistWorkspace() {
           edited_impression: text.degerlendirme,
           edited_recommendations: text.oneriler,
         })
-        await hydrateBackendCase(caseKey)
+        const mapped = await hydrateBackendCase(caseKey)
+        if (action === 'request_revision') {
+          if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+          const history = await listReportVersions(caseKey)
+          setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+        }
       }
       pushToast({
         tone: action === 'approve' ? 'success' : 'info',
         title:
-          action === 'approve' ? 'Rapor onaylandı' : action === 'reject' ? 'Rapor reddedildi' : 'Revizyon istendi',
+          action === 'approve'
+            ? 'Rapor onaylandı'
+            : action === 'reject'
+              ? 'Rapor reddedildi'
+              : immutable
+                ? 'Yeni sürüm açıldı — düzenleyebilirsiniz'
+                : 'Revizyon istendi',
+        body:
+          action === 'request_revision' && immutable
+            ? 'Önceki onaylı sürüm kilitli kaldı. Değişiklikleri kaydedip yeniden onaylayın.'
+            : undefined,
       })
       setModal(null)
       setReason('')
       setReasonCodes([])
       if (action === 'approve') nav(`/raporlar/${caseRow.id}`)
-      else nav('/kuyruk')
+      else if (action === 'reject') nav('/kuyruk')
+      // request_revision: stay in workspace so the expert can edit the new mutable version
     } catch (err) {
       pushToast({
         tone: 'error',
         title: 'İşlem başarısız',
         body: err instanceof Error ? err.message : undefined,
       })
+    }
+  }
+
+  /** Record the revision request (reason codes = training signal), then let the model rewrite. */
+  async function regenerateWithAI() {
+    if (!text || !caseRow || !caseKey.startsWith('case-')) return
+    setRegenerating(true)
+    try {
+      await submitBackendReview(caseKey, {
+        action: 'request_revision',
+        comment: reason,
+        reason_codes: reasonCodes.length ? reasonCodes : undefined,
+        edited_technique: text.klinikOzet,
+        edited_findings: text.bulgular,
+        edited_impression: text.degerlendirme,
+        edited_recommendations: text.oneriler,
+      })
+      const updated = await regenerateBackendReport(caseKey, reason)
+      const mapped = await hydrateBackendCase(caseKey)
+      if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+      // Case status can read the same before and after, so refresh history explicitly.
+      const history = await listReportVersions(caseKey)
+      setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+      setModal(null)
+      setReason('')
+      setReasonCodes([])
+      pushToast({
+        tone: 'success',
+        title: `Yeni taslak hazır (v${updated.draft_report?.version ?? '?'})`,
+        body: 'Yapay zekâ gerekçenizi dikkate alarak yeniden yazdı. Önceki sürüm geçmişte duruyor.',
+      })
+    } catch (err) {
+      pushToast({
+        tone: 'error',
+        title: 'Yeniden yazma başarısız',
+        body: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -476,10 +534,9 @@ export default function RadiologistWorkspace() {
                 size="sm"
                 variant="secondary"
                 icon={<Send className="h-3.5 w-3.5" />}
-                disabled={immutable}
                 onClick={() => setModal('revizyon')}
               >
-                Revizyon
+                {immutable ? 'Revize et' : 'Revizyon'}
               </Button>
               <Button
                 size="sm"
@@ -502,7 +559,10 @@ export default function RadiologistWorkspace() {
               )}
             </div>
             {immutable && (
-              <p className="mt-2 text-xs text-emerald-800">Onaylı sürüm kilitli — içerik değiştirilemez.</p>
+              <p className="mt-2 text-xs text-emerald-800">
+                Onaylı sürüm kilitli. <strong>Revize et</strong> ile yeni düzenlenebilir sürüm açılır; eski onaylı
+                sürüm geçmişte kalır.
+              </p>
             )}
           </Card>
 
@@ -598,14 +658,29 @@ export default function RadiologistWorkspace() {
       <Modal
         open={modal !== null}
         onClose={() => setModal(null)}
-        title={modal === 'approve' ? 'Raporu onayla' : modal === 'revizyon' ? 'Revizyon iste' : 'Reddet'}
+        title={
+          modal === 'approve'
+            ? 'Raporu onayla'
+            : modal === 'revizyon'
+              ? immutable
+                ? 'Onaylı raporu revize et'
+                : 'Revizyon iste'
+              : 'Reddet'
+        }
       >
         {modal === 'approve' ? (
           <p className="text-sm text-slate-600">
-            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez.
+            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez;
+            gerekirse yeni sürüm açarak revize edebilirsiniz.
           </p>
         ) : (
           <>
+            {modal === 'revizyon' && immutable && (
+              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                Mevcut onaylı sürüm <strong>kilitli kalır</strong>. Yeni bir düzenlenebilir sürüm açılır; düzenleyip yeniden
+                onaylayana kadar sahip tarafında önceki onaylı rapor görünür.
+              </p>
+            )}
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Gerekçe kodları (Feedback Store)
             </p>
@@ -646,17 +721,35 @@ export default function RadiologistWorkspace() {
             </p>
           </>
         )}
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setModal(null)}>
+        {modal === 'revizyon' && caseKey.startsWith('case-') && (
+          <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
+            <strong>Yapay zekâ ile yeniden yaz:</strong> revizyon talebi kaydedilir, ardından model gerekçenizi
+            dikkate alarak yeni bir taslak sürümü yazar. Görüntü analizi tekrarlanmaz.
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setModal(null)} disabled={regenerating}>
             İptal
           </Button>
+          {modal === 'revizyon' && caseKey.startsWith('case-') && (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              disabled={regenerating || reason.trim().length < 10 || reasonCodes.length < 1}
+              onClick={() => void regenerateWithAI()}
+            >
+              {regenerating ? 'Yeni taslak yazılıyor…' : 'Yapay zekâ ile yeniden yaz'}
+            </Button>
+          )}
           <Button
             size="sm"
             variant={modal === 'reddedildi' ? 'danger' : 'primary'}
             disabled={
-              modal !== 'approve' &&
-              modal !== null &&
-              (reason.trim().length < 10 || reasonCodes.length < 1)
+              regenerating ||
+              (modal !== 'approve' &&
+                modal !== null &&
+                (reason.trim().length < 10 || reasonCodes.length < 1))
             }
             onClick={() =>
               void decide(

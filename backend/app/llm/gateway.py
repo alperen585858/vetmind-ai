@@ -5,6 +5,7 @@ from app.llm.interfaces import (
     LLMProviderError,
     LLMRequest,
     LLMResponse,
+    RevisionContext,
 )
 from app.llm.privacy import redact_personal_data
 from app.rag.retriever import RagRetriever
@@ -131,4 +132,27 @@ class LLMGateway:
         except LLMProviderError:
             # Do not fall back to a mock draft after a real provider failure.
             raise
+        return response.report
+
+    def revise_draft(
+        self,
+        case: CaseRecord,
+        findings: StructuredFindings,
+        previous: DraftReport,
+        expert_note: str,
+    ) -> DraftReport:
+        """Regenerate the draft with the expert's revision request; same findings, fresh retrieval."""
+        passages = []
+        if self._rag is not None:
+            passages = self._rag.retrieve(build_rag_query(case, findings), top_k=self._rag_top_k)
+        generation = build_generation_input(case, findings, rag_passages=passages)
+        known = [(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")]
+        revision = RevisionContext(
+            previous_sections={
+                k: redact_personal_data(getattr(previous, k).text, known=known).text
+                for k in ("technique", "findings", "impression", "recommendations")
+            },
+            expert_note=redact_personal_data(expert_note, known=known).text,
+        )
+        response = self._provider.generate(LLMRequest(generation=generation, revision=revision))
         return response.report

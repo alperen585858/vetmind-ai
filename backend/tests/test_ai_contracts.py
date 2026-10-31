@@ -63,7 +63,7 @@ class _NonMockImagingAdapter:
                     finding_id=f"{case.case_id}-nm-1",
                     finding_code="TEST-NONMOCK-FINDING",
                     description="Non-mock test adapter finding (not a clinical result).",
-                    anatomical_location="beyin / olfaktör bulbus bölgesi (sentetik)",
+                    anatomical_location="beyin / olfaktör bulbus bölgesi",
                     finding_status=FindingStatus.POSSIBLE,
                     source_model=self.model_id,
                     source_model_version=self.version,

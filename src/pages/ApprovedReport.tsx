@@ -1,24 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, BadgeCheck, CheckCircle2, Clock, Download, FileText, Loader2, Phone } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  BadgeCheck,
+  CheckCircle2,
+  Clock,
+  Download,
+  FileText,
+  Loader2,
+  Phone,
+  Send,
+} from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
 import { Logo } from '../components/Logo'
-import { downloadApprovedReportPdf, getReportVersion, markReportViewed } from '../lib/backend'
+import { ReportRevisionSimple } from '../components/ReportRevisionSimple'
+import {
+  downloadApprovedReportPdf,
+  getReportVersion,
+  listReportVersions,
+  markReportViewed,
+  submitBackendReview,
+} from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import {
   canExportApprovedReport,
   caseWithDraftVersion,
   printSectionsForCase,
 } from '../lib/reportPrint'
-import type { BackendDraftReport, VetCase } from '../types'
+import type { BackendDraftReport, BackendReportVersionSummary, VetCase } from '../types'
 
 export default function ApprovedReport() {
   const { id = '' } = useParams()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
   const { getCase, role, user, hydrateBackendCase, pushToast } = useApp()
@@ -27,13 +46,21 @@ export default function ApprovedReport() {
   const [loading, setLoading] = useState(() => id.startsWith('case-') && !canExportApprovedReport(base))
   const [loadError, setLoadError] = useState<string | null>(null)
   const [versionDraft, setVersionDraft] = useState<BackendDraftReport | null>(null)
+  const [versionList, setVersionList] = useState<BackendReportVersionSummary[]>([])
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [reviseOpen, setReviseOpen] = useState(false)
+  const [reviseNote, setReviseNote] = useState('')
+  const [revising, setRevising] = useState(false)
+  const [versionSwitching, setVersionSwitching] = useState(false)
+  const viewedRef = useRef<string | null>(null)
 
+  // Load case + version list once per case id (do NOT depend on hydrate fields — that caused a flash loop).
   useEffect(() => {
     if (!id.startsWith('case-')) {
       setLoading(false)
       setLoadError(null)
       setVersionDraft(null)
+      setVersionList([])
       return
     }
     let cancelled = false
@@ -50,28 +77,57 @@ export default function ApprovedReport() {
         setLoading(false)
         return
       }
-      if (selectedVersion != null && !Number.isNaN(selectedVersion)) {
-        try {
-          const snap = await getReportVersion(id, selectedVersion)
-          if (cancelled) return
-          setVersionDraft(snap.content)
-        } catch (err) {
-          if (cancelled) return
-          setLoadError(err instanceof Error ? err.message : 'Rapor sürümü yüklenemedi')
-          setVersionDraft(null)
-        }
-      } else {
-        setVersionDraft(null)
+      try {
+        const versions = await listReportVersions(id)
+        if (!cancelled) setVersionList(versions)
+      } catch {
+        if (!cancelled) setVersionList(mapped.reportVersions ?? [])
       }
-      if (mapped?.status === 'onaylandi' && mapped.fromBackend) {
-        void markReportViewed(id).then(() => hydrateBackendCase(id)).catch(() => undefined)
+      if (!cancelled) setLoading(false)
+      if (mapped.status === 'onaylandi' && mapped.fromBackend && viewedRef.current !== id) {
+        viewedRef.current = id
+        void markReportViewed(id).catch(() => undefined)
       }
-      setLoading(false)
     })()
     return () => {
       cancelled = true
     }
-  }, [id, base?.fromBackend, base?.backendDraft, base?.status, selectedVersion, hydrateBackendCase])
+    // intentionally only re-run when navigating to another case
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, hydrateBackendCase])
+
+  // Soft-switch printable body when ?version= changes — keep old text until new arrives (no flash).
+  useEffect(() => {
+    if (!id.startsWith('case-')) {
+      setVersionDraft(null)
+      return
+    }
+    if (selectedVersion == null || Number.isNaN(selectedVersion)) {
+      setVersionDraft(null)
+      setVersionSwitching(false)
+      return
+    }
+    let cancelled = false
+    setVersionSwitching(true)
+    void getReportVersion(id, selectedVersion)
+      .then((snap) => {
+        if (!cancelled) setVersionDraft(snap.content)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        pushToast({
+          tone: 'error',
+          title: 'Sürüm yüklenemedi',
+          body: err instanceof Error ? err.message : undefined,
+        })
+      })
+      .finally(() => {
+        if (!cancelled) setVersionSwitching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, selectedVersion, pushToast])
 
   const c: VetCase | undefined = useMemo(() => {
     if (!base) return undefined
@@ -105,6 +161,41 @@ export default function ApprovedReport() {
       })
     } finally {
       setPdfBusy(false)
+    }
+  }
+
+  const openRevision = async () => {
+    const caseKey = c?.backendCaseId || c?.id || id
+    if (!caseKey.startsWith('case-') || revising) return
+    const note = reviseNote.trim()
+    if (note.length < 10) {
+      pushToast({ tone: 'warning', title: 'Gerekçe gerekli', body: 'En az 10 karakter yazın.' })
+      return
+    }
+    setRevising(true)
+    try {
+      await submitBackendReview(caseKey, {
+        action: 'request_revision',
+        comment: note,
+        reason_codes: ['report_quality'],
+      })
+      await hydrateBackendCase(caseKey)
+      setReviseOpen(false)
+      setReviseNote('')
+      pushToast({
+        tone: 'success',
+        title: 'Yeni sürüm açıldı',
+        body: 'Önceki onaylı sürüm kilitli kaldı. Çalışma alanında düzenleyip yeniden onaylayın.',
+      })
+      nav(`/vakalar/${caseKey}/calisma`)
+    } catch (e) {
+      pushToast({
+        tone: 'error',
+        title: 'Revizyon açılamadı',
+        body: e instanceof Error ? e.message : undefined,
+      })
+    } finally {
+      setRevising(false)
     }
   }
 
@@ -180,6 +271,16 @@ export default function ApprovedReport() {
   const p = c.patient
   const sections = printSectionsForCase(c)
   const showDemoPatientExtras = !c.fromBackend
+  const versions =
+    versionList.length > 0
+      ? versionList
+      : c.reportVersions ?? []
+  const sortedVersions = [...versions].sort((a, b) => a.version - b.version)
+  const hasRevisionHistory = sortedVersions.length > 1
+  const currentVer =
+    selectedVersion && Number.isFinite(selectedVersion)
+      ? selectedVersion
+      : c.currentReportVersion ?? sortedVersions[sortedVersions.length - 1]?.version ?? 1
   const reviewStatus =
     c.status === 'onaylandi'
       ? `Onaylandı${c.approvedBy ? ` · ${c.approvedBy}` : ''}`
@@ -188,6 +289,12 @@ export default function ApprovedReport() {
         : c.status === 'revizyon'
           ? 'Revizyon istendi'
           : c.backendDraft?.status || c.status
+
+  const selectVersion = (v: number) => {
+    const next = new URLSearchParams(params)
+    next.set('version', String(v))
+    setParams(next, { replace: true })
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -205,6 +312,11 @@ export default function ApprovedReport() {
               <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => nav(-1)}>
                 Geri
               </Button>
+              {role === 'expert' && id.startsWith('case-') && (
+                <Button variant="secondary" icon={<Send className="h-4 w-4" />} onClick={() => setReviseOpen(true)}>
+                  Revize et
+                </Button>
+              )}
               {import.meta.env.MODE !== 'share' && (
                 <>
                   <Button
@@ -227,6 +339,37 @@ export default function ApprovedReport() {
       {loadError && (
         <div className="no-print mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {loadError}
+        </div>
+      )}
+
+      {hasRevisionHistory && (
+        <div className="no-print mb-5 space-y-3">
+          <div className="inline-flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {sortedVersions.map((v) => {
+                const active = v.version === currentVer
+                const isLatest = v.version === sortedVersions[sortedVersions.length - 1]?.version
+                return (
+                  <button
+                    key={v.version}
+                    type="button"
+                    onClick={() => selectVersion(v.version)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                      active ? 'bg-white text-navy-900 shadow-sm' : 'text-slate-600 hover:text-navy-900'
+                    }`}
+                  >
+                    {isLatest ? `Güncel (v${v.version})` : `Önceki (v${v.version})`}
+                  </button>
+                )
+              })}
+            </div>
+            {versionSwitching ? (
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              </span>
+            ) : null}
+          </div>
+          <ReportRevisionSimple caseId={id} versions={sortedVersions} />
         </div>
       )}
 
@@ -254,7 +397,11 @@ export default function ApprovedReport() {
         </div>
       )}
 
-      <article className="rounded-xl border border-slate-200 bg-white shadow-soft print:border-0 print:shadow-none">
+      <article
+        className={`rounded-xl border border-slate-200 bg-white shadow-soft print:border-0 print:shadow-none ${
+          versionSwitching ? 'opacity-70 transition-opacity' : ''
+        }`}
+      >
         <header
           className={`flex flex-col gap-4 border-b-4 px-8 py-6 sm:flex-row sm:items-start sm:justify-between ${
             role === 'owner' ? 'border-sky-500' : 'border-teal-600'
@@ -270,6 +417,12 @@ export default function ApprovedReport() {
             </p>
             <p className="text-slate-500">
               Vaka No: <span className="font-mono">{c.no}</span>
+              {hasRevisionHistory ? (
+                <>
+                  {' '}
+                  · <span className="font-semibold text-navy-800">v{currentVer}</span>
+                </>
+              ) : null}
             </p>
           </div>
         </header>
@@ -403,6 +556,52 @@ export default function ApprovedReport() {
           </p>
         </footer>
       </article>
+
+      <Modal
+        open={reviseOpen}
+        onClose={() => {
+          if (!revising) setReviseOpen(false)
+        }}
+        title="Onaylı raporu revize et?"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={revising} onClick={() => setReviseOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              size="sm"
+              disabled={revising || reviseNote.trim().length < 10}
+              icon={revising ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              onClick={() => void openRevision()}
+            >
+              {revising ? 'Açılıyor…' : 'Yeni sürüm aç'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-600">
+          <p>
+            Mevcut onaylı sürüm <strong className="text-navy-900">kilitli kalır</strong>. Yeni düzenlenebilir sürüm
+            açılır; çalışma alanında düzenleyip yeniden onaylarsınız.
+          </p>
+          <label className="block">
+            <span className="label">Revizyon gerekçesi (zorunlu)</span>
+            <textarea
+              data-autofocus
+              className="input mt-1 min-h-[96px]"
+              placeholder="Örn. İzlem bölümü netleştirilecek, ayırıcı tanılar güncellenecek…"
+              value={reviseNote}
+              onChange={(e) => setReviseNote(e.target.value)}
+              disabled={revising}
+            />
+          </label>
+          <p className={`text-xs ${reviseNote.trim().length < 10 ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
+            {reviseNote.trim().length < 10
+              ? `En az 10 karakter gerekli (${reviseNote.trim().length}/10)`
+              : `${reviseNote.trim().length} karakter · hazır`}
+          </p>
+        </div>
+      </Modal>
     </div>
   )
 }

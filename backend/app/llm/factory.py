@@ -44,6 +44,9 @@ def _build_chat_provider(kind: str, settings: Settings) -> LLMProvider:
         language=settings.llm_report_language,
         temperature=settings.llm_temperature,
         max_tokens=settings.llm_max_tokens,
+        prompt_version=settings.llm_prompt_version,
+        verify=settings.llm_verify,
+        verifier_model_id=settings.llm_verifier_model_id,
     )
 
     if kind in ANTHROPIC_KINDS:

@@ -42,6 +42,19 @@ _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 )
 
 
+# Instruction-like sentences aimed at the model ("ignore all previous instructions…") are not
+# clinical content; they are removed before any LLM call (defence in depth next to the prompt rule).
+_INSTRUCTION = re.compile(
+    r"[^.!?\n]*\b(?:ignore (?:all |any )?(?:the )?(?:previous|prior|above) (?:instructions|rules)"
+    r"|disregard (?:all |the )?(?:previous|prior|above)"
+    r"|(?:önceki|yukarıdaki) (?:tüm )?(?:talimat|kural)\w*\s+(?:yok say|görmezden gel|unut)\w*"
+    r"|you are now\b|system prompt|sistem (?:prompt|talimat)\w*"
+    r"|(?:write|say|state|yaz|söyle)\w* that the (?:study|report) is (?:completely )?normal)"
+    r"[^.!?\n]*[.!?]?",
+    re.IGNORECASE,
+)
+
+
 @dataclass(frozen=True)
 class RedactionResult:
     text: str
@@ -65,6 +78,10 @@ def redact_personal_data(
         out, n = pattern.subn(placeholder, out)
         if n:
             counts[placeholder.strip("[]").replace("İ", "I").lower()] += n
+    out, n = _INSTRUCTION.subn(" [TALİMAT-BENZERİ METİN ÇIKARILDI] ", out)
+    if n:
+        counts["instruction"] += n
+        out = re.sub(r"\s{2,}", " ", out).strip()
     for label, placeholder, pattern in _PATTERNS:
         if label == "owner":
             out, n = pattern.subn(lambda m: f"{m.group(1)}{placeholder}", out)
