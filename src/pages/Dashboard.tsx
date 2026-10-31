@@ -42,7 +42,6 @@ import { Button } from '../components/Button'
 import { SpeciesIcon } from '../components/CaseTable'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
 import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
 import { fmtDate } from '../lib/format'
@@ -161,45 +160,7 @@ function VetDashboard() {
     ].filter((x) => x.value > 0 || active.length === 0)
   }, [cases])
 
-  const pipeline = useMemo(() => {
-    const active = cases.filter((c) => !['reddedildi'].includes(c.status))
-    return [
-      { key: 'created', label: 'Oluşturuldu', count: active.length, tone: 'bg-teal-500' },
-      {
-        key: 'submitted',
-        label: 'Görüntü / öykü',
-        count: active.filter((c) => !['taslak'].includes(c.status)).length,
-        tone: 'bg-teal-500',
-      },
-      {
-        key: 'analyze',
-        label: 'Analiz',
-        count: active.filter((c) =>
-          ['ai_analizi', 'uzman_incelemesinde', 'manuel_inceleme', 'onaylandi', 'revizyon', 'analiz_basarisiz'].includes(
-            c.status,
-          ),
-        ).length,
-        tone: 'bg-teal-500',
-      },
-      {
-        key: 'review',
-        label: 'Radyolog inceleme',
-        count: active.filter((c) =>
-          ['uzman_incelemesinde', 'manuel_inceleme', 'revizyon', 'onaylandi'].includes(c.status),
-        ).length,
-        tone: 'bg-teal-400',
-      },
-      {
-        key: 'final',
-        label: 'Sonuç',
-        count: active.filter((c) => c.status === 'onaylandi').length,
-        tone: 'bg-emerald-500',
-      },
-    ]
-  }, [cases])
-
   const recent = filtered.slice(0, 5)
-  const selected = filtered[0]
 
   const metricCards = [
     { label: 'Aktif vakalar', value: open, icon: <FolderOpen className="h-4 w-4" />, tone: 'bg-sky-50 text-sky-700', to: '/vakalar' },
@@ -224,8 +185,22 @@ function VetDashboard() {
             className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-teal-200/30 blur-2xl"
             aria-hidden
           />
-          <div className="relative flex min-h-[148px] items-stretch gap-4 p-5 sm:p-6">
-            <div className="flex min-w-0 flex-1 flex-col justify-center">
+          {/* Photo sits in the card; soft fades hide studio crop edges */}
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] max-w-[340px] sm:block"
+            aria-hidden
+          >
+            <img
+              src="/dashboard-hero-dog.jpg"
+              alt=""
+              className="h-full w-full scale-[1.08] object-cover object-[58%_12%]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-teal-50 via-sky-50/55 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white/90 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-teal-50/80 to-transparent" />
+          </div>
+          <div className="relative flex min-h-[168px] items-center p-5 sm:p-6">
+            <div className="max-w-[58%] min-w-0">
               <p className="font-display text-xl font-semibold tracking-tight text-navy-900 sm:text-2xl">
                 Hoş geldiniz, {user?.name}
               </p>
@@ -241,14 +216,6 @@ function VetDashboard() {
                 var.
               </p>
               {user?.org ? <p className="mt-2 text-xs text-slate-500">{user.org}</p> : null}
-            </div>
-            <div className="relative hidden w-[42%] max-w-[280px] shrink-0 sm:block">
-              <img
-                src="/dashboard-hero-dog.jpg"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center opacity-95"
-              />
-              <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-teal-50 via-sky-50/80 to-transparent" />
             </div>
           </div>
         </div>
@@ -509,65 +476,30 @@ function VetDashboard() {
           )}
         </Card>
 
-        <div className="space-y-3">
-          <Card>
-            <CardHeader title="Vaka ilerleme özeti" subtitle="Klinik genel" />
-            <div className="space-y-3 px-5 pb-4">
-              <ol className="space-y-2.5">
-                {pipeline.map((step, idx) => (
-                  <li key={step.key} className="flex items-center gap-3 text-sm">
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white ${step.tone}`}>
-                      {idx + 1}
-                    </span>
-                    <span className="flex-1 text-navy-800">{step.label}</span>
-                    <span className="tabular-nums text-xs font-semibold text-slate-500">{step.count}</span>
-                  </li>
-                ))}
-              </ol>
-              {selected ? (
-                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                    Örnek vaka · {selected.patient.name}
-                  </p>
-                  <CaseProgressTracker embedded status={selected.status} handoffNotes={selected.handoffNotes} />
-                </div>
-              ) : null}
-              {stats && stats.unread_messages > 0 && (
-                <p className="text-xs font-medium text-amber-800">{stats.unread_messages} okunmamış vaka mesajı</p>
-              )}
-            </div>
-          </Card>
-
-          <div className="flex items-center gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
-              <CheckCircle2 className="h-4 w-4" />
+        <Card className="p-4 self-start">
+          <div className="flex gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+              <HelpCircle className="h-4 w-4" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-emerald-900">Sistem durumu</p>
-              <p className="text-xs text-emerald-800">Tüm sistemler çalışıyor</p>
+              <p className="text-sm font-semibold text-navy-900">Yardıma mı ihtiyacınız var?</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Klinik destek için destek ekibinize yazın.
+              </p>
+              {stats && stats.unread_messages > 0 ? (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  {stats.unread_messages} okunmamış vaka mesajı
+                </p>
+              ) : null}
+              <a
+                href="mailto:destek@vetmind.local?subject=VetMind%20destek"
+                className="mt-2 inline-block text-xs font-semibold text-teal-700 hover:underline"
+              >
+                Destek ekibine yazın
+              </a>
             </div>
           </div>
-
-          <Card className="p-4">
-            <div className="flex gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                <HelpCircle className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-navy-900">Yardıma mı ihtiyacınız var?</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Klinik destek için destek ekibinize yazın.
-                </p>
-                <a
-                  href="mailto:destek@vetmind.local?subject=VetMind%20destek"
-                  className="mt-2 inline-block text-xs font-semibold text-teal-700 hover:underline"
-                >
-                  Destek ekibine yazın
-                </a>
-              </div>
-            </div>
-          </Card>
-        </div>
+        </Card>
       </div>
     </div>
   )

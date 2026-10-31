@@ -567,7 +567,7 @@ export default function Submissions() {
     try {
       const record = await getDicomIngestion(ingestId)
       setDetail(record)
-      const files = await fetchIngestDicomFiles(ingestId, 8)
+      const files = await fetchIngestDicomFiles(ingestId, 24)
       if (files.length) {
         const frames = await buildDicomPreviews(files)
         setDetailFrames(frames.filter((f) => f.ok))
