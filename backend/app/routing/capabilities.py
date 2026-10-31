@@ -111,11 +111,18 @@ def default_capabilities() -> list[ModelCapability]:
         ),
         ModelCapability(
             model_id="mock-xr-vision-v1",
+            # DICOM CR/DX/DR map to Modality.XR in the parser — cover those uploads too.
             modalities=frozenset({Modality.XR}),
-            regions=frozenset({AnatomicalRegion.THORAX}),
+            regions=frozenset(
+                {
+                    AnatomicalRegion.THORAX,
+                    AnatomicalRegion.OTHER,
+                    AnatomicalRegion.UNKNOWN,
+                }
+            ),
             species=canine_feline,
             priority=20,
-            description="Mock X-Ray vision stub (thorax)",
+            description="Mock radiography (XR/CR/DX) — thorax and unclassified body parts",
             model_version="1.0.0-mock",
             timeout_s=10.0,
             task_capabilities=_mock_tasks(),

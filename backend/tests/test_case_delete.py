@@ -61,6 +61,15 @@ def test_vet_can_delete_case(tmp_path: Path) -> None:
     assert client.get(f"/api/v1/cases/{case_id}", headers=_hdr(vet)).status_code == 404
 
 
+def test_expert_can_delete_case(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    vet = _token(client, "vet@demo.local")
+    expert = _token(client, "expert@demo.local")
+    case_id = _new_case(client, vet, "UzmanSil")
+    assert client.delete(f"/api/v1/cases/{case_id}", headers=_hdr(expert)).status_code == 204
+    assert client.get(f"/api/v1/cases/{case_id}", headers=_hdr(vet)).status_code == 404
+
+
 def test_owner_can_delete_own_approved_report(tmp_path: Path) -> None:
     client = _client(tmp_path)
     container = client.app.state.container  # type: ignore[attr-defined]

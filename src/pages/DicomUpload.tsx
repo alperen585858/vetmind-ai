@@ -213,7 +213,11 @@ export default function DicomUpload() {
     setUploading(false)
     setUploadProgress(null)
     submitLockRef.current = false
-    pushToast({ tone: 'info', title: 'İşlem iptal edildi', body: 'Yükleme / doğrulama durduruldu.' })
+    pushToast({
+      tone: 'info',
+      title: 'İşlem iptal edildi',
+      body: 'Yükleme durduruldu; analiz başlamışsa backend iptal isteği de gönderilir.',
+    })
   }, [pushToast])
 
   const mergeIncoming = async (incoming: File[], sourceLabel: string) => {
@@ -511,6 +515,10 @@ export default function DicomUpload() {
         imagingSourcePermissionVerified: consent,
         imagingAnalysisConsentVerified: consent,
         signal: controller.signal,
+        cancelBackendOnAbort: true,
+        onJobEnqueued: () => {
+          setUploadProgress('Analiz sürüyor… Durdurmak için İptal’e basın.')
+        },
       })
 
       const parsedAge = ageYears.trim() === '' ? 0 : Number(ageYears)
@@ -637,8 +645,8 @@ export default function DicomUpload() {
       if (err instanceof PollingCancelledError) {
         pushToast({
           tone: 'info',
-          title: 'İstemci izleme durduruldu',
-          body: 'Backend işi iptal edilmedi; gerekirse Vakalar’dan durumu yenileyin.',
+          title: 'Analiz durduruldu',
+          body: 'İzleme ve backend iptal isteği uygulandı.',
         })
         return
       }
@@ -867,7 +875,7 @@ export default function DicomUpload() {
         </Button>
         {(busy || uploading) && (
           <Button variant="secondary" className="w-full" onClick={cancelInFlight}>
-            İptal / yeniden dene için durdur
+            Analizi / yüklemeyi durdur
           </Button>
         )}
       </div>
@@ -964,7 +972,7 @@ export default function DicomUpload() {
             className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-rose-200 hover:text-rose-700"
           >
             <XCircle className="h-3.5 w-3.5" />
-            İptal
+            Analizi durdur
           </button>
         </div>
       )}

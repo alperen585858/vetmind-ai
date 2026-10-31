@@ -1,6 +1,7 @@
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.schemas.case import CaseRecord
 from app.schemas.enums import (
+    AnatomicalRegion,
     FindingStatus,
     MockScenario,
     ModelExecutionStatus,
@@ -240,22 +241,34 @@ class MockXrVisionModel:
             out.warnings.append(ABSENCE_WARNING)
             return out
         out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+        # CR/DX uploads often lack a thorax region tag; still produce a mock radiography finding.
+        is_thorax = case.anatomical_region == AnatomicalRegion.THORAX
         out.findings = [
             _finding(
                 finding_id=f"{case.case_id}-f-xr-01",
-                finding_code="MOCK-XR-THORAX-OPACITY",
+                finding_code="MOCK-XR-THORAX-OPACITY" if is_thorax else "MOCK-XR-OPACITY",
                 description=(
                     "Toraks grafisinde kaudal akciğer alanında olası interstisyel opasite."
+                    if is_thorax
+                    else "Radyografide (XR/CR) bölgede olası opasite / yumuşak doku değişikliği (mock)."
                 ),
-                anatomical_location="toraks / kaudal akciğer alanı",
+                anatomical_location=(
+                    "toraks / kaudal akciğer alanı"
+                    if is_thorax
+                    else f"{case.anatomical_region.value.lower()} / projeksiyon alanı"
+                ),
                 finding_status=FindingStatus.SUSPECTED,
                 model_id=self.model_id,
                 version=self.version,
                 evidence=[
                     EvidenceReference(
                         evidence_id=f"{case.case_id}-ev-xr-01",
-                        description="Sağ lateral toraks projeksiyonu.",
-                        series_hint="Sağ lateral toraks",
+                        description=(
+                            "Sağ lateral toraks projeksiyonu."
+                            if is_thorax
+                            else "Düz radyografi / CR projeksiyonu."
+                        ),
+                        series_hint="Sağ lateral toraks" if is_thorax else "CR/XR seri",
                         note="",
                     )
                 ],

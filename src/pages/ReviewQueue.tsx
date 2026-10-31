@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Clock, Info, LayoutPanelLeft, Loader2, RefreshCw, Search, UserPlus } from 'lucide-react'
+import { Clock, Info, LayoutPanelLeft, Loader2, RefreshCw, Search, Trash2, UserPlus } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Button } from '../components/Button'
 import { Card, CardHeader } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { currentActorId } from '../lib/auth'
-import { listBackendWorklist, updateCaseAssignment } from '../lib/backend'
+import { deleteBackendCase, listBackendWorklist, updateCaseAssignment } from '../lib/backend'
 import { summaryToVetCase } from '../lib/caseMapper'
 import {
   compareBySlaUrgency,
@@ -19,10 +20,10 @@ import {
   slaRowClass,
   slaTone,
 } from '../lib/reviewSla'
-import type { BackendCaseSummary } from '../types'
+import type { BackendCaseSummary, VetCase } from '../types'
 
 export default function ReviewQueue() {
-  const { cases, pushToast, hydrateBackendCase } = useApp()
+  const { cases, pushToast, hydrateBackendCase, removeCase } = useApp()
   const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<BackendCaseSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +33,8 @@ export default function ReviewQueue() {
   const [priority, setPriority] = useState('')
   const [status, setStatus] = useState('awaiting_review')
   const [assigned, setAssigned] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const slaOnly = params.get('sla') === 'az'
 
   const load = () => {
@@ -328,6 +331,13 @@ export default function ReviewQueue() {
                         >
                           <UserPlus className="h-3.5 w-3.5" /> Üstlen
                         </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-rose-700 hover:text-rose-900"
+                          onClick={() => setPendingDelete(c)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Sil
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -341,6 +351,62 @@ export default function ReviewQueue() {
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
         <Info className="h-3.5 w-3.5" /> Hiçbir AI taslağı uzman onayı olmadan iletilmez. Onaylı raporlar değiştirilemez.
       </p>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => {
+          if (!deleting) setPendingDelete(null)
+        }}
+        title="Vakayı silmek istediğinize emin misiniz?"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDelete(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting}
+              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              onClick={() => {
+                if (!pendingDelete || deleting) return
+                const target = pendingDelete
+                setDeleting(true)
+                void deleteBackendCase(target.backendCaseId || target.id)
+                  .then(() => {
+                    removeCase(target.id)
+                    setPendingDelete(null)
+                    pushToast({ tone: 'success', title: 'Vaka silindi', body: `${target.patient.name} · ${target.no}` })
+                    load()
+                  })
+                  .catch((err) =>
+                    pushToast({
+                      tone: 'error',
+                      title: 'Silinemedi',
+                      body: err instanceof Error ? err.message : undefined,
+                    }),
+                  )
+                  .finally(() => setDeleting(false))
+              }}
+            >
+              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+            </Button>
+          </>
+        }
+      >
+        {pendingDelete ? (
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>
+              <strong className="text-navy-900">{pendingDelete.patient.name}</strong> vakasını kalıcı olarak silmek
+              istediğinize emin misiniz?
+            </p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
+              {pendingDelete.no} · {pendingDelete.id}
+            </p>
+            <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+          </div>
+        ) : null}
+      </Modal>
     </>
   )
 }

@@ -172,9 +172,9 @@ def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
     elif _contains_any(series_text, ("CT", "CTA", "HRCT")):
         modality = Modality.CT
         note_bits.append("series_hint modality≈CT from protocol tokens")
-    elif _contains_any(series_text, ("XR", "XRAY", "RADIOGRAPH", "CXR")):
+    elif _contains_any(series_text, ("XR", "XRAY", "RADIOGRAPH", "CXR", "CR", "DX", "DR")):
         modality = Modality.XR
-        note_bits.append("series_hint modality≈XR from protocol tokens")
+        note_bits.append("series_hint modality≈XR/CR/DX from protocol tokens")
 
     return ClassificationSignal(
         name="series_hint",

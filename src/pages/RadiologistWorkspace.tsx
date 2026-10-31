@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -13,6 +13,8 @@ import {
   Save,
   Send,
   Sparkles,
+  Square,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -29,8 +31,10 @@ import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { ReportDocumentEditor } from '../components/ReportDocumentEditor'
 import {
   BackendUnavailableError,
+  PollingCancelledError,
   appendCaseInternalNote,
   createCaseInfoRequest,
+  deleteBackendCase,
   fetchCaseDicomFiles,
   getPetMedicalHistory,
   listBackendWorklist,
@@ -39,6 +43,7 @@ import {
   initManualReport,
   saveBackendDraftReport,
   regenerateBackendReport,
+  resendCaseToAI,
   submitBackendReview,
   type PetHistoryEntry,
 } from '../lib/backend'
@@ -62,14 +67,15 @@ const REASON_CODE_OPTIONS: { id: string; label: string }[] = [
 export default function RadiologistWorkspace() {
   const { id = '' } = useParams()
   const nav = useNavigate()
-  const { getCase, hydrateBackendCase, pushToast, updateCase } = useApp()
+  const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase } = useApp()
   const c = getCase(id)
   const [hydrating, setHydrating] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [text, setText] = useState<ReportSections | undefined>(c?.report ?? c?.aiDraft)
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [loadingFrames, setLoadingFrames] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [modal, setModal] = useState<null | 'approve' | 'revizyon' | 'reddedildi'>(null)
+  const [modal, setModal] = useState<null | 'approve' | 'revizyon' | 'reddedildi' | 'sil'>(null)
+  const [deleting, setDeleting] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonCodes, setReasonCodes] = useState<string[]>([])
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
@@ -80,6 +86,8 @@ export default function RadiologistWorkspace() {
   const [infoAsk, setInfoAsk] = useState('')
   const [showDicom, setShowDicom] = useState(true)
   const [regenerating, setRegenerating] = useState(false)
+  const [resendingAi, setResendingAi] = useState(false)
+  const resendAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -357,7 +365,65 @@ export default function RadiologistWorkspace() {
     }
   }
 
-  /** Record the revision request (reason codes = training signal), then let the model rewrite. */
+  /** Full imaging + LLM re-analyze (same as /ai-tekrar). Not the LLM-only rewrite.
+   * Approved/immutable cases: opens a revision fork first, then analyzes. */
+  async function resendFullPipelineToAI() {
+    if (!caseRow || !caseKey.startsWith('case-')) return
+    resendAbortRef.current?.abort()
+    const controller = new AbortController()
+    resendAbortRef.current = controller
+    const openRevisionFirst = immutable
+    setResendingAi(true)
+    setError(null)
+    try {
+      if (openRevisionFirst) {
+        pushToast({
+          tone: 'info',
+          title: 'Revizyon açılıyor',
+          body: 'Onaylı rapor korunur; AI için yeni sürüm oluşturuluyor.',
+        })
+      }
+      const result = await resendCaseToAI(caseKey, {
+        signal: controller.signal,
+        cancelBackendOnAbort: true,
+        openRevisionFirst,
+      })
+      const mapped = await hydrateBackendCase(caseKey)
+      if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+      const history = await listReportVersions(caseKey)
+      setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+      if (result.outcome === 'failed') {
+        pushToast({
+          tone: 'error',
+          title: 'AI yeniden gönderim başarısız',
+          body: result.job.error_message || undefined,
+        })
+      } else {
+        pushToast({
+          tone: 'success',
+          title: 'AI yeniden çalıştı',
+          body: openRevisionFirst
+            ? 'Onaylı sürüm korundu; yeni AI taslağı hazır.'
+            : 'Görüntü + taslak pipeline tamamlandı.',
+        })
+      }
+    } catch (err) {
+      if (err instanceof PollingCancelledError) {
+        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+        await hydrateBackendCase(caseKey)
+        return
+      }
+      pushToast({
+        tone: 'error',
+        title: 'AI yeniden gönderilemedi',
+        body: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      if (resendAbortRef.current === controller) resendAbortRef.current = null
+      setResendingAi(false)
+    }
+  }
+
   async function regenerateWithAI() {
     if (!text || !caseRow || !caseKey.startsWith('case-')) return
     setRegenerating(true)
@@ -547,6 +613,15 @@ export default function RadiologistWorkspace() {
               >
                 Reddet
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-rose-700 hover:bg-rose-50"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                onClick={() => setModal('sil')}
+              >
+                Vakayı sil
+              </Button>
               {!showDicom && (
                 <Button
                   size="sm"
@@ -562,6 +637,50 @@ export default function RadiologistWorkspace() {
               <p className="mt-2 text-xs text-emerald-800">
                 Onaylı sürüm kilitli. <strong>Revize et</strong> ile yeni düzenlenebilir sürüm açılır; eski onaylı
                 sürüm geçmişte kalır.
+              </p>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <Sparkles className="h-3.5 w-3.5" /> AI&apos;ya tekrar yolla
+            </p>
+            <p className="mb-3 text-xs text-slate-600">
+              Tam pipeline&apos;ı yeniden çalıştırır (görüntü + LLM). Hazır/onaylı vakada önce revizyon
+              sürümü açılır; eski onaylı rapor geçmişte kalır. Liste:{' '}
+              <Link to="/ai-tekrar" className="font-semibold text-teal-700 underline">
+                AI&apos;ya Tekrar Yolla
+              </Link>
+              .
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={resendingAi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                disabled={resendingAi || !caseKey.startsWith('case-')}
+                onClick={() => void resendFullPipelineToAI()}
+              >
+                {resendingAi
+                  ? 'Gönderiliyor…'
+                  : immutable
+                    ? "Revizyon aç + AI'ya yolla"
+                    : "Bu vakayı AI'ya tekrar yolla"}
+              </Button>
+              {resendingAi && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<Square className="h-3.5 w-3.5" />}
+                  onClick={() => resendAbortRef.current?.abort()}
+                >
+                  Analizi durdur
+                </Button>
+              )}
+            </div>
+            {immutable && !resendingAi && (
+              <p className="mt-2 text-xs text-amber-800">
+                Onaylı rapor korunur; AI yeni düzenlenebilir sürüm üretir.
               </p>
             )}
           </Card>
@@ -656,7 +775,59 @@ export default function RadiologistWorkspace() {
       </div>
 
       <Modal
-        open={modal !== null}
+        open={modal === 'sil'}
+        onClose={() => {
+          if (!deleting) setModal(null)
+        }}
+        title="Vakayı silmek istediğinize emin misiniz?"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setModal(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting || !caseKey.startsWith('case-')}
+              icon={deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              onClick={() => {
+                if (!caseRow || deleting || !caseKey.startsWith('case-')) return
+                setDeleting(true)
+                void deleteBackendCase(caseKey)
+                  .then(() => {
+                    removeCase(caseRow.id)
+                    pushToast({ tone: 'success', title: 'Vaka silindi', body: caseRow.patient.name })
+                    nav('/kuyruk')
+                  })
+                  .catch((err) =>
+                    pushToast({
+                      tone: 'error',
+                      title: 'Silinemedi',
+                      body: err instanceof Error ? err.message : undefined,
+                    }),
+                  )
+                  .finally(() => setDeleting(false))
+              }}
+            >
+              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-600">
+          <p>
+            <strong className="text-navy-900">{caseRow.patient.name}</strong> vakasını kalıcı olarak silmek istediğinize
+            emin misiniz?
+          </p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
+            {caseRow.no} · {caseKey}
+          </p>
+          <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+        </div>
+      </Modal>
+
+      <Modal
+        open={modal !== null && modal !== 'sil'}
         onClose={() => setModal(null)}
         title={
           modal === 'approve'

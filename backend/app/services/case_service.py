@@ -12,7 +12,11 @@ from app.auth.rbac import CAP_ADMIN, CAP_CASE_WRITE
 from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
+from app.orchestration.progress import apply_pipeline_progress
 from app.schemas.case import (
+    AiChatAsk,
+    AiChatResponse,
+    AiChatTurn,
     CaseActivityEvent,
     CaseAssignmentUpdate,
     CaseCreate,
@@ -25,6 +29,7 @@ from app.schemas.case import (
     ReportDraftUpdate,
     ReviewFeedback,
 )
+from app.settings import Settings
 from app.schemas.documents import CaseDocumentContext
 from app.schemas.workflow import (
     AttachmentRef,
@@ -485,6 +490,63 @@ class CaseService:
             self._repo.save_case(case)
         return self.list_messages(case_id, principal=principal)
 
+    def list_ai_chat(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> list[AiChatTurn]:
+        case = self.get_case(case_id, principal=principal)
+        return list(case.ai_chat or [])
+
+    def ask_ai_chat(
+        self,
+        case_id: str,
+        payload: AiChatAsk,
+        *,
+        settings: Settings,
+        principal: AuthPrincipal | None = None,
+    ) -> AiChatResponse:
+        """Radiologist Q&A over case context (ChatGPT-style). Caps history at 40 turns."""
+        from app.llm.case_chat import answer_case_question
+
+        case = self.get_case(case_id, principal=principal)
+        author_id = principal.subject if principal and principal.via != "disabled" else "demo"
+        history = list(case.ai_chat or [])
+        try:
+            reply, provider = answer_case_question(case, payload.message, history, settings)
+        except LLMProviderError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        user_turn = AiChatTurn(role="user", content=payload.message.strip(), author_id=author_id)
+        assistant_turn = AiChatTurn(role="assistant", content=reply, author_id="vetmind-ai")
+        history = [*history, user_turn, assistant_turn]
+        # Bound growth for SQLite rows / demo DB size.
+        if len(history) > 40:
+            history = history[-40:]
+        case.ai_chat = history
+        case.updated_at = _now()
+        append_activity(case, kind="ai_chat", actor_subject=author_id, detail=f"{len(payload.message)} chars")
+        self._repo.save_case(case)
+        self._emit_audit("case.ai_chat", principal=principal, resource=case_id)
+        return AiChatResponse(
+            case_id=case.case_id,
+            reply=reply,
+            history=history,
+            provider=provider,
+        )
+
+    def clear_ai_chat(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> list[AiChatTurn]:
+        case = self.get_case(case_id, principal=principal)
+        case.ai_chat = []
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        return []
+
     def mark_report_delivered(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> CaseRecord:
@@ -882,13 +944,35 @@ class CaseService:
             # (InMemoryCaseRepository returns the same reference — approve-race safety).
             working = case.model_copy(deep=True)
             result = self._orchestrator.run(
-                working, job, cancel_probe=lambda: self._job_cancel_requested(job.job_id)
+                working,
+                job,
+                cancel_probe=lambda: self._job_cancel_requested(job.job_id),
+                on_progress=self._persist_job_progress,
             )
         finally:
             self._release_analyze_slot()
         result = self._persist_pipeline_result(case_id, working, result)
         self._emit_audit("analysis.run", principal=principal, resource=case_id)
         return result
+
+    def _persist_job_progress(self, job: AnalysisJob) -> None:
+        """Persist checkpoint progress without clobbering cooperative cancel flags."""
+        with self._lock:
+            stored = self._repo.get_job(job.job_id)
+            if stored is None:
+                return
+            if stored.status in {
+                JobStatus.COMPLETED,
+                JobStatus.FAILED,
+                JobStatus.CANCELLED,
+                JobStatus.TIMED_OUT,
+            }:
+                return
+            if stored.cancel_requested or stored.status == JobStatus.CANCEL_REQUESTED:
+                job.cancel_requested = True
+                if job.status == JobStatus.RUNNING:
+                    job.status = JobStatus.CANCEL_REQUESTED
+            self._repo.save_job(job)
 
     def _job_cancel_requested(self, job_id: str) -> bool:
         """Reload cancel flag from durable storage (SQLite/Postgres workers hold copies)."""
@@ -1034,10 +1118,17 @@ class CaseService:
                     return
                 working = current.model_copy(deep=True)
                 job_working = queued.model_copy(deep=True)
+                # Expose running + 0–stage progress before the long orchestrator body.
+                if job_working.status == JobStatus.QUEUED:
+                    job_working.status = JobStatus.RUNNING
+                    job_working.started_at = job_working.started_at or _now()
+                    apply_pipeline_progress(job_working, "prep_metadata")
+                    self._repo.save_job(job_working)
             result = self._orchestrator.run(
                 working,
                 job_working,
                 cancel_probe=lambda: self._job_cancel_requested(job_id),
+                on_progress=self._persist_job_progress,
             )
             # Preserve job_id identity for persistence (copy may diverge on cancel flags).
             result.job.job_id = job_id

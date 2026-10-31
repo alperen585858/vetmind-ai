@@ -16,6 +16,7 @@ import {
   PawPrint,
   Settings,
   ShieldCheck,
+  Sparkles,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -67,6 +68,7 @@ export function Sidebar({
     expert: [
       { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
       { to: '/kuyruk', label: 'İş Listesi', icon: <ClipboardCheck className={ic} />, badge: queue },
+      { to: '/ai-tekrar', label: "AI'ya Tekrar Yolla", icon: <Sparkles className={ic} /> },
       { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
       { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },

@@ -96,4 +96,55 @@ describe('analyzeCaseAsyncAndWait polling cancel', () => {
     expect(result.job.status).toBe('cancelled')
     expect(result.outcome).toBe('failed')
   })
+
+  it('requests backend cancel when cancelBackendOnAbort is set', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/analyze/async')) {
+        return new Response(JSON.stringify({ job_id: 'job-3', status: 'queued', case_id: 'case-3' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('/jobs/job-3/cancel') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            job_id: 'job-3',
+            case_id: 'case-3',
+            status: 'cancel_requested',
+            outcome: null,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('/jobs/job-3')) {
+        controller.abort()
+        return new Response(
+          JSON.stringify({
+            job_id: 'job-3',
+            case_id: 'case-3',
+            status: 'running',
+            outcome: null,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      analyzeCaseAsyncAndWait('case-3', {
+        signal: controller.signal,
+        intervalMs: 10,
+        timeoutMs: 2000,
+        cancelBackendOnAbort: true,
+      }),
+    ).rejects.toBeInstanceOf(PollingCancelledError)
+
+    expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/jobs/job-3/cancel') && init?.method === 'POST')).toBe(
+      true,
+    )
+  })
 })

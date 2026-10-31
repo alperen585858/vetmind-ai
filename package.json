@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "backend:dev": "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
-    "backend:dev:ai": "cd backend && VETMIND_LLM_PROVIDER=ollama VETMIND_LLM_MODEL_ID=qwen2.5:7b VETMIND_LLM_TIMEOUT_S=180 VETMIND_LLM_VERIFY=true .venv/bin/uvicorn app.main:app --reload --port 8000",
+    "backend:dev:ai": "cd backend && VETMIND_LLM_PROVIDER=ollama VETMIND_LLM_MODEL_ID=qwen2.5:7b VETMIND_LLM_TIMEOUT_S=600 VETMIND_LLM_VERIFY=false .venv/bin/uvicorn app.main:app --reload --port 8000",
     "backend:test": "cd backend && .venv/bin/pytest -q",
     "e2e": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test",
     "e2e:ui": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test --ui",

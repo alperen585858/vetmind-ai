@@ -28,6 +28,12 @@ class AnalysisJob(BaseModel):
     idempotency_key: Optional[str] = None
     timeout_s: Optional[float] = None
     analysis_mode: str = "mock"  # mock | real | mixed — advisory from routed source_kinds
+    # Checkpoint progress only (orchestrator stage boundaries) — never time/GPU estimates.
+    pipeline_stage: Optional[str] = None
+    progress_pct: int = 0
+    stage_label: Optional[str] = None
+    vision_adapter_index: Optional[int] = None
+    vision_adapter_total: Optional[int] = None
 
 
 class PipelineResult(BaseModel):
