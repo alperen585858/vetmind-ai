@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Bell, CheckCheck, Loader2, Trash2 } from 'lucide-react'
 import {
   clearAllNotifications,
@@ -9,10 +9,12 @@ import {
   markNotificationRead,
   type AppNotification,
 } from '../lib/backend'
+import { useLocale } from '../context/LocaleContext'
 import { fmtDate } from '../lib/format'
 
 export function NotificationBell() {
-  const nav = useNavigate()
+  const { t } = useLocale()
+  const nav = useLocalizedNavigate()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
@@ -107,7 +109,9 @@ export function NotificationBell() {
       <button
         type="button"
         className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100"
-        aria-label={unread ? `Bildirimler · ${unread} okunmamış` : 'Bildirimler'}
+        aria-label={
+          unread ? t('notifications.ariaUnread', { count: unread }) : t('notifications.title')
+        }
         aria-expanded={open}
         onClick={onOpen}
       >
@@ -121,7 +125,7 @@ export function NotificationBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96">
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
-            <p className="text-sm font-semibold text-navy-900">Bildirimler</p>
+            <p className="text-sm font-semibold text-navy-900">{t('notifications.title')}</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -129,7 +133,7 @@ export function NotificationBell() {
                 onClick={() => void onMarkAll()}
                 disabled={!unread || busyId !== null}
               >
-                <CheckCheck className="h-3.5 w-3.5" /> Tümünü okundu
+                <CheckCheck className="h-3.5 w-3.5" /> {t('notifications.markAll')}
               </button>
               <button
                 type="button"
@@ -137,17 +141,17 @@ export function NotificationBell() {
                 onClick={() => void onClearAll()}
                 disabled={!items.length || busyId !== null}
               >
-                <Trash2 className="h-3.5 w-3.5" /> Tümünü sil
+                <Trash2 className="h-3.5 w-3.5" /> {t('notifications.clearAll')}
               </button>
             </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {loading && !items.length ? (
               <p className="flex items-center gap-2 px-3 py-6 text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}
               </p>
             ) : items.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-slate-500">Bildirim yok</p>
+              <p className="px-3 py-6 text-center text-sm text-slate-500">{t('notifications.empty')}</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {items.map((n) => {
@@ -170,8 +174,8 @@ export function NotificationBell() {
                     </button>
                     <button
                       type="button"
-                      aria-label="Bildirimi sil"
-                      title="Sil"
+                      aria-label={t('notifications.deleteAria')}
+                      title={t('common.delete')}
                       disabled={busyId !== null}
                       onClick={(e) => void onDelete(n, e)}
                       className="shrink-0 px-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"

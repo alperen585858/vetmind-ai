@@ -1,13 +1,15 @@
-const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+import { translate } from '../i18n'
+import type { Locale } from '../i18n/types'
 
-export function fmtDate(iso?: string) {
+export function fmtDate(iso?: string, locale: Locale = 'tr') {
   if (!iso) return '—'
   const normalized = iso.includes('T') ? iso.replace('T', ' ').replace(/Z$/, '') : iso
   const [d, time] = normalized.split(' ')
   const [y, m, day] = d.split('-').map(Number)
   if (!y || !m || !day) return iso
   const clock = time ? time.slice(0, 5) : ''
-  return `${day} ${MONTHS[m - 1]} ${y}${clock ? ` · ${clock}` : ''}`
+  const month = translate(locale, `format.month${m}`)
+  return `${day} ${month} ${y}${clock ? ` · ${clock}` : ''}`
 }
 
 export function nowStamp() {

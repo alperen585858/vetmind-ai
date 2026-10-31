@@ -1,55 +1,72 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
 import { Lock, Menu, UserRound, X } from 'lucide-react'
-
-const NAV = [
-  { label: 'Hizmetler', href: '#hizmetler' },
-  { label: 'Nasıl çalışır', href: '#nasil' },
-  { label: 'Hakkında', href: '#hakkinda' },
-]
+import { useLocale } from '../context/LocaleContext'
+import { LanguageSwitcher } from '../components/LanguageSwitcher'
 
 export default function Landing() {
+  const { t } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const NAV = [
+    { label: t('landing.navServices'), href: '#hizmetler' },
+    { label: t('landing.navHow'), href: '#nasil' },
+    { label: t('landing.navAbout'), href: '#hakkinda' },
+  ]
+
+  const services = [
+    { title: t('landing.svcDicomTitle'), text: t('landing.svcDicomBody') },
+    { title: t('landing.svcAiTitle'), text: t('landing.svcAiBody') },
+    { title: t('landing.svcReviewTitle'), text: t('landing.svcReviewBody') },
+  ]
+
+  const howSteps = [
+    t('landing.how1'),
+    t('landing.how2'),
+    t('landing.how3'),
+    t('landing.how4'),
+  ]
 
   return (
     <div className="min-h-screen bg-white font-display text-navy-900">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-sky-100/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-3" aria-label="VetMind AI ana sayfa">
+          <LocalizedLink to="/" className="flex items-center gap-3" aria-label={t('landing.homeAria')}>
             <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800 shadow-md ring-2 ring-sky-100">
               <span className="text-lg font-bold tracking-tight text-white">V</span>
             </span>
             <span className="leading-tight">
               <span className="block text-[1.35rem] font-bold tracking-tight text-navy-900">VetMind</span>
               <span className="block text-[0.7rem] font-medium uppercase tracking-[0.18em] text-sky-500">
-                AI Teleradyoloji
+                {t('landing.tagline')}
               </span>
             </span>
-          </Link>
+          </LocalizedLink>
 
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <Link
+            <LanguageSwitcher persistRemote={false} size="sm" />
+            <LocalizedLink
               to="/giris"
               className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
             >
               <Lock className="h-3.5 w-3.5" aria-hidden />
-              Giriş
-            </Link>
-            <Link
+              {t('landing.login')}
+            </LocalizedLink>
+            <LocalizedLink
               to="/kayit"
               className="hidden items-center gap-2 rounded-full border border-sky-400 bg-white px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 sm:inline-flex"
             >
               <UserRound className="h-3.5 w-3.5" aria-hidden />
-              Kayıt
-            </Link>
+              {t('landing.register')}
+            </LocalizedLink>
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-navy-800 text-white transition hover:bg-navy-900"
               aria-expanded={menuOpen}
               aria-controls="landing-menu"
-              aria-label={menuOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+              aria-label={menuOpen ? t('common.closeMenu') : t('common.openMenu')}
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -74,13 +91,16 @@ export default function Landing() {
                 </li>
               ))}
               <li className="sm:hidden">
-                <Link
+                <LanguageSwitcher persistRemote={false} size="sm" className="mx-3 my-2" />
+              </li>
+              <li className="sm:hidden">
+                <LocalizedLink
                   to="/kayit"
                   onClick={() => setMenuOpen(false)}
                   className="block rounded-lg px-3 py-2.5 text-sm font-medium text-sky-600"
                 >
-                  Kayıt ol
-                </Link>
+                  {t('landing.registerLong')}
+                </LocalizedLink>
               </li>
             </ul>
           </nav>
@@ -100,27 +120,27 @@ export default function Landing() {
             VetMind AI
           </p>
           <h1 className="landing-reveal landing-reveal-delay-1 mt-4 max-w-xl text-[2.15rem] font-bold leading-[1.12] tracking-tight text-white sm:text-5xl lg:max-w-2xl lg:text-[3.25rem]">
-            Sektörün önde gelen veteriner tanı görüntüleme ve nöroloji uzmanlığı
+            {t('landing.heroTitle')}
           </h1>
           <p className="landing-reveal landing-reveal-delay-2 mt-5 max-w-md text-base leading-relaxed text-sky-100/90 sm:text-lg">
-            Hızlı, klinik odaklı genel görüntüleme ve nörogörüntüleme raporlarıyla pratikteki meslektaşlarımıza destek.
+            {t('landing.heroBody')}
           </p>
 
           <div className="landing-reveal landing-reveal-delay-3 mt-10 flex items-center gap-6 lg:mt-0 lg:absolute lg:right-[8%] lg:top-1/2 lg:-translate-y-1/2">
-            <Link
+            <LocalizedLink
               to="/giris"
               className="landing-cta group relative flex h-36 w-36 flex-col items-center justify-center rounded-full bg-sky-500 text-center text-white shadow-[0_12px_40px_rgba(14,165,233,0.45)] transition duration-300 hover:scale-105 hover:bg-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:h-44 sm:w-44"
             >
               <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-sky-100">
-                Başlayın
+                {t('landing.ctaStart')}
               </span>
               <span className="mt-1 text-sm font-bold uppercase tracking-wide sm:text-base">
-                Vaka Gönder
+                {t('landing.ctaSend')}
               </span>
               <span className="mt-0.5 text-lg transition group-hover:translate-x-1" aria-hidden>
                 →
               </span>
-            </Link>
+            </LocalizedLink>
           </div>
         </div>
       </section>
@@ -129,37 +149,33 @@ export default function Landing() {
       <section id="hakkinda" className="bg-sky-600 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-100/90">
-            Hakkında
+            {t('landing.aboutEyebrow')}
           </p>
           <p className="mt-4 text-base leading-relaxed text-white sm:text-lg">
-            VetMind AI Teleradyoloji; DICOM yükleme, AI destekli taslak rapor ve uzman veteriner radyolog onayıyla
-            çalışan, klinik odaklı bir hizmet prototipidir. Pratikteki meslektaşlarımıza hızlı ve yapılandırılmış
-            görüntüleme desteği sunmak için tasarlandı.
+            {t('landing.aboutBody')}
           </p>
           <p className="mt-4 rounded-xl bg-navy-950/25 px-4 py-3 text-sm leading-relaxed text-sky-50 ring-1 ring-inset ring-white/20">
-            Demo hesaplarında arayüz rol kapıları yalnızca UX’tir. Gerçek yetki backend JWT / RBAC ile sağlanır;
-            varsayılan AI çıktıları MOCK / SYNTHETIC etiketlidir — klinik üretim sistemi değildir.
+            {t('landing.aboutDemo')}
           </p>
         </div>
       </section>
 
       {/* Partnership — dark band matches VRM logo ground */}
-      <section className="bg-navy-950 px-4 py-12 sm:px-6 lg:px-8" aria-label="İşbirliği">
+      <section className="bg-navy-950 px-4 py-12 sm:px-6 lg:px-8" aria-label={t('landing.partnerAria')}>
         <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-sky-300/70">
-            İşbirliği
+            {t('landing.partnerEyebrow')}
           </p>
           <img
             src="/vrm-logo.png"
-            alt="VRM Veteriner Radyoloji Merkezi"
+            alt={t('landing.vrmAlt')}
             className="mt-5 h-auto w-full max-w-[300px] sm:max-w-[360px]"
           />
           <p className="mt-5 text-sm font-medium tracking-tight text-sky-100 sm:text-base">
-            VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş.
+            {t('landing.partnerName')}
           </p>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-sky-200/70">
-            Veteriner tanı görüntüleme alanındaki klinik deneyim ve uzmanlık, platformun tasarımı ve
-            geliştirilmesinde yol gösterici olmuştur.
+            {t('landing.partnerBody')}
           </p>
         </div>
       </section>
@@ -168,26 +184,13 @@ export default function Landing() {
       <section id="hizmetler" className="bg-sky-50 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl">
-            Hizmetler
+            {t('landing.servicesTitle')}
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-center text-navy-600">
-            Genel görüntüleme ve nörogörüntüleme için tek akışta yükleme, analiz ve uzman incelemesi.
+            {t('landing.servicesBody')}
           </p>
           <ul className="mt-12 grid gap-10 sm:grid-cols-3">
-            {[
-              {
-                title: 'DICOM yükleme',
-                text: 'Çalışma, seri ve kesit metadata’sını güvenli karantinaya alın; tür ve modaliteyi onaylayın.',
-              },
-              {
-                title: 'AI taslak rapor',
-                text: 'Görüntü ve klinik bağlamdan yapılandırılmış bulgular; her çıktı uzman onayı için hazırlanır.',
-              },
-              {
-                title: 'Uzman inceleme',
-                text: 'Veteriner radyolog onay, red veya revizyon ile klinik sorumluluğu korur.',
-              },
-            ].map((item) => (
+            {services.map((item) => (
               <li key={item.title} className="text-center">
                 <h3 className="text-lg font-semibold text-navy-900">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-navy-600">{item.text}</p>
@@ -200,14 +203,9 @@ export default function Landing() {
       {/* How it works */}
       <section id="nasil" className="bg-white px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl">Nasıl çalışır</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl">{t('landing.howTitle')}</h2>
           <ol className="mt-10 space-y-6 text-left">
-            {[
-              'Hesabınıza giriş yapın veya demo kimlikleriyle oturum açın.',
-              'DICOM veya demo vaka yükleyin; sınıflandırmayı onaylayın.',
-              'AI pipeline taslak raporu üretir; uzman kuyruğunda incelenir.',
-              'Onaylanan rapor klinik ekibe sunulur — AI tanı koymaz.',
-            ].map((step, i) => (
+            {howSteps.map((step, i) => (
               <li key={step} className="flex gap-4">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-white">
                   {i + 1}
@@ -216,27 +214,27 @@ export default function Landing() {
               </li>
             ))}
           </ol>
-          <Link
+          <LocalizedLink
             to="/giris"
             className="mt-12 inline-flex items-center rounded-full bg-navy-900 px-8 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
           >
-            Demo’ya giriş yap
-          </Link>
+            {t('landing.howCta')}
+          </LocalizedLink>
         </div>
       </section>
 
       <footer className="border-t border-sky-100 bg-navy-950 px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
           <p className="text-sm text-sky-200/80">
-            © {new Date().getFullYear()} VetMind AI · Bitirme projesi prototipi · Klinik üretim sistemi değildir
+            {t('landing.footer', { year: new Date().getFullYear() })}
           </p>
           <div className="flex gap-4 text-sm text-sky-300/90">
-            <Link to="/giris" className="hover:text-white">
-              Giriş
-            </Link>
-            <Link to="/kayit" className="hover:text-white">
-              Kayıt
-            </Link>
+            <LocalizedLink to="/giris" className="hover:text-white">
+              {t('landing.login')}
+            </LocalizedLink>
+            <LocalizedLink to="/kayit" className="hover:text-white">
+              {t('landing.register')}
+            </LocalizedLink>
           </div>
         </div>
       </footer>

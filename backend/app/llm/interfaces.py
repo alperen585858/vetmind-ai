@@ -91,6 +91,8 @@ class LLMGenerationInput(BaseModel):
     document_context_file_count: int = 0
     rag_passages: list[RagPassage] = Field(default_factory=list)
     rag_is_clinical_validation: bool = False
+    # UI / UserSettings language (tr|en); providers fall back to env default when unset by caller.
+    language: str = "tr"
     note: str = (
         "Minimal LLM generation input. Opaque case_id for traceability only. "
         "findings_source_kind traces imaging provenance separately from rag_passages. "

@@ -1,5 +1,7 @@
 // Mock AI çıktı şablonları. Gerçek bir model yoktur; yeni vakalar için
 // nörolojik lokalizasyona göre bu şablonlardan biri seçilip hasta bilgileriyle doldurulur.
+import type { Locale } from '../i18n/types'
+import { TEMPLATES_EN } from './templatesEn'
 import type {
   AIAssessment,
   CaseDocument,
@@ -327,10 +329,21 @@ export const TEMPLATES: Record<TemplateKey, (p: Patient, n: NeuroExam) => Templa
   forebrain: (p) => forebrain(p),
 }
 
+/** Locale-aware template builder (TR default). */
+export function getTemplate(key: TemplateKey, locale: Locale = 'tr') {
+  return locale === 'en' ? TEMPLATES_EN[key] : TEMPLATES[key]
+}
+
 const MODEL = 'vetmind-neuro-v0.1 (LLM, LoRA)'
 
-export function buildAssessment(key: TemplateKey, p: Patient, n: NeuroExam, generatedAt: string) {
-  const out = TEMPLATES[key](p, n)
+export function buildAssessment(
+  key: TemplateKey,
+  p: Patient,
+  n: NeuroExam,
+  generatedAt: string,
+  locale: Locale = 'tr',
+) {
+  const out = getTemplate(key, locale)(p, n)
   const ai: AIAssessment = { ...out.ai, model: MODEL, generatedAt }
   return { ai, draft: out.draft, imaging: out.imaging }
 }

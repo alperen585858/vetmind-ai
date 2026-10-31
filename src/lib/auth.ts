@@ -1,3 +1,5 @@
+import type { Locale } from '../i18n/types'
+import { localizePath } from '../i18n/paths'
 import type { Role, User } from '../types'
 import { USERS } from '../data/mock'
 
@@ -253,9 +255,9 @@ export function userFromSession(session: DemoSession): User {
   }
 }
 
-export function postLoginPath(role: Role): string {
-  if (role === 'vet') return '/dicom-yukle'
-  return '/'
+export function postLoginPath(role: Role, locale: Locale = 'tr'): string {
+  const tr = role === 'vet' ? '/dicom-yukle' : '/'
+  return localizePath(tr, locale)
 }
 
 /** Seed demo accounts share this password with the FastAPI auth module. */

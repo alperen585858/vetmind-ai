@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   Brain,
@@ -13,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card, CardHeader } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -30,26 +33,31 @@ import {
   type BackendAnalysisJob,
 } from '../lib/backend'
 import type { BackendPipelineResult } from '../types'
+import type { TranslateFn } from '../i18n'
 
-function analysisModeBanner(mode: string | undefined, sourceKind: string | undefined): {
+function analysisModeBanner(
+  mode: string | undefined,
+  sourceKind: string | undefined,
+  t: TranslateFn,
+): {
   label: string
   cls: string
 } {
   const resolved = mode || (sourceKind === 'real' ? 'real' : sourceKind === 'mixed' ? 'mixed' : 'mock')
   if (resolved === 'real') {
     return {
-      label: 'REAL MODEL ANALYSIS',
+      label: t('cases.processing.modeReal'),
       cls: 'border-emerald-300 bg-emerald-50 text-emerald-950',
     }
   }
   if (resolved === 'mixed') {
     return {
-      label: 'KARMA KAYNAK ANALİZİ',
+      label: t('cases.processing.modeMixed'),
       cls: 'border-amber-300 bg-amber-50 text-amber-950',
     }
   }
   return {
-    label: 'AI ÖN DEĞERLENDİRME',
+    label: t('cases.processing.modeMock'),
     cls: 'border-sky-300 bg-sky-50 text-sky-950',
   }
 }
@@ -72,7 +80,8 @@ function isInFlightStatus(status: string | undefined): boolean {
 export default function Processing() {
   const { id = '' } = useParams()
   const { getCase, updateCase, hydrateBackendCase, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t } = useLocale()
+  const nav = useLocalizedNavigate()
   const c = getCase(id)
   const isBackend = Boolean(c?.backendCaseId || id.startsWith('case-'))
   const [job, setJob] = useState<BackendAnalysisJob | null>(null)
@@ -95,9 +104,9 @@ export default function Processing() {
         setJob(null)
       }
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Job durumu alınamadı')
+      setLoadError(err instanceof Error ? err.message : t('cases.processing.jobStatusFailed'))
     }
-  }, [caseId, hydrateBackendCase, isBackend])
+  }, [caseId, hydrateBackendCase, isBackend, t])
 
   useEffect(() => {
     void refresh()
@@ -106,7 +115,6 @@ export default function Processing() {
   const jobStatus = job?.status ?? (c?.backendOutcome ? 'completed' : 'unknown')
   const inFlight = isInFlightStatus(job?.status) || retrying
 
-  // Live-poll while analysis (or cooperative cancel) is in progress.
   useEffect(() => {
     if (!inFlight || !isBackend || !caseId.startsWith('case-')) return
     const timer = window.setInterval(() => {
@@ -115,21 +123,18 @@ export default function Processing() {
     return () => window.clearInterval(timer)
   }, [inFlight, isBackend, caseId, refresh])
 
-  const mode = analysisModeBanner(
-    job?.analysis_mode,
-    c?.backendFindings?.source_kind,
-  )
+  const mode = analysisModeBanner(job?.analysis_mode, c?.backendFindings?.source_kind, t)
 
   const studyLabel = useMemo(() => {
-    if (!c) return '—'
+    if (!c) return t('common.dash')
     const parts = [
       c.modality,
       c.anatomicalRegion,
       c.studyInstanceUid ? `UID …${c.studyInstanceUid.slice(-10)}` : null,
-      c.instanceCount != null ? `${c.instanceCount} görüntü` : null,
+      c.instanceCount != null ? t('cases.processing.imagesCount', { n: String(c.instanceCount) }) : null,
     ].filter(Boolean)
     return parts.join(' · ') || 'Study metadata'
-  }, [c])
+  }, [c, t])
 
   const onStop = async () => {
     const jobId = job?.job_id ?? c?.backendJobId
@@ -137,21 +142,20 @@ export default function Processing() {
     setStopping(true)
     setLoadError(null)
     try {
-      // If a local retry poll is running, abort it; cancelBackendOnAbort handles server cancel.
       retryAbortRef.current?.abort()
       const updated = await requestCancelAnalysisJob(jobId)
       setJob(updated)
       pushToast({
         tone: 'info',
-        title: 'Analiz durduruluyor',
-        body: 'İptal isteği gönderildi; iş kooperatif olarak sonlanacak.',
+        title: t('cases.processing.toastStopping'),
+        body: t('cases.processing.toastCancelBody'),
       })
       await hydrateBackendCase(caseId)
       await refresh()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'İptal isteği başarısız'
+      const message = err instanceof Error ? err.message : t('cases.processing.cancelFailed')
       setLoadError(message)
-      pushToast({ tone: 'error', title: 'Analiz durdurulamadı', body: message })
+      pushToast({ tone: 'error', title: t('cases.processing.toastStopFailed'), body: message })
     } finally {
       setStopping(false)
     }
@@ -187,7 +191,7 @@ export default function Processing() {
       })
       pushToast({
         tone: result.outcome === 'failed' ? 'error' : 'success',
-        title: 'Analiz yenilendi',
+        title: t('cases.processing.toastRefreshed'),
         body: `outcome=${result.outcome}`,
       })
       await hydrateBackendCase(caseId)
@@ -195,8 +199,8 @@ export default function Processing() {
       if (err instanceof PollingCancelledError) {
         pushToast({
           tone: 'info',
-          title: 'Analiz durduruldu',
-          body: 'İstemci izleme ve backend iptal isteği uygulandı.',
+          title: t('cases.processing.toastStopped'),
+          body: t('cases.processing.toastStoppedBody'),
         })
         await hydrateBackendCase(caseId)
         await refresh()
@@ -207,9 +211,9 @@ export default function Processing() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Yeniden deneme başarısız'
+            : t('cases.processing.retryFailed')
       setLoadError(message)
-      pushToast({ tone: 'error', title: 'Yeniden deneme başarısız', body: message })
+      pushToast({ tone: 'error', title: t('cases.processing.retryFailed'), body: message })
     } finally {
       if (retryAbortRef.current === controller) retryAbortRef.current = null
       setRetrying(false)
@@ -219,7 +223,7 @@ export default function Processing() {
   if (!c) {
     return (
       <Card>
-        <EmptyState icon={<FileText className="h-6 w-6" />} title="Vaka bulunamadı" />
+        <EmptyState icon={<FileText className="h-6 w-6" />} title={t('cases.processing.notFound')} />
       </Card>
     )
   }
@@ -228,28 +232,25 @@ export default function Processing() {
     return (
       <>
         <PageHeader
-          title={`AI İşleme — ${c.patient.name}`}
-          subtitle={`${c.no} · yerel prototip`}
-          breadcrumb="Vakalar / AI İşleme"
+          title={`${t('cases.processing.title')} — ${c.patient.name}`}
+          subtitle={t('cases.processing.localSubtitle', { no: c.no })}
+          breadcrumb={t('cases.processing.breadcrumb')}
           actions={<StatusBadge status={c.status} />}
         />
         <CaseWorkflowStepper currentStep={2} />
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold tracking-wide">Yerel demo animasyonu — gerçek AI pipeline değil</p>
-          <p className="mt-1 text-xs opacity-90">
-            Qdrant / 768-dim embed / token-s log’ları <code className="font-mono">pipeline.ts</code> fiction’ıdır;
-            backend job alanları burada gösterilmez.
-          </p>
+          <p className="font-semibold tracking-wide">{t('cases.processing.localDemoTitle')}</p>
+          <p className="mt-1 text-xs opacity-90">{t('cases.processing.localDemoBody')}</p>
         </div>
         <Card>
           <EmptyState
             icon={<AlertCircle className="h-6 w-6" />}
-            title="Yerel prototip — backend job yok"
-            text="Bu vaka FastAPI async analyze ile oluşturulmadı. GPU/progress tahminleri gösterilmez. DICOM veya backend Yeni Vaka kullanın."
+            title={t('cases.processing.localEmptyTitle')}
+            text={t('cases.processing.localEmptyText')}
             action={
-              <Link to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
-                Vaka detayına dön
-              </Link>
+              <LocalizedLink to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
+                {t('cases.processing.backToDetail')}
+              </LocalizedLink>
             }
           />
         </Card>
@@ -270,9 +271,9 @@ export default function Processing() {
   return (
     <>
       <PageHeader
-        title={`AI İşleme — ${c.patient.name}`}
+        title={`${t('cases.processing.title')} — ${c.patient.name}`}
         subtitle={`${c.no} · ${c.patient.species}, ${c.patient.breed}`}
-        breadcrumb="Vakalar / AI İşleme"
+        breadcrumb={t('cases.processing.breadcrumb')}
         actions={<StatusBadge status={c.status} />}
       />
       <div className="mb-4">
@@ -290,7 +291,7 @@ export default function Processing() {
             {loadError}
           </p>
           <Button size="sm" variant="secondary" onClick={() => void refresh()}>
-            Tekrar dene
+            {t('common.retry')}
           </Button>
         </div>
       )}
@@ -302,75 +303,76 @@ export default function Processing() {
               <SkeletonRows rows={4} />
             </Card>
           ) : (
-          <Card className="p-5">
-            <div className="flex items-start gap-3">
-              {statusIcon(jobStatus)}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-navy-900">
-                  Job durumu: <span className="font-mono">{jobStatus}</span>
-                  {outcome ? ` · outcome=${outcome}` : ''}
-                </p>
-                <p className="mt-1 text-xs text-slate-600">
-                  {cancelling
-                    ? 'İptal isteği alındı; pipeline uygun noktada duracak.'
-                    : inFlight
-                      ? 'Analiz sürüyor. Yüzde, tamamlanan pipeline aşamalarından gelir (zaman tahmini değil).'
-                      : 'Yüzde yalnızca backend checkpoint alanlarından gösterilir; GPU/zaman tahmini yok.'}
-                </p>
-                {(inFlight || (job?.progress_pct != null && job.progress_pct > 0)) && (
-                  <div className="mt-3">
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                      <span className="font-medium text-navy-800">
-                        {job?.stage_label || job?.pipeline_stage || (inFlight ? 'Analiz' : '—')}
-                        {job?.pipeline_stage === 'vision_adapters' &&
-                        job.vision_adapter_total != null &&
-                        job.vision_adapter_total > 0
-                          ? ` · model ${(job.vision_adapter_index ?? 0) + 1}/${job.vision_adapter_total}`
-                          : ''}
-                      </span>
-                      <span className="font-mono font-semibold tabular-nums text-teal-800">
-                        {Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%
-                      </span>
-                    </div>
-                    <div
-                      className="h-2 overflow-hidden rounded-full bg-slate-100"
-                      role="progressbar"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={Math.max(0, Math.min(100, job?.progress_pct ?? 0))}
-                      aria-label="Analiz ilerleme yüzdesi"
-                    >
+            <Card className="p-5">
+              <div className="flex items-start gap-3">
+                {statusIcon(jobStatus)}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-navy-900">
+                    {t('cases.processing.jobStatus')}{' '}
+                    <span className="font-mono">{jobStatus}</span>
+                    {outcome ? ` · outcome=${outcome}` : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {cancelling
+                      ? t('cases.processing.cancelPending')
+                      : inFlight
+                        ? t('cases.processing.inFlightHint')
+                        : t('cases.processing.idleHint')}
+                  </p>
+                  {(inFlight || (job?.progress_pct != null && job.progress_pct > 0)) && (
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-navy-800">
+                          {job?.stage_label || job?.pipeline_stage || (inFlight ? t('analysis.analyzing') : t('common.dash'))}
+                          {job?.pipeline_stage === 'vision_adapters' &&
+                          job.vision_adapter_total != null &&
+                          job.vision_adapter_total > 0
+                            ? ` · model ${(job.vision_adapter_index ?? 0) + 1}/${job.vision_adapter_total}`
+                            : ''}
+                        </span>
+                        <span className="font-mono font-semibold tabular-nums text-teal-800">
+                          {Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%
+                        </span>
+                      </div>
                       <div
-                        className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
-                        style={{
-                          width: `${Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%`,
-                        }}
-                      />
+                        className="h-2 overflow-hidden rounded-full bg-slate-100"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.max(0, Math.min(100, job?.progress_pct ?? 0))}
+                        aria-label={t('cases.processing.progressAria')}
+                      >
+                        <div
+                          className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-                {job?.error_message && (
-                  <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{job.error_message}</p>
-                )}
+                  )}
+                  {job?.error_message && (
+                    <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{job.error_message}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
           )}
 
           <Card>
-            <CardHeader title="Pipeline özeti" icon={<Brain className="h-5 w-5" />} />
+            <CardHeader title={t('cases.processing.pipelineSummary')} icon={<Brain className="h-5 w-5" />} />
             <dl className="divide-y divide-slate-50 px-5 py-2 text-sm">
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">Case ID</dt>
                 <dd className="col-span-3 font-mono text-xs">{caseId}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
-                <dt className="col-span-2 text-slate-500">Study</dt>
+                <dt className="col-span-2 text-slate-500">{t('cases.study')}</dt>
                 <dd className="col-span-3">{studyLabel}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">Job ID</dt>
-                <dd className="col-span-3 font-mono text-xs">{job?.job_id ?? c.backendJobId ?? '—'}</dd>
+                <dd className="col-span-3 font-mono text-xs">{job?.job_id ?? c.backendJobId ?? t('common.dash')}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">Modeller</dt>
@@ -379,15 +381,13 @@ export default function Processing() {
                     (job?.routed_model_ids?.length
                       ? job.routed_model_ids
                       : c.backendFindings?.contributing_model_ids) ?? []
-                  ).join(', ') || '—'}
-                  {job?.routed_model_versions?.length
-                    ? ` · v${job.routed_model_versions.join(', ')}`
-                    : ''}
+                  ).join(', ') || t('common.dash')}
+                  {job?.routed_model_versions?.length ? ` · v${job.routed_model_versions.join(', ')}` : ''}
                 </dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">Route</dt>
-                <dd className="col-span-3 text-xs">{job?.route_reason ?? '—'}</dd>
+                <dd className="col-span-3 text-xs">{job?.route_reason ?? t('common.dash')}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">source_kind</dt>
@@ -397,14 +397,12 @@ export default function Processing() {
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">Timeout (declared)</dt>
-                <dd className="col-span-3 text-xs">
-                  {job?.timeout_s != null ? `${job.timeout_s}s` : '—'}
-                </dd>
+                <dd className="col-span-3 text-xs">{job?.timeout_s != null ? `${job.timeout_s}s` : t('common.dash')}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
-                <dt className="col-span-2 text-slate-500">Aşama</dt>
+                <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
                 <dd className="col-span-3 text-xs">
-                  {job?.stage_label || job?.pipeline_stage || '—'}
+                  {job?.stage_label || job?.pipeline_stage || t('common.dash')}
                   {job?.progress_pct != null ? ` · ${job.progress_pct}%` : ''}
                 </dd>
               </div>
@@ -415,9 +413,7 @@ export default function Processing() {
             <Card className="border-teal-100 p-5">
               <p className="flex items-start gap-2 text-sm text-navy-800">
                 <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-teal-600" />
-                {cancelling
-                  ? 'Analiz durduruluyor…'
-                  : 'AI analizi devam ediyor. Durdurmak kooperatif iptal isteği gönderir.'}
+                {cancelling ? t('cases.processing.stoppingCard') : t('cases.processing.inFlightCard')}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -433,13 +429,13 @@ export default function Processing() {
                   disabled={!canStop || stopping}
                   onClick={() => void onStop()}
                 >
-                  {cancelling ? 'Durduruluyor…' : 'Analizi durdur'}
+                  {cancelling ? t('cases.detail.stopping') : t('cases.processing.stopAnalysis')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void refresh()}>
-                  Job yenile
+                  {t('cases.processing.refreshJob')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => nav(`/vakalar/${c.id}`)}>
-                  Vaka detayı
+                  {t('cases.processing.caseDetail')}
                 </Button>
               </div>
             </Card>
@@ -449,9 +445,9 @@ export default function Processing() {
             <Card className="border-rose-100 p-5">
               <p className="flex items-start gap-2 text-sm text-rose-900">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                {failed && 'Analiz başarısız veya zaman aşımı — onaylanabilir AI taslak yok.'}
-                {unsupported && 'Desteklenmeyen modalite/bölge — manuel inceleme; AI draft onayı kapalı.'}
-                {cancelled && 'Job iptal edildi (cooperative).'}
+                {failed && t('cases.processing.failedMsg')}
+                {unsupported && t('cases.processing.unsupportedMsg')}
+                {cancelled && t('cases.processing.cancelledMsg')}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -461,10 +457,10 @@ export default function Processing() {
                   disabled={retrying}
                   onClick={() => void onRetry()}
                 >
-                  Yeniden dene (async)
+                  {t('cases.processing.retryAsync')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => nav(`/vakalar/${c.id}`)}>
-                  Vaka detayı
+                  {t('cases.processing.caseDetail')}
                 </Button>
               </div>
             </Card>
@@ -472,18 +468,16 @@ export default function Processing() {
 
           {!failed && !unsupported && !cancelled && !inFlight && (
             <Card className="p-5">
-              <p className="text-sm text-navy-800">
-                Analiz tamamlandıysa uzman incelemesine geçebilirsiniz.
-              </p>
+              <p className="text-sm text-navy-800">{t('cases.processing.completedHint')}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
-                  AI taslağı gör
+                  {t('cases.processing.viewAiDraft')}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-                  Uzman inceleme
+                  {t('cases.processing.expertReview')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void refresh()}>
-                  Job yenile
+                  {t('cases.processing.refreshJob')}
                 </Button>
               </div>
             </Card>
@@ -491,11 +485,11 @@ export default function Processing() {
         </div>
 
         <Card className="h-fit p-5">
-          <h3 className="text-sm font-semibold text-navy-900">Güvenlik / sınırlar</h3>
+          <h3 className="text-sm font-semibold text-navy-900">{t('cases.processing.securityTitle')}</h3>
           <ul className="mt-3 space-y-2 text-xs text-slate-600">
-            <li>Piksel erişimi varsayılan kapalı (default-deny).</li>
-            <li>RAG atıfları klinik doğrulama değildir.</li>
-            <li>Provider hataları sessizce yok sayılmaz.</li>
+            <li>{t('cases.processing.security1')}</li>
+            <li>{t('cases.processing.security2')}</li>
+            <li>{t('cases.processing.security3')}</li>
           </ul>
         </Card>
       </div>

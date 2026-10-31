@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { AlertTriangle, FileCheck2, FileText, Loader2, Send, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -15,7 +16,8 @@ import type { VetCase } from '../types'
 
 export default function ReportList() {
   const { cases, role, session, user, refreshBackendCases, removeCase, hydrateBackendCase, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const nav = useLocalizedNavigate()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
@@ -29,7 +31,7 @@ export default function ReportList() {
     let cancelled = false
     void refreshBackendCases().then((r) => {
       if (cancelled) return
-      setLoadError(r.ok ? null : 'Raporlar yüklenemedi. Sunucu bağlantısını kontrol edin.')
+      setLoadError(r.ok ? null : t('reports.loadFailedHint'))
       setLoading(false)
     })
     return () => {
@@ -55,13 +57,13 @@ export default function ReportList() {
       setPendingDelete(null)
       pushToast({
         tone: 'success',
-        title: 'Rapor silindi',
+        title: t('reports.deleted'),
         body: `${target.patient.name} · ${target.reportNo ?? target.no}`,
       })
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Silinemedi',
+        title: t('review.deleteFailed'),
         body: err instanceof Error ? err.message : 'Sunucu hatası',
       })
     } finally {
@@ -73,7 +75,7 @@ export default function ReportList() {
     if (!pendingRevise || revising) return
     const note = reviseNote.trim()
     if (note.length < 10) {
-      pushToast({ tone: 'warning', title: 'Gerekçe gerekli', body: 'En az 10 karakter yazın.' })
+      pushToast({ tone: 'warning', title: t('reports.reasonRequired'), body: t('reports.reasonMinBody') })
       return
     }
     const target = pendingRevise
@@ -89,14 +91,14 @@ export default function ReportList() {
       setReviseNote('')
       pushToast({
         tone: 'success',
-        title: 'Yeni sürüm açıldı',
-        body: `${target.patient.name} — çalışma alanında düzenleyebilirsiniz.`,
+        title: t('reports.revisionOpened'),
+        body: t('reports.revisionOpenedBody', { name: target.patient.name }),
       })
       nav(`/vakalar/${target.id}/calisma`)
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Revizyon açılamadı',
+        title: t('reports.revisionFailed'),
         body: err instanceof Error ? err.message : 'Sunucu hatası',
       })
     } finally {
@@ -107,15 +109,15 @@ export default function ReportList() {
   return (
     <>
       <PageHeader
-        title={role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar'}
-        subtitle="Uzman onayı sonrası yayınlanan raporlar · yazdırılabilir PDF"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: role === 'owner' ? 'Raporlarım' : 'Onaylı Raporlar' }]}
+        title={role === 'owner' ? t('reports.myReports') : t('reports.approved')}
+        subtitle={t('reports.listSubtitle')}
+        crumbs={[{ label: t('nav.dashboard'), to: '/' }, { label: role === 'owner' ? t('reports.myReports') : t('reports.approved') }]}
       />
       <Card>
         {loading && !reports.length ? (
-          <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Raporlar yükleniyor…" />
+          <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title={t('reports.loading')} />
         ) : loadError && !reports.length ? (
-          <EmptyState icon={<AlertTriangle className="h-6 w-6" />} title="Raporlar yüklenemedi" text={loadError} />
+          <EmptyState icon={<AlertTriangle className="h-6 w-6" />} title={t('reports.loadFailed')} text={loadError} />
         ) : reports.length ? (
           <ul className="divide-y divide-slate-100">
             {reports.map((c) => {
@@ -132,10 +134,10 @@ export default function ReportList() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="flex flex-wrap items-center gap-2 font-semibold text-navy-900">
-                    <SpeciesIcon species={c.patient.species} /> {c.patient.name} — Nöroloji Değerlendirme Raporu
+                    <SpeciesIcon species={c.patient.species} /> {c.patient.name} — {t('reports.neuroReportTitle')}
                     {revised ? (
                       <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800 ring-1 ring-inset ring-violet-200">
-                        Revize edilmiş · v{version}
+                        {t('reports.revisedBadge', { version })}
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200">
@@ -145,10 +147,10 @@ export default function ReportList() {
                   </p>
                   <p className="text-xs text-slate-500">
                     {c.reportNo ?? c.no}
-                    {c.approvedBy ? ` · Onaylayan: ${c.approvedBy}` : ''}
-                    {c.approvedAt || c.reportAvailableAt ? ` · ${fmtDate(c.approvedAt ?? c.reportAvailableAt)}` : ''}
-                    {c.reportViewedAt ? ' · görüldü' : c.reportDeliveredAt ? ' · iletildi' : ''}
-                    {revised ? ' · önceki onaylı sürüm kilitli' : ''}
+                    {c.approvedBy ? ` · ${t('reports.approvedBy', { name: c.approvedBy })}` : ''}
+                    {c.approvedAt || c.reportAvailableAt ? ` · ${fmtDate(c.approvedAt ?? c.reportAvailableAt, locale)}` : ''}
+                    {c.reportViewedAt ? ` · ${t('reports.viewed')}` : c.reportDeliveredAt ? ` · ${t('reports.delivered')}` : ''}
+                    {revised ? ` · ${t('reports.priorVersionLocked')}` : ''}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -157,7 +159,7 @@ export default function ReportList() {
                     icon={<FileText className="h-4 w-4" />}
                     onClick={() => nav(`/raporlar/${c.id}`)}
                   >
-                    Raporu aç
+                    {t('reports.openReport')}
                   </Button>
                   {role === 'expert' && (
                     <Button
@@ -169,7 +171,7 @@ export default function ReportList() {
                         setPendingRevise(c)
                       }}
                     >
-                      Revize et
+                      {t('reports.revise')}
                     </Button>
                   )}
                   <Button
@@ -178,9 +180,9 @@ export default function ReportList() {
                     className="text-rose-700 hover:bg-rose-50"
                     icon={<Trash2 className="h-4 w-4" />}
                     onClick={() => setPendingDelete(c)}
-                    aria-label={`${c.patient.name} raporunu sil`}
+                    aria-label={t('reports.deleteReportAria', { name: c.patient.name })}
                   >
-                    Sil
+                    {t('common.delete')}
                   </Button>
                 </div>
               </li>
@@ -190,16 +192,16 @@ export default function ReportList() {
         ) : (
           <EmptyState
             icon={<FileText className="h-6 w-6" />}
-            title="Henüz onaylanmış rapor yok"
-            text={role === 'owner' ? 'Rapor onaylandığında burada görünecek.' : 'İş listesinden onaylanan vakalar burada listelenir.'}
+            title={t('reports.emptyApproved')}
+            text={role === 'owner' ? t('reports.emptyOwnerHint') : t('reports.emptyStaffHint')}
             action={
               role === 'vet' ? (
                 <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
-                  Yeni vaka oluştur
+                  {t('reports.createCase')}
                 </Button>
               ) : role === 'expert' ? (
                 <Button size="sm" onClick={() => nav('/kuyruk')}>
-                  İş listesine git
+                  {t('dashboard.expertGoWorklist')}
                 </Button>
               ) : undefined
             }
@@ -212,11 +214,11 @@ export default function ReportList() {
         onClose={() => {
           if (!deleting) setPendingDelete(null)
         }}
-        title="Raporu sil?"
+        title={t('reports.deleteTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDelete(null)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -225,21 +227,18 @@ export default function ReportList() {
               icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               onClick={() => void confirmDelete()}
             >
-              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+              {deleting ? t('review.deleting') : t('review.confirmDelete')}
             </Button>
           </>
         }
       >
         {pendingDelete ? (
           <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              <strong className="text-navy-900">{pendingDelete.patient.name}</strong> için onaylı raporu kalıcı olarak
-              silmek istediğinize emin misiniz?
-            </p>
+            <p>{t('reports.deleteConfirm', { name: pendingDelete.patient.name })}</p>
             <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
               {pendingDelete.reportNo ?? pendingDelete.no} · {pendingDelete.id}
             </p>
-            <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+            <p className="text-xs text-rose-700">{t('review.irreversible')}</p>
           </div>
         ) : null}
       </Modal>
@@ -249,11 +248,11 @@ export default function ReportList() {
         onClose={() => {
           if (!revising) setPendingRevise(null)
         }}
-        title="Onaylı raporu revize et?"
+        title={t('reports.reviseTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={revising} onClick={() => setPendingRevise(null)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               size="sm"
@@ -261,23 +260,20 @@ export default function ReportList() {
               icon={revising ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               onClick={() => void confirmRevise()}
             >
-              {revising ? 'Açılıyor…' : 'Yeni sürüm aç'}
+              {revising ? t('reports.opening') : t('reports.openNewVersion')}
             </Button>
           </>
         }
       >
         {pendingRevise ? (
           <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              <strong className="text-navy-900">{pendingRevise.patient.name}</strong> için onaylı sürüm kilitli kalır; yeni
-              düzenlenebilir sürüm açılır.
-            </p>
+            <p>{t('reports.reviseBody', { name: pendingRevise.patient.name })}</p>
             <label className="block">
-              <span className="label">Revizyon gerekçesi (zorunlu)</span>
+              <span className="label">{t('reports.reviseReasonLabel')}</span>
               <textarea
                 data-autofocus
                 className="input mt-1 min-h-[96px]"
-                placeholder="Örn. İzlem netleştirilecek, ayırıcı tanılar güncellenecek…"
+                placeholder={t('reports.reviseReasonPlaceholder')}
                 value={reviseNote}
                 onChange={(e) => setReviseNote(e.target.value)}
                 disabled={revising}
@@ -285,8 +281,8 @@ export default function ReportList() {
             </label>
             <p className={`text-xs ${reviseNote.trim().length < 10 ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
               {reviseNote.trim().length < 10
-                ? `En az 10 karakter gerekli (${reviseNote.trim().length}/10)`
-                : `${reviseNote.trim().length} karakter · hazır`}
+                ? t('reports.reviseMinChars', { current: reviseNote.trim().length })
+                : t('reports.reviseReady', { count: reviseNote.trim().length })}
             </p>
           </div>
         ) : null}

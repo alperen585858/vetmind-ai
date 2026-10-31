@@ -4,6 +4,8 @@
  */
 
 import { SECTION_LABELS } from '../data/mock'
+import { translate } from '../i18n'
+import { isLocale } from '../i18n/types'
 import type { BackendDraftReport, BackendFindings, ReportSections, SectionKey, VetCase } from '../types'
 
 export type PrintSection = {
@@ -12,25 +14,36 @@ export type PrintSection = {
   text: string
 }
 
+function documentLocale() {
+  if (typeof document === 'undefined') return 'tr' as const
+  const lang = document.documentElement.lang
+  return isLocale(lang) ? lang : 'tr'
+}
+
+function sectionLabel(key: SectionKey): string {
+  return translate(documentLocale(), `sections.${key}`)
+}
+
+const SECTION_KEYS = Object.keys(SECTION_LABELS) as SectionKey[]
+
 /** Sections to render/print. Backend drafts use only persisted 4 sections (no fabricated ayırıcı tanı). */
 export function printSectionsForCase(c: VetCase): PrintSection[] {
   if (c.fromBackend && c.backendDraft) {
     const d = c.backendDraft
     return [
-      { key: 'technique', label: SECTION_LABELS.klinikOzet, text: d.technique?.text ?? '' },
-      { key: 'findings', label: SECTION_LABELS.bulgular, text: d.findings?.text ?? '' },
-      { key: 'impression', label: SECTION_LABELS.degerlendirme, text: d.impression?.text ?? '' },
-      { key: 'recommendations', label: SECTION_LABELS.oneriler, text: d.recommendations?.text ?? '' },
+      { key: 'technique', label: sectionLabel('klinikOzet'), text: d.technique?.text ?? '' },
+      { key: 'findings', label: sectionLabel('bulgular'), text: d.findings?.text ?? '' },
+      { key: 'impression', label: sectionLabel('degerlendirme'), text: d.impression?.text ?? '' },
+      { key: 'recommendations', label: sectionLabel('oneriler'), text: d.recommendations?.text ?? '' },
     ].filter((s) => s.text.trim().length > 0)
   }
 
   const report = c.report
   if (!report) return []
 
-  const keys = Object.keys(SECTION_LABELS) as SectionKey[]
-  return keys
-    .map((k) => ({ key: k, label: SECTION_LABELS[k], text: report[k] ?? '' }))
-    .filter((s) => s.text.trim().length > 0)
+  return SECTION_KEYS.map((k) => ({ key: k, label: sectionLabel(k), text: report[k] ?? '' })).filter(
+    (s) => s.text.trim().length > 0,
+  )
 }
 
 export type ProvenanceLabel = {
@@ -44,6 +57,7 @@ export type ProvenanceLabel = {
 
 /** Honest MOCK/REAL/MIXED labeling from persisted findings/draft — never invents confidence. */
 export function reportProvenance(c: VetCase): ProvenanceLabel {
+  const locale = documentLocale()
   const findings: BackendFindings | undefined = c.backendFindings
   const draft: BackendDraftReport | undefined = c.backendDraft
   const sourceKindRaw = (findings?.source_kind || draft?.generation?.source_kind || '').toLowerCase()
@@ -62,33 +76,35 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
   const modelVersion = draft?.generation?.model_version
   const modelLine = modelVersion ? `${modelId} · v${modelVersion}` : String(modelId)
 
-  let banner = 'AI TASLAK — KLİNİK KULLANIMA UYGUN DEĞİLDİR'
+  let banner = translate(locale, 'reports.provenance.aiDraft')
   if (sourceKind === 'manual') {
-    banner = 'MANUEL RADYOLOG TASLAĞI — AI çıktısı değildir; klinik sertifikasyon iddiası yoktur'
+    banner = translate(locale, 'reports.provenance.manual')
   } else if (sourceKind === 'real') {
-    banner = 'GERÇEK MODEL TASLAĞI — Uzman incelemesi zorunludur; klinik sertifikasyon iddiası yoktur'
+    banner = translate(locale, 'reports.provenance.real')
   } else if (sourceKind === 'mixed') {
-    banner = 'KARMA KAYNAK — Kaynaklar karışıktır; klinik doğrulama değildir'
+    banner = translate(locale, 'reports.provenance.mixed')
   } else if (!c.fromBackend) {
-    banner = 'YEREL TASLAK — Uzman incelemesi zorunludur'
+    banner = translate(locale, 'reports.provenance.local')
   }
 
   const reviewStatus =
     c.status === 'onaylandi'
-      ? `Onaylandı${c.approvedBy ? ` · ${c.approvedBy}` : ''}`
+      ? c.approvedBy
+        ? translate(locale, 'reports.provenance.approvedBy', { name: c.approvedBy })
+        : translate(locale, 'status.onaylandi')
       : c.status === 'reddedildi'
-        ? 'Reddedildi'
+        ? translate(locale, 'status.reddedildi')
         : c.status === 'revizyon'
-          ? 'Revizyon istendi'
+          ? translate(locale, 'status.revizyon')
           : draft?.status || c.status
 
   const version = draft?.version ?? c.currentReportVersion
   const versionLabel =
     version != null
-      ? `v${version}${draft?.immutable ? ' · immutable' : ''}`
+      ? `v${version}${draft?.immutable ? translate(locale, 'reports.provenance.immutableSuffix') : ''}`
       : c.fromBackend
-        ? '—'
-        : 'local'
+        ? translate(locale, 'common.dash')
+        : translate(locale, 'reports.provenance.localVersion')
 
   return {
     banner,
@@ -129,9 +145,9 @@ export function caseWithDraftVersion(
 }
 
 export function sectionsFromLocalReport(report: ReportSections): PrintSection[] {
-  return (Object.keys(SECTION_LABELS) as SectionKey[]).map((k) => ({
+  return SECTION_KEYS.map((k) => ({
     key: k,
-    label: SECTION_LABELS[k],
+    label: sectionLabel(k),
     text: report[k] ?? '',
   }))
 }

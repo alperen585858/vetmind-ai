@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Bell, Loader2, LogOut, Monitor, Save, Settings as SettingsIcon, UserRound } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
-import { ROLE_LABELS } from '../data/mock'
 import { ROLE_BADGE } from '../components/Topbar'
+import { isLocale } from '../i18n/types'
 import {
   BackendUnavailableError,
   getUserSettings,
@@ -66,7 +67,8 @@ function applySidebarPref(compact: boolean) {
 
 export default function Settings() {
   const { role, user, signOut, pushToast, applyUserProfile } = useApp()
-  const nav = useNavigate()
+  const { t, setLocale, intlLocale } = useLocale()
+  const nav = useLocalizedNavigate()
   const [settings, setSettings] = useState<BackendUserSettings | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [org, setOrg] = useState('')
@@ -92,10 +94,10 @@ export default function Settings() {
         if (cancelled) return
         setLoadError(
           err instanceof BackendUnavailableError
-            ? 'Backend kapalı — ayarlar sunucuya kaydedilemez.'
+            ? t('settings.backendDown')
             : err instanceof Error
               ? err.message
-              : 'Ayarlar yüklenemedi',
+              : t('settings.loadFailed'),
         )
       })
       .finally(() => {
@@ -104,7 +106,7 @@ export default function Settings() {
     return () => {
       cancelled = true
     }
-  }, [user?.name, user?.org])
+  }, [user?.name, user?.org, t])
 
   const setBool = (key: keyof BackendUserSettings, value: boolean) => {
     if (!settings) return
@@ -134,13 +136,16 @@ export default function Settings() {
         org: saved.org,
       })
       applySidebarPref(saved.compact_sidebar)
+      if (isLocale(saved.language)) {
+        setLocale(saved.language)
+      }
       setDirty(false)
-      pushToast({ tone: 'success', title: 'Ayarlar kaydedildi', body: 'Tercihler sunucuya yazıldı.' })
+      pushToast({ tone: 'success', title: t('settings.saved'), body: t('settings.savedBody') })
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Kaydedilemedi',
-        body: err instanceof Error ? err.message : 'Sunucu hatası',
+        title: t('settings.saveFailed'),
+        body: err instanceof Error ? err.message : t('common.error'),
       })
     } finally {
       setSaving(false)
@@ -152,16 +157,16 @@ export default function Settings() {
   return (
     <>
       <PageHeader
-        title="Ayarlar"
-        subtitle="Profil ve tercihler · sunucu tarafında saklanır"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'Ayarlar' }]}
+        title={t('settings.title')}
+        subtitle={t('settings.subtitle')}
+        crumbs={[{ label: t('nav.dashboard'), to: '/' }, { label: t('settings.title') }]}
         actions={
           <Button
             icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             onClick={() => void save()}
             disabled={!settings || saving || loading || !dirty}
           >
-            Kaydet
+            {t('common.save')}
           </Button>
         }
       />
@@ -174,12 +179,12 @@ export default function Settings() {
 
       {loading ? (
         <Card className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500">
-          <Loader2 className="h-5 w-5 animate-spin" /> Ayarlar yükleniyor…
+          <Loader2 className="h-5 w-5 animate-spin" /> {t('common.loading')}
         </Card>
       ) : settings ? (
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="p-5">
-            <CardHeader title="Profil" icon={<UserRound className="h-5 w-5" />} />
+            <CardHeader title={t('settings.profile')} icon={<UserRound className="h-5 w-5" />} />
             <div className="mt-4 flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-600 text-lg font-bold text-white">
                 {user.initials}
@@ -188,13 +193,13 @@ export default function Settings() {
                 <p className="font-semibold text-navy-900">{displayName || user.name}</p>
                 <p className="text-sm text-slate-500">{user.title}</p>
                 <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${ROLE_BADGE[role]}`}>
-                  {ROLE_LABELS[role]}
+                  {t(`roles.${role}`)}
                 </span>
               </div>
             </div>
             <div className="mt-5 space-y-3">
               <label className="block">
-                <span className="label">Görünen ad</span>
+                <span className="label">{t('settings.displayName')}</span>
                 <input
                   className="input mt-1"
                   value={displayName}
@@ -205,11 +210,11 @@ export default function Settings() {
                 />
               </label>
               <label className="block">
-                <span className="label">Kurum / klinik</span>
+                <span className="label">{t('settings.org')}</span>
                 <input
                   className="input mt-1"
                   value={org}
-                  placeholder="İsteğe bağlı"
+                  placeholder={t('common.optional')}
                   onChange={(e) => {
                     setOrg(e.target.value)
                     setDirty(true)
@@ -217,76 +222,81 @@ export default function Settings() {
                 />
               </label>
               <label className="block">
-                <span className="label">Hesap (subject)</span>
+                <span className="label">{t('settings.account')} (subject)</span>
                 <input className="input mt-1 bg-slate-50 font-mono text-xs" value={settings.subject} readOnly />
               </label>
             </div>
           </Card>
 
           <Card className="p-5">
-            <CardHeader title="Bildirimler" icon={<Bell className="h-5 w-5" />} />
+            <CardHeader title={t('settings.notifications')} icon={<Bell className="h-5 w-5" />} />
             <div className="mt-3 divide-y divide-slate-100">
               <Toggle
                 checked={settings.email_notifications}
                 onChange={(v) => setBool('email_notifications', v)}
-                label="E-posta bildirimleri"
-                hint="Rapor ve başvuru güncellemeleri"
+                label={t('settings.emailNotif')}
+                hint={t('settings.emailNotifHint')}
               />
               <Toggle
                 checked={settings.push_notifications}
                 onChange={(v) => setBool('push_notifications', v)}
-                label="Uygulama bildirimleri"
-                hint="Üst bardaki bildirim zili"
+                label={t('settings.pushNotif')}
+                hint={t('settings.pushNotifHint')}
               />
               <Toggle
                 checked={settings.report_ready_alerts}
                 onChange={(v) => setBool('report_ready_alerts', v)}
-                label="Rapor hazır olduğunda bildir"
+                label={t('settings.reportReady')}
+                hint={t('settings.reportReadyHint')}
               />
               <Toggle
                 checked={settings.message_alerts}
                 onChange={(v) => setBool('message_alerts', v)}
-                label="Yeni mesaj uyarıları"
+                label={t('settings.messageAlerts')}
+                hint={t('settings.messageAlertsHint')}
               />
             </div>
           </Card>
 
           <Card className="p-5">
-            <CardHeader title="Arayüz" icon={<Monitor className="h-5 w-5" />} />
+            <CardHeader title={t('settings.interface')} icon={<Monitor className="h-5 w-5" />} />
             <div className="mt-3 space-y-3">
               <Toggle
                 checked={settings.compact_sidebar}
                 onChange={(v) => setBool('compact_sidebar', v)}
-                label="Dar menü (ikon şeridi)"
-                hint="Sol menüyü varsayılan olarak daralt"
+                label={t('settings.compactSidebar')}
+                hint={t('settings.compactSidebarHint')}
               />
               <label className="block">
-                <span className="label">Dil</span>
+                <span className="label">{t('settings.language')}</span>
                 <select
                   className="input mt-1"
                   value={settings.language}
                   onChange={(e) => {
-                    setSettings({ ...settings, language: e.target.value as 'tr' | 'en' })
+                    const lang = e.target.value
+                    if (!isLocale(lang)) return
+                    setLocale(lang)
+                    setSettings({ ...settings, language: lang })
                     setDirty(true)
                   }}
                 >
-                  <option value="tr">Türkçe</option>
-                  <option value="en">English (yakında)</option>
+                  <option value="tr">{t('common.turkish')}</option>
+                  <option value="en">{t('common.english')}</option>
                 </select>
               </label>
               {settings.updated_at && (
                 <p className="text-[11px] text-slate-400">
-                  Son güncelleme: {new Date(settings.updated_at).toLocaleString('tr-TR')}
+                  {t('settings.lastUpdated', {
+                    date: new Date(settings.updated_at).toLocaleString(intlLocale),
+                  })}
                 </p>
               )}
             </div>
           </Card>
 
           <Card className="p-5">
-            <CardHeader title="Hesap" icon={<SettingsIcon className="h-5 w-5" />} />
-            <p className="mt-2 text-sm text-slate-600">
-              Tercihler kullanıcı hesabına bağlıdır ve backend’de saklanır. Çıkış oturumu kapatır; ayarlar silinmez.
-            </p>
+            <CardHeader title={t('settings.account')} icon={<SettingsIcon className="h-5 w-5" />} />
+            <p className="mt-2 text-sm text-slate-600">{t('settings.accountHint')}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 variant="danger"
@@ -294,13 +304,13 @@ export default function Settings() {
                 onClick={() => {
                   signOut()
                   nav('/giris')
-                  pushToast({ tone: 'info', title: 'Oturum kapatıldı' })
+                  pushToast({ tone: 'info', title: t('common.info'), body: t('settings.signOut') })
                 }}
               >
-                Çıkış yap
+                {t('settings.signOut')}
               </Button>
               <Button variant="secondary" onClick={() => void save()} disabled={!dirty || saving}>
-                Tercihleri kaydet
+                {t('settings.saveChanges')}
               </Button>
             </div>
           </Card>

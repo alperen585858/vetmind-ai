@@ -68,14 +68,26 @@ class AIOrchestrator:
     def validator(self) -> ReportValidator:
         return self._validator
 
-    def regenerate_report(self, case: CaseRecord, expert_note: str) -> DraftReport:
+    def regenerate_report(
+        self,
+        case: CaseRecord,
+        expert_note: str,
+        *,
+        report_language: str = "tr",
+    ) -> DraftReport:
         """LLM-only rerun for an expert revision request. Imaging adapters are not re-run.
 
         Raises LLMProviderError on provider failure (no mock fallback); the caller keeps the old draft.
         """
         if case.structured_findings is None or case.draft_report is None:
             raise ValueError("Case has no findings/draft to revise.")
-        report = self._llm.revise_draft(case, case.structured_findings, case.draft_report, expert_note)
+        report = self._llm.revise_draft(
+            case,
+            case.structured_findings,
+            case.draft_report,
+            expert_note,
+            language=report_language,
+        )
         self._validator.validate(report, case.structured_findings)
         return report
 
@@ -86,6 +98,7 @@ class AIOrchestrator:
         *,
         cancel_probe: Callable[[], bool] | None = None,
         on_progress: Callable[[AnalysisJob], None] | None = None,
+        report_language: str = "tr",
     ) -> PipelineResult:
         def _cancelled() -> bool:
             if job.cancel_requested or job.status == JobStatus.CANCEL_REQUESTED:
@@ -322,7 +335,7 @@ class AIOrchestrator:
 
             _checkpoint("llm_draft")
             try:
-                report = self._llm.generate_draft(case, findings)
+                report = self._llm.generate_draft(case, findings, language=report_language)
             except LLMProviderError as exc:
                 # Typed LLM failure: keep findings, never attach an approvable draft, no mock fallback.
                 job.status = JobStatus.FAILED

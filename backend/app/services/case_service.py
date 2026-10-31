@@ -106,6 +106,8 @@ class CaseService:
         max_concurrent_analyze: int = 8,
         analyze_gate_path: Path | None = None,
         notifications: object | None = None,
+        user_settings: object | None = None,
+        default_report_language: str = "tr",
     ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
@@ -117,12 +119,38 @@ class CaseService:
         self._audit_log = audit
         self._feedback = feedback
         self._notifications = notifications
+        self._user_settings = user_settings
+        lang = (default_report_language or "tr").strip().lower() or "tr"
+        self._default_report_language = lang if lang in {"tr", "en"} else "tr"
         self._max_concurrent_analyze = max(1, max_concurrent_analyze)
         # Durable gate shared by sync + async (thread/RQ on same host).
         self._analyze_gate: AnalyzeGate = build_analyze_gate(
             max_concurrent=self._max_concurrent_analyze,
             path=analyze_gate_path,
         )
+
+    def _resolve_report_language(
+        self,
+        case: CaseRecord,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> str:
+        """Prefer actor / case owner UserSettings.language; else env default."""
+        subjects: list[str] = []
+        if principal is not None and principal.subject and principal.subject != "anonymous":
+            subjects.append(principal.subject)
+        if case.owner_subject:
+            subjects.append(case.owner_subject)
+        if self._user_settings is not None:
+            for subject in subjects:
+                try:
+                    settings = self._user_settings.get(subject)  # type: ignore[attr-defined]
+                    lang = getattr(settings, "language", None)
+                    if lang in {"tr", "en"}:
+                        return lang
+                except Exception:  # noqa: BLE001 — settings must never block analysis
+                    continue
+        return self._default_report_language
 
     def _acquire_analyze_slot(self) -> None:
         if not self._analyze_gate.try_acquire():
@@ -943,11 +971,13 @@ class CaseService:
             # Deep copy so orchestrator cannot mutate the repository's live case object
             # (InMemoryCaseRepository returns the same reference — approve-race safety).
             working = case.model_copy(deep=True)
+            report_language = self._resolve_report_language(working, principal=principal)
             result = self._orchestrator.run(
                 working,
                 job,
                 cancel_probe=lambda: self._job_cancel_requested(job.job_id),
                 on_progress=self._persist_job_progress,
+                report_language=report_language,
             )
         finally:
             self._release_analyze_slot()
@@ -1124,11 +1154,13 @@ class CaseService:
                     job_working.started_at = job_working.started_at or _now()
                     apply_pipeline_progress(job_working, "prep_metadata")
                     self._repo.save_job(job_working)
+            report_language = self._resolve_report_language(working)
             result = self._orchestrator.run(
                 working,
                 job_working,
                 cancel_probe=lambda: self._job_cancel_requested(job_id),
                 on_progress=self._persist_job_progress,
+                report_language=report_language,
             )
             # Preserve job_id identity for persistence (copy may diverge on cancel flags).
             result.job.job_id = job_id
@@ -1415,7 +1447,10 @@ class CaseService:
             working = case.model_copy(deep=True)
 
         try:
-            report = self._orchestrator.regenerate_report(working, expert_note)
+            report_language = self._resolve_report_language(working, principal=principal)
+            report = self._orchestrator.regenerate_report(
+                working, expert_note, report_language=report_language
+            )
         except LLMProviderError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

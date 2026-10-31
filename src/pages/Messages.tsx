@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   ArrowLeft,
   CheckCheck,
@@ -12,6 +14,8 @@ import {
   Stethoscope,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
+import type { TranslateFn } from '../i18n'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
@@ -25,28 +29,26 @@ import {
 import { fmtDate } from '../lib/format'
 import type { BackendSupportThreadDetail, BackendSupportThreadSummary, SupportMessageChannel } from '../types'
 
-const CHANNEL_TR: Record<SupportMessageChannel, string> = {
-  radiologist: 'Radyolog',
-  admin: 'Yönetim / Admin',
+function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
+  return channel === 'admin' ? t('messages.channelAdmin') : t('messages.channelRadiologist')
 }
 
-const ROLE_TR: Record<string, string> = {
-  owner: 'Hayvan sahibi',
-  expert: 'Radyolog',
-  admin: 'Admin',
-  vet: 'Veteriner',
-  clinic_owner: 'Klinik sahibi',
-  demo: 'Demo',
-  service: 'Servis',
-}
-
-function authorLabel(role: string, subject: string): string {
-  const fromRole = ROLE_TR[role]
-  if (fromRole) return fromRole
-  if (subject.startsWith('admin@')) return 'Admin'
-  if (subject.startsWith('expert')) return 'Radyolog'
-  if (subject.startsWith('owner@')) return 'Hayvan sahibi'
-  if (subject.startsWith('vet')) return 'Veteriner'
+function authorLabel(role: string, subject: string, t: TranslateFn): string {
+  const roleKeys: Record<string, string> = {
+    owner: 'messages.roleOwner',
+    expert: 'messages.roleExpert',
+    admin: 'messages.roleAdmin',
+    vet: 'messages.roleVet',
+    clinic_owner: 'messages.roleClinicOwner',
+    demo: 'messages.roleDemo',
+    service: 'messages.roleService',
+  }
+  const key = roleKeys[role]
+  if (key) return t(key)
+  if (subject.startsWith('admin@')) return t('messages.roleAdmin')
+  if (subject.startsWith('expert')) return t('messages.roleExpert')
+  if (subject.startsWith('owner@')) return t('messages.roleOwner')
+  if (subject.startsWith('vet')) return t('messages.roleVet')
   return role || subject
 }
 
@@ -57,10 +59,10 @@ function fmtClock(iso?: string | null): string {
   return time ? time.slice(0, 5) : ''
 }
 
-function fmtListTime(iso?: string | null): string {
+function fmtListTime(iso: string | null | undefined, locale: 'tr' | 'en'): string {
   if (!iso) return ''
   const clock = fmtClock(iso)
-  const full = fmtDate(iso)
+  const full = fmtDate(iso, locale)
   // Prefer clock for same-day feel; fall back to short date fragment
   if (clock && full.includes('·')) return clock
   return clock || full
@@ -73,7 +75,8 @@ function channelTone(channel: SupportMessageChannel, ownerPalette = false) {
 
 export default function Messages() {
   const { role, user, pushToast } = useApp()
-  const navigate = useNavigate()
+  const { t, locale } = useLocale()
+  const navigate = useLocalizedNavigate()
   const { threadId } = useParams<{ threadId?: string }>()
   const isOwner = role === 'owner'
   const canCompose = isOwner
@@ -98,7 +101,7 @@ export default function Messages() {
     try {
       setThreads(await listSupportThreads())
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Mesajlar yüklenemedi')
+      setError(e instanceof Error ? e.message : t('messages.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -115,7 +118,7 @@ export default function Messages() {
       }
       void loadThreads()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Konuşma açılamadı', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('messages.threadOpenFailed'), body: e instanceof Error ? e.message : undefined })
       setDetail(null)
     } finally {
       setDetailLoading(false)
@@ -146,13 +149,13 @@ export default function Messages() {
     const q = query.trim().toLowerCase()
     if (!q) return sorted
     return sorted.filter(
-      (t) =>
-        t.subject.toLowerCase().includes(q) ||
-        (t.last_message_preview || '').toLowerCase().includes(q) ||
-        CHANNEL_TR[t.channel].toLowerCase().includes(q) ||
-        t.owner_subject.toLowerCase().includes(q),
+      (thread) =>
+        thread.subject.toLowerCase().includes(q) ||
+        (thread.last_message_preview || '').toLowerCase().includes(q) ||
+        channelLabel(thread.channel, t).toLowerCase().includes(q) ||
+        thread.owner_subject.toLowerCase().includes(q),
     )
-  }, [sorted, query])
+  }, [sorted, query, t])
 
   const startConversation = async () => {
     if (!subject.trim() || !body.trim()) return
@@ -163,14 +166,14 @@ export default function Messages() {
         subject: subject.trim(),
         body: body.trim(),
       })
-      pushToast({ tone: 'success', title: 'Mesaj gönderildi', body: CHANNEL_TR[channel] })
+      pushToast({ tone: 'success', title: t('messages.sent'), body: channelLabel(channel, t) })
       setComposeOpen(false)
       setSubject('')
       setBody('')
       await loadThreads()
       navigate(`/mesajlar/${created.thread.thread_id}`)
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Gönderilemedi', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('messages.sendFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -199,7 +202,7 @@ export default function Messages() {
       setReply('')
       void loadThreads()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Yanıt gönderilemedi', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('messages.replyFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -242,15 +245,15 @@ export default function Messages() {
   return (
     <>
       <PageHeader
-        title="İletişim"
+        title={t('messages.title')}
         subtitle={
           isOwner
-            ? 'Radyolog veya yönetim ile güvenli mesajlaşın'
+            ? t('messages.subtitleOwner')
             : role === 'expert'
-              ? 'Hayvan sahiplerinden gelen radyolog mesajları'
-              : 'Hayvan sahiplerinden gelen destek mesajları'
+              ? t('messages.subtitleExpert')
+              : t('messages.subtitleStaff')
         }
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'İletişim' }]}
+        crumbs={[{ label: t('common.home'), to: '/' }, { label: t('messages.title') }]}
       />
 
       {error && (
@@ -271,15 +274,15 @@ export default function Messages() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{user?.name || 'VetMind'}</p>
-                <p className={`truncate text-[11px] ${chrome.barMuted}`}>Konuşmalar</p>
+                <p className={`truncate text-[11px] ${chrome.barMuted}`}>{t('messages.conversations')}</p>
               </div>
               {canCompose && (
                 <button
                   type="button"
                   onClick={() => setComposeOpen(true)}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25"
-                  title="Yeni mesaj"
-                  aria-label="Yeni mesaj"
+                  title={t('messages.newMessage')}
+                  aria-label={t('messages.newMessage')}
                 >
                   <Plus className="h-5 w-5" />
                 </button>
@@ -292,7 +295,7 @@ export default function Messages() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ara veya yeni sohbet"
+                  placeholder={t('messages.searchPlaceholder')}
                   className={`w-full rounded-lg border-0 bg-white py-2 pl-9 pr-3 text-sm text-navy-900 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 ${chrome.focus}`}
                 />
               </label>
@@ -301,14 +304,14 @@ export default function Messages() {
             <div className="min-h-0 flex-1 overflow-y-auto bg-white">
               {loading ? (
                 <p className="flex items-center gap-2 px-4 py-8 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}
                 </p>
               ) : filtered.length === 0 ? (
                 <div className="px-6 py-12 text-center">
                   <MessageSquare className="mx-auto h-8 w-8 text-slate-300" />
-                  <p className="mt-3 text-sm font-medium text-navy-800">Henüz mesaj yok</p>
+                  <p className="mt-3 text-sm font-medium text-navy-800">{t('messages.noMessages')}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {isOwner ? 'Yeni bir konuşma başlatın.' : 'Size yöneltilmiş konuşma bulunmuyor.'}
+                    {isOwner ? t('messages.emptyListHintOwner') : t('messages.emptyListHintStaff')}
                   </p>
                   {canCompose && (
                     <button
@@ -316,49 +319,49 @@ export default function Messages() {
                       onClick={() => setComposeOpen(true)}
                       className={`mt-4 text-sm font-semibold hover:underline ${chrome.author}`}
                     >
-                      Yeni mesaj
+                      {t('messages.newMessage')}
                     </button>
                   )}
                 </div>
               ) : (
                 <ul>
-                  {filtered.map((t) => {
-                    const active = threadId === t.thread_id
+                  {filtered.map((thread) => {
+                    const active = threadId === thread.thread_id
                     return (
-                      <li key={t.thread_id}>
+                      <li key={thread.thread_id}>
                         <button
                           type="button"
-                          onClick={() => navigate(`/mesajlar/${t.thread_id}`)}
+                          onClick={() => navigate(`/mesajlar/${thread.thread_id}`)}
                           className={`flex w-full items-center gap-3 border-b border-slate-100 px-3 py-3 text-left transition ${
                             active ? chrome.activeRow : 'hover:bg-slate-50'
                           }`}
                         >
                           <div
-                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold ${channelTone(t.channel, isOwner)}`}
+                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold ${channelTone(thread.channel, isOwner)}`}
                           >
-                            {t.channel === 'admin' ? <Shield className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}
+                            {thread.channel === 'admin' ? <Shield className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-[15px] font-semibold text-navy-900">{t.subject}</span>
+                              <span className="truncate text-[15px] font-semibold text-navy-900">{thread.subject}</span>
                               <span
                                 className={`shrink-0 text-[11px] ${
-                                  t.unread_count > 0 ? `font-semibold ${chrome.unread}` : 'text-slate-400'
+                                  thread.unread_count > 0 ? `font-semibold ${chrome.unread}` : 'text-slate-400'
                                 }`}
                               >
-                                {fmtListTime(t.last_message_at || t.updated_at)}
+                                {fmtListTime(thread.last_message_at || thread.updated_at, locale)}
                               </span>
                             </div>
                             <div className="mt-0.5 flex items-center justify-between gap-2">
                               <p className="truncate text-[13px] text-slate-500">
-                                {!isOwner ? `${t.owner_subject} · ` : ''}
-                                {t.last_message_preview || CHANNEL_TR[t.channel]}
+                                {!isOwner ? `${thread.owner_subject} · ` : ''}
+                                {thread.last_message_preview || channelLabel(thread.channel, t)}
                               </p>
-                              {t.unread_count > 0 && (
+                              {thread.unread_count > 0 && (
                                 <span
                                   className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white ${chrome.unreadBadge}`}
                                 >
-                                  {t.unread_count}
+                                  {thread.unread_count}
                                 </span>
                               )}
                             </div>
@@ -386,14 +389,15 @@ export default function Messages() {
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
                   <MessageSquare className={`h-9 w-9 ${chrome.icon}`} />
                 </div>
-                <h2 className="mt-5 text-xl font-semibold text-navy-900">VetMind İletişim</h2>
+                <h2 className="mt-5 text-xl font-semibold text-navy-900">{t('messages.brandTitle')}</h2>
                 <p className="mt-2 max-w-sm text-sm text-slate-500">
-                  Soldan bir konuşma seçin{canCompose ? ' veya yeni mesaj başlatın' : ''}.
+                  {t('messages.selectThread')}
+                  {canCompose ? t('messages.selectThreadOrNew') : ''}.
                 </p>
               </div>
             ) : detailLoading || !detail ? (
               <div className="flex flex-1 items-center justify-center gap-2 bg-[#f0f2f5] text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> Konuşma yükleniyor…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t('messages.loadingThread')}
               </div>
             ) : (
               <>
@@ -402,7 +406,7 @@ export default function Messages() {
                     type="button"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 lg:hidden"
                     onClick={() => navigate('/mesajlar')}
-                    aria-label="Konuşmalara dön"
+                    aria-label={t('messages.backToThreads')}
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </button>
@@ -420,17 +424,17 @@ export default function Messages() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold">{detail.thread.subject}</p>
                     <p className={`truncate text-[11px] ${chrome.barMuted}`}>
-                      {CHANNEL_TR[detail.thread.channel]}
+                      {channelLabel(detail.thread.channel, t)}
                       {!isOwner ? ` · ${detail.thread.owner_subject}` : ''}
                       {detail.thread.related_case_id ? (
                         <>
                           {' · '}
-                          <Link
+                          <LocalizedLink
                             className="font-medium underline decoration-white/40 underline-offset-2 hover:decoration-white"
                             to={`/vakalar/${detail.thread.related_case_id}`}
                           >
-                            Vakaya git
-                          </Link>
+                            {t('messages.goToCase')}
+                          </LocalizedLink>
                         </>
                       ) : null}
                     </p>
@@ -451,7 +455,7 @@ export default function Messages() {
                         >
                           {!mine && (
                             <p className={`mb-0.5 text-[11px] font-semibold ${chrome.author}`}>
-                              {authorLabel(m.author_role, m.author_subject)}
+                              {authorLabel(m.author_role, m.author_subject, t)}
                             </p>
                           )}
                           <p className="whitespace-pre-wrap text-[14.5px] leading-snug">{m.body}</p>
@@ -460,7 +464,7 @@ export default function Messages() {
                               mine ? chrome.bubbleMeta : 'text-slate-400'
                             }`}
                           >
-                            <span>{fmtClock(m.created_at) || fmtDate(m.created_at)}</span>
+                            <span>{fmtClock(m.created_at) || fmtDate(m.created_at, locale)}</span>
                             {mine && <CheckCheck className="h-3.5 w-3.5 text-sky-600" aria-hidden />}
                           </div>
                         </div>
@@ -479,7 +483,7 @@ export default function Messages() {
                 >
                   <div className={`min-w-0 flex-1 rounded-3xl bg-white px-4 py-2 shadow-sm ring-1 ring-slate-200/70 ${chrome.focus}`}>
                     <label className="sr-only" htmlFor="wa-reply">
-                      Mesaj
+                      {t('messages.messageLabel')}
                     </label>
                     <textarea
                       id="wa-reply"
@@ -492,7 +496,7 @@ export default function Messages() {
                           void sendReply()
                         }
                       }}
-                      placeholder="Mesaj yazın"
+                      placeholder={t('messages.placeholder')}
                       className="max-h-32 w-full resize-none border-0 bg-transparent py-1.5 text-sm text-navy-900 outline-none placeholder:text-slate-400"
                     />
                   </div>
@@ -500,7 +504,7 @@ export default function Messages() {
                     type="submit"
                     disabled={busy || !reply.trim()}
                     className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-50 ${chrome.send}`}
-                    aria-label="Gönder"
+                    aria-label={t('messages.send')}
                   >
                     {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                   </button>
@@ -511,10 +515,10 @@ export default function Messages() {
         </div>
       </div>
 
-      <Modal open={composeOpen && canCompose} onClose={() => setComposeOpen(false)} title="Yeni konuşma">
+      <Modal open={composeOpen && canCompose} onClose={() => setComposeOpen(false)} title={t('messages.newThread')}>
         <div className="space-y-4">
           <div>
-            <p className="label">Kime</p>
+            <p className="label">{t('messages.composeTo')}</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -523,7 +527,7 @@ export default function Messages() {
                   channel === 'radiologist' ? chrome.channelBtn : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <Stethoscope className="h-4 w-4" /> Radyolog
+                <Stethoscope className="h-4 w-4" /> {t('messages.channelRadiologist')}
               </button>
               <button
                 type="button"
@@ -532,38 +536,38 @@ export default function Messages() {
                   channel === 'admin' ? 'bg-navy-800 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <Shield className="h-4 w-4" /> Yönetim / Admin
+                <Shield className="h-4 w-4" /> {t('messages.channelAdmin')}
               </button>
             </div>
           </div>
           <label className="block">
-            <span className="label">Konu</span>
+            <span className="label">{t('messages.subject')}</span>
             <input
               className="input mt-1"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Örn. Rapor hakkında soru"
+              placeholder={t('messages.subjectPlaceholder')}
             />
           </label>
           <label className="block">
-            <span className="label">Mesaj</span>
+            <span className="label">{t('messages.messageLabel')}</span>
             <textarea
               className="input mt-1 min-h-[110px]"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Mesajınızı yazın…"
+              placeholder={t('messages.bodyPlaceholder')}
             />
           </label>
           <div className="flex flex-wrap justify-end gap-2 pt-1">
             <Button variant="secondary" onClick={() => setComposeOpen(false)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               disabled={busy || !subject.trim() || !body.trim()}
               onClick={() => void startConversation()}
               icon={<Send className="h-4 w-4" />}
             >
-              {busy ? 'Gönderiliyor…' : 'Gönder'}
+              {busy ? t('messages.sending') : t('messages.send')}
             </Button>
           </div>
         </div>

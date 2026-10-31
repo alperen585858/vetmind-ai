@@ -37,6 +37,7 @@ def llm_status(
         "model_version": provider.model_version,
         "prompt_version": container.settings.llm_prompt_version if kind in PROMPT_PROVIDERS else None,
         "report_language": container.settings.llm_report_language,
+        "report_language_source": "user_settings_with_env_fallback",
     }
 
 

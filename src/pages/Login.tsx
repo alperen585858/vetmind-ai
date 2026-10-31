@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowRight, Lock, Mail, UserRound } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
+import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Button } from '../components/Button'
 import {
   backendAccountSession,
@@ -13,15 +16,18 @@ import {
   type DemoSession,
 } from '../lib/auth'
 import { backendAuthStatus, backendLogin } from '../lib/backend'
-import { ROLE_LABELS } from '../data/mock'
+import type { Role } from '../types'
 
 export default function Login() {
   const { signIn, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const nav = useLocalizedNavigate()
   const [email, setEmail] = useState('vet@demo.local')
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const roleLabel = (role: Role) => t(`roles.${role}`)
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -43,8 +49,12 @@ export default function Login() {
           throw backendErr instanceof Error && backendErr.message.includes('rol') ? backendErr : localErr
         }
         signIn(session)
-        pushToast({ tone: 'success', title: 'Giriş başarılı', body: `${session.name} · ${ROLE_LABELS[session.role]}` })
-        nav(postLoginPath(session.role))
+        pushToast({
+          tone: 'success',
+          title: t('auth.loginSuccess'),
+          body: `${session.name} · ${roleLabel(session.role)}`,
+        })
+        nav(postLoginPath(session.role, locale))
         return
       }
       try {
@@ -56,10 +66,14 @@ export default function Login() {
         setBackendAccessToken(null)
       }
       signIn(session)
-      pushToast({ tone: 'success', title: 'Giriş başarılı', body: `${session.name} · ${ROLE_LABELS[session.role]}` })
-      nav(postLoginPath(session.role))
+      pushToast({
+        tone: 'success',
+        title: t('auth.loginSuccess'),
+        body: `${session.name} · ${roleLabel(session.role)}`,
+      })
+      nav(postLoginPath(session.role, locale))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Giriş başarısız')
+      setError(err instanceof Error ? err.message : t('auth.loginFailed'))
     } finally {
       setBusy(false)
     }
@@ -69,34 +83,35 @@ export default function Login() {
     <div className="flex min-h-screen flex-col bg-sky-50 font-display text-navy-900">
       <header className="sticky top-0 z-40 border-b border-sky-100/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-3" aria-label="VetMind AI ana sayfa">
+          <LocalizedLink to="/" className="flex items-center gap-3" aria-label={t('landing.homeAria')}>
             <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800 shadow-md ring-2 ring-sky-100">
               <span className="text-lg font-bold tracking-tight text-white">V</span>
             </span>
             <span className="leading-tight">
               <span className="block text-[1.35rem] font-bold tracking-tight text-navy-900">VetMind</span>
               <span className="block text-[0.7rem] font-medium uppercase tracking-[0.18em] text-sky-500">
-                AI Teleradyoloji
+                {t('landing.tagline')}
               </span>
             </span>
-          </Link>
+          </LocalizedLink>
 
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <Link
+            <LanguageSwitcher persistRemote={false} size="sm" />
+            <LocalizedLink
               to="/giris"
               className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm ring-2 ring-sky-200"
               aria-current="page"
             >
               <Lock className="h-3.5 w-3.5" aria-hidden />
-              Giriş
-            </Link>
-            <Link
+              {t('landing.login')}
+            </LocalizedLink>
+            <LocalizedLink
               to="/kayit"
               className="inline-flex items-center gap-2 rounded-full border border-sky-400 bg-white px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50"
             >
               <UserRound className="h-3.5 w-3.5" aria-hidden />
-              Kayıt
-            </Link>
+              {t('landing.register')}
+            </LocalizedLink>
           </div>
         </div>
       </header>
@@ -108,23 +123,23 @@ export default function Login() {
 
         <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:gap-16 lg:px-8 lg:py-16">
           <div className="flex-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-600">VetMind AI · Bitirme Projesi</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-600">{t('auth.loginEyebrow')}</p>
             <h1 className="mt-3 max-w-xl text-3xl font-bold leading-tight tracking-tight text-navy-900 sm:text-4xl lg:text-5xl">
-              Giriş yapın,
-              <span className="text-sky-600"> DICOM metadata yükleyin,</span> uzman onayıyla ilerleyin.
+              {t('auth.loginHero')}
+              <span className="text-sky-600">{t('auth.loginHeroAccent')}</span>
+              {t('auth.loginHeroRest')}
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-navy-600">
-              Veteriner radyoloji iş akışına giriş yapın; DICOM yükleme ve uzman onay sürecine devam edin.
-              Varsayılan kurulumda arayüz rol kapıları yalnızca UX’tir — korumalı veri için backend auth açılmalıdır.
+              {t('auth.loginBody')}
             </p>
             <ul className="mt-8 space-y-2 text-sm text-navy-700">
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                Rolünüze uygun panoya yönlendirme
+                {t('auth.loginBullet1')}
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-                Bitirme prototipi · klinik üretim / otonom tanı değildir
+                {t('auth.loginBullet2')}
               </li>
             </ul>
           </div>
@@ -134,11 +149,11 @@ export default function Login() {
               onSubmit={onSubmit}
               className="rounded-2xl border border-sky-100 bg-white p-6 shadow-[0_12px_40px_rgba(14,165,233,0.12)] sm:p-7"
             >
-              <h2 className="text-lg font-semibold text-navy-900">Hesaba giriş</h2>
-              <p className="mt-1 text-sm text-navy-500">Kayıtlı e-posta ve şifrenizle devam edin.</p>
+              <h2 className="text-lg font-semibold text-navy-900">{t('auth.loginTitle')}</h2>
+              <p className="mt-1 text-sm text-navy-500">{t('auth.loginSubtitle')}</p>
 
               <label className="mt-5 block text-xs font-medium text-navy-700">
-                E-posta
+                {t('auth.email')}
                 <div className="relative mt-1.5">
                   <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500" />
                   <input
@@ -154,7 +169,7 @@ export default function Login() {
               </label>
 
               <label className="mt-4 block text-xs font-medium text-navy-700">
-                Şifre
+                {t('auth.password')}
                 <div className="relative mt-1.5">
                   <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500" />
                   <input
@@ -182,19 +197,20 @@ export default function Login() {
                 disabled={busy}
                 icon={<ArrowRight className="h-4 w-4" />}
               >
-                {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
+                {busy ? t('common.loading') : t('auth.submitLogin')}
               </Button>
 
               <p className="mt-4 text-center text-sm text-navy-600">
-                Hesabınız yok mu?{' '}
-                <Link to="/kayit" className="font-semibold text-sky-600 hover:underline">
-                  Kayıt olun
-                </Link>
+                {t('auth.noAccount')}{' '}
+                <LocalizedLink to="/kayit" className="font-semibold text-sky-600 hover:underline">
+                  {t('auth.goRegister')}
+                </LocalizedLink>
               </p>
             </form>
 
             <div className="mt-4 rounded-xl border border-sky-100 bg-white/80 p-4 text-xs text-navy-600">
-              <p className="font-semibold text-navy-800">Örnek hesaplar</p>
+              <p className="font-semibold text-navy-800">{t('auth.demoAccounts')}</p>
+              <p className="mt-1 text-navy-500">{t('auth.demoHint')}</p>
               <ul className="mt-2 space-y-1">
                 {listDemoCredentials().map((c) => (
                   <li key={c.email}>
@@ -206,7 +222,7 @@ export default function Login() {
                         setPassword(c.password)
                       }}
                     >
-                      {c.email} · {ROLE_LABELS[c.role]}
+                      {c.email} · {roleLabel(c.role)}
                     </button>
                   </li>
                 ))}
@@ -222,12 +238,12 @@ export default function Login() {
             © {new Date().getFullYear()} VetMind AI · Acıbadem Üniversitesi CSE 401/402 · VRM Teknoloji iş birliğiyle
           </p>
           <div className="flex gap-4 text-sm text-sky-300/90">
-            <Link to="/" className="hover:text-white">
-              Ana sayfa
-            </Link>
-            <Link to="/kayit" className="hover:text-white">
-              Kayıt
-            </Link>
+            <LocalizedLink to="/" className="hover:text-white">
+              {t('common.home')}
+            </LocalizedLink>
+            <LocalizedLink to="/kayit" className="hover:text-white">
+              {t('landing.register')}
+            </LocalizedLink>
           </div>
         </div>
       </footer>

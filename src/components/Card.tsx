@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { LocalizedLink } from './LocalizedLink'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -75,13 +75,13 @@ export function StatCard({
   const shell = `flex h-full flex-col p-4 ${className}`
   if (to) {
     return (
-      <Link
+      <LocalizedLink
         to={to}
         aria-label={`${label}: ${typeof value === 'string' || typeof value === 'number' ? value : ''} — ilgili sayfaya git`}
         className={`rounded-vm border border-slate-200/80 bg-surface-elevated shadow-soft transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${shell}`}
       >
         {body}
-      </Link>
+      </LocalizedLink>
     )
   }
   return <Card className={shell}>{body}</Card>

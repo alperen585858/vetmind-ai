@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -25,9 +26,9 @@ import { STATUS_META, STATUS_ORDER } from '../components/StatusBadge'
 import { deleteBackendCase } from '../lib/backend'
 import type { BackendModality, CaseStatus, VetCase } from '../types'
 
-function TableSkeleton() {
+function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
-    <div className="animate-pulse space-y-3 p-4" aria-busy="true" aria-label="Vakalar yükleniyor">
+    <div className="animate-pulse space-y-3 p-4" aria-busy="true" aria-label={loadingLabel}>
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex gap-3">
           <div className="h-10 w-10 rounded bg-slate-100" />
@@ -97,7 +98,8 @@ function expertKey(c: VetCase): string {
 
 export default function CaseList() {
   const { cases, role, refreshBackendCases, backendSyncing, pushToast, removeCase } = useApp()
-  const nav = useNavigate()
+  const { t, intlLocale } = useLocale()
+  const nav = useLocalizedNavigate()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<CaseStatus | ''>('')
   const [species, setSpecies] = useState('')
@@ -129,8 +131,8 @@ export default function CaseList() {
       const k = expertKey(c)
       if (k) set.add(k)
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
-  }, [cases])
+    return Array.from(set).sort((a, b) => a.localeCompare(b, intlLocale))
+  }, [cases, intlLocale])
 
   const counts = useMemo(() => {
     const byStatus = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<CaseStatus, number>
@@ -144,7 +146,7 @@ export default function CaseList() {
   }, [cases])
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLocaleLowerCase('tr')
+    const s = q.trim().toLocaleLowerCase(intlLocale)
     return cases.filter(
       (c) =>
         (!status || c.status === status) &&
@@ -154,9 +156,9 @@ export default function CaseList() {
         (!s ||
           [c.no, c.patient.name, c.patient.breed, c.modality, c.anatomicalRegion, c.studyInstanceUid, c.assignedReviewerId]
             .filter(Boolean)
-            .some((f) => String(f).toLocaleLowerCase('tr').includes(s))),
+            .some((f) => String(f).toLocaleLowerCase(intlLocale).includes(s))),
     )
-  }, [cases, q, status, species, modality, expert])
+  }, [cases, q, status, species, modality, expert, intlLocale])
 
   const onSync = async () => {
     const r = await refreshBackendCases()
@@ -325,59 +327,59 @@ export default function CaseList() {
 
       <Card>
         <div className="border-b border-slate-100 px-4 pb-1 pt-4 sm:px-5">
-          <h2 className="text-sm font-semibold text-navy-900">Vaka Listesi</h2>
+          <h2 className="text-sm font-semibold text-navy-900">{t('cases.listHeading')}</h2>
           <p className="text-xs text-slate-500">
-            {filtered.length} / {cases.length} vaka gösteriliyor
+            {t('cases.showingCount', { shown: filtered.length, total: cases.length })}
           </p>
         </div>
 
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-end sm:px-5">
           <label className="relative block flex-1">
-            <span className="sr-only">Vaka ara</span>
+            <span className="sr-only">{t('cases.searchCasesAria')}</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
             <input
               className="input pl-9"
-              placeholder="Hasta adı, vaka no, ırk veya study UID ile ara…"
+              placeholder={t('cases.listSearchPlaceholder')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </label>
           <label className="block lg:w-44">
-            <span className="label">Durum</span>
+            <span className="label">{t('common.status')}</span>
             <select className="input" value={status} onChange={(e) => setStatus(e.target.value as CaseStatus | '')}>
-              <option value="">Tüm durumlar</option>
+              <option value="">{t('cases.filterAllStatuses')}</option>
               {STATUS_ORDER.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_META[s].label}
+                  {t(STATUS_META[s].labelKey)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block lg:w-32">
-            <span className="label">Tür</span>
+            <span className="label">{t('cases.species')}</span>
             <select className="input" value={species} onChange={(e) => setSpecies(e.target.value)}>
-              <option value="">Tüm türler</option>
+              <option value="">{t('cases.filterAllSpecies')}</option>
               <option>Köpek</option>
               <option>Kedi</option>
             </select>
           </label>
           <label className="block lg:w-28">
-            <span className="label">Modalite</span>
+            <span className="label">{t('cases.modality')}</span>
             <select
               className="input"
               value={modality}
               onChange={(e) => setModality(e.target.value as BackendModality | '')}
             >
-              <option value="">Tümü</option>
+              <option value="">{t('common.all')}</option>
               <option value="MR">MR</option>
               <option value="CT">CT</option>
               <option value="XR">XR</option>
             </select>
           </label>
           <label className="block lg:w-40">
-            <span className="label">Uzman</span>
+            <span className="label">{t('cases.expert')}</span>
             <select className="input" value={expert} onChange={(e) => setExpert(e.target.value)}>
-              <option value="">Tüm uzmanlar</option>
+              <option value="">{t('cases.filterAllExperts')}</option>
               {experts.map((e) => (
                 <option key={e} value={e}>
                   {e.includes('@') ? e.split('@')[0] : e}
@@ -395,7 +397,7 @@ export default function CaseList() {
               !status ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
             }`}
           >
-            Tümü <span className="ml-1 opacity-70">{counts.total}</span>
+            {t('common.all')} <span className="ml-1 opacity-70">{counts.total}</span>
           </button>
           {STATUS_ORDER.map((s) => {
             const n = counts.byStatus[s] ?? 0
@@ -409,14 +411,14 @@ export default function CaseList() {
                   active ? STATUS_META[s].cls : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {STATUS_META[s].label} <span className="ml-1 opacity-70">{n}</span>
+                {t(STATUS_META[s].labelKey)} <span className="ml-1 opacity-70">{n}</span>
               </button>
             )
           })}
         </div>
 
         {showSkeleton ? (
-          <TableSkeleton />
+          <TableSkeleton loadingLabel={t('cases.loadingCasesAria')} />
         ) : filtered.length ? (
           <CaseTable
             cases={filtered}

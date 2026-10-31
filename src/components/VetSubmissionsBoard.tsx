@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { LocalizedLink } from './LocalizedLink'
 import { AlertTriangle, FileImage, Loader2, PawPrint, Search, Trash2, X } from 'lucide-react'
 import { Button } from './Button'
 import { EmptyState } from './EmptyState'
 import { fmtDate } from '../lib/format'
+import { useLocale } from '../context/LocaleContext'
+import type { TranslateFn } from '../i18n'
 import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord } from '../types'
 import type { DicomFramePreview } from '../lib/dicomPreview'
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Taslak',
-  pending_verification: 'Onay bekliyor',
-  needs_info: 'Eksik bilgi',
-  verified: 'Tamamlandı',
-  rejected: 'Reddedildi',
-  linked: 'Tamamlandı',
-}
 
 /** Soft clinical status chips — muted, not loud. */
 const STATUS_PILL: Record<string, string> = {
@@ -38,18 +31,27 @@ const STATUS_ACCENT: Record<string, string> = {
 type VetTab = 'all' | 'action' | 'waiting' | 'done'
 type DetailTab = 'genel' | 'dicom' | 'klinik' | 'gecmis'
 
-const EMPTY_BY_TAB: Record<VetTab, string> = {
-  all: 'Başvuru yok',
-  action: 'Onay bekleyen başvuru yok',
-  waiting: 'Eksik bilgi bekleyen başvuru yok',
-  done: 'Tamamlanan başvuru yok',
+function speciesTr(species: string | null | undefined, t: TranslateFn) {
+  if (!species) return ''
+  if (species === 'feline' || species === 'Kedi') return t('pets.speciesFeline')
+  if (species === 'canine' || species === 'Köpek') return t('pets.speciesCanine')
+  return species
 }
 
-function speciesTr(species?: string | null) {
-  if (!species) return ''
-  if (species === 'feline' || species === 'Kedi') return 'Kedi'
-  if (species === 'canine' || species === 'Köpek') return 'Köpek'
-  return species
+function vetStatusLabel(status: string, t: TranslateFn) {
+  const key = `submissions.vetStatus.${status}`
+  const label = t(key)
+  return label === key ? status : label
+}
+
+function emptyTabTitle(tab: VetTab, t: TranslateFn) {
+  const map: Record<VetTab, string> = {
+    all: t('vetBoard.emptyAll'),
+    action: t('vetBoard.emptyAction'),
+    waiting: t('vetBoard.emptyWaiting'),
+    done: t('vetBoard.emptyDone'),
+  }
+  return map[tab]
 }
 
 function ownerLocal(subject?: string | null) {
@@ -61,10 +63,12 @@ function PetAvatar({
   name,
   species,
   size = 'md',
+  t,
 }: {
   name: string
   species?: string | null
   size?: 'md' | 'lg'
+  t: TranslateFn
 }) {
   const dim = size === 'lg' ? 'h-14 w-14 text-lg' : 'h-10 w-10 text-sm'
   const feline = species === 'feline' || species === 'Kedi'
@@ -74,7 +78,7 @@ function PetAvatar({
         feline ? 'bg-navy-100 text-navy-700' : 'bg-teal-50 text-teal-800'
       }`}
       aria-hidden
-      title={speciesTr(species) || undefined}
+      title={speciesTr(species, t) || undefined}
     >
       {(name || '?').slice(0, 1).toUpperCase()}
     </div>
@@ -113,11 +117,13 @@ function DicomReviewPanel({
   frames,
   loading,
   error,
+  t,
 }: {
   detail: DicomIngestionRecord | null
   frames: DicomFramePreview[]
   loading: boolean
   error: string | null
+  t: TranslateFn
 }) {
   const [activeFrame, setActiveFrame] = useState(0)
 
@@ -128,7 +134,7 @@ function DicomReviewPanel({
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-8 text-sm text-slate-500">
-        <Loader2 className="h-5 w-5 animate-spin text-teal-700" /> DICOM yükleniyor…
+        <Loader2 className="h-5 w-5 animate-spin text-teal-700" /> {t('vetBoard.dicomLoading')}
       </div>
     )
   }
@@ -138,7 +144,7 @@ function DicomReviewPanel({
   }
 
   if (!detail) {
-    return <p className="text-sm text-slate-500">DICOM kaydı henüz yüklenmedi.</p>
+    return <p className="text-sm text-slate-500">{t('vetBoard.dicomNotLoaded')}</p>
   }
 
   const series = detail.study?.series || []
@@ -160,9 +166,9 @@ function DicomReviewPanel({
       {!detail.blocked && detail.accepted && detail.case_id && (
         <p className="rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2 text-sm text-teal-900">
           Vakaya bağlı ·{' '}
-          <Link className="font-medium underline" to={`/vakalar/${detail.case_id}`}>
+          <LocalizedLink className="font-medium underline" to={`/vakalar/${detail.case_id}`}>
             {detail.case_id}
-          </Link>
+          </LocalizedLink>
         </p>
       )}
 
@@ -175,7 +181,7 @@ function DicomReviewPanel({
             <Field label="Ad" value={detail.patient_name || '—'} />
             <Field
               label="Tür / ırk"
-              value={[speciesTr(detail.species) || detail.species, detail.breed].filter(Boolean).join(' · ') || '—'}
+              value={[speciesTr(detail.species, t) || detail.species, detail.breed].filter(Boolean).join(' · ') || '—'}
             />
             {detail.clinical_history ? <Field label="Klinik öykü" value={detail.clinical_history} /> : null}
             {detail.referring_clinic ? <Field label="Gönderen klinik" value={detail.referring_clinic} /> : null}
@@ -398,6 +404,7 @@ export function VetSubmissionsBoard({
   detailError: string | null
   onLoadDicom: (ingestId: string) => void
 }) {
+  const { t } = useLocale()
   const [tab, setTab] = useState<VetTab>('action')
   const [q, setQ] = useState('')
   const [detailTab, setDetailTab] = useState<DetailTab>('genel')
@@ -474,7 +481,7 @@ export function VetSubmissionsBoard({
     if (owner) return owner
     const clinical = (s.chief_complaint || '').trim()
     if (clinical) return clinical.slice(0, 24)
-    return 'Hasta'
+    return t('vetBoard.patientFallback')
   }
 
   const ownerLine = (s: BackendImagingSubmission) => {
@@ -486,7 +493,12 @@ export function VetSubmissionsBoard({
 
   const metaLine = (s: BackendImagingSubmission) => {
     const pet = petById.get(s.pet_id)
-    return [speciesTr(pet?.species), pet?.breed, pet?.age_years != null ? `${pet.age_years} yaş` : null, pet?.sex]
+    return [
+      speciesTr(pet?.species, t),
+      pet?.breed,
+      pet?.age_years != null ? t('vetBoard.yearsOld', { years: pet.age_years }) : null,
+      pet?.sex,
+    ]
       .filter(Boolean)
       .join(' · ')
   }
@@ -503,10 +515,10 @@ export function VetSubmissionsBoard({
   const ownerShort = ownerLocal(selected?.pet_owner_subject) || '—'
 
   const filterTabs = [
-    { id: 'all' as const, label: 'Tümü', n: counts.all },
-    { id: 'action' as const, label: 'Onay bekleyen', n: counts.action },
-    { id: 'waiting' as const, label: 'Eksik bilgi', n: counts.waiting },
-    { id: 'done' as const, label: 'Tamamlanan', n: counts.done },
+    { id: 'all' as const, label: t('vetBoard.tabAll'), n: counts.all },
+    { id: 'action' as const, label: t('vetBoard.tabAction'), n: counts.action },
+    { id: 'waiting' as const, label: t('vetBoard.tabWaiting'), n: counts.waiting },
+    { id: 'done' as const, label: t('vetBoard.tabDone'), n: counts.done },
   ]
 
   const renderCard = (s: BackendImagingSubmission) => {
@@ -528,7 +540,7 @@ export function VetSubmissionsBoard({
               : 'hover:-translate-y-0.5 hover:border-teal-200/80 hover:shadow-md'
           }`}
         >
-          <PetAvatar name={name} species={pet?.species} />
+          <PetAvatar name={name} species={pet?.species} t={t} />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="truncate text-sm font-semibold text-navy-900">{name}</p>
@@ -537,7 +549,7 @@ export function VetSubmissionsBoard({
                   STATUS_PILL[s.status] || STATUS_PILL.draft
                 }`}
               >
-                {STATUS_LABEL[s.status] || s.status}
+                {vetStatusLabel(s.status, t)}
               </span>
             </div>
             {secondary ? (
@@ -546,11 +558,11 @@ export function VetSubmissionsBoard({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
               {s.dicom_ingest_id ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 px-1.5 py-0.5 font-medium text-teal-800">
-                  <FileImage className="h-3 w-3" /> DICOM
+                  <FileImage className="h-3 w-3" /> {t('vetBoard.dicomBadge')}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">
-                  DICOM yok
+                  {t('vetBoard.noDicomBadge')}
                 </span>
               )}
               <span className="text-slate-400">{fmtDate(s.updated_at || s.created_at)}</span>
@@ -565,8 +577,8 @@ export function VetSubmissionsBoard({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-navy-900">Sahip Başvuruları</h1>
-          <p className="mt-1 text-sm text-slate-500">Onay ve eksik bilgi bekleyen sahip talepleri</p>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-navy-900">{t('vetBoard.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('vetBoard.subtitle')}</p>
         </div>
         <div className="relative w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -574,7 +586,7 @@ export function VetSubmissionsBoard({
             className="input !min-h-10 border-slate-200 bg-white pl-9 text-sm"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Hasta veya başvuru ara…"
+            placeholder={t('vetBoard.searchPlaceholder')}
           />
         </div>
       </div>
@@ -629,7 +641,7 @@ export function VetSubmissionsBoard({
             </ul>
           ) : visible.length === 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
-              <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title={EMPTY_BY_TAB[tab]} />
+              <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title={emptyTabTitle(tab, t)} />
             </div>
           ) : (
             <ul
@@ -648,7 +660,7 @@ export function VetSubmissionsBoard({
         {detailOpen && selected && (
           <div className="flex max-h-[min(82vh,52rem)] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
             <div className="flex shrink-0 items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-              <PetAvatar name={displayName(selected)} species={selectedPet?.species || detail?.species} size="lg" />
+              <PetAvatar name={displayName(selected)} species={selectedPet?.species || detail?.species} size="lg" t={t} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-xl font-semibold text-navy-900">{displayName(selected)}</h2>
@@ -657,7 +669,7 @@ export function VetSubmissionsBoard({
                       STATUS_PILL[selected.status] || STATUS_PILL.draft
                     }`}
                   >
-                    {STATUS_LABEL[selected.status] || selected.status}
+                    {vetStatusLabel(selected.status, t)}
                   </span>
                 </div>
                 {metaLine(selected) ? (
@@ -675,8 +687,8 @@ export function VetSubmissionsBoard({
                 type="button"
                 onClick={onCloseDetail}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-navy-800"
-                aria-label="Detayı kapat"
-                title="Kapat"
+                aria-label={t('vetBoard.closeDetailAria')}
+                title={t('common.close')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -685,26 +697,26 @@ export function VetSubmissionsBoard({
             <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-slate-100 px-2">
               {(
                 [
-                  { id: 'dicom' as const, label: 'DICOM' },
-                  { id: 'genel' as const, label: 'Genel' },
-                  { id: 'klinik' as const, label: 'Klinik' },
-                  { id: 'gecmis' as const, label: 'Geçmiş' },
+                  { id: 'dicom' as const, label: t('vetBoard.detailTabDicom') },
+                  { id: 'genel' as const, label: t('vetBoard.detailTabGeneral') },
+                  { id: 'klinik' as const, label: t('vetBoard.detailTabClinical') },
+                  { id: 'gecmis' as const, label: t('vetBoard.detailTabHistory') },
                 ] as const
-              ).map((t) => (
+              ).map((tabItem) => (
                 <button
-                  key={t.id}
+                  key={tabItem.id}
                   type="button"
-                  onClick={() => setDetailTab(t.id)}
+                  onClick={() => setDetailTab(tabItem.id)}
                   className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition ${
-                    detailTab === t.id
+                    detailTab === tabItem.id
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-navy-800'
                   }`}
                 >
-                  {t.label}
-                  {t.id === 'dicom' && selected.dicom_ingest_id ? (
+                  {tabItem.label}
+                  {tabItem.id === 'dicom' && selected.dicom_ingest_id ? (
                     <span className="ml-1.5 rounded-md bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">
-                      incele
+                      {t('vetBoard.reviewBadge')}
                     </span>
                   ) : null}
                 </button>
@@ -719,10 +731,11 @@ export function VetSubmissionsBoard({
                     frames={detailFrames}
                     loading={detailLoading}
                     error={detailError}
+                    t={t}
                   />
                 ) : (
                   <p className="rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3 text-sm text-amber-950">
-                    Bu başvuruya DICOM bağlı değil. Doğrulama için sahip yeniden yüklemeli.
+                    {t('vetBoard.noDicomWarning')}
                   </p>
                 ))}
 
@@ -742,7 +755,7 @@ export function VetSubmissionsBoard({
                         <Field label="Ad" value={selectedPet?.name || displayName(selected)} />
                         <Field
                           label="Tür"
-                          value={speciesTr(selectedPet?.species || detail?.species) || '—'}
+                          value={speciesTr(selectedPet?.species || detail?.species, t) || '—'}
                         />
                         <Field label="Irk" value={selectedPet?.breed || detail?.breed || '—'} />
                         <Field
@@ -809,7 +822,7 @@ export function VetSubmissionsBoard({
               {detailTab === 'gecmis' && (
                 <div className="space-y-2">
                   {(selected.info_requests || []).length === 0 ? (
-                    <p className="text-sm text-slate-500">Kayıt yok</p>
+                    <p className="text-sm text-slate-500">{t('vetBoard.noHistory')}</p>
                   ) : (
                     (selected.info_requests || []).map((r) => (
                       <div key={r.request_id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
@@ -817,17 +830,17 @@ export function VetSubmissionsBoard({
                           {r.status} · {fmtDate(r.created_at)}
                         </p>
                         <p className="mt-1 text-navy-900">{r.body}</p>
-                        {r.reply ? <p className="mt-1 text-teal-800">Yanıt: {r.reply}</p> : null}
+                        {r.reply ? <p className="mt-1 text-teal-800">{t('vetBoard.replyPrefix', { text: r.reply })}</p> : null}
                       </div>
                     ))
                   )}
                   {selected.linked_case_id ? (
-                    <Link
+                    <LocalizedLink
                       className="inline-block text-sm font-medium text-teal-700 hover:underline"
                       to={`/vakalar/${selected.linked_case_id}`}
                     >
-                      Vakaya git →
-                    </Link>
+                      {t('vetBoard.goToCase')}
+                    </LocalizedLink>
                   ) : null}
                 </div>
               )}
@@ -840,16 +853,16 @@ export function VetSubmissionsBoard({
                     <Button
                       disabled={busy === selected.submission_id || !selected.dicom_ingest_id}
                       onClick={() => onAccept(selected.submission_id)}
-                      title={!selected.dicom_ingest_id ? 'DICOM gerekli' : undefined}
+                      title={!selected.dicom_ingest_id ? t('vetBoard.dicomRequiredTitle') : undefined}
                     >
-                      Doğrula + Vaka Aç
+                      {t('vetBoard.verifyOpenCase')}
                     </Button>
                     <Button
                       variant="secondary"
                       disabled={busy === selected.submission_id}
                       onClick={() => setInfoOpen((v) => !v)}
                     >
-                      Eksik Bilgi
+                      {t('vetBoard.missingInfo')}
                     </Button>
                     <Button
                       variant="ghost"
@@ -857,7 +870,7 @@ export function VetSubmissionsBoard({
                       disabled={busy === selected.submission_id}
                       onClick={() => onReject(selected.submission_id)}
                     >
-                      Reddet
+                      {t('vetBoard.reject')}
                     </Button>
                     {canDelete(selected) && (
                       <Button
@@ -867,17 +880,17 @@ export function VetSubmissionsBoard({
                         disabled={busy === selected.submission_id || busy === `del-${selected.submission_id}`}
                         onClick={() => onDelete(selected)}
                       >
-                        Sil
+                        {t('common.delete')}
                       </Button>
                     )}
                   </div>
                   {!selected.dicom_ingest_id && (
-                    <p className="text-xs text-amber-800">Doğrulama için DICOM gerekli.</p>
+                    <p className="text-xs text-amber-800">{t('vetBoard.dicomRequiredHint')}</p>
                   )}
                   {infoOpen && (
                     <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end">
                       <label className="block min-w-0 flex-1 text-xs text-slate-600">
-                        Not
+                        {t('common.notes')}
                         <input
                           className="input mt-1 !min-h-10 text-sm"
                           value={infoRequestText[selected.submission_id] || ''}
@@ -887,7 +900,7 @@ export function VetSubmissionsBoard({
                               [selected.submission_id]: e.target.value,
                             })
                           }
-                          placeholder="Eksik bilgiyi yazın…"
+                          placeholder={t('vetBoard.infoNotePlaceholder')}
                           autoFocus
                         />
                       </label>
@@ -899,7 +912,7 @@ export function VetSubmissionsBoard({
                           setInfoOpen(false)
                         }}
                       >
-                        Gönder
+                        {t('common.send')}
                       </Button>
                     </div>
                   )}
@@ -907,12 +920,12 @@ export function VetSubmissionsBoard({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {selected.linked_case_id ? (
-                    <Link
+                    <LocalizedLink
                       to={`/vakalar/${selected.linked_case_id}`}
                       className="inline-flex min-h-11 items-center rounded-vm bg-accent px-3.5 text-sm font-medium text-white hover:bg-teal-700"
                     >
-                      Vakayı aç
-                    </Link>
+                      {t('vetBoard.openCase')}
+                    </LocalizedLink>
                   ) : null}
                   {canDelete(selected) && (
                     <Button
@@ -922,7 +935,7 @@ export function VetSubmissionsBoard({
                       disabled={busy === `del-${selected.submission_id}`}
                       onClick={() => onDelete(selected)}
                     >
-                      Sil
+                      {t('common.delete')}
                     </Button>
                   )}
                 </div>

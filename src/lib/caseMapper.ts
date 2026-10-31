@@ -12,9 +12,13 @@ import type {
   Species,
   VetCase,
 } from '../types'
+import type { TranslateFn } from '../i18n'
+import { translate } from '../i18n'
 import { draftToSections, pipelineToAssessment } from './backend'
 import { USERS } from '../data/mock'
 import { cleanClinicalHistory, displayClinic } from './displayClean'
+
+const defaultT: TranslateFn = (key) => translate('tr', key)
 
 /** Defaults mean “not provided”, not a normal clinical exam. */
 const UNKNOWN_NEURO: NeuroExam = {
@@ -401,44 +405,44 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
 }
 
 /** Expert-review facing label derived from case status (no invented review records). */
-export function expertReviewLabel(status: CaseStatus): string {
+export function expertReviewLabel(status: CaseStatus, t: TranslateFn = defaultT): string {
   switch (status) {
     case 'uzman_incelemesinde':
-      return 'Bekliyor'
+      return t('analysis.pending')
     case 'onaylandi':
-      return 'Onaylandı'
+      return t('review.approved')
     case 'reddedildi':
-      return 'Reddedildi'
+      return t('review.rejected')
     case 'revizyon':
-      return 'Revizyon'
+      return t('status.revizyon')
     case 'manuel_inceleme':
-      return 'Manuel'
+      return t('analysis.manual')
     case 'analiz_basarisiz':
-      return 'Analiz yok'
+      return t('analysis.noAnalysis')
     case 'ai_analizi':
     case 'isleniyor':
-      return 'Analiz sürüyor'
+      return t('analysis.running')
     default:
-      return '—'
+      return t('common.dash')
   }
 }
 
-export function analysisStatusLabel(status: CaseStatus): string {
+export function analysisStatusLabel(status: CaseStatus, t: TranslateFn = defaultT): string {
   switch (status) {
     case 'taslak':
-      return 'Bekliyor'
+      return t('analysis.pending')
     case 'isleniyor':
     case 'ai_analizi':
-      return 'Analiz'
+      return t('analysis.analyzing')
     case 'uzman_incelemesinde':
     case 'onaylandi':
     case 'reddedildi':
     case 'revizyon':
-      return 'Tamamlandı'
+      return t('analysis.done')
     case 'analiz_basarisiz':
-      return 'Başarısız'
+      return t('analysis.failed')
     case 'manuel_inceleme':
-      return 'Desteklenmiyor'
+      return t('analysis.manual')
     default:
       return status
   }

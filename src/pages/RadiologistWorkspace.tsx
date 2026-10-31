@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -18,6 +20,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { currentActorId } from '../lib/auth'
 import { AIFindingsPanel } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
@@ -58,16 +61,19 @@ import {
 } from '../lib/reviewSla'
 import type { BackendCaseSummary, ReportSections } from '../types'
 
-const REASON_CODE_OPTIONS: { id: string; label: string }[] = [
-  { id: 'wrong_finding', label: 'Yanlış bulgu' },
-  { id: 'missing_finding', label: 'Eksik bulgu' },
-  { id: 'report_quality', label: 'Rapor kalitesi' },
-]
-
 export default function RadiologistWorkspace() {
   const { id = '' } = useParams()
-  const nav = useNavigate()
+  const nav = useLocalizedNavigate()
   const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase } = useApp()
+  const { t } = useLocale()
+  const reasonCodeOptions = useMemo(
+    () => [
+      { id: 'wrong_finding', label: t('review.workspace.wrongFinding') },
+      { id: 'missing_finding', label: t('review.workspace.missingFinding') },
+      { id: 'report_quality', label: t('review.workspace.reportQuality') },
+    ],
+    [t],
+  )
   const c = getCase(id)
   const [hydrating, setHydrating] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [text, setText] = useState<ReportSections | undefined>(c?.report ?? c?.aiDraft)
@@ -129,7 +135,7 @@ export default function RadiologistWorkspace() {
             ? err.message
             : err instanceof Error
               ? err.message
-              : 'DICOM yüklenemedi',
+              : t('review.workspace.dicomLoadFailed'),
         )
       } finally {
         if (!cancelled) setLoadingFrames(false)
@@ -206,7 +212,7 @@ export default function RadiologistWorkspace() {
   if (hydrating) {
     return (
       <Card>
-        <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Çalışma alanı yükleniyor…" />
+        <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title={t('review.workspace.loading')} />
       </Card>
     )
   }
@@ -215,8 +221,8 @@ export default function RadiologistWorkspace() {
       <Card>
         <EmptyState
           icon={<FileSearch className="h-6 w-6" />}
-          title="Vaka bulunamadı"
-          action={<Link to="/kuyruk" className="text-sm font-medium text-teal-700">İş listesine dön</Link>}
+          title={t('review.workspace.notFound')}
+          action={<LocalizedLink to="/kuyruk" className="text-sm font-medium text-teal-700">{t('review.workspace.backToQueue')}</LocalizedLink>}
         />
       </Card>
     )
@@ -230,11 +236,11 @@ export default function RadiologistWorkspace() {
       <Card>
         <EmptyState
           icon={<AlertTriangle className="h-6 w-6" />}
-          title="Düzenlenebilir taslak yok"
+          title={t('review.workspace.noDraftTitle')}
           text={
             needsManualInit
-              ? 'AI taslağı üretilmedi (unsupported/failed). Manuel radyolog taslağı başlatabilirsiniz — AI çıktısı değildir.'
-              : 'Bu çalışma alanı AI/uzman taslağı olan vakalar içindir.'
+              ? t('review.workspace.noDraftManual')
+              : t('review.workspace.noDraftDefault')
           }
           action={
             needsManualInit && (c.backendCaseId || c.id).startsWith('case-') ? (
@@ -269,9 +275,9 @@ export default function RadiologistWorkspace() {
                 {saving ? 'Başlatılıyor…' : 'Manuel taslak başlat'}
               </Button>
             ) : (
-              <Link to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
+              <LocalizedLink to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
                 Vaka detayı
-              </Link>
+              </LocalizedLink>
             )
           }
         />
@@ -359,7 +365,7 @@ export default function RadiologistWorkspace() {
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'İşlem başarısız',
+        title: t('review.workspace.toastOpFailed'),
         body: err instanceof Error ? err.message : undefined,
       })
     }
@@ -379,8 +385,8 @@ export default function RadiologistWorkspace() {
       if (openRevisionFirst) {
         pushToast({
           tone: 'info',
-          title: 'Revizyon açılıyor',
-          body: 'Onaylı rapor korunur; AI için yeni sürüm oluşturuluyor.',
+          title: t('review.workspace.toastRevisionOpening'),
+          body: t('review.workspace.toastRevisionBody'),
         })
       }
       const result = await resendCaseToAI(caseKey, {
@@ -473,9 +479,9 @@ export default function RadiologistWorkspace() {
         }
         subtitle={contextBits.join(' · ')}
         crumbs={[
-          { label: 'İş Listesi', to: '/kuyruk' },
+          { label: t('review.queue'), to: '/kuyruk' },
           { label: c.no, to: `/vakalar/${c.id}` },
-          { label: 'Çalışma alanı' },
+          { label: t('review.workspace.crumbWorkspace') },
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -502,7 +508,7 @@ export default function RadiologistWorkspace() {
               disabled={!worklistNav.prev}
               onClick={() => void goAssigned(worklistNav.prev)}
             >
-              Önceki
+              {t('review.workspace.prevCase')}
             </Button>
             <Button
               variant="secondary"
@@ -510,10 +516,10 @@ export default function RadiologistWorkspace() {
               disabled={!worklistNav.next}
               onClick={() => void goAssigned(worklistNav.next)}
             >
-              Sonraki <ChevronRight className="h-3.5 w-3.5" />
+              {t('review.workspace.nextCase')} <ChevronRight className="h-3.5 w-3.5" />
             </Button>
             <Button variant="secondary" size="sm" onClick={() => nav(`/vakalar/${c.id}`)}>
-              Vaka özeti
+              {t('review.workspace.caseSummary')}
             </Button>
             <Button
               variant="secondary"
@@ -522,10 +528,10 @@ export default function RadiologistWorkspace() {
               onClick={() => setShowDicom((v) => !v)}
               aria-pressed={showDicom}
             >
-              {showDicom ? 'DICOM gizle' : 'DICOM göster'}
+              {showDicom ? t('review.workspace.hideDicom') : t('review.workspace.showDicom')}
             </Button>
             <Button variant="secondary" size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={() => void onSaveDraft()} disabled={saving || immutable}>
-              {saving ? 'Kaydediliyor…' : 'Taslak kaydet ⌘S'}
+              {saving ? t('review.workspace.savingDraft') : t('review.workspace.saveDraftShortcut')}
             </Button>
           </div>
         }
@@ -533,14 +539,14 @@ export default function RadiologistWorkspace() {
 
       <div className="mb-4 grid gap-4 lg:grid-cols-4">
         <Card className="lg:col-span-3 p-3 text-sm text-slate-700">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vaka bağlamı</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.caseContext')}</p>
           <p className="mt-1">
-            {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || 'Klinik öykü yok'}
+            {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || t('review.workspace.noClinicalHistory')}
           </p>
           {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
           {priorReports.length > 0 && (
             <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className="text-xs font-semibold text-slate-500">Önceki onaylı raporlar (aynı pet)</p>
+              <p className="text-xs font-semibold text-slate-500">{t('review.workspace.priorReports')}</p>
               <ul className="mt-1 space-y-1 text-xs">
                 {priorReports.map((r, i) => (
                   <li key={`${r.case_id}-${i}`}>
@@ -548,9 +554,9 @@ export default function RadiologistWorkspace() {
                     {r.link_path ? (
                       <>
                         {' '}
-                        <Link className="text-teal-700 hover:underline" to={r.link_path}>
-                          aç
-                        </Link>
+                        <LocalizedLink className="text-teal-700 hover:underline" to={r.link_path}>
+                          {t('review.workspace.openLink')}
+                        </LocalizedLink>
                       </>
                     ) : null}
                   </li>
@@ -594,7 +600,7 @@ export default function RadiologistWorkspace() {
                 disabled={immutable}
                 onClick={() => setModal('approve')}
               >
-                Onayla
+                {t('review.approve')}
               </Button>
               <Button
                 size="sm"
@@ -602,7 +608,7 @@ export default function RadiologistWorkspace() {
                 icon={<Send className="h-3.5 w-3.5" />}
                 onClick={() => setModal('revizyon')}
               >
-                {immutable ? 'Revize et' : 'Revizyon'}
+                {immutable ? t('review.workspace.reviseBtn') : t('review.workspace.revisionBtn')}
               </Button>
               <Button
                 size="sm"
@@ -611,7 +617,7 @@ export default function RadiologistWorkspace() {
                 disabled={immutable}
                 onClick={() => setModal('reddedildi')}
               >
-                Reddet
+                {t('review.reject')}
               </Button>
               <Button
                 size="sm"
@@ -620,7 +626,7 @@ export default function RadiologistWorkspace() {
                 icon={<Trash2 className="h-3.5 w-3.5" />}
                 onClick={() => setModal('sil')}
               >
-                Vakayı sil
+                {t('review.workspace.deleteCase')}
               </Button>
               {!showDicom && (
                 <Button
@@ -629,28 +635,26 @@ export default function RadiologistWorkspace() {
                   icon={<ImageIcon className="h-3.5 w-3.5" />}
                   onClick={() => setShowDicom(true)}
                 >
-                  DICOM yanına aç
+                  {t('review.workspace.openDicomSide')}
                 </Button>
               )}
             </div>
             {immutable && (
               <p className="mt-2 text-xs text-emerald-800">
-                Onaylı sürüm kilitli. <strong>Revize et</strong> ile yeni düzenlenebilir sürüm açılır; eski onaylı
-                sürüm geçmişte kalır.
+                {t('review.workspace.immutableHint')}
               </p>
             )}
           </Card>
 
           <Card className="p-4">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <Sparkles className="h-3.5 w-3.5" /> AI&apos;ya tekrar yolla
+              <Sparkles className="h-3.5 w-3.5" /> {t('review.workspace.resendSection')}
             </p>
             <p className="mb-3 text-xs text-slate-600">
-              Tam pipeline&apos;ı yeniden çalıştırır (görüntü + LLM). Hazır/onaylı vakada önce revizyon
-              sürümü açılır; eski onaylı rapor geçmişte kalır. Liste:{' '}
-              <Link to="/ai-tekrar" className="font-semibold text-teal-700 underline">
-                AI&apos;ya Tekrar Yolla
-              </Link>
+              {t('review.workspace.resendBody')}{' '}
+              <LocalizedLink to="/ai-tekrar" className="font-semibold text-teal-700 underline">
+                {t('ai.resend.title')}
+              </LocalizedLink>
               .
             </p>
             <div className="flex flex-wrap gap-2">
@@ -662,10 +666,10 @@ export default function RadiologistWorkspace() {
                 onClick={() => void resendFullPipelineToAI()}
               >
                 {resendingAi
-                  ? 'Gönderiliyor…'
+                  ? t('review.workspace.sending')
                   : immutable
-                    ? "Revizyon aç + AI'ya yolla"
-                    : "Bu vakayı AI'ya tekrar yolla"}
+                    ? t('review.workspace.reviseOpenResend')
+                    : t('review.workspace.resendThisCase')}
               </Button>
               {resendingAi && (
                 <Button
@@ -674,23 +678,23 @@ export default function RadiologistWorkspace() {
                   icon={<Square className="h-3.5 w-3.5" />}
                   onClick={() => resendAbortRef.current?.abort()}
                 >
-                  Analizi durdur
+                  {t('review.workspace.stopAnalysis')}
                 </Button>
               )}
             </div>
             {immutable && !resendingAi && (
               <p className="mt-2 text-xs text-amber-800">
-                Onaylı rapor korunur; AI yeni düzenlenebilir sürüm üretir.
+                {t('review.workspace.approvedProtected')}
               </p>
             )}
           </Card>
 
           <Card className="p-4">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <History className="h-3.5 w-3.5" /> Rapor geçmişi
+              <History className="h-3.5 w-3.5" /> {t('review.workspace.reportHistory')}
             </p>
             {versions.length === 0 ? (
-              <p className="text-xs text-slate-500">Sürüm kaydı yok.</p>
+              <p className="text-xs text-slate-500">{t('review.workspace.noVersions')}</p>
             ) : (
               <ul className="space-y-1 text-xs">
                 {versions.map((v) => (
@@ -709,9 +713,9 @@ export default function RadiologistWorkspace() {
 
           {caseKey.startsWith('case-') && (
             <Card className="space-y-3 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">İç not / klinik istek</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.internalNotes')}</p>
               <label className="block text-xs text-slate-600">
-                İç inceleme notu (yalnız radyolog)
+                {t('review.workspace.internalNoteLabel')}
                 <textarea
                   className="input mt-1 min-h-[56px] text-sm"
                   value={internalNote}
@@ -726,26 +730,26 @@ export default function RadiologistWorkspace() {
                   void appendCaseInternalNote(caseKey, internalNote.trim())
                     .then(() => {
                       setInternalNote('')
-                      pushToast({ tone: 'success', title: 'İç not kaydedildi' })
+                      pushToast({ tone: 'success', title: t('review.workspace.toastInternalSaved') })
                     })
                     .catch((e) =>
                       pushToast({
                         tone: 'error',
-                        title: 'İç not kaydedilemedi',
+                        title: t('review.workspace.toastInternalFailed'),
                         body: e instanceof Error ? e.message : undefined,
                       }),
                     )
                 }
               >
-                İç not kaydet
+                {t('review.workspace.saveInternalNote')}
               </Button>
               <label className="block text-xs text-slate-600">
-                Veterinerden ek klinik bilgi iste
+                {t('review.workspace.askVetInfo')}
                 <input
                   className="input mt-1 text-sm"
                   value={infoAsk}
                   onChange={(e) => setInfoAsk(e.target.value)}
-                  placeholder="İstek metni"
+                  placeholder={t('review.workspace.requestPlaceholder')}
                 />
               </label>
               <Button
@@ -756,18 +760,18 @@ export default function RadiologistWorkspace() {
                   void createCaseInfoRequest(caseKey, { body: infoAsk.trim(), to_role: 'vet' })
                     .then(() => {
                       setInfoAsk('')
-                      pushToast({ tone: 'info', title: 'Bilgi isteği açıldı (OPEN)' })
+                      pushToast({ tone: 'info', title: t('review.workspace.toastInfoOpened') })
                     })
                     .catch((e) =>
                       pushToast({
                         tone: 'error',
-                        title: 'İstek açılamadı',
+                        title: t('review.workspace.toastRequestFailed'),
                         body: e instanceof Error ? e.message : undefined,
                       }),
                     )
                 }
               >
-                İstek gönder
+                {t('review.workspace.sendRequest')}
               </Button>
             </Card>
           )}
@@ -779,11 +783,11 @@ export default function RadiologistWorkspace() {
         onClose={() => {
           if (!deleting) setModal(null)
         }}
-        title="Vakayı silmek istediğinize emin misiniz?"
+        title={t('review.workspace.deleteConfirmTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setModal(null)}>
-              Vazgeç
+              {t('review.workspace.giveUp')}
             </Button>
             <Button
               variant="danger"
@@ -796,20 +800,20 @@ export default function RadiologistWorkspace() {
                 void deleteBackendCase(caseKey)
                   .then(() => {
                     removeCase(caseRow.id)
-                    pushToast({ tone: 'success', title: 'Vaka silindi', body: caseRow.patient.name })
+                    pushToast({ tone: 'success', title: t('review.workspace.toastDeleted'), body: caseRow.patient.name })
                     nav('/kuyruk')
                   })
                   .catch((err) =>
                     pushToast({
                       tone: 'error',
-                      title: 'Silinemedi',
+                      title: t('review.workspace.toastDeleteFailed'),
                       body: err instanceof Error ? err.message : undefined,
                     }),
                   )
                   .finally(() => setDeleting(false))
               }}
             >
-              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+              {deleting ? t('review.workspace.deleting') : t('review.workspace.yesDelete')}
             </Button>
           </>
         }
@@ -822,7 +826,7 @@ export default function RadiologistWorkspace() {
           <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
             {caseRow.no} · {caseKey}
           </p>
-          <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+          <p className="text-xs text-rose-700">{t('review.workspace.deleteIrreversible')}</p>
         </div>
       </Modal>
 
@@ -831,32 +835,28 @@ export default function RadiologistWorkspace() {
         onClose={() => setModal(null)}
         title={
           modal === 'approve'
-            ? 'Raporu onayla'
+            ? t('review.workspace.modalApproveTitle')
             : modal === 'revizyon'
               ? immutable
-                ? 'Onaylı raporu revize et'
-                : 'Revizyon iste'
-              : 'Reddet'
+                ? t('review.workspace.modalReviseApproved')
+                : t('review.workspace.modalRevision')
+              : t('review.workspace.modalReject')
         }
       >
         {modal === 'approve' ? (
-          <p className="text-sm text-slate-600">
-            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez;
-            gerekirse yeni sürüm açarak revize edebilirsiniz.
-          </p>
+          <p className="text-sm text-slate-600">{t('review.workspace.approveBody')}</p>
         ) : (
           <>
             {modal === 'revizyon' && immutable && (
               <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                Mevcut onaylı sürüm <strong>kilitli kalır</strong>. Yeni bir düzenlenebilir sürüm açılır; düzenleyip yeniden
-                onaylayana kadar sahip tarafında önceki onaylı rapor görünür.
+                {t('review.workspace.reviseImmutableNote')}
               </p>
             )}
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Gerekçe kodları (Feedback Store)
+              {t('review.workspace.reasonCodes')}
             </p>
             <div className="mb-3 flex flex-wrap gap-2">
-              {REASON_CODE_OPTIONS.map((opt) => {
+              {reasonCodeOptions.map((opt) => {
                 const on = reasonCodes.includes(opt.id)
                 return (
                   <button
@@ -879,28 +879,25 @@ export default function RadiologistWorkspace() {
               })}
             </div>
             <label className="block">
-              <span className="label">Gerekçe (zorunlu)</span>
+              <span className="label">{t('review.workspace.reasonRequired')}</span>
               <textarea
                 className="input min-h-[100px]"
-                placeholder="Klinik / teknik gerekçe"
+                placeholder={t('review.workspace.reasonPlaceholder')}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
               />
             </label>
-            <p className="mt-2 text-xs text-slate-500">
-              En az 10 karakter + bir kod. Kodlar training-signal olarak kaydedilir (PHI yok).
-            </p>
+            <p className="mt-2 text-xs text-slate-500">{t('review.workspace.reasonHint')}</p>
           </>
         )}
         {modal === 'revizyon' && caseKey.startsWith('case-') && (
           <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
-            <strong>Yapay zekâ ile yeniden yaz:</strong> revizyon talebi kaydedilir, ardından model gerekçenizi
-            dikkate alarak yeni bir taslak sürümü yazar. Görüntü analizi tekrarlanmaz.
+            {t('review.workspace.regenerateAiHint')}
           </p>
         )}
         <div className="mt-3 flex flex-wrap justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={() => setModal(null)} disabled={regenerating}>
-            İptal
+            {t('common.cancel')}
           </Button>
           {modal === 'revizyon' && caseKey.startsWith('case-') && (
             <Button
@@ -910,7 +907,7 @@ export default function RadiologistWorkspace() {
               disabled={regenerating || reason.trim().length < 10 || reasonCodes.length < 1}
               onClick={() => void regenerateWithAI()}
             >
-              {regenerating ? 'Yeni taslak yazılıyor…' : 'Yapay zekâ ile yeniden yaz'}
+              {regenerating ? t('review.workspace.regenerating') : t('review.workspace.regenerateWithAi')}
             </Button>
           )}
           <Button
@@ -928,7 +925,7 @@ export default function RadiologistWorkspace() {
               )
             }
           >
-            {modal === 'approve' ? 'Onayı onayla' : 'Gönder'}
+            {modal === 'approve' ? t('review.workspace.confirmApprove') : t('common.send')}
           </Button>
         </div>
       </Modal>

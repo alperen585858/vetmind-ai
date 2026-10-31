@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
 import {
   Info,
   LayoutPanelLeft,
@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Button } from '../components/Button'
 import { Card, CardHeader } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
@@ -45,6 +46,7 @@ type RunState = { phase: 'idle' | 'running' | 'done' | 'error'; message?: string
 
 export default function ExpertAiResend() {
   const { hydrateBackendCase, pushToast } = useApp()
+  const { t } = useLocale()
   const [rows, setRows] = useState<BackendCaseSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +74,7 @@ export default function ExpertAiResend() {
     })
       .then(setRows)
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Vaka listesi alınamadı')
+        setError(err instanceof Error ? err.message : t('ai.resend.listFailed'))
         setRows([])
       })
       .finally(() => setLoading(false))
@@ -109,7 +111,7 @@ export default function ExpertAiResend() {
           setChat([])
           pushToast({
             tone: 'error',
-            title: 'Sohbet yüklenemedi',
+            title: t('ai.resend.toastChatLoadFailed'),
             body: err instanceof Error ? err.message : undefined,
           })
         }
@@ -151,8 +153,8 @@ export default function ExpertAiResend() {
       if (openRevisionFirst) {
         pushToast({
           tone: 'info',
-          title: 'Revizyon açılıyor',
-          body: 'Onaylı rapor korunur; AI için yeni sürüm oluşturuluyor.',
+          title: t('ai.resend.toastRevisionOpening'),
+          body: t('ai.resend.toastRevisionBody'),
         })
       }
       const result = await resendCaseToAI(caseId, {
@@ -162,9 +164,9 @@ export default function ExpertAiResend() {
       })
       await hydrateBackendCase(caseId)
       if (result.outcome === 'failed') {
-        const msg = result.job.error_message || 'Analiz failed döndü'
+        const msg = result.job.error_message || t('ai.resend.analysisFailedOutcome')
         setRunById((prev) => ({ ...prev, [caseId]: { phase: 'error', message: msg } }))
-        pushToast({ tone: 'error', title: 'AI yeniden gönderim başarısız', body: msg })
+        pushToast({ tone: 'error', title: t('ai.resend.toastResendFailed'), body: msg })
         return
       }
       setRunById((prev) => ({
@@ -173,21 +175,21 @@ export default function ExpertAiResend() {
       }))
       pushToast({
         tone: 'success',
-        title: 'AI yeniden çalıştı',
-        body: openRevisionFirst ? 'Onaylı sürüm korundu; yeni AI taslağı hazır.' : 'Yeni taslak hazır.',
+        title: t('ai.resend.toastResendOk'),
+        body: openRevisionFirst ? t('ai.resend.toastResendBodyRevision') : t('ai.resend.toastResendBodyDraft'),
       })
       load()
     } catch (err) {
       if (err instanceof PollingCancelledError) {
         setRunById((prev) => ({ ...prev, [caseId]: { phase: 'idle' } }))
-        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+        pushToast({ tone: 'info', title: t('ai.resend.toastStopped') })
         await hydrateBackendCase(caseId)
         load()
         return
       }
       const msg = err instanceof Error ? err.message : 'Bilinmeyen hata'
       setRunById((prev) => ({ ...prev, [caseId]: { phase: 'error', message: msg } }))
-      pushToast({ tone: 'error', title: 'AI yeniden gönderilemedi', body: msg })
+      pushToast({ tone: 'error', title: t('ai.resend.toastResendSendFailed'), body: msg })
     } finally {
       if (abortByIdRef.current[caseId] === controller) delete abortByIdRef.current[caseId]
     }
@@ -216,14 +218,14 @@ export default function ExpertAiResend() {
       if (aborted) {
         setChat((prev) => prev.filter((m, i) => !(i === prev.length - 1 && m.role === 'user' && m.content === text)))
         setDraft(text)
-        pushToast({ tone: 'info', title: 'Yanıt durduruldu' })
+        pushToast({ tone: 'info', title: t('ai.resend.toastReplyStopped') })
         return
       }
       setChat((prev) => prev.filter((m, i) => !(i === prev.length - 1 && m.role === 'user' && m.content === text)))
       setDraft(text)
       pushToast({
         tone: 'error',
-        title: 'Yanıt alınamadı',
+        title: t('ai.resend.toastReplyFailed'),
         body: err instanceof Error ? err.message : undefined,
       })
     } finally {
@@ -241,11 +243,11 @@ export default function ExpertAiResend() {
     try {
       await clearCaseAiChat(selectedId)
       setChat([])
-      pushToast({ tone: 'info', title: 'Sohbet temizlendi' })
+      pushToast({ tone: 'info', title: t('ai.resend.toastChatCleared') })
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Sohbet silinemedi',
+        title: t('ai.resend.toastChatClearFailed'),
         body: err instanceof Error ? err.message : undefined,
       })
     }
@@ -254,12 +256,12 @@ export default function ExpertAiResend() {
   return (
     <>
       <PageHeader
-        title="AI'ya Tekrar Yolla"
-        subtitle="Hazır taslak veya onaylı rapor dahil vakayı AI'ya yeniden gönder · Onaylıda önce revizyon açılır"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: "AI'ya Tekrar Yolla" }]}
+        title={t('ai.resend.title')}
+        subtitle={t('ai.resend.subtitle')}
+        crumbs={[{ label: t('ai.resend.crumbDashboard'), to: '/' }, { label: t('ai.resend.title') }]}
         actions={
           <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
-            Yenile
+            {t('common.refresh')}
           </Button>
         }
       />
@@ -267,7 +269,7 @@ export default function ExpertAiResend() {
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="label" htmlFor="ai-resend-q">
-            Ara
+            {t('common.search')}
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
               <input
@@ -276,26 +278,26 @@ export default function ExpertAiResend() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && load()}
-                placeholder="hasta / vaka / klinik"
+                placeholder={t('ai.resend.searchPlaceholder')}
               />
             </div>
           </label>
           <label className="label" htmlFor="ai-resend-status">
-            Durum
+            {t('common.status')}
             <select id="ai-resend-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">Yeniden gönderilebilirler</option>
-              <option value="awaiting_review">Uzman inceleme (hazır taslak)</option>
-              <option value="approved">Onaylandı (hazır rapor)</option>
-              <option value="revision_requested">Revizyon</option>
-              <option value="failed">Analiz başarısız</option>
-              <option value="rejected">Reddedildi</option>
-              <option value="manual_review">Manuel inceleme</option>
+              <option value="">{t('ai.resend.filterResendable')}</option>
+              <option value="awaiting_review">{t('ai.resend.filterAwaitingReview')}</option>
+              <option value="approved">{t('ai.resend.filterApproved')}</option>
+              <option value="revision_requested">{t('ai.resend.filterRevision')}</option>
+              <option value="failed">{t('ai.resend.filterFailed')}</option>
+              <option value="rejected">{t('ai.resend.filterRejected')}</option>
+              <option value="manual_review">{t('ai.resend.filterManual')}</option>
             </select>
           </label>
           <label className="label" htmlFor="ai-resend-modality">
-            Modalite
+            {t('cases.modality')}
             <select id="ai-resend-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
-              <option value="">Tümü</option>
+              <option value="">{t('common.all')}</option>
               <option value="MR">MR</option>
               <option value="CT">CT</option>
               <option value="XR">XR</option>
@@ -304,7 +306,7 @@ export default function ExpertAiResend() {
           </label>
           <div className="flex items-end">
             <Button size="sm" onClick={load}>
-              Filtrele
+              {t('common.filter')}
             </Button>
           </div>
         </div>
@@ -313,22 +315,22 @@ export default function ExpertAiResend() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <Card>
           <CardHeader
-            title={`${display.length} vaka`}
-            subtitle={error ? `API: ${error}` : 'Soldan vaka seç → sağda sohbet · veya AI’ya tekrar yolla'}
+            title={t('ai.resend.caseCount', { count: String(display.length) })}
+            subtitle={error ? `API: ${error}` : t('ai.resend.listHint')}
           />
           {loading ? (
             <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Liste yükleniyor…
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t('ai.resend.listLoading')}
             </p>
           ) : display.length === 0 ? (
             <EmptyState
               compact
               icon={<Sparkles className="h-5 w-5" />}
-              title="Vaka yok"
-              text="Uygun durumda vaka bulunamadı."
+              title={t('ai.resend.emptyTitle')}
+              text={t('ai.resend.emptyText')}
               action={
                 <Button size="sm" variant="secondary" onClick={load}>
-                  Yenile
+                  {t('common.refresh')}
                 </Button>
               }
             />
@@ -337,10 +339,10 @@ export default function ExpertAiResend() {
               <table className="min-w-full divide-y divide-slate-100">
                 <thead className="bg-slate-50/70">
                   <tr>
-                    <th className="th">Vaka</th>
-                    <th className="th">Hasta</th>
-                    <th className="th">Durum</th>
-                    <th className="th">AI</th>
+                    <th className="th">{t('ai.resend.colCase')}</th>
+                    <th className="th">{t('ai.resend.colPatient')}</th>
+                    <th className="th">{t('ai.resend.colStatus')}</th>
+                    <th className="th">{t('ai.resend.colAi')}</th>
                     <th className="th" />
                   </tr>
                 </thead>
@@ -373,8 +375,8 @@ export default function ExpertAiResend() {
                               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> …
                             </span>
                           )}
-                          {run.phase === 'done' && <span className="text-emerald-700">Tamam</span>}
-                          {run.phase === 'error' && <span className="text-rose-700">Hata</span>}
+                          {run.phase === 'done' && <span className="text-emerald-700">{t('ai.resend.done')}</span>}
+                          {run.phase === 'error' && <span className="text-rose-700">{t('ai.resend.error')}</span>}
                           {run.phase === 'idle' && '—'}
                         </td>
                         <td className="td" onClick={(e) => e.stopPropagation()}>
@@ -385,7 +387,7 @@ export default function ExpertAiResend() {
                               disabled={busy || analyzing}
                               onClick={() => void resend(caseId)}
                             >
-                              Tekrar yolla
+                              {t('ai.resend.resendBtn')}
                             </Button>
                             {busy && (
                               <Button
@@ -394,15 +396,15 @@ export default function ExpertAiResend() {
                                 icon={<Square className="h-3.5 w-3.5" />}
                                 onClick={() => stopResend(caseId)}
                               >
-                                Durdur
+                                {t('ai.resend.stop')}
                               </Button>
                             )}
-                            <Link
+                            <LocalizedLink
                               to={`/vakalar/${c.id}/calisma`}
                               className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700"
                             >
-                              <LayoutPanelLeft className="h-3.5 w-3.5" /> Çalışma
-                            </Link>
+                              <LayoutPanelLeft className="h-3.5 w-3.5" /> {t('ai.resend.workspaceLink')}
+                            </LocalizedLink>
                           </div>
                         </td>
                       </tr>
@@ -417,12 +419,12 @@ export default function ExpertAiResend() {
         <Card className="flex min-h-[520px] flex-col overflow-hidden p-0">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-navy-900">
-              <Sparkles className="h-4 w-4 text-teal-600" /> Vaka asistanı
+              <Sparkles className="h-4 w-4 text-teal-600" /> {t('ai.resend.assistantTitle')}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
               {selected
                 ? `${selected.patient.name} · ${selected.no}`
-                : 'Soru sormak için soldan bir vaka seçin'}
+                : t('ai.resend.selectCaseHint')}
             </p>
           </div>
 
@@ -431,8 +433,8 @@ export default function ExpertAiResend() {
               <EmptyState
                 compact
                 icon={<Sparkles className="h-5 w-5" />}
-                title="Vaka seçilmedi"
-                text="Listeden vaka seçince ChatGPT gibi soru sorabilirsiniz."
+                title={t('ai.resend.noCaseTitle')}
+                text={t('ai.resend.noCaseText')}
               />
             </div>
           ) : (
@@ -450,7 +452,7 @@ export default function ExpertAiResend() {
                     disabled={runById[selectedId]?.phase === 'running' || selected?.status === 'ai_analizi'}
                     onClick={() => void resend(selectedId)}
                   >
-                    AI&apos;ya tekrar yolla
+                    {t('ai.resend.resendBtn')}
                   </Button>
                   {runById[selectedId]?.phase === 'running' && (
                     <Button
@@ -459,7 +461,7 @@ export default function ExpertAiResend() {
                       icon={<Square className="h-3.5 w-3.5" />}
                       onClick={() => stopResend(selectedId)}
                     >
-                      Analizi durdur
+                      {t('review.workspace.stopAnalysis')}
                     </Button>
                   )}
                 </div>
@@ -470,18 +472,18 @@ export default function ExpertAiResend() {
                   onClick={() => void clearChat()}
                   disabled={!chat.length}
                 >
-                  Temizle
+                  {t('ai.resend.clearChat')}
                 </Button>
               </div>
 
               <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4">
                 {chatLoading ? (
                   <p className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Sohbet yükleniyor…
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t('ai.resend.chatLoading')}
                   </p>
                 ) : chat.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
-                    <p className="font-medium text-navy-900">Örnek sorular</p>
+                    <p className="font-medium text-navy-900">{t('ai.resend.sampleQuestions')}</p>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
                       <li>Bu vakadaki ana bulgular neler?</li>
                       <li>Ayırıcı tanıda nelere dikkat etmeliyim?</li>
@@ -502,7 +504,7 @@ export default function ExpertAiResend() {
                         }`}
                       >
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">
-                          {m.role === 'user' ? 'Siz' : 'VetMind AI'}
+                          {m.role === 'user' ? t('ai.resend.you') : 'VetMind AI'}
                         </p>
                         <p className="whitespace-pre-wrap">{m.content}</p>
                       </div>
@@ -512,7 +514,7 @@ export default function ExpertAiResend() {
                 {sending && (
                   <div className="flex justify-start">
                     <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Yazıyor…
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ai.resend.typing')}
                       <span className="font-mono tabular-nums text-slate-600">
                         {Math.floor(chatElapsedSec / 60)}:{String(chatElapsedSec % 60).padStart(2, '0')}
                       </span>
@@ -537,9 +539,9 @@ export default function ExpertAiResend() {
                   className="input flex-1"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Vaka hakkında soru sorun…"
+                  placeholder={t('ai.resend.questionPlaceholder')}
                   disabled={sending}
-                  aria-label="Soru"
+                  aria-label={t('ai.resend.questionAria')}
                 />
                 {sending ? (
                   <Button
@@ -549,7 +551,7 @@ export default function ExpertAiResend() {
                     icon={<Square className="h-3.5 w-3.5" />}
                     onClick={stopChat}
                   >
-                    Durdur
+                    {t('ai.resend.stop')}
                   </Button>
                 ) : (
                   <Button
@@ -558,7 +560,7 @@ export default function ExpertAiResend() {
                     icon={<Send className="h-3.5 w-3.5" />}
                     disabled={!draft.trim()}
                   >
-                    Gönder
+                    {t('common.send')}
                   </Button>
                 )}
               </form>
@@ -569,7 +571,7 @@ export default function ExpertAiResend() {
 
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
         <Info className="h-3.5 w-3.5" />
-        Asistan yanıtı klinik karar değildir. Gerçek model için backend&apos;i `npm run backend:dev:ai` ile çalıştırın.
+        {t('ai.resend.footerHint')}
       </p>
     </>
   )

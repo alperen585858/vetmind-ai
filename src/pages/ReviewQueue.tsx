@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
 import { Clock, Info, LayoutPanelLeft, Loader2, RefreshCw, Search, Trash2, UserPlus } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Button } from '../components/Button'
 import { Card, CardHeader } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
@@ -24,6 +26,7 @@ import type { BackendCaseSummary, VetCase } from '../types'
 
 export default function ReviewQueue() {
   const { cases, pushToast, hydrateBackendCase, removeCase } = useApp()
+  const { t } = useLocale()
   const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<BackendCaseSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,7 +52,7 @@ export default function ReviewQueue() {
     })
       .then(setRows)
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'İş listesi alınamadı')
+        setError(err instanceof Error ? err.message : t('review.loadFailed'))
         // Fallback: local awaiting queue
         setRows([])
       })
@@ -90,12 +93,12 @@ export default function ReviewQueue() {
   return (
     <>
       <PageHeader
-        title="Radyolog İş Listesi"
-        subtitle="Acil/STAT → 24 saat · diğerleri → 48 saat · süresi az kalanlara tek tıkla filtre"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'İş Listesi' }]}
+        title={t('review.worklistTitle')}
+        subtitle={t('review.worklistSubtitle')}
+        crumbs={[{ label: t('nav.dashboard'), to: '/' }, { label: t('review.queue') }]}
         actions={
           <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
-            Yenile
+            {t('common.refresh')}
           </Button>
         }
       />
@@ -108,7 +111,7 @@ export default function ReviewQueue() {
             !slaOnly ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          Tüm kuyruk
+          {t('review.allQueue')}
         </button>
         <button
           type="button"
@@ -120,7 +123,7 @@ export default function ReviewQueue() {
           }`}
         >
           <Clock className="h-4 w-4" aria-hidden />
-          Süresi az kalanlar
+          {t('review.slaFilter')}
           <span
             className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
               slaOnly ? 'bg-white/20 text-white' : 'bg-rose-600 text-white'
@@ -135,10 +138,9 @@ export default function ReviewQueue() {
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
           <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
-            <strong>Süresi az kalanlar</strong> gösteriliyor (gecikme veya ≤12 saat). En acil üstte.
-            {' '}
+            {t('review.slaBanner')}{' '}
             <button type="button" className="font-semibold underline" onClick={() => setSlaFilter(false)}>
-              Filtreyi kaldır
+              {t('review.clearFilter')}
             </button>
           </p>
         </div>
@@ -147,7 +149,7 @@ export default function ReviewQueue() {
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <label className="label" htmlFor="wl-q">
-            Ara
+            {t('common.search')}
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
               <input
@@ -156,90 +158,90 @@ export default function ReviewQueue() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && load()}
-                placeholder="hasta / vaka / klinik"
+                placeholder={t('review.searchPlaceholder')}
               />
             </div>
           </label>
           <label className="label" htmlFor="wl-status">
-            Durum
+            {t('common.status')}
             <select id="wl-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">Tümü</option>
-              <option value="awaiting_review">Uzman inceleme</option>
-              <option value="revision_requested">Revizyon</option>
-              <option value="manual_review">Manuel inceleme</option>
-              <option value="analyzing">Analiz</option>
+              <option value="">{t('common.all')}</option>
+              <option value="awaiting_review">{t('review.statusAwaitingReview')}</option>
+              <option value="revision_requested">{t('review.statusRevision')}</option>
+              <option value="manual_review">{t('review.statusManual')}</option>
+              <option value="analyzing">{t('review.statusAnalyzing')}</option>
             </select>
           </label>
           <label className="label" htmlFor="wl-modality">
-            Modalite
+            {t('cases.modality')}
             <select id="wl-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
-              <option value="">Tümü</option>
+              <option value="">{t('common.all')}</option>
               <option value="MR">MR</option>
               <option value="CT">CT</option>
               <option value="XR">XR</option>
             </select>
           </label>
           <label className="label" htmlFor="wl-priority">
-            Öncelik
+            {t('common.priority')}
             <select id="wl-priority" className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
-              <option value="">Tümü</option>
-              <option value="stat">STAT</option>
-              <option value="urgent">Acil (URGENT)</option>
-              <option value="high">Yüksek</option>
-              <option value="normal">Normal</option>
+              <option value="">{t('common.all')}</option>
+              <option value="stat">{t('priority.STAT')}</option>
+              <option value="urgent">{t('priority.Acil')} (URGENT)</option>
+              <option value="high">{t('priority.Yüksek')}</option>
+              <option value="normal">{t('priority.Normal')}</option>
             </select>
           </label>
           <label className="label" htmlFor="wl-assigned">
-            Atama
+            {t('review.assignment')}
             <select id="wl-assigned" className="input mt-1" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
-              <option value="">Tümü</option>
-              <option value="unassigned">Atanmamış</option>
-              <option value={currentActorId()}>Bana atananlar</option>
+              <option value="">{t('common.all')}</option>
+              <option value="unassigned">{t('cases.unassigned')}</option>
+              <option value={currentActorId()}>{t('review.assignedToMe')}</option>
             </select>
           </label>
         </div>
         <div className="mt-3">
           <Button size="sm" onClick={load}>
-            Filtrele
+            {t('review.filterApply')}
           </Button>
         </div>
       </Card>
 
       <Card>
         <CardHeader
-          title={`${display.length} vaka`}
+          title={t('review.caseCountTitle', { count: display.length })}
           subtitle={
             error
-              ? `API: ${error} · yerel kuyruk gösteriliyor`
+              ? t('review.apiFallbackSubtitle', { error })
               : slaOnly
-                ? 'Süresi az kalanlar · en acil üstte'
-                : 'Acil vakalar üstte · süre ≤12 sa “az kalan” filtresinde'
+                ? t('review.slaListSubtitle')
+                : t('review.defaultListSubtitle')
           }
         />
         {loading ? (
           <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> İş listesi yükleniyor…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t('review.loadingWorklist')}
           </p>
         ) : display.length === 0 ? (
           <EmptyState
             compact
             icon={<LayoutPanelLeft className="h-5 w-5" />}
-            title={slaOnly ? 'Süresi az kalan vaka yok' : 'Eşleşen vaka yok'}
+            title={slaOnly ? t('review.emptySlaTitle') : t('review.emptyNoMatch')}
             text={
               slaOnly
-                ? 'Şu an gecikmiş veya 12 saatin altında kalan vaka yok.'
+                ? t('review.emptySlaText')
                 : error
-                  ? `API: ${error}. Filtreleri temizleyip yenileyin.`
-                  : 'Filtreleri genişletin veya yeni vaka bekleyin.'
+                  ? t('review.emptyApiText', { error })
+                  : t('review.emptyExpandFilters')
             }
             action={
               slaOnly ? (
                 <Button size="sm" variant="secondary" onClick={() => setSlaFilter(false)}>
-                  Tüm kuyruğu göster
+                  {t('review.showAllQueue')}
                 </Button>
               ) : (
                 <Button size="sm" variant="secondary" onClick={load}>
-                  Yenile
+                  {t('common.refresh')}
                 </Button>
               )
             }
@@ -249,13 +251,13 @@ export default function ReviewQueue() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-slate-50/70">
                 <tr>
-                  <th className="th">Vaka</th>
-                  <th className="th">Hasta</th>
-                  <th className="th">Modalite</th>
-                  <th className="th">Öncelik</th>
-                  <th className="th">Yanıt süresi</th>
-                  <th className="th">Durum</th>
-                  <th className="th">Atama</th>
+                  <th className="th">{t('review.colCase')}</th>
+                  <th className="th">{t('common.patient')}</th>
+                  <th className="th">{t('cases.modality')}</th>
+                  <th className="th">{t('common.priority')}</th>
+                  <th className="th">{t('review.colResponseTime')}</th>
+                  <th className="th">{t('common.status')}</th>
+                  <th className="th">{t('review.colAssignment')}</th>
                   <th className="th" />
                 </tr>
               </thead>
@@ -282,7 +284,7 @@ export default function ReviewQueue() {
                     <td className="td">
                       <span
                         className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(displayTone)}`}
-                        title={`${hours} saat SLA`}
+                        title={t('review.slaHoursTitle', { hours })}
                       >
                         <Clock className="h-3 w-3" aria-hidden />
                         {c.reviewDueAt ? formatSlaRemaining(c.reviewDueAt) : `${hours}s SLA`}
@@ -294,12 +296,12 @@ export default function ReviewQueue() {
                     <td className="td text-xs text-slate-600">{c.assignedReviewerId || '—'}</td>
                     <td className="td">
                       <div className="flex flex-wrap gap-2">
-                        <Link
+                        <LocalizedLink
                           to={`/vakalar/${c.id}/calisma`}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700"
                         >
-                          <LayoutPanelLeft className="h-3.5 w-3.5" /> Çalışma alanı
-                        </Link>
+                          <LayoutPanelLeft className="h-3.5 w-3.5" /> {t('review.openWorkspace')}
+                        </LocalizedLink>
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-navy-900"
@@ -316,27 +318,27 @@ export default function ReviewQueue() {
                                       : 'normal',
                             })
                               .then(() => {
-                                pushToast({ tone: 'success', title: 'Vaka size atandı' })
+                                pushToast({ tone: 'success', title: t('review.assignedToast') })
                                 void hydrateBackendCase(c.backendCaseId || c.id)
                                 load()
                               })
                               .catch((err) =>
                                 pushToast({
                                   tone: 'error',
-                                  title: 'Atama başarısız',
+                                  title: t('review.assignFailed'),
                                   body: err instanceof Error ? err.message : undefined,
                                 }),
                               )
                           }}
                         >
-                          <UserPlus className="h-3.5 w-3.5" /> Üstlen
+                          <UserPlus className="h-3.5 w-3.5" /> {t('review.claimCase')}
                         </button>
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs font-medium text-rose-700 hover:text-rose-900"
                           onClick={() => setPendingDelete(c)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Sil
+                          <Trash2 className="h-3.5 w-3.5" /> {t('common.delete')}
                         </button>
                       </div>
                     </td>
@@ -349,7 +351,7 @@ export default function ReviewQueue() {
         )}
       </Card>
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-        <Info className="h-3.5 w-3.5" /> Hiçbir AI taslağı uzman onayı olmadan iletilmez. Onaylı raporlar değiştirilemez.
+        <Info className="h-3.5 w-3.5" /> {t('review.footerNote')}
       </p>
 
       <Modal
@@ -357,11 +359,11 @@ export default function ReviewQueue() {
         onClose={() => {
           if (!deleting) setPendingDelete(null)
         }}
-        title="Vakayı silmek istediğinize emin misiniz?"
+        title={t('review.deleteCaseTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDelete(null)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -376,20 +378,20 @@ export default function ReviewQueue() {
                   .then(() => {
                     removeCase(target.id)
                     setPendingDelete(null)
-                    pushToast({ tone: 'success', title: 'Vaka silindi', body: `${target.patient.name} · ${target.no}` })
+                    pushToast({ tone: 'success', title: t('review.caseDeleted'), body: `${target.patient.name} · ${target.no}` })
                     load()
                   })
                   .catch((err) =>
                     pushToast({
                       tone: 'error',
-                      title: 'Silinemedi',
+                      title: t('review.deleteFailed'),
                       body: err instanceof Error ? err.message : undefined,
                     }),
                   )
                   .finally(() => setDeleting(false))
               }}
             >
-              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+              {deleting ? t('review.deleting') : t('review.confirmDelete')}
             </Button>
           </>
         }
@@ -397,13 +399,12 @@ export default function ReviewQueue() {
         {pendingDelete ? (
           <div className="space-y-3 text-sm text-slate-600">
             <p>
-              <strong className="text-navy-900">{pendingDelete.patient.name}</strong> vakasını kalıcı olarak silmek
-              istediğinize emin misiniz?
+              {t('review.deleteCaseConfirm', { name: pendingDelete.patient.name })}
             </p>
             <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
               {pendingDelete.no} · {pendingDelete.id}
             </p>
-            <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+            <p className="text-xs text-rose-700">{t('review.irreversible')}</p>
           </div>
         ) : null}
       </Modal>
