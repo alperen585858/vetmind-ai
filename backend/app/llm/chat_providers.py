@@ -127,12 +127,15 @@ class _ChatProviderBase:
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         gen = request.generation
+        language = (gen.language or self._language or "tr").strip().lower() or self._language
+        if language not in {"tr", "en"}:
+            language = self._language
         aliases = build_aliases(gen)
         user = build_user_prompt(gen, aliases, instructions=request.instructions, revision=request.revision)
         if is_two_step(self._prompt_version):
-            wire, raw_text, steps = self._two_step(gen, aliases, user)
+            wire, raw_text, steps = self._two_step(gen, aliases, user, language=language)
         else:
-            system = build_system_prompt(self._language, self._prompt_version)
+            system = build_system_prompt(language, self._prompt_version)
             payload, raw_text = self._complete(system, user, self._schema)
             wire = parse_report_payload(payload)
             if not wants_differentials(self._prompt_version):
@@ -146,7 +149,7 @@ class _ChatProviderBase:
             model_id=self.model_id,
             model_version=self.model_version,
             prompt_version=self._prompt_version,
-            language=self._language,
+            language=language,
             pipeline_steps=steps,
         )
         if self._verify:
@@ -160,14 +163,20 @@ class _ChatProviderBase:
         )
 
     def _two_step(
-        self, gen: LLMGenerationInput, aliases: CitationAliases, user: str
+        self,
+        gen: LLMGenerationInput,
+        aliases: CitationAliases,
+        user: str,
+        *,
+        language: str | None = None,
     ) -> tuple[ReportWire, str, list[str]]:
         """v4: text sections → one targeted repair if needed → differentials in their own call.
 
         Only the first call may fail the draft. Repair and differentials are best-effort:
         on any provider error the draft keeps what it already has.
         """
-        system = build_system_prompt(self._language, self._prompt_version)
+        lang = language or self._language
+        system = build_system_prompt(lang, self._prompt_version)
         text_schema = report_json_schema(with_differentials=False)
         payload, raw = self._complete(system, user, text_schema)
         wire = parse_report_payload(payload)
@@ -199,7 +208,7 @@ class _ChatProviderBase:
         if not no_findings:
             try:
                 diff_payload, diff_raw = self._complete(
-                    build_differentials_system_prompt(self._language),
+                    build_differentials_system_prompt(lang),
                     build_differentials_user_prompt(user, wire.findings or "(boş)", wire.impression or "(boş)"),
                     DIFFERENTIALS_JSON_SCHEMA,
                     tool_name=DIFFERENTIALS_TOOL_NAME,
@@ -216,9 +225,10 @@ class _ChatProviderBase:
         claims = collect_claims(report)
         if not claims:
             return
+        lang = (gen.language or self._language or "tr").strip().lower() or self._language
         try:
             payload, _ = self._complete(
-                build_verifier_system_prompt(self._language),
+                build_verifier_system_prompt(lang),
                 build_verifier_user_prompt(claims, gen, aliases),
                 VERDICTS_JSON_SCHEMA,
                 tool_name=VERDICTS_TOOL_NAME,

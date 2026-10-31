@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,6 +15,7 @@ import {
   Send,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
@@ -41,7 +44,8 @@ export default function ApprovedReport() {
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
   const { getCase, role, user, hydrateBackendCase, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const nav = useLocalizedNavigate()
   const base = getCase(id)
   const [loading, setLoading] = useState(() => id.startsWith('case-') && !canExportApprovedReport(base))
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -71,9 +75,7 @@ export default function ApprovedReport() {
         base?.fromBackend && canExportApprovedReport(base) ? base : await hydrateBackendCase(id)
       if (cancelled) return
       if (!mapped) {
-        setLoadError(
-          'Backend raporu yüklenemedi. API kapalıysa veya oturum yoksa PDF/print kullanılamaz.',
-        )
+        setLoadError(t('reports.loadFailedHint'))
         setLoading(false)
         return
       }
@@ -117,7 +119,7 @@ export default function ApprovedReport() {
         if (cancelled) return
         pushToast({
           tone: 'error',
-          title: 'Sürüm yüklenemedi',
+          title: t('reports.versionLoadFailed'),
           body: err instanceof Error ? err.message : undefined,
         })
       })
@@ -156,7 +158,7 @@ export default function ApprovedReport() {
     } catch (e) {
       pushToast({
         tone: 'error',
-        title: 'PDF indirilemedi',
+        title: t('reports.pdfFailed'),
         body: e instanceof Error ? e.message : undefined,
       })
     } finally {
@@ -169,7 +171,7 @@ export default function ApprovedReport() {
     if (!caseKey.startsWith('case-') || revising) return
     const note = reviseNote.trim()
     if (note.length < 10) {
-      pushToast({ tone: 'warning', title: 'Gerekçe gerekli', body: 'En az 10 karakter yazın.' })
+      pushToast({ tone: 'warning', title: t('reports.reasonRequired'), body: t('reports.reasonMinTen') })
       return
     }
     setRevising(true)
@@ -184,14 +186,14 @@ export default function ApprovedReport() {
       setReviseNote('')
       pushToast({
         tone: 'success',
-        title: 'Yeni sürüm açıldı',
-        body: 'Önceki onaylı sürüm kilitli kaldı. Çalışma alanında düzenleyip yeniden onaylayın.',
+        title: t('reports.revisionOpened'),
+        body: t('reports.revisionOpenedBody'),
       })
       nav(`/vakalar/${caseKey}/calisma`)
     } catch (e) {
       pushToast({
         tone: 'error',
-        title: 'Revizyon açılamadı',
+        title: t('reports.revisionFailed'),
         body: e instanceof Error ? e.message : undefined,
       })
     } finally {
@@ -203,7 +205,7 @@ export default function ApprovedReport() {
     return (
       <Card className="flex items-center gap-3 p-6 text-sm text-slate-600">
         <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
-        Onaylı rapor yükleniyor…
+        {t('reports.loadingApproved')}
       </Card>
     )
   }
@@ -213,7 +215,7 @@ export default function ApprovedReport() {
       <Card>
         <EmptyState
           icon={<AlertCircle className="h-6 w-6" />}
-          title="Rapor yüklenemedi"
+          title={t('reports.loadFailed')}
           text={loadError}
           action={
             <Button
@@ -233,7 +235,7 @@ export default function ApprovedReport() {
                 })
               }}
             >
-              Tekrar dene
+              {t('common.retry')}
             </Button>
           }
         />
@@ -249,7 +251,7 @@ export default function ApprovedReport() {
       c.patient.ownerName !== user?.name &&
       c.petOwnerSubject !== user?.email)
   ) {
-    return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title="Rapor bulunamadı" /></Card>
+    return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title={t('reports.empty')} /></Card>
   }
 
   if (c.status !== 'onaylandi' || !canExportApprovedReport(c)) {
@@ -257,12 +259,9 @@ export default function ApprovedReport() {
       <Card>
         <EmptyState
           icon={<Clock className="h-6 w-6" />}
-          title="Rapor henüz onaylanmadı"
-          text={
-            loadError ||
-            'Rapor uzman veteriner hekim tarafından onaylandığında burada görüntülenecek. Backend taslağı yoksa print/PDF açılamaz.'
-          }
-          action={<Link to="/" className="text-sm font-medium text-teal-700">Ana sayfaya dön</Link>}
+          title={t('reports.notApprovedYet')}
+          text={loadError || t('reports.notApprovedHint')}
+          action={<LocalizedLink to="/" className="text-sm font-medium text-teal-700">{t('reports.backHome')}</LocalizedLink>}
         />
       </Card>
     )
@@ -283,11 +282,11 @@ export default function ApprovedReport() {
       : c.currentReportVersion ?? sortedVersions[sortedVersions.length - 1]?.version ?? 1
   const reviewStatus =
     c.status === 'onaylandi'
-      ? `Onaylandı${c.approvedBy ? ` · ${c.approvedBy}` : ''}`
+      ? `${t('reports.statusApproved')}${c.approvedBy ? ` · ${c.approvedBy}` : ''}`
       : c.status === 'reddedildi'
-        ? 'Reddedildi'
+        ? t('reports.statusRejected')
         : c.status === 'revizyon'
-          ? 'Revizyon istendi'
+          ? t('reports.statusRevision')
           : c.backendDraft?.status || c.status
 
   const selectVersion = (v: number) => {
@@ -300,21 +299,21 @@ export default function ApprovedReport() {
     <div className="mx-auto max-w-4xl">
       <div className="no-print">
         <PageHeader
-          title="Onaylı rapor"
+          title={t('reports.approvedTitle')}
           subtitle={`${c.patient.name} · ${c.no}`}
           crumbs={[
-            { label: role === 'owner' ? 'Raporlarım' : 'Vakalar', to: role === 'owner' ? '/raporlar' : '/vakalar' },
+            { label: role === 'owner' ? t('nav.myReports') : t('nav.cases'), to: role === 'owner' ? '/raporlar' : '/vakalar' },
             { label: c.no, to: `/vakalar/${c.id}` },
-            { label: 'Rapor' },
+            { label: t('reports.crumbReport') },
           ]}
           actions={
             <div className="flex flex-wrap gap-2">
               <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => nav(-1)}>
-                Geri
+                {t('common.back')}
               </Button>
               {role === 'expert' && id.startsWith('case-') && (
                 <Button variant="secondary" icon={<Send className="h-4 w-4" />} onClick={() => setReviseOpen(true)}>
-                  Revize et
+                  {t('reports.reviseApproved')}
                 </Button>
               )}
               {import.meta.env.MODE !== 'share' && (
@@ -324,10 +323,10 @@ export default function ApprovedReport() {
                     onClick={() => void downloadServerPdf()}
                     disabled={!sections.length || pdfBusy}
                   >
-                    {pdfBusy ? 'PDF hazırlanıyor…' : 'PDF indir'}
+                    {pdfBusy ? t('reports.preparingPdf') : t('reports.downloadPdf')}
                   </Button>
                   <Button variant="secondary" onClick={() => window.print()} disabled={!sections.length}>
-                    Yazdır
+                    {t('reports.print')}
                   </Button>
                 </>
               )}
@@ -358,7 +357,7 @@ export default function ApprovedReport() {
                       active ? 'bg-white text-navy-900 shadow-sm' : 'text-slate-600 hover:text-navy-900'
                     }`}
                   >
-                    {isLatest ? `Güncel (v${v.version})` : `Önceki (v${v.version})`}
+                    {isLatest ? t('reports.versionCurrent', { version: String(v.version) }) : t('reports.versionPrevious', { version: String(v.version) })}
                   </button>
                 )
               })}
@@ -377,16 +376,16 @@ export default function ApprovedReport() {
         <div className="no-print mb-6 rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-navy-50 p-6">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-7 w-7 text-sky-600" />
-            <h2 className="text-xl font-semibold text-navy-900">Raporunuz hazır</h2>
+            <h2 className="text-xl font-semibold text-navy-900">{t('reports.ownerReadyTitle')}</h2>
           </div>
           <p className="mt-3 text-[15px] leading-relaxed text-navy-800">
-            <strong>{p.name}</strong> için hazırlanan değerlendirme raporu
+            {t('reports.ownerReadyBody', { name: p.name })}
             {c.approvedBy ? (
               <>
-                , uzman <strong>{c.approvedBy}</strong> tarafından {fmtDate(c.approvedAt)} tarihinde incelenip onaylanmıştır.
+                {t('reports.ownerApprovedBy', { expert: c.approvedBy, date: fmtDate(c.approvedAt, locale) })}
               </>
             ) : (
-              <> onaylanmıştır.</>
+              <>{t('reports.ownerApprovedShort')}</>
             )}
           </p>
           {c.clinic && (
@@ -411,12 +410,12 @@ export default function ApprovedReport() {
             <Logo accent={role === 'owner' ? 'sky' : 'teal'} />
           </div>
           <div className="text-left text-sm sm:text-right">
-            <p className="text-lg font-semibold text-navy-900">Veteriner Radyoloji Değerlendirme Raporu</p>
+            <p className="text-lg font-semibold text-navy-900">{t('reports.reportDocTitle')}</p>
             <p className="text-slate-500">
-              Rapor No: <span className="font-mono font-medium text-navy-800">{c.reportNo ?? '—'}</span>
+              {t('reports.reportNo')} <span className="font-mono font-medium text-navy-800">{c.reportNo ?? t('common.dash')}</span>
             </p>
             <p className="text-slate-500">
-              Vaka No: <span className="font-mono">{c.no}</span>
+              {t('reports.caseNo')} <span className="font-mono">{c.no}</span>
               {hasRevisionHistory ? (
                 <>
                   {' '}
@@ -520,7 +519,7 @@ export default function ApprovedReport() {
 
         <section className="space-y-6 px-8 py-6">
           {sections.length === 0 ? (
-            <p className="text-sm text-rose-700">Rapor gövdesi boş — print/PDF içeriği yok.</p>
+            <p className="text-sm text-rose-700">{t('reports.emptyBody')}</p>
           ) : (
             sections.map((s) => (
               <div key={s.key}>
@@ -542,18 +541,19 @@ export default function ApprovedReport() {
             <div className="flex items-start gap-3">
               <BadgeCheck className="h-8 w-8 text-emerald-600" />
               <div className="text-sm">
-                <p className="text-slate-500">Onaylayan uzman</p>
+                <p className="text-slate-500">{t('reports.approverLabel')}</p>
                 <p className="font-semibold text-navy-900">{c.approvedBy ?? '—'}</p>
               </div>
             </div>
             <div className="text-sm sm:text-right">
-              <p className="text-slate-500">Onay tarihi</p>
-              <p className="font-semibold text-navy-900">{fmtDate(c.approvedAt)}</p>
+              <p className="text-slate-500">{t('reports.approvalDate')}</p>
+              <p className="font-semibold text-navy-900">{fmtDate(c.approvedAt, locale)}</p>
             </div>
           </div>
           <p className="mt-5 border-t border-slate-200/80 pt-4 text-[10px] font-medium text-slate-500">
-            VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle
+            {t('reports.disclaimer')}
           </p>
+          <p className="mt-2 text-[10px] text-slate-400">{t('reports.footerPartner')}</p>
         </footer>
       </article>
 
@@ -562,11 +562,11 @@ export default function ApprovedReport() {
         onClose={() => {
           if (!revising) setReviseOpen(false)
         }}
-        title="Onaylı raporu revize et?"
+        title={t('reports.reviseModalTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={revising} onClick={() => setReviseOpen(false)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               size="sm"
@@ -574,22 +574,19 @@ export default function ApprovedReport() {
               icon={revising ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               onClick={() => void openRevision()}
             >
-              {revising ? 'Açılıyor…' : 'Yeni sürüm aç'}
+              {revising ? t('reports.openingRevision') : t('reports.openNewVersion')}
             </Button>
           </>
         }
       >
         <div className="space-y-3 text-sm text-slate-600">
-          <p>
-            Mevcut onaylı sürüm <strong className="text-navy-900">kilitli kalır</strong>. Yeni düzenlenebilir sürüm
-            açılır; çalışma alanında düzenleyip yeniden onaylarsınız.
-          </p>
+          <p>{t('reports.reviseModalBody')}</p>
           <label className="block">
-            <span className="label">Revizyon gerekçesi (zorunlu)</span>
+            <span className="label">{t('reports.reviseReasonLabel')}</span>
             <textarea
               data-autofocus
               className="input mt-1 min-h-[96px]"
-              placeholder="Örn. İzlem bölümü netleştirilecek, ayırıcı tanılar güncellenecek…"
+              placeholder={t('reports.reviseReasonPlaceholder')}
               value={reviseNote}
               onChange={(e) => setReviseNote(e.target.value)}
               disabled={revising}
@@ -597,8 +594,8 @@ export default function ApprovedReport() {
           </label>
           <p className={`text-xs ${reviseNote.trim().length < 10 ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
             {reviseNote.trim().length < 10
-              ? `En az 10 karakter gerekli (${reviseNote.trim().length}/10)`
-              : `${reviseNote.trim().length} karakter · hazır`}
+              ? t('reports.reviseMinChars', { current: String(reviseNote.trim().length) })
+              : t('reports.reviseReady', { current: String(reviseNote.trim().length) })}
           </p>
         </div>
       </Modal>

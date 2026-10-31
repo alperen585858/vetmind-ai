@@ -1,14 +1,15 @@
-import { useRef, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { StepIndicator } from '../components/StepIndicator'
 import { CLINIC, EMPTY_NEURO, SAMPLE_FORM } from '../data/mock'
 import { buildAssessment, makeDocument } from '../data/templates'
-import { localize } from '../lib/localization'
+import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../lib/pipeline'
 import {
@@ -38,7 +39,7 @@ import type {
   VetCase,
 } from '../types'
 
-const STEPS = ['Hasta Bilgileri', 'Klinik Bilgiler', 'Nörolojik Muayene', 'Tetkik Yükleme', 'Özet ve Gönder']
+const STEP_KEYS = ['cases.stepPatient', 'cases.stepClinical', 'cases.stepNeuro', 'cases.stepUpload', 'cases.stepSummary'] as const
 const DOC_TYPES: DocType[] = ['MR Raporu', 'BT Raporu', 'Laboratuvar Sonucu', 'Önceki Rapor']
 const LIMBS = ['Sol ön', 'Sağ ön', 'Sol arka', 'Sağ arka']
 const CN = ['Baş eğikliği', 'Nistagmus', 'Anizokori', 'Fasiyal paralizi', 'Tehdit refleksi kaybı']
@@ -155,7 +156,9 @@ function Checks({ options, value, onChange }: { options: string[]; value: string
 
 export default function NewCase() {
   const { addCase, pushToast, updateCase } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const nav = useLocalizedNavigate()
+  const steps = useMemo(() => STEP_KEYS.map((key) => t(key)), [t])
   const [step, setStep] = useState(0)
   const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT)
   const [clinical, setClinical] = useState<ClinicalInfo>(EMPTY_CLINICAL)
@@ -179,7 +182,7 @@ export default function NewCase() {
   const C = <K extends keyof ClinicalInfo>(k: K, v: ClinicalInfo[K]) => setClinical((c) => ({ ...c, [k]: v }))
   const N = <K extends keyof NeuroExam>(k: K, v: NeuroExam[K]) => setNeuro((n) => ({ ...n, [k]: v }))
 
-  const hint = localize(neuro, clinical)
+  const hint = localize(neuro, clinical, locale)
 
   const fillSample = () => {
     setPipeline('document_context')
@@ -335,7 +338,7 @@ export default function NewCase() {
 
   const submit = async () => {
     const stamp = nowStamp()
-    const loc = localize(neuro, clinical)
+    const loc = localize(neuro, clinical, locale)
     const priority: Priority =
       neuro.deepPain === 'Yok'
         ? 'STAT'
@@ -345,7 +348,7 @@ export default function NewCase() {
             ? 'Yüksek'
             : 'Normal'
 
-    let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp)
+    let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
     let backendCaseId = ''
     let backendJobId: string | undefined
     let backendOutcome: VetCase['backendOutcome']
@@ -636,22 +639,22 @@ export default function NewCase() {
   return (
     <>
       <PageHeader
-        title="Yeni Vaka"
-        subtitle="Klinik öykü → görüntüleme → gönder · Nöroloji"
-        crumbs={[{ label: 'Vakalar', to: '/vakalar' }, { label: 'Yeni Vaka' }]}
+        title={t('cases.newCaseTitle')}
+        subtitle={t('cases.newCaseSubtitle')}
+        crumbs={[{ label: t('nav.cases'), to: '/vakalar' }, { label: t('cases.newCaseTitle') }]}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
-              DICOM ile başla
+              {t('cases.startWithDicom')}
             </Button>
             <Button variant="secondary" icon={<Sparkles className="h-4 w-4 text-teal-600" />} onClick={fillSample}>
-              Örnek doldur
+              {t('cases.fillSampleShort')}
             </Button>
           </div>
         }
       />
       <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
-        <summary className="cursor-pointer font-medium text-navy-800">Hızlı doldurma</summary>
+        <summary className="cursor-pointer font-medium text-navy-800">{t('cases.quickFill')}</summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" icon={<Brain className="h-3.5 w-3.5 text-teal-600" />} onClick={fillBrainBackend}>
             Brain MRI
@@ -674,13 +677,13 @@ export default function NewCase() {
         </div>
       </details>
       <Card className="mb-6 p-5">
-        <StepIndicator steps={STEPS} current={step} onSelect={setStep} />
+        <StepIndicator steps={steps} current={step} onSelect={setStep} />
       </Card>
 
       <Card className="p-6">
         {step === 0 && (
           <div className="animate-fade-up">
-            <h2 className="mb-5 text-lg font-semibold text-navy-900">Hasta Bilgileri</h2>
+            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepPatient')}</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Hasta adı *"><input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder="ör. Paşa" /></Field>
               <Field label="Tür"><Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
@@ -699,7 +702,7 @@ export default function NewCase() {
 
         {step === 1 && (
           <div className="animate-fade-up">
-            <h2 className="mb-5 text-lg font-semibold text-navy-900">Klinik Bilgiler</h2>
+            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepClinical')}</h2>
             <div className="grid gap-5 md:grid-cols-2">
               <Field label="Başvuru şikâyeti" className="md:col-span-2"><textarea rows={3} className="input" value={clinical.complaint} onChange={(e) => C('complaint', e.target.value)} placeholder="Sahibin bildirdiği ana şikâyet" /></Field>
               <Field label="Belirtilerin başlangıcı"><Pills options={['Akut', 'Kronik'] as const} value={clinical.onset} onChange={(v) => C('onset', v)} /></Field>
@@ -754,7 +757,7 @@ export default function NewCase() {
 
         {step === 3 && (
           <div className="animate-fade-up">
-            <h2 className="mb-1 text-lg font-semibold text-navy-900">Tetkik Yükleme</h2>
+            <h2 className="mb-1 text-lg font-semibold text-navy-900">{t('cases.stepUpload')}</h2>
             <p className="mb-4 text-sm text-slate-500">
               Belge yolu dosyaları backend doküman kanalına gönderir. DICOM yolu metadata ingest kullanır; piksel tabanlı tanı yoktur.
             </p>
@@ -934,7 +937,7 @@ export default function NewCase() {
 
         {step === 4 && (
           <div className="animate-fade-up space-y-5">
-            <h2 className="text-lg font-semibold text-navy-900">Özet ve Gönder</h2>
+            <h2 className="text-lg font-semibold text-navy-900">{t('cases.stepSummary')}</h2>
             <div className="grid gap-4 lg:grid-cols-2">
               <Summary title="Hasta Bilgileri" onEdit={() => setStep(0)} rows={[
                 ['Hasta', `${patient.name || '—'} (${patient.species})`],
@@ -1084,7 +1087,7 @@ export default function NewCase() {
                   }
                   icon={<Sparkles className="h-4 w-4" />}
                 >
-                  {submitting ? 'İşleniyor…' : pipeline === 'dicom_metadata' ? 'Onayla ve Analiz Çalıştır' : 'Yapay Zekâ Değerlendirmesine Gönder'}
+                  {submitting ? t('dicom.processing') : pipeline === 'dicom_metadata' ? t('cases.submitAnalyze') : t('cases.submitAiReview')}
                 </Button>
                 {submitting && (
                   <Button
@@ -1093,7 +1096,7 @@ export default function NewCase() {
                     icon={<Square className="h-4 w-4" />}
                     onClick={() => submitAbortRef.current?.abort()}
                   >
-                    Analizi durdur
+                    {t('cases.processing.stopAnalysis')}
                   </Button>
                 )}
               </div>
@@ -1103,18 +1106,18 @@ export default function NewCase() {
 
         {step < 4 && (
           <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
-            <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)} icon={<ArrowLeft className="h-4 w-4" />}>Geri</Button>
+            <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)} icon={<ArrowLeft className="h-4 w-4" />}>{t('common.back')}</Button>
             <div className="flex items-center gap-3">
-              {!canNext && <span className="text-xs text-slate-500">Zorunlu alanları doldurun</span>}
+              {!canNext && <span className="text-xs text-slate-500">{t('cases.fillRequired')}</span>}
               <Button disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
-                İleri <ArrowRight className="h-4 w-4" />
+                {t('common.next')} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
         {step === 4 && (
           <div className="mt-6">
-            <Button variant="ghost" onClick={() => setStep(3)} icon={<ArrowLeft className="h-4 w-4" />}>Geri</Button>
+            <Button variant="ghost" onClick={() => setStep(3)} icon={<ArrowLeft className="h-4 w-4" />}>{t('common.back')}</Button>
           </div>
         )}
       </Card>

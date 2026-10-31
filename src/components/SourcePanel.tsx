@@ -1,10 +1,14 @@
 import { BookOpen, FileText, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
+import { kbLicenseLabel, kbSourceText, kbTypeLabel } from '../data/mock'
 
 export function SourcePanel() {
+  const { locale } = useLocale()
   const { sourceId, closeSource, kbSources } = useApp()
   const s = kbSources.find((x) => x.id === sourceId)
   if (!s) return null
+  const text = kbSourceText(s, locale)
   return (
     <div className="fixed inset-0 z-40 no-print">
       <div className="absolute inset-0 bg-navy-950/20" onClick={closeSource} />
@@ -19,20 +23,20 @@ export function SourcePanel() {
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto p-5">
           <div>
-            <p className="text-lg font-semibold leading-snug text-navy-900">{s.title}</p>
+            <p className="text-lg font-semibold leading-snug text-navy-900">{text.title}</p>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full bg-navy-50 px-2 py-0.5 font-medium text-navy-700">{s.type}</span>
-              <span className={`rounded-full px-2 py-0.5 font-medium ${s.license === 'İzinli' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>Lisans: {s.license}</span>
+              <span className="rounded-full bg-navy-50 px-2 py-0.5 font-medium text-navy-700">{kbTypeLabel(s.type, locale)}</span>
+              <span className={`rounded-full px-2 py-0.5 font-medium ${s.license === 'İzinli' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>Lisans: {kbLicenseLabel(s.license, locale)}</span>
             </div>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bölüm</p>
-            <p className="mt-1 text-sm text-navy-800">{s.section}</p>
+            <p className="mt-1 text-sm text-navy-800">{text.section}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">İlgili pasaj</p>
             <blockquote className="mt-2 rounded-lg border-l-4 border-teal-500 bg-teal-50/50 p-4 text-sm leading-relaxed text-navy-900">
-              {s.passage}
+              {text.passage}
             </blockquote>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">

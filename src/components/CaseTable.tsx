@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   CheckCircle2,
   ChevronRight,
@@ -13,6 +13,8 @@ import type { VetCase } from '../types'
 import { PriorityBadge, StatusBadge } from './StatusBadge'
 import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
+import { useLocale } from '../context/LocaleContext'
+import type { TranslateFn } from '../i18n'
 
 const SPECIES_EMOJI: Record<string, string> = { Kedi: '🐱', Köpek: '🐶' }
 
@@ -31,31 +33,32 @@ export function SpeciesIcon({ species }: { species: string }) {
   )
 }
 
-function studyCell(c: VetCase): string {
+function studyCell(c: VetCase, t: TranslateFn): string {
   if (c.instanceCount != null || c.seriesCount != null) {
     const parts = [
-      c.seriesCount != null ? `${c.seriesCount} seri` : null,
-      c.instanceCount != null ? `${c.instanceCount} görüntü` : null,
+      c.seriesCount != null ? t('cases.seriesShort', { n: c.seriesCount }) : null,
+      c.instanceCount != null ? t('cases.imagesShort', { n: c.instanceCount }) : null,
     ].filter(Boolean)
-    return parts.join(' · ') || '—'
+    return parts.join(' · ') || t('common.dash')
   }
   if (c.studyInstanceUid) return `UID …${c.studyInstanceUid.slice(-8)}`
   if (c.documents.some((d) => d.name.toUpperCase().includes('DICOM'))) return 'DICOM'
-  return '—'
+  return t('common.dash')
 }
 
-function modalityLabel(c: VetCase): string {
-  if (!c.modality) return '—'
+function modalityLabel(c: VetCase, dash: string): string {
+  if (!c.modality) return dash
   return c.anatomicalRegion ? `${c.modality}-${c.anatomicalRegion}` : c.modality
 }
 
 function AnalysisCell({ c }: { c: VetCase }) {
-  const label = analysisStatusLabel(c.status)
+  const { t } = useLocale()
+  const label = analysisStatusLabel(c.status, t)
   if (c.status === 'analiz_basarisiz') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-700">
         <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        Analiz Başarısız
+        {t('status.analiz_basarisiz')}
       </span>
     )
   }
@@ -68,21 +71,21 @@ function AnalysisCell({ c }: { c: VetCase }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
         <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        AI Analizi Tamamlandı
+        {t('analysis.aiCompleted')}
       </span>
     )
   }
   return <span className="text-xs text-slate-600">{label}</span>
 }
 
-function expertDisplay(c: VetCase): string {
+function expertDisplay(c: VetCase, t: TranslateFn): string {
   if (c.assignedReviewerId) {
     const id = c.assignedReviewerId
     if (id.includes('@')) return id.split('@')[0]
     return id
   }
-  const review = expertReviewLabel(c.status)
-  return review === '—' ? 'Atanmadı' : review
+  const review = expertReviewLabel(c.status, t)
+  return review === t('common.dash') ? t('cases.unassigned') : review
 }
 
 export function CaseTable({
@@ -100,7 +103,9 @@ export function CaseTable({
   /** When set with selectable, shows bulk delete for checked rows (caller must confirm). */
   onBulkDelete?: (cases: VetCase[]) => void
 }) {
-  const nav = useNavigate()
+  const nav = useLocalizedNavigate()
+  const { t, locale } = useLocale()
+  const dash = t('common.dash')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const allIds = useMemo(() => cases.map((c) => c.id), [cases])
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id))
@@ -135,7 +140,7 @@ export function CaseTable({
       {canBulk && selectedCases.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100 bg-rose-50/80 px-4 py-2.5 sm:px-5">
           <p className="text-sm font-medium text-rose-950">
-            <strong>{selectedCases.length}</strong> vaka seçildi
+            {t('cases.bulkSelected', { count: selectedCases.length })}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -143,7 +148,7 @@ export function CaseTable({
               className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
               onClick={() => setSelected(new Set())}
             >
-              Seçimi temizle
+              {t('cases.clearSelection')}
             </button>
             <button
               type="button"
@@ -151,7 +156,7 @@ export function CaseTable({
               onClick={() => onBulkDelete?.(selectedCases)}
             >
               <Trash2 className="h-3.5 w-3.5" aria-hidden />
-              Seçilenleri sil
+              {t('cases.deleteSelected')}
             </button>
           </div>
         </div>
@@ -167,21 +172,21 @@ export function CaseTable({
                   className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                   checked={allSelected}
                   onChange={toggleAll}
-                  aria-label="Tümünü seç"
+                  aria-label={t('cases.selectAll')}
                 />
               </th>
             )}
-            <th className="th">Vaka No</th>
-            <th className="th">Hasta</th>
-            <th className="th">Tür / Irk</th>
-            <th className="th">Modalite</th>
-            <th className="th">Study</th>
-            <th className="th">Analiz</th>
-            <th className="th">Uzman</th>
-            {showPriority && <th className="th">Öncelik</th>}
-            <th className="th">Durum</th>
-            <th className="th">Tarih</th>
-            <th className="th text-right">İşlemler</th>
+            <th className="th">{t('cases.caseNo')}</th>
+            <th className="th">{t('cases.patient')}</th>
+            <th className="th">{t('cases.speciesBreed')}</th>
+            <th className="th">{t('cases.modality')}</th>
+            <th className="th">{t('cases.study')}</th>
+            <th className="th">{t('cases.analysisCol')}</th>
+            <th className="th">{t('cases.expert')}</th>
+            {showPriority && <th className="th">{t('common.priority')}</th>}
+            <th className="th">{t('common.status')}</th>
+            <th className="th">{t('common.date')}</th>
+            <th className="th text-right">{t('common.actions')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -198,7 +203,7 @@ export function CaseTable({
                     className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                     checked={selected.has(c.id)}
                     onChange={() => toggleOne(c.id)}
-                    aria-label={`${c.no} seç`}
+                    aria-label={t('cases.selectCase', { no: c.no })}
                   />
                 </td>
               )}
@@ -223,19 +228,19 @@ export function CaseTable({
                     MODALITY_CLS[c.modality ?? 'OTHER'] ?? MODALITY_CLS.OTHER
                   }`}
                 >
-                  {modalityLabel(c)}
+                  {modalityLabel(c, dash)}
                 </span>
               </td>
               <td className="td" title={c.studyInstanceUid}>
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
                   <FolderOpen className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                  {studyCell(c)}
+                  {studyCell(c, t)}
                 </span>
               </td>
               <td className="td">
                 <AnalysisCell c={c} />
               </td>
-              <td className="td text-xs text-slate-700">{expertDisplay(c)}</td>
+              <td className="td text-xs text-slate-700">{expertDisplay(c, t)}</td>
               {showPriority && (
                 <td className="td">
                   <PriorityBadge priority={c.priority} />
@@ -244,42 +249,42 @@ export function CaseTable({
               <td className="td">
                 <StatusBadge status={c.status} />
               </td>
-              <td className="td text-xs text-slate-500">{fmtDate(c.createdAt)}</td>
+              <td className="td text-xs text-slate-500">{fmtDate(c.createdAt, locale)}</td>
               <td className="td text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="inline-flex items-center gap-1">
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-navy-700 hover:bg-slate-100"
                     onClick={() => nav(`/vakalar/${c.id}?tab=goruntu`)}
-                    aria-label={`${c.no} DICOM görüntüle`}
-                    title="DICOM görüntüle"
+                    aria-label={t('cases.viewDicomAria', { no: c.no })}
+                    title={t('cases.viewDicom')}
                   >
                     <ImageIcon className="h-3.5 w-3.5" aria-hidden />
-                    Görüntüle
+                    {t('common.view')}
                   </button>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"
                     onClick={() => nav(`/vakalar/${c.id}`)}
                   >
-                    Aç <ChevronRight className="h-3.5 w-3.5" />
+                    {t('cases.open')} <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                   {onDelete ? (
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
                       onClick={() => onDelete(c)}
-                      aria-label={`${c.no} vakasını sil`}
-                      title="Vakayı sil"
+                      aria-label={t('cases.deleteCaseAria', { no: c.no })}
+                      title={t('cases.deleteCaseTitle')}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                      Sil
+                      {t('common.delete')}
                     </button>
                   ) : (
                     <button
                       type="button"
                       className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-navy-700"
-                      aria-label="Diğer işlemler"
+                      aria-label={t('cases.moreActions')}
                       onClick={() => nav(`/vakalar/${c.id}`)}
                     >
                       <MoreHorizontal className="h-4 w-4" aria-hidden />

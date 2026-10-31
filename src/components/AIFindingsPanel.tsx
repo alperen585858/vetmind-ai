@@ -1,4 +1,5 @@
 import { Bot } from 'lucide-react'
+import { useLocale } from '../context/LocaleContext'
 import { displayFindingCode, displayFindingDescription } from '../lib/displayClean'
 import type { BackendFindings } from '../types'
 
@@ -9,16 +10,17 @@ export function AIFindingsPanel({
   findings?: BackendFindings | null
   analysisMode?: string | null
 }) {
+  const { t } = useLocale()
   const items = findings?.findings ?? []
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-navy-900">
         <Bot className="h-4 w-4 text-teal-700" aria-hidden />
-        AI Bulgular
+        {t('ai.findings')}
       </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-xs text-slate-500">Gösterilecek AI bulgusu yok.</p>
+        <p className="mt-3 text-xs text-slate-500">{t('ai.findingsEmpty')}</p>
       ) : (
         <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-xs">
           {items.map((f) => (

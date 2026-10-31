@@ -17,6 +17,7 @@ import {
 } from '../lib/backend'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
+import { applyLocaleFromSettings } from './LocaleContext'
 
 export type UserProfilePatch = {
   displayName?: string
@@ -142,6 +143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         displayName: s.display_name?.trim() ?? '',
         org: s.org?.trim() ?? '',
       })
+      applyLocaleFromSettings(s.language)
       try {
         localStorage.setItem('vetmind.sidebar.collapsed', s.compact_sidebar ? '1' : '0')
         window.dispatchEvent(new Event('vetmind-sidebar-collapse'))

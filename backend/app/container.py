@@ -192,6 +192,8 @@ class AppContainer:
             max_concurrent_analyze=self.settings.max_concurrent_analyze,
             analyze_gate_path=self.settings.analyze_gate_path,
             notifications=self.notifications,
+            user_settings=self.user_settings,
+            default_report_language=self.settings.llm_report_language,
         )
         self.dicom = DicomService(
             self.repo,

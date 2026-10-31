@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { FileImage, Loader2, PawPrint, Search, Trash2, X } from 'lucide-react'
+import { LocalizedLink } from './LocalizedLink'
+import { AlertTriangle, FileImage, Loader2, PawPrint, Search, Trash2, X } from 'lucide-react'
 import { Button } from './Button'
 import { EmptyState } from './EmptyState'
 import { fmtDate } from '../lib/format'
+import { useLocale } from '../context/LocaleContext'
+import type { TranslateFn } from '../i18n'
 import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord } from '../types'
 import type { DicomFramePreview } from '../lib/dicomPreview'
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Taslak',
-  pending_verification: 'Onay bekliyor',
-  needs_info: 'Eksik bilgi',
-  verified: 'Tamamlandı',
-  rejected: 'Reddedildi',
-  linked: 'Tamamlandı',
-}
 
 /** Soft clinical status chips — muted, not loud. */
 const STATUS_PILL: Record<string, string> = {
@@ -38,21 +31,44 @@ const STATUS_ACCENT: Record<string, string> = {
 type VetTab = 'all' | 'action' | 'waiting' | 'done'
 type DetailTab = 'genel' | 'dicom' | 'klinik' | 'gecmis'
 
-function speciesTr(species?: string | null) {
-  if (!species) return '—'
-  if (species === 'feline' || species === 'Kedi') return 'Kedi'
-  if (species === 'canine' || species === 'Köpek') return 'Köpek'
+function speciesTr(species: string | null | undefined, t: TranslateFn) {
+  if (!species) return ''
+  if (species === 'feline' || species === 'Kedi') return t('pets.speciesFeline')
+  if (species === 'canine' || species === 'Köpek') return t('pets.speciesCanine')
   return species
+}
+
+function vetStatusLabel(status: string, t: TranslateFn) {
+  const key = `submissions.vetStatus.${status}`
+  const label = t(key)
+  return label === key ? status : label
+}
+
+function emptyTabTitle(tab: VetTab, t: TranslateFn) {
+  const map: Record<VetTab, string> = {
+    all: t('vetBoard.emptyAll'),
+    action: t('vetBoard.emptyAction'),
+    waiting: t('vetBoard.emptyWaiting'),
+    done: t('vetBoard.emptyDone'),
+  }
+  return map[tab]
+}
+
+function ownerLocal(subject?: string | null) {
+  if (!subject) return ''
+  return subject.includes('@') ? subject.split('@')[0] : subject
 }
 
 function PetAvatar({
   name,
   species,
   size = 'md',
+  t,
 }: {
   name: string
   species?: string | null
   size?: 'md' | 'lg'
+  t: TranslateFn
 }) {
   const dim = size === 'lg' ? 'h-14 w-14 text-lg' : 'h-10 w-10 text-sm'
   const feline = species === 'feline' || species === 'Kedi'
@@ -62,7 +78,7 @@ function PetAvatar({
         feline ? 'bg-navy-100 text-navy-700' : 'bg-teal-50 text-teal-800'
       }`}
       aria-hidden
-      title={speciesTr(species)}
+      title={speciesTr(species, t) || undefined}
     >
       {(name || '?').slice(0, 1).toUpperCase()}
     </div>
@@ -74,6 +90,275 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
     <div>
       <p className="text-[11px] text-slate-400">{label}</p>
       <p className="mt-0.5 text-sm font-medium text-navy-900">{value || '—'}</p>
+    </div>
+  )
+}
+
+function CardSkeleton() {
+  return (
+    <div className="animate-pulse rounded-xl border border-slate-200/90 bg-white p-4 shadow-soft">
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 shrink-0 rounded-xl bg-slate-100" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="h-4 w-24 rounded bg-slate-100" />
+            <div className="h-5 w-20 rounded-full bg-slate-100" />
+          </div>
+          <div className="h-3 w-32 rounded bg-slate-100" />
+          <div className="h-5 w-28 rounded-md bg-slate-100" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DicomReviewPanel({
+  detail,
+  frames,
+  loading,
+  error,
+  t,
+}: {
+  detail: DicomIngestionRecord | null
+  frames: DicomFramePreview[]
+  loading: boolean
+  error: string | null
+  t: TranslateFn
+}) {
+  const [activeFrame, setActiveFrame] = useState(0)
+
+  useEffect(() => {
+    setActiveFrame(0)
+  }, [detail?.ingest_id, frames.length])
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin text-teal-700" /> {t('vetBoard.dicomLoading')}
+      </div>
+    )
+  }
+
+  if (error) {
+    return <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+  }
+
+  if (!detail) {
+    return <p className="text-sm text-slate-500">{t('vetBoard.dicomNotLoaded')}</p>
+  }
+
+  const series = detail.study?.series || []
+  const instanceCount = series.reduce((n, s) => n + s.instances.length, 0)
+  const selected = frames[activeFrame] || frames[0]
+
+  return (
+    <div className="space-y-4">
+      {detail.blocked && (
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm text-rose-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">DICOM engellendi</p>
+            <p className="mt-0.5 text-rose-800">{detail.block_reason || 'Doğrulama hatası'}</p>
+          </div>
+        </div>
+      )}
+
+      {!detail.blocked && detail.accepted && detail.case_id && (
+        <p className="rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2 text-sm text-teal-900">
+          Vakaya bağlı ·{' '}
+          <LocalizedLink className="font-medium underline" to={`/vakalar/${detail.case_id}`}>
+            {detail.case_id}
+          </LocalizedLink>
+        </p>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            DICOM hasta
+          </p>
+          <div className="space-y-2">
+            <Field label="Ad" value={detail.patient_name || '—'} />
+            <Field
+              label="Tür / ırk"
+              value={[speciesTr(detail.species, t) || detail.species, detail.breed].filter(Boolean).join(' · ') || '—'}
+            />
+            {detail.clinical_history ? <Field label="Klinik öykü" value={detail.clinical_history} /> : null}
+            {detail.referring_clinic ? <Field label="Gönderen klinik" value={detail.referring_clinic} /> : null}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Sınıflandırma
+          </p>
+          {detail.classification ? (
+            <div className="space-y-2">
+              <Field label="Modalite" value={detail.classification.suggested_modality} />
+              <Field label="Anatomik bölge" value={detail.classification.suggested_anatomical_region} />
+              <Field
+                label="Güven"
+                value={`${detail.classification.confidence}${
+                  detail.classification.needs_confirmation ? ' · onay gerekli' : ''
+                }`}
+              />
+              {detail.classification.rationale?.length > 0 ? (
+                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                  {detail.classification.rationale.slice(0, 4).map((r) => (
+                    <li key={r}>· {r}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Sınıflandırma yok</p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 px-3.5 py-3">
+        <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Study</p>
+        <dl className="grid gap-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-[11px] text-slate-400">Açıklama</dt>
+            <dd className="font-medium text-navy-900">{detail.study?.study_description || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-slate-400">Accession</dt>
+            <dd className="font-medium text-navy-900">{detail.study?.accession_number || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-slate-400">Seri / instance</dt>
+            <dd className="font-medium text-navy-900">
+              {series.length} seri · {instanceCount} instance
+              {detail.quarantined_files?.length
+                ? ` · ${detail.quarantined_files.length} dosya`
+                : ''}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-slate-400">Ingest</dt>
+            <dd className="break-all font-mono text-[11px] text-navy-800">{detail.ingest_id}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="text-[11px] text-slate-400">Study UID</dt>
+            <dd className="break-all font-mono text-[11px] text-navy-800">
+              {detail.study?.study_instance_uid || '—'}
+            </dd>
+          </div>
+        </dl>
+
+        {series.length > 0 && (
+          <ul className="mt-3 max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-white px-3 py-2">
+            {series.map((ser, i) => (
+              <li key={ser.series_instance_uid} className="text-xs text-slate-700">
+                <span className="font-medium text-navy-900">
+                  Seri {i + 1}
+                  {ser.modality ? ` · ${ser.modality}` : ''}
+                </span>
+                {ser.series_description ? ` — ${ser.series_description}` : ''}
+                <span className="text-slate-400"> · {ser.instances.length} frame</span>
+                {ser.body_part_examined ? (
+                  <span className="text-slate-500"> · {ser.body_part_examined}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {detail.issues?.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+            Doğrulama uyarıları ({detail.issues.length})
+          </p>
+          <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-amber-950">
+            {detail.issues.map((iss, i) => (
+              <li key={`${iss.code}-${i}`}>
+                <span className="font-medium uppercase">{iss.severity}</span> · {iss.message}
+                {iss.filename ? <span className="text-amber-700"> ({iss.filename})</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {detail.quarantined_files?.length > 0 && (
+        <div className="rounded-xl border border-slate-200 px-3.5 py-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Dosyalar ({detail.quarantined_files.length})
+          </p>
+          <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-slate-700">
+            {detail.quarantined_files.map((f) => (
+              <li key={f.relative_path} className="truncate">
+                {f.original_filename}{' '}
+                <span className="text-slate-400">
+                  ({Math.max(1, Math.round(f.size_bytes / 1024))} KB · {f.content_kind})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Önizleme {frames.length ? `(${frames.length})` : ''}
+        </p>
+        {frames.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            {detail.blocked
+              ? 'Engellenmiş ingest — önizleme yok'
+              : 'Metadata okundu. Piksel önizleme yoksa dosyalar decode edilemedi.'}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {selected && (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-navy-950">
+                {selected.thumbUrl ? (
+                  <img
+                    src={selected.thumbUrl}
+                    alt={selected.fileName}
+                    className="mx-auto max-h-64 w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+                    {selected.modality || 'DCM'}
+                  </div>
+                )}
+                <div className="border-t border-white/10 px-3 py-2 text-[11px] text-slate-300">
+                  {[selected.modality, selected.seriesDescription, selected.fileName]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  {selected.rows && selected.cols ? ` · ${selected.cols}×${selected.rows}` : ''}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {frames.map((f, i) => (
+                <button
+                  key={f.sopInstanceUid || f.fileName || i}
+                  type="button"
+                  onClick={() => setActiveFrame(i)}
+                  className={`overflow-hidden rounded-lg border bg-navy-950 transition ${
+                    i === activeFrame
+                      ? 'border-teal-400 ring-2 ring-teal-500/40'
+                      : 'border-slate-200 hover:border-teal-300'
+                  }`}
+                >
+                  {f.thumbUrl ? (
+                    <img src={f.thumbUrl} alt="" className="h-16 w-16 object-contain" />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center text-[10px] text-slate-400">
+                      {f.modality || 'DCM'}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -119,6 +404,7 @@ export function VetSubmissionsBoard({
   detailError: string | null
   onLoadDicom: (ingestId: string) => void
 }) {
+  const { t } = useLocale()
   const [tab, setTab] = useState<VetTab>('action')
   const [q, setQ] = useState('')
   const [detailTab, setDetailTab] = useState<DetailTab>('genel')
@@ -175,206 +461,302 @@ export function VetSubmissionsBoard({
 
   useEffect(() => {
     setInfoOpen(false)
-    setDetailTab('genel')
-  }, [selectedId])
+    const row = selectedId
+      ? rows.find((r) => r.submission_id === selectedId)
+      : null
+    setDetailTab(row?.dicom_ingest_id ? 'dicom' : 'genel')
+  }, [selectedId, rows])
 
   useEffect(() => {
     const ingestId = selected?.dicom_ingest_id
     if (!ingestId || !detailOpen) return
-    if (detailTab === 'dicom' || detailTab === 'genel') onLoadDicom(ingestId)
+    onLoadDicom(ingestId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.dicom_ingest_id, detailTab, detailOpen])
+  }, [selected?.dicom_ingest_id, detailOpen])
 
   const displayName = (s: BackendImagingSubmission) => {
     const pet = petById.get(s.pet_id)
     if (pet?.name) return pet.name
+    const owner = ownerLocal(s.pet_owner_subject)
+    if (owner) return owner
     const clinical = (s.chief_complaint || '').trim()
     if (clinical) return clinical.slice(0, 24)
-    return s.pet_owner_subject?.split('@')[0] || 'Hasta'
+    return t('vetBoard.patientFallback')
+  }
+
+  const ownerLine = (s: BackendImagingSubmission) => {
+    const pet = petById.get(s.pet_id)
+    const owner = ownerLocal(s.pet_owner_subject)
+    if (pet?.name && owner) return owner
+    return ''
   }
 
   const metaLine = (s: BackendImagingSubmission) => {
     const pet = petById.get(s.pet_id)
-    return [speciesTr(pet?.species), pet?.breed, pet?.age_years != null ? `${pet.age_years} yaş` : null, pet?.sex]
+    return [
+      speciesTr(pet?.species, t),
+      pet?.breed,
+      pet?.age_years != null ? t('vetBoard.yearsOld', { years: pet.age_years }) : null,
+      pet?.sex,
+    ]
       .filter(Boolean)
       .join(' · ')
+  }
+
+  const secondaryLine = (s: BackendImagingSubmission) => {
+    const owner = ownerLine(s)
+    const meta = metaLine(s)
+    return [owner, meta].filter(Boolean).join(' · ')
   }
 
   const actionable =
     selected && (selected.status === 'pending_verification' || selected.status === 'needs_info')
 
-  const ownerShort = selected?.pet_owner_subject?.includes('@')
-    ? selected.pet_owner_subject.split('@')[0]
-    : selected?.pet_owner_subject || '—'
+  const ownerShort = ownerLocal(selected?.pet_owner_subject) || '—'
 
   const filterTabs = [
-    { id: 'all' as const, label: 'Tümü', n: counts.all },
-    { id: 'action' as const, label: 'Onay bekleyen', n: counts.action },
-    { id: 'waiting' as const, label: 'Eksik bilgi', n: counts.waiting },
-    { id: 'done' as const, label: 'Tamamlanan', n: counts.done },
+    { id: 'all' as const, label: t('vetBoard.tabAll'), n: counts.all },
+    { id: 'action' as const, label: t('vetBoard.tabAction'), n: counts.action },
+    { id: 'waiting' as const, label: t('vetBoard.tabWaiting'), n: counts.waiting },
+    { id: 'done' as const, label: t('vetBoard.tabDone'), n: counts.done },
   ]
 
+  const renderCard = (s: BackendImagingSubmission) => {
+    const active = detailOpen && s.submission_id === selected?.submission_id
+    const name = displayName(s)
+    const pet = petById.get(s.pet_id)
+    const secondary = secondaryLine(s)
+
+    return (
+      <li key={s.submission_id} id={`submission-${s.submission_id}`}>
+        <button
+          type="button"
+          onClick={() => onSelect(s.submission_id)}
+          className={`flex w-full items-start gap-3 rounded-xl border border-l-4 border-slate-200/90 bg-white px-3.5 py-3.5 text-left shadow-soft transition ${
+            STATUS_ACCENT[s.status] || STATUS_ACCENT.draft
+          } ${
+            active
+              ? 'bg-teal-50/40 ring-2 ring-teal-500/30'
+              : 'hover:-translate-y-0.5 hover:border-teal-200/80 hover:shadow-md'
+          }`}
+        >
+          <PetAvatar name={name} species={pet?.species} t={t} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="truncate text-sm font-semibold text-navy-900">{name}</p>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                  STATUS_PILL[s.status] || STATUS_PILL.draft
+                }`}
+              >
+                {vetStatusLabel(s.status, t)}
+              </span>
+            </div>
+            {secondary ? (
+              <p className="mt-1 truncate text-xs text-slate-500">{secondary}</p>
+            ) : null}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+              {s.dicom_ingest_id ? (
+                <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 px-1.5 py-0.5 font-medium text-teal-800">
+                  <FileImage className="h-3 w-3" /> {t('vetBoard.dicomBadge')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">
+                  {t('vetBoard.noDicomBadge')}
+                </span>
+              )}
+              <span className="text-slate-400">{fmtDate(s.updated_at || s.created_at)}</span>
+            </div>
+          </div>
+        </button>
+      </li>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-navy-900">Sahip Başvuruları</h1>
-        <div className="relative w-full sm:max-w-xs">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-navy-900">{t('vetBoard.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('vetBoard.subtitle')}</p>
+        </div>
+        <div className="relative w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             className="input !min-h-10 border-slate-200 bg-white pl-9 text-sm"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Hasta veya başvuru ara…"
+            placeholder={t('vetBoard.searchPlaceholder')}
           />
         </div>
       </div>
 
       <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100/90 p-1">
-        {filterTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${
-              tab === t.id
-                ? 'bg-white text-navy-900 shadow-sm'
-                : 'text-slate-600 hover:text-navy-800'
-            }`}
-          >
-            {t.label}
-            <span className="tabular-nums text-slate-400">{t.n}</span>
-          </button>
-        ))}
+        {filterTabs.map((t) => {
+          const active = tab === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${
+                active
+                  ? 'bg-white text-navy-900 shadow-sm ring-1 ring-teal-200/70'
+                  : 'text-slate-600 hover:text-navy-800'
+              }`}
+            >
+              {t.label}
+              <span
+                className={`tabular-nums rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                  active ? 'bg-teal-50 text-teal-800' : 'text-slate-400'
+                }`}
+              >
+                {t.n}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       <div
         className={`grid gap-4 ${
-          detailOpen ? 'xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]' : 'grid-cols-1'
+          detailOpen ? 'xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]' : 'grid-cols-1'
         }`}
       >
-        {/* List — full width when detail closed */}
-        <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
+        {/* List — separate cards when detail closed; compact queue when open */}
+        <div>
           {loading ? (
-            <p className="flex items-center gap-2 px-4 py-10 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin text-teal-700" /> Yükleniyor…
-            </p>
+            <ul
+              className={
+                detailOpen
+                  ? 'flex max-h-[min(72vh,42rem)] flex-col gap-2 overflow-y-auto'
+                  : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'
+              }
+            >
+              {Array.from({ length: detailOpen ? 4 : 6 }).map((_, i) => (
+                <li key={i}>
+                  <CardSkeleton />
+                </li>
+              ))}
+            </ul>
           ) : visible.length === 0 ? (
-            <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title="Kayıt yok" />
+            <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
+              <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title={emptyTabTitle(tab, t)} />
+            </div>
           ) : (
-            <ul className={`max-h-[min(72vh,42rem)] overflow-y-auto ${detailOpen ? '' : 'sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:max-h-none'}`}>
-              {visible.map((s) => {
-                const active = detailOpen && s.submission_id === selected?.submission_id
-                const name = displayName(s)
-                const pet = petById.get(s.pet_id)
-                return (
-                  <li key={s.submission_id} className="border-b border-slate-100 last:border-0 sm:border-r sm:last:border-b">
-                    <button
-                      type="button"
-                      onClick={() => onSelect(s.submission_id)}
-                      className={`flex w-full items-center gap-3 border-l-[3px] px-3 py-3 text-left transition ${
-                        STATUS_ACCENT[s.status] || STATUS_ACCENT.draft
-                      } ${active ? 'bg-slate-50' : 'bg-white hover:bg-slate-50/90'}`}
-                    >
-                      <PetAvatar name={name} species={pet?.species} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-semibold text-navy-900">{name}</p>
-                          <span
-                            className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                              STATUS_PILL[s.status] || STATUS_PILL.draft
-                            }`}
-                          >
-                            {STATUS_LABEL[s.status] || s.status}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">{metaLine(s) || '—'}</p>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
-                          {s.dicom_ingest_id ? (
-                            <span className="inline-flex items-center gap-0.5 text-teal-700">
-                              <FileImage className="h-3 w-3" /> DICOM
-                            </span>
-                          ) : null}
-                          <span>{fmtDate(s.updated_at || s.created_at)}</span>
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
+            <ul
+              className={
+                detailOpen
+                  ? 'flex max-h-[min(72vh,42rem)] flex-col gap-2 overflow-y-auto'
+                  : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'
+              }
+            >
+              {visible.map((s) => renderCard(s))}
             </ul>
           )}
         </div>
 
-        {/* Detail — closable */}
+        {/* Detail — closable; DICOM-first for verification */}
         {detailOpen && selected && (
-          <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
-            <div className="flex items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-              <PetAvatar name={displayName(selected)} species={selectedPet?.species || detail?.species} size="lg" />
+          <div className="flex max-h-[min(82vh,52rem)] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
+            <div className="flex shrink-0 items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+              <PetAvatar name={displayName(selected)} species={selectedPet?.species || detail?.species} size="lg" t={t} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-xl font-semibold text-navy-900">{displayName(selected)}</h2>
                   <span
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
                       STATUS_PILL[selected.status] || STATUS_PILL.draft
                     }`}
                   >
-                    {STATUS_LABEL[selected.status] || selected.status}
+                    {vetStatusLabel(selected.status, t)}
                   </span>
                 </div>
-                <p className="mt-0.5 text-sm text-slate-500">{metaLine(selected)}</p>
+                {metaLine(selected) ? (
+                  <p className="mt-0.5 text-sm text-slate-500">{metaLine(selected)}</p>
+                ) : null}
                 <p className="mt-0.5 text-xs text-slate-400">{fmtDate(selected.created_at)}</p>
+                {detail?.classification ? (
+                  <p className="mt-1 text-xs font-medium text-teal-800">
+                    {detail.classification.suggested_modality} ·{' '}
+                    {detail.classification.suggested_anatomical_region}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
                 onClick={onCloseDetail}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-navy-800"
-                aria-label="Detayı kapat"
-                title="Kapat"
+                aria-label={t('vetBoard.closeDetailAria')}
+                title={t('common.close')}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex gap-0.5 overflow-x-auto border-b border-slate-100 px-2">
+            <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-slate-100 px-2">
               {(
                 [
-                  { id: 'genel' as const, label: 'Genel' },
-                  { id: 'dicom' as const, label: selected.dicom_ingest_id ? 'DICOM' : 'DICOM' },
-                  { id: 'klinik' as const, label: 'Klinik' },
-                  { id: 'gecmis' as const, label: 'Geçmiş' },
+                  { id: 'dicom' as const, label: t('vetBoard.detailTabDicom') },
+                  { id: 'genel' as const, label: t('vetBoard.detailTabGeneral') },
+                  { id: 'klinik' as const, label: t('vetBoard.detailTabClinical') },
+                  { id: 'gecmis' as const, label: t('vetBoard.detailTabHistory') },
                 ] as const
-              ).map((t) => (
+              ).map((tabItem) => (
                 <button
-                  key={t.id}
+                  key={tabItem.id}
                   type="button"
-                  onClick={() => setDetailTab(t.id)}
+                  onClick={() => setDetailTab(tabItem.id)}
                   className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition ${
-                    detailTab === t.id
+                    detailTab === tabItem.id
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-navy-800'
                   }`}
                 >
-                  {t.label}
+                  {tabItem.label}
+                  {tabItem.id === 'dicom' && selected.dicom_ingest_id ? (
+                    <span className="ml-1.5 rounded-md bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">
+                      {t('vetBoard.reviewBadge')}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
 
-            <div className="space-y-4 p-4 sm:p-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+              {detailTab === 'dicom' &&
+                (selected.dicom_ingest_id ? (
+                  <DicomReviewPanel
+                    detail={detail}
+                    frames={detailFrames}
+                    loading={detailLoading}
+                    error={detailError}
+                    t={t}
+                  />
+                ) : (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3 text-sm text-amber-950">
+                    {t('vetBoard.noDicomWarning')}
+                  </p>
+                ))}
+
               {detailTab === 'genel' && (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-150 bg-slate-50/80 p-3.5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-soft">
                       <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sahip</p>
                       <div className="space-y-2">
                         <Field label="Ad" value={ownerShort} />
                         <Field label="E-posta" value={selected.pet_owner_subject || '—'} />
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-150 bg-slate-50/80 p-3.5">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-soft">
                       <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Hasta</p>
                       <div className="grid grid-cols-2 gap-2">
                         <Field label="Ad" value={selectedPet?.name || displayName(selected)} />
-                        <Field label="Tür" value={speciesTr(selectedPet?.species || detail?.species)} />
+                        <Field
+                          label="Tür"
+                          value={speciesTr(selectedPet?.species || detail?.species, t) || '—'}
+                        />
                         <Field label="Irk" value={selectedPet?.breed || detail?.breed || '—'} />
                         <Field
                           label="Yaş"
@@ -394,79 +776,28 @@ export function VetSubmissionsBoard({
                   )}
 
                   {selected.dicom_ingest_id && (
-                    <div>
-                      <div className="mb-2 flex items-center justify-between">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">DICOM</p>
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-teal-700 hover:underline"
-                          onClick={() => setDetailTab('dicom')}
-                        >
-                          Detay
-                        </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTab('dicom')}
+                      className="flex w-full items-center justify-between rounded-xl border border-teal-200/80 bg-teal-50/50 px-3.5 py-3 text-left transition hover:bg-teal-50"
+                    >
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">DICOM özeti</p>
+                        <p className="mt-1 text-sm text-navy-900">
+                          {detail?.classification
+                            ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region}`
+                            : detailLoading
+                              ? 'Yükleniyor…'
+                              : 'Tam incelemeye geç'}
+                          {detail?.study
+                            ? ` · ${detail.study.series.length} seri`
+                            : ''}
+                        </p>
                       </div>
-                      {detailLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
-                      ) : detailFrames.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {detailFrames.slice(0, 5).map((f) => (
-                            <div
-                              key={f.sopInstanceUid || f.fileName}
-                              className="overflow-hidden rounded-lg border border-slate-200 bg-navy-950"
-                            >
-                              {f.thumbUrl ? (
-                                <img src={f.thumbUrl} alt="" className="h-16 w-16 object-contain" />
-                              ) : (
-                                <div className="flex h-16 w-16 items-center justify-center text-[10px] text-slate-400">
-                                  DCM
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">{detailError || 'Önizleme yok'}</p>
-                      )}
-                    </div>
+                      <span className="text-xs font-medium text-teal-700">İncele →</span>
+                    </button>
                   )}
                 </>
-              )}
-
-              {detailTab === 'dicom' && (
-                <div className="space-y-3">
-                  {!selected.dicom_ingest_id ? (
-                    <p className="text-sm text-slate-500">DICOM yok</p>
-                  ) : detailLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
-                  ) : detailError ? (
-                    <p className="text-sm text-rose-700">{detailError}</p>
-                  ) : (
-                    <>
-                      {detail?.classification && (
-                        <p className="text-sm text-slate-600">
-                          {detail.classification.suggested_modality} ·{' '}
-                          {detail.classification.suggested_anatomical_region}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        {detailFrames.map((f) => (
-                          <div
-                            key={f.sopInstanceUid || f.fileName}
-                            className="overflow-hidden rounded-lg border border-slate-200 bg-navy-950"
-                          >
-                            {f.thumbUrl ? (
-                              <img src={f.thumbUrl} alt="" className="h-24 w-24 object-contain" />
-                            ) : (
-                              <div className="flex h-24 w-24 items-center justify-center text-xs text-slate-400">
-                                {f.modality || 'DCM'}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
               )}
 
               {detailTab === 'klinik' && (
@@ -491,7 +822,7 @@ export function VetSubmissionsBoard({
               {detailTab === 'gecmis' && (
                 <div className="space-y-2">
                   {(selected.info_requests || []).length === 0 ? (
-                    <p className="text-sm text-slate-500">Kayıt yok</p>
+                    <p className="text-sm text-slate-500">{t('vetBoard.noHistory')}</p>
                   ) : (
                     (selected.info_requests || []).map((r) => (
                       <div key={r.request_id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
@@ -499,112 +830,116 @@ export function VetSubmissionsBoard({
                           {r.status} · {fmtDate(r.created_at)}
                         </p>
                         <p className="mt-1 text-navy-900">{r.body}</p>
-                        {r.reply ? <p className="mt-1 text-teal-800">Yanıt: {r.reply}</p> : null}
+                        {r.reply ? <p className="mt-1 text-teal-800">{t('vetBoard.replyPrefix', { text: r.reply })}</p> : null}
                       </div>
                     ))
                   )}
                   {selected.linked_case_id ? (
-                    <Link
+                    <LocalizedLink
                       className="inline-block text-sm font-medium text-teal-700 hover:underline"
                       to={`/vakalar/${selected.linked_case_id}`}
                     >
-                      Vakaya git →
-                    </Link>
+                      {t('vetBoard.goToCase')}
+                    </LocalizedLink>
                   ) : null}
                 </div>
               )}
+            </div>
 
-              <div className="border-t border-slate-100 pt-4">
-                {actionable ? (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        disabled={busy === selected.submission_id}
-                        onClick={() => onAccept(selected.submission_id)}
-                      >
-                        Doğrula + Vaka Aç
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        disabled={busy === selected.submission_id}
-                        onClick={() => setInfoOpen((v) => !v)}
-                      >
-                        Eksik Bilgi
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-rose-700 hover:bg-rose-50"
-                        disabled={busy === selected.submission_id}
-                        onClick={() => onReject(selected.submission_id)}
-                      >
-                        Reddet
-                      </Button>
-                      {canDelete(selected) && (
-                        <Button
-                          variant="ghost"
-                          className="ml-auto text-slate-400 hover:bg-rose-50 hover:text-rose-700"
-                          icon={<Trash2 className="h-4 w-4" />}
-                          disabled={busy === selected.submission_id || busy === `del-${selected.submission_id}`}
-                          onClick={() => onDelete(selected)}
-                        >
-                          Sil
-                        </Button>
-                      )}
-                    </div>
-                    {infoOpen && (
-                      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end">
-                        <label className="block min-w-0 flex-1 text-xs text-slate-600">
-                          Not
-                          <input
-                            className="input mt-1 !min-h-10 text-sm"
-                            value={infoRequestText[selected.submission_id] || ''}
-                            onChange={(e) =>
-                              setInfoRequestText({
-                                ...infoRequestText,
-                                [selected.submission_id]: e.target.value,
-                              })
-                            }
-                            placeholder="Eksik bilgiyi yazın…"
-                            autoFocus
-                          />
-                        </label>
-                        <Button
-                          size="sm"
-                          disabled={busy === selected.submission_id}
-                          onClick={() => {
-                            onRequestInfo(selected.submission_id)
-                            setInfoOpen(false)
-                          }}
-                        >
-                          Gönder
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
+            <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 sm:px-5">
+              {actionable ? (
+                <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap gap-2">
-                    {selected.linked_case_id ? (
-                      <Link
-                        to={`/vakalar/${selected.linked_case_id}`}
-                        className="inline-flex min-h-11 items-center rounded-vm bg-accent px-3.5 text-sm font-medium text-white hover:bg-teal-700"
-                      >
-                        Vakayı aç
-                      </Link>
-                    ) : null}
+                    <Button
+                      disabled={busy === selected.submission_id || !selected.dicom_ingest_id}
+                      onClick={() => onAccept(selected.submission_id)}
+                      title={!selected.dicom_ingest_id ? t('vetBoard.dicomRequiredTitle') : undefined}
+                    >
+                      {t('vetBoard.verifyOpenCase')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={busy === selected.submission_id}
+                      onClick={() => setInfoOpen((v) => !v)}
+                    >
+                      {t('vetBoard.missingInfo')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="text-rose-700 hover:bg-rose-50"
+                      disabled={busy === selected.submission_id}
+                      onClick={() => onReject(selected.submission_id)}
+                    >
+                      {t('vetBoard.reject')}
+                    </Button>
                     {canDelete(selected) && (
                       <Button
                         variant="ghost"
-                        className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                        className="ml-auto text-slate-400 hover:bg-rose-50 hover:text-rose-700"
                         icon={<Trash2 className="h-4 w-4" />}
-                        disabled={busy === `del-${selected.submission_id}`}
+                        disabled={busy === selected.submission_id || busy === `del-${selected.submission_id}`}
                         onClick={() => onDelete(selected)}
                       >
-                        Sil
+                        {t('common.delete')}
                       </Button>
                     )}
                   </div>
-                )}
-              </div>
+                  {!selected.dicom_ingest_id && (
+                    <p className="text-xs text-amber-800">{t('vetBoard.dicomRequiredHint')}</p>
+                  )}
+                  {infoOpen && (
+                    <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end">
+                      <label className="block min-w-0 flex-1 text-xs text-slate-600">
+                        {t('common.notes')}
+                        <input
+                          className="input mt-1 !min-h-10 text-sm"
+                          value={infoRequestText[selected.submission_id] || ''}
+                          onChange={(e) =>
+                            setInfoRequestText({
+                              ...infoRequestText,
+                              [selected.submission_id]: e.target.value,
+                            })
+                          }
+                          placeholder={t('vetBoard.infoNotePlaceholder')}
+                          autoFocus
+                        />
+                      </label>
+                      <Button
+                        size="sm"
+                        disabled={busy === selected.submission_id}
+                        onClick={() => {
+                          onRequestInfo(selected.submission_id)
+                          setInfoOpen(false)
+                        }}
+                      >
+                        {t('common.send')}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {selected.linked_case_id ? (
+                    <LocalizedLink
+                      to={`/vakalar/${selected.linked_case_id}`}
+                      className="inline-flex min-h-11 items-center rounded-vm bg-accent px-3.5 text-sm font-medium text-white hover:bg-teal-700"
+                    >
+                      {t('vetBoard.openCase')}
+                    </LocalizedLink>
+                  ) : null}
+                  {canDelete(selected) && (
+                    <Button
+                      variant="ghost"
+                      className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                      icon={<Trash2 className="h-4 w-4" />}
+                      disabled={busy === `del-${selected.submission_id}`}
+                      onClick={() => onDelete(selected)}
+                    >
+                      {t('common.delete')}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, Clock, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Sparkles, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { PriorityBadge, SeverityBadge, StatusBadge } from '../components/StatusBadge'
@@ -16,7 +19,7 @@ import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
 import { CaseMessaging } from '../components/CaseMessaging'
 import { ReportVersionCompare } from '../components/ReportVersionCompare'
 import { DicomViewer } from '../components/DicomViewer'
-import { localize } from '../lib/localization'
+import { localize } from '../lib/neuroLocalization'
 import { fmtDate } from '../lib/format'
 import {
   cleanClinicalHistory,
@@ -69,14 +72,14 @@ const LIKELIHOOD_STYLE = {
 } as const
 import type { ValidationItem, VetCase } from '../types'
 
-const TABS = [
-  { key: 'genel', label: 'Klinik Özet', icon: <Stethoscope className="h-4 w-4" /> },
-  { key: 'goruntu', label: 'Görüntüleme', icon: <ImageIcon className="h-4 w-4" /> },
-  { key: 'bulgular', label: 'AI Bulguları', icon: <Brain className="h-4 w-4" /> },
-  { key: 'kaynaklar', label: 'Kaynaklar (RAG)', icon: <BookOpen className="h-4 w-4" /> },
+const TAB_DEFS = [
+  { key: 'genel', labelKey: 'cases.detail.tabOverview', icon: <Stethoscope className="h-4 w-4" /> },
+  { key: 'goruntu', labelKey: 'cases.detail.tabImaging', icon: <ImageIcon className="h-4 w-4" /> },
+  { key: 'bulgular', labelKey: 'cases.detail.tabAiFindings', icon: <Brain className="h-4 w-4" /> },
+  { key: 'kaynaklar', labelKey: 'cases.detail.tabSources', icon: <BookOpen className="h-4 w-4" /> },
 ] as const
 
-type CaseDetailTab = (typeof TABS)[number]['key']
+type CaseDetailTab = (typeof TAB_DEFS)[number]['key']
 type CaseDetailModule = 'genel' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
 
 function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
@@ -93,9 +96,9 @@ function caseDetailModule(value: string | null): CaseDetailModule {
   return 'genel'
 }
 
-function DetailSkeleton() {
+function DetailSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
-    <div className="animate-pulse space-y-4" aria-busy="true" aria-label="Vaka yükleniyor">
+    <div className="animate-pulse space-y-4" aria-busy="true" aria-label={loadingLabel}>
       <div className="h-10 w-2/3 rounded-lg bg-slate-100" />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="h-48 rounded-xl bg-slate-100" />
@@ -110,7 +113,12 @@ export default function CaseDetail() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const { getCase, role, hydrateBackendCase, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const tabs = useMemo(
+    () => TAB_DEFS.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
+    [t],
+  )
+  const nav = useLocalizedNavigate()
   const c = getCase(id)
   const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -152,7 +160,7 @@ export default function CaseDetail() {
     setLoadError(null)
     void hydrateBackendCase(id).then((mapped) => {
       if (!mapped) {
-        setLoadError('Vaka yüklenemedi. Yetki veya ağ sorununu kontrol edin.')
+        setLoadError(t('cases.detail.loadFailedHint'))
       }
       setLoading(false)
     })
@@ -175,7 +183,7 @@ export default function CaseDetail() {
     void hydrateBackendCase(id).then((mapped) => {
       if (cancelled) return
       if (!mapped && !getCase(id)) {
-        setLoadError('Vaka yüklenemedi.')
+        setLoadError(t('cases.detail.loadFailed'))
       }
       setLoading(false)
     })
@@ -187,7 +195,7 @@ export default function CaseDetail() {
   if (!c && loading) {
     return (
       <Card className="p-6">
-        <DetailSkeleton />
+        <DetailSkeleton loadingLabel={t('cases.detail.loadingAria')} />
       </Card>
     )
   }
@@ -197,18 +205,18 @@ export default function CaseDetail() {
       <Card>
         <EmptyState
           icon={<FileSearch className="h-6 w-6" />}
-          title="Vaka bulunamadı"
-          text={loadError ?? 'Bu kimlik için kayıt yok veya erişim yok.'}
+          title={t('cases.detail.notFound')}
+          text={loadError ?? t('cases.detail.notFoundHint')}
           action={
             <div className="flex flex-wrap justify-center gap-2">
               {id.startsWith('case-') && (
                 <Button size="sm" variant="secondary" onClick={reload}>
-                  Tekrar dene
+                  {t('common.retry')}
                 </Button>
               )}
-              <Link className="text-sm font-medium text-teal-700" to="/vakalar">
-                Vakalara dön
-              </Link>
+              <LocalizedLink className="text-sm font-medium text-teal-700" to="/vakalar">
+                {t('cases.detail.backToCases')}
+              </LocalizedLink>
             </div>
           }
         />
@@ -229,22 +237,22 @@ export default function CaseDetail() {
 
   return (
     <>
-      <section className="mb-5 rounded-2xl bg-vet-navy p-5 text-white shadow-soft sm:p-6" aria-label="Hasta temel bilgileri">
+      <section className="mb-5 rounded-2xl bg-vet-navy p-5 text-white shadow-soft sm:p-6" aria-label={t('cases.detail.patientBannerAria')}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <Link
+            <LocalizedLink
               to={role === 'expert' ? '/kuyruk' : '/vakalar'}
               className="text-xs font-medium text-slate-300 hover:text-white"
             >
-              ← {role === 'expert' ? 'İş Listesi' : 'Vakalara dön'}
-            </Link>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Hasta / vaka</p>
+              ← {role === 'expert' ? t('cases.detail.backToQueue') : t('cases.detail.backToCases')}
+            </LocalizedLink>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">{t('cases.detail.patientCaseHeader')}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">{c.patient.name}</h1>
             <p className="mt-1 text-sm text-slate-300">
               {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş · {c.patient.weight} kg · {c.patient.sex}
             </p>
             <p className="mt-1 text-sm text-slate-400">
-              {[c.no, displayClinic(c.clinic) || null, c.module, fmtDate(c.createdAt)].filter(Boolean).join(' · ')}
+              {[c.no, displayClinic(c.clinic) || null, c.module, fmtDate(c.createdAt, locale)].filter(Boolean).join(' · ')}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -252,7 +260,7 @@ export default function CaseDetail() {
             <PriorityBadge priority={c.priority} />
             {c.unreadMessages && c.unreadMessages > 0 ? (
               <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
-                {c.unreadMessages} okunmamış mesaj
+                {t('cases.detail.unreadMessages', { count: String(c.unreadMessages) })}
               </span>
             ) : null}
           </div>
@@ -264,12 +272,12 @@ export default function CaseDetail() {
             icon={<ImageIcon className="h-4 w-4" />}
             onClick={() => selectTab('goruntu')}
           >
-            DICOM görüntüle
+            {t('cases.detail.viewDicom')}
           </Button>
           {(c.status === 'isleniyor' || c.status === 'ai_analizi') && (
             <>
               <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
-                İşlem hattını izle
+                {t('cases.detail.watchPipeline')}
               </Button>
               {(c.backendJobId || c.backendCaseId) && (
                 <Button
@@ -294,8 +302,8 @@ export default function CaseDetail() {
                       .then(async () => {
                         pushToast({
                           tone: 'info',
-                          title: 'Analiz durduruluyor',
-                          body: 'İptal isteği gönderildi.',
+                          title: t('cases.detail.toastStoppingAnalysis'),
+                          body: t('cases.detail.toastCancelSent'),
                         })
                         if (c.backendCaseId) await hydrateBackendCase(c.backendCaseId)
                         nav(`/vakalar/${c.id}/isleme`)
@@ -303,14 +311,14 @@ export default function CaseDetail() {
                       .catch((err) => {
                         pushToast({
                           tone: 'error',
-                          title: 'Analiz durdurulamadı',
+                          title: t('cases.detail.toastStopFailed'),
                           body: err instanceof Error ? err.message : undefined,
                         })
                       })
                       .finally(() => setStoppingAnalysis(false))
                   }}
                 >
-                  {stoppingAnalysis ? 'Durduruluyor…' : 'Analizi durdur'}
+                  {stoppingAnalysis ? t('cases.detail.stopping') : t('cases.detail.stopAnalysis')}
                 </Button>
               )}
             </>
@@ -322,18 +330,18 @@ export default function CaseDetail() {
               c.status === 'analiz_basarisiz') && (
             <Button icon={<Microscope className="h-4 w-4" />} onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
               {c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz'
-                ? 'Manuel taslak / çalışma alanı'
-                : 'Çalışma alanı'}
+                ? t('cases.detail.manualWorkspace')
+                : t('cases.detail.workspace')}
             </Button>
           )}
           {role === 'vet' && (
             <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => selectSummaryModule('mesajlar')}>
-              Mesajlar
+              {t('cases.detail.messages')}
             </Button>
           )}
           {c.status === 'onaylandi' && (
             <Button variant="success" icon={<FileText className="h-4 w-4" />} onClick={() => nav(`/raporlar/${c.id}`)}>
-              Onaylı raporu görüntüle
+              {t('cases.detail.viewApprovedReport')}
             </Button>
           )}
           {role === 'expert' && c.status === 'onaylandi' && (
@@ -342,7 +350,7 @@ export default function CaseDetail() {
               icon={<Microscope className="h-4 w-4" />}
               onClick={() => nav(`/vakalar/${c.id}/calisma`)}
             >
-              Revize et / çalışma alanı
+              {t('cases.detail.reviseWorkspace')}
             </Button>
           )}
           {role === 'expert' &&
@@ -371,25 +379,25 @@ export default function CaseDetail() {
                         tone: result.outcome === 'failed' ? 'error' : 'success',
                         title:
                           result.outcome === 'failed'
-                            ? 'AI yeniden gönderim başarısız'
-                            : 'AI yeniden çalıştı',
+                            ? t('cases.detail.toastResendFailed')
+                            : t('cases.detail.toastResendOk'),
                         body:
                           result.outcome === 'failed'
                             ? result.job.error_message || undefined
                             : openRevisionFirst
-                              ? 'Onaylı sürüm korundu; yeni taslak hazır.'
-                              : 'Yeni taslak hazır.',
+                              ? t('cases.detail.toastResendBodyRevision')
+                              : t('cases.detail.toastResendBodyDraft'),
                       })
                       nav(`/vakalar/${c.id}/isleme`)
                     })
                     .catch((err) => {
                       if (err instanceof PollingCancelledError) {
-                        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+                        pushToast({ tone: 'info', title: t('cases.detail.toastAnalysisStopped') })
                         return
                       }
                       pushToast({
                         tone: 'error',
-                        title: 'AI yeniden gönderilemedi',
+                        title: t('cases.detail.toastResendSendFailed'),
                         body: err instanceof Error ? err.message : undefined,
                       })
                     })
@@ -397,10 +405,10 @@ export default function CaseDetail() {
                 }}
               >
                 {resendingAi
-                  ? 'AI çalışıyor…'
+                  ? t('cases.detail.aiRunning')
                   : c.status === 'onaylandi'
-                    ? "Revizyon + AI'ya yolla"
-                    : "AI'ya tekrar yolla"}
+                    ? t('cases.detail.reviseAndResendAi')
+                    : t('cases.detail.resendAi')}
               </Button>
             )}
         </div>
@@ -424,11 +432,11 @@ export default function CaseDetail() {
             <Clock className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="font-semibold">
-                Uzman yanıt süresi · {slaHoursForPriority(c.priority)} saat
-                {(c.priority === 'STAT' || c.priority === 'Acil') ? ' (acil)' : ''}
+                {t('cases.detail.slaTitle', { hours: String(slaHoursForPriority(c.priority)) })}
+                {(c.priority === 'STAT' || c.priority === 'Acil') ? t('cases.detail.slaUrgent') : ''}
               </p>
               <p className="mt-1">
-                {formatSlaRemaining(c.reviewDueAt)}. Süre azalınca bildirim gönderilir; gecikmede kırmızı uyarı yanar.
+                {t('cases.detail.slaBody', { remaining: formatSlaRemaining(c.reviewDueAt) })}
               </p>
             </div>
             <span className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}>
@@ -439,7 +447,7 @@ export default function CaseDetail() {
       {c.status === 'revizyon' && c.statusNote && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p><strong>Uzman revizyon talebi:</strong> {c.statusNote}</p>
+          <p><strong>{t('cases.detail.revisionRequest')}</strong> {c.statusNote}</p>
         </div>
       )}
       {c.status === 'analiz_basarisiz' && (
@@ -447,12 +455,12 @@ export default function CaseDetail() {
           <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p>
-              <strong>Analiz başarısız (AI adapter):</strong>{' '}
-              {c.statusNote ?? 'Onaylanabilir AI taslak yoktur. Bu, uzman revizyon talebi değildir.'}
+              <strong>{t('cases.detail.analysisFailedTitle')}</strong>{' '}
+              {c.statusNote ?? t('cases.detail.analysisFailedDefault')}
             </p>
             {role === 'expert' && (
               <Button className="mt-2" size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-                Manuel taslak başlat
+                {t('cases.detail.startManualDraft')}
               </Button>
             )}
           </div>
@@ -463,12 +471,12 @@ export default function CaseDetail() {
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p>
-              <strong>Manuel inceleme:</strong>{' '}
-              {c.statusNote ?? 'Desteklenmeyen vaka — AI draft onayı kapalıdır. Manuel taslak başlatılabilir.'}
+              <strong>{t('cases.detail.manualReviewTitle')}</strong>{' '}
+              {c.statusNote ?? t('cases.detail.manualReviewDefault')}
             </p>
             {role === 'expert' && (
               <Button className="mt-2" size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-                Manuel taslak / çalışma alanı
+                {t('cases.detail.manualWorkspace')}
               </Button>
             )}
           </div>
@@ -477,25 +485,25 @@ export default function CaseDetail() {
       {c.status === 'reddedildi' && c.statusNote && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
           <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p><strong>Ret gerekçesi:</strong> {c.statusNote}</p>
+          <p><strong>{t('cases.detail.rejectReason')}</strong> {c.statusNote}</p>
         </div>
       )}
 
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist" aria-label="Vaka detay bölümleri">
-        {TABS.map((t) => (
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist" aria-label={t('cases.detail.tabsAria')}>
+        {tabs.map((tabItem) => (
           <button
-            key={t.key}
-            id={`case-tab-${t.key}`}
+            key={tabItem.key}
+            id={`case-tab-${tabItem.key}`}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            aria-controls={`case-panel-${t.key}`}
-            onClick={() => selectTab(t.key)}
+            aria-selected={tab === tabItem.key}
+            aria-controls={`case-panel-${tabItem.key}`}
+            onClick={() => selectTab(tabItem.key)}
             className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-              tab === t.key ? 'border-b-2 border-vet-turquoise text-vet-turquoise' : 'border-transparent text-slate-500 hover:text-navy-800'
+              tab === tabItem.key ? 'border-b-2 border-vet-turquoise text-vet-turquoise' : 'border-transparent text-slate-500 hover:text-navy-800'
             }`}
           >
-            {t.icon} {t.label}
+            {tabItem.icon} {tabItem.label}
           </button>
         ))}
       </div>
@@ -518,21 +526,21 @@ export default function CaseDetail() {
             >
               <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-navy-900 marker:hidden">
                 <span className="flex items-center justify-between gap-3">
-                  Diğer vaka modülleri
+                  {t('cases.detail.otherModules')}
                   <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
                 </span>
                 <span className="mt-1 block text-xs font-normal text-slate-500">
-                  Rapor, mesajlar, işlem geçmişi ve belgeler
+                  {t('cases.detail.otherModulesHint')}
                 </span>
               </summary>
               <div className="border-t border-slate-100 p-4">
-                <div className="mb-4 flex flex-wrap gap-2" aria-label="Vaka araçları">
+                <div className="mb-4 flex flex-wrap gap-2" aria-label={t('cases.detail.toolsAria')}>
                   {([
-                    ['genel', 'Klinik Özete dön'],
-                    ['rapor', 'Rapor'],
-                    ['mesajlar', 'Mesajlar'],
-                    ['gecmis', 'İşlem geçmişi'],
-                    ['belgeler', 'Belgeler'],
+                    ['genel', t('cases.detail.backToOverview')],
+                    ['rapor', t('cases.detail.moduleReport')],
+                    ['mesajlar', t('cases.detail.messages')],
+                    ['gecmis', t('cases.detail.moduleHistory')],
+                    ['belgeler', t('cases.documents')],
                   ] as const).map(([module, label]) => (
                     <button
                       key={module}
@@ -576,11 +584,12 @@ function Row({ k, v }: { k: string; v: ReactNode }) {
 
 function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
   const { role, pushToast, hydrateBackendCase } = useApp()
+  const { t, locale } = useLocale()
   const isVet = role === 'vet' || role === 'clinic_owner'
   const isExpert = role === 'expert'
   const p = c.patient
   const n = c.neuro
-  const loc = localize(n, c.clinical)
+  const loc = localize(n, c.clinical, locale)
   const caseKey = c.backendCaseId || c.id
   const [note, setNote] = useState('')
   const [infoBody, setInfoBody] = useState('')
@@ -703,7 +712,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                 }
               />
               <Row k="Klinik / Hekim" v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
-              <Row k="Öncelik / Atama" v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
+              <Row k={t('cases.detail.rowPriorityAssign')} v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>
           </Card>
           <Card>
@@ -839,9 +848,9 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                     {h.detail ? ` · ${h.detail}` : ''}
                   </p>
                   {h.link_path ? (
-                    <Link className="text-xs text-teal-700 hover:underline" to={h.link_path}>
+                    <LocalizedLink className="text-xs text-teal-700 hover:underline" to={h.link_path}>
                       Aç
-                    </Link>
+                    </LocalizedLink>
                   ) : null}
                 </li>
               ))}
@@ -876,15 +885,15 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                   : '—'
               }
             />
-            <Row k="Analiz" v={analysisStatusLabel(c.status)} />
-            <Row k="Uzman inceleme" v={expertReviewLabel(c.status)} />
+            <Row k={t('cases.detail.rowAnalysis')} v={analysisStatusLabel(c.status, t)} />
+            <Row k={t('cases.detail.rowExpertReview')} v={expertReviewLabel(c.status, t)} />
             <Row
               k="Rapor"
               v={
                 c.status === 'onaylandi' ? (
-                  <Link className="font-medium text-teal-700 hover:underline" to={`/raporlar/${c.id}`}>
-                    Onaylı raporu aç
-                  </Link>
+                  <LocalizedLink className="font-medium text-teal-700 hover:underline" to={`/raporlar/${c.id}`}>
+                    {t('cases.detail.openApprovedReport')}
+                  </LocalizedLink>
                 ) : c.backendDraft || c.aiDraft ? (
                   <button type="button" className="font-medium text-teal-700 hover:underline" onClick={onOpenAiTab}>
                     AI taslak — AI sekmesi
@@ -896,12 +905,12 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
             />
           </dl>
           <div className="border-t border-slate-100 px-5 py-3">
-            <Link
+            <LocalizedLink
               to={`/vakalar/${c.id}?tab=goruntu`}
               className="text-sm font-medium text-teal-700 hover:underline"
             >
               DICOM görüntüleyiciye git →
-            </Link>
+            </LocalizedLink>
           </div>
         </Card>
         <Card>
@@ -926,15 +935,15 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       <Card>
         <CardHeader title="Durum Zaman Çizelgesi" />
         <ol className="relative px-5 py-4">
-          {c.timeline.map((t, i) => {
+          {c.timeline.map((timelineItem, i) => {
             const last = i === c.timeline.length - 1
             return (
               <li key={i} className="relative flex gap-3 pb-5 last:pb-0">
                 {!last && <span className="absolute left-[7px] top-4 h-full w-px bg-slate-200" />}
                 <span className={`relative mt-1 h-[15px] w-[15px] shrink-0 rounded-full border-2 ${last ? 'border-teal-500 bg-teal-100' : 'border-slate-300 bg-white'}`} />
                 <div>
-                  <p className="text-sm font-medium text-navy-900">{t.label}</p>
-                  <p className="text-xs text-slate-500">{fmtDate(t.date)}{t.by ? ` · ${t.by}` : ''}</p>
+                  <p className="text-sm font-medium text-navy-900">{timelineItem.label}</p>
+                  <p className="text-xs text-slate-500">{fmtDate(timelineItem.date, locale)}{timelineItem.by ? ` · ${timelineItem.by}` : ''}</p>
                 </div>
               </li>
             )
@@ -1625,7 +1634,7 @@ function SourceList({ ids }: { ids: number[] }) {
 }
 
 function ReportWorkspace({ c }: { c: VetCase }) {
-  const nav = useNavigate()
+  const nav = useLocalizedNavigate()
   const draft = c.backendDraft
   const prov = draft
     ? `${draft.generation?.model_id ?? '—'} · v${draft.version ?? c.currentReportVersion ?? '—'}${draft.immutable ? ' · immutable' : ''}`
@@ -1701,7 +1710,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
 }
 
 function CaseHistoryPanel({ c }: { c: VetCase }) {
-  const nav = useNavigate()
+  const nav = useLocalizedNavigate()
   const versions = c.reportVersions ?? []
   const [activity, setActivity] = useState<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>([])
   useEffect(() => {

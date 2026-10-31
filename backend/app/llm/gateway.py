@@ -55,6 +55,7 @@ def build_generation_input(
     findings: StructuredFindings,
     *,
     rag_passages: list | None = None,
+    language: str = "tr",
 ) -> LLMGenerationInput:
     """Project case/findings into a minimal outbound DTO (no quarantine/credentials/PII names)."""
     doc_count = 0
@@ -64,6 +65,9 @@ def build_generation_input(
         _compose_history(case),
         known=[(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")],
     )
+    lang = (language or "tr").strip().lower() or "tr"
+    if lang not in {"tr", "en"}:
+        lang = "tr"
     return LLMGenerationInput(
         case_id=case.case_id,
         species=case.species,
@@ -92,6 +96,7 @@ def build_generation_input(
         document_context_file_count=doc_count,
         rag_passages=list(rag_passages or []),
         rag_is_clinical_validation=False,
+        language=lang,
     )
 
 
@@ -119,12 +124,18 @@ class LLMGateway:
     def set_rag(self, rag: RagRetriever | None) -> None:
         self._rag = rag
 
-    def generate_draft(self, case: CaseRecord, findings: StructuredFindings) -> DraftReport:
+    def generate_draft(
+        self,
+        case: CaseRecord,
+        findings: StructuredFindings,
+        *,
+        language: str = "tr",
+    ) -> DraftReport:
         passages = []
         if self._rag is not None:
             query = build_rag_query(case, findings)
             passages = self._rag.retrieve(query, top_k=self._rag_top_k)
-        generation = build_generation_input(case, findings, rag_passages=passages)
+        generation = build_generation_input(case, findings, rag_passages=passages, language=language)
         try:
             response: LLMResponse = self._provider.generate(
                 LLMRequest(generation=generation)
@@ -140,12 +151,14 @@ class LLMGateway:
         findings: StructuredFindings,
         previous: DraftReport,
         expert_note: str,
+        *,
+        language: str = "tr",
     ) -> DraftReport:
         """Regenerate the draft with the expert's revision request; same findings, fresh retrieval."""
         passages = []
         if self._rag is not None:
             passages = self._rag.retrieve(build_rag_query(case, findings), top_k=self._rag_top_k)
-        generation = build_generation_input(case, findings, rag_passages=passages)
+        generation = build_generation_input(case, findings, rag_passages=passages, language=language)
         known = [(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")]
         revision = RevisionContext(
             previous_sections={

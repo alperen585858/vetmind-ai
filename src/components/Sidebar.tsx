@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
+import { useLocalePath, useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   Activity,
   BookOpen,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Logo } from './Logo'
 import type { Role } from '../types'
 
@@ -44,55 +46,57 @@ export function Sidebar({
   onToggleCollapsed: () => void
 }) {
   const { role, cases, signOut, pushToast } = useApp()
-  const nav = useNavigate()
+  const { t } = useLocale()
+  const nav = useLocalizedNavigate()
+  const lp = useLocalePath()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
   const isOwner = role === 'owner'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
-    vet: 'Veteriner',
-    expert: 'Uzman',
-    owner: 'Sahip',
-    clinic_owner: 'Klinik',
-    admin: 'Admin',
+    vet: t('roles.vetShort'),
+    expert: t('roles.expertShort'),
+    owner: t('roles.ownerShort'),
+    clinic_owner: t('roles.clinicShort'),
+    admin: t('roles.adminShort'),
   }
 
   const menus: Record<Role, NavItem[]> = {
     vet: [
-      { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
-      { to: '/basvurular', label: 'Sahip Başvuruları', icon: <ClipboardCheck className={ic} /> },
-      { to: '/dicom-yukle', label: 'DICOM Yükle', icon: <UploadCloud className={ic} /> },
-      { to: '/vakalar', label: 'Vakalar', icon: <FolderOpen className={ic} /> },
-      { to: '/vakalar/yeni', label: 'Yeni Vaka', icon: <FilePlus2 className={ic} /> },
-      { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
+      { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
+      { to: '/dicom-yukle', label: t('nav.dicomUpload'), icon: <UploadCloud className={ic} /> },
+      { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
+      { to: '/vakalar/yeni', label: t('nav.newCase'), icon: <FilePlus2 className={ic} /> },
+      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
     ],
     expert: [
-      { to: '/', label: 'Kontrol Paneli', icon: <LayoutDashboard className={ic} /> },
-      { to: '/kuyruk', label: 'İş Listesi', icon: <ClipboardCheck className={ic} />, badge: queue },
-      { to: '/ai-tekrar', label: "AI'ya Tekrar Yolla", icon: <Sparkles className={ic} /> },
-      { to: '/vakalar', label: 'Tüm Vakalar', icon: <FolderOpen className={ic} /> },
-      { to: '/raporlar', label: 'Onaylı Raporlar', icon: <FileText className={ic} /> },
-      { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
+      { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/kuyruk', label: t('nav.worklist'), icon: <ClipboardCheck className={ic} />, badge: queue },
+      { to: '/ai-tekrar', label: t('nav.aiResend'), icon: <Sparkles className={ic} /> },
+      { to: '/vakalar', label: t('nav.allCases'), icon: <FolderOpen className={ic} /> },
+      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
+      { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
     ],
     owner: [
-      { to: '/', label: 'Ana Sayfa', icon: <LayoutDashboard className={ic} /> },
-      { to: '/hayvanlar', label: 'Pet Profillerim', icon: <PawPrint className={ic} /> },
-      { to: '/basvurular', label: 'Görüntüleme Talepleri', icon: <UploadCloud className={ic} /> },
-      { to: '/mesajlar', label: 'İletişim', icon: <MessageSquare className={ic} /> },
-      { to: '/raporlar', label: 'Raporlarım', icon: <FileText className={ic} /> },
+      { to: '/', label: t('nav.ownerHome'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/hayvanlar', label: t('nav.pets'), icon: <PawPrint className={ic} /> },
+      { to: '/basvurular', label: t('nav.imagingRequests'), icon: <UploadCloud className={ic} /> },
+      { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
+      { to: '/raporlar', label: t('nav.myReports'), icon: <FileText className={ic} /> },
     ],
     clinic_owner: [
-      { to: '/', label: 'Klinik Panosu', icon: <LayoutDashboard className={ic} /> },
-      { to: '/vakalar', label: 'Klinik Vakalar', icon: <FolderOpen className={ic} /> },
-      { to: '/basvurular', label: 'Sahip Başvuruları', icon: <ClipboardCheck className={ic} /> },
+      { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
+      { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
     ],
     admin: [
-      { to: '/', label: 'Sistem Özeti', icon: <LayoutDashboard className={ic} /> },
-      { to: '/mesajlar', label: 'İletişim / Destek', icon: <MessageSquare className={ic} /> },
-      { to: '/kullanicilar', label: 'Kullanıcılar / Roller', icon: <ShieldCheck className={ic} /> },
-      { to: '/moduller', label: 'Uzmanlık Modülleri', icon: <Layers className={ic} /> },
-      { to: '/bilgi-tabani', label: 'Bilgi Tabanı', icon: <BookOpen className={ic} /> },
-      { to: '/sistem', label: 'Sistem Durumu', icon: <Activity className={ic} /> },
-      { to: '/model-performansi', label: 'Model Performansı', icon: <Gauge className={ic} /> },
+      { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/mesajlar', label: t('nav.messagesSupport'), icon: <MessageSquare className={ic} /> },
+      { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className={ic} /> },
+      { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
+      { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
+      { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
+      { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Gauge className={ic} /> },
     ],
   }
   const items = role ? menus[role] : []
@@ -141,9 +145,9 @@ export function Sidebar({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+              aria-label={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
               aria-expanded={!collapsed}
-              title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+              title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
               className="hidden min-h-9 min-w-9 items-center justify-center rounded-md p-1.5 text-navy-300 hover:bg-navy-800 hover:text-white lg:inline-flex"
             >
               {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden /> : <ChevronLeft className="h-4 w-4" aria-hidden />}
@@ -151,7 +155,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Menüyü kapat"
+              aria-label={t('common.closeMenu')}
               className="rounded p-1 text-navy-300 hover:bg-navy-800 lg:hidden"
             >
               <X className="h-5 w-5" aria-hidden />
@@ -165,7 +169,7 @@ export function Sidebar({
           {items.map((it) => (
             <NavLink
               key={it.to}
-              to={it.to}
+              to={lp(it.to)}
               end={it.to === '/' || it.to === '/vakalar'}
               onClick={onClose}
               title={collapsed ? it.label : undefined}
@@ -197,9 +201,9 @@ export function Sidebar({
         </nav>
         <div className={`mt-auto space-y-1 border-t border-navy-800 pt-2 ${collapsed ? 'lg:px-2' : 'px-3'} px-3 pb-3`}>
           <NavLink
-            to="/ayarlar"
+            to={lp('/ayarlar')}
             onClick={onClose}
-            title={collapsed ? 'Ayarlar' : undefined}
+            title={collapsed ? t('nav.settings') : undefined}
             className={({ isActive }) =>
               `group relative flex min-h-11 items-center rounded-lg text-sm font-medium transition ${
                 collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
@@ -213,23 +217,23 @@ export function Sidebar({
             }
           >
             <Settings className={ic} aria-hidden="true" />
-            <span className={collapsed ? 'lg:hidden' : ''}>Ayarlar</span>
+            <span className={collapsed ? 'lg:hidden' : ''}>{t('nav.settings')}</span>
           </NavLink>
           <button
             type="button"
-            title="Çıkış yap"
+            title={t('nav.logout')}
             onClick={() => {
               signOut()
               onClose()
               nav('/giris')
-              pushToast({ tone: 'info', title: 'Oturum kapatıldı', body: 'Güvenli çıkış yapıldı.' })
+              pushToast({ tone: 'info', title: t('settings.signOut'), body: t('settings.accountHint') })
             }}
             className={`flex w-full min-h-11 items-center rounded-lg text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red ${
               collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
             } gap-3 px-3 py-2.5`}
           >
             <LogOut className={ic} aria-hidden="true" />
-            <span className={collapsed ? 'lg:hidden' : ''}>Çıkış yap</span>
+            <span className={collapsed ? 'lg:hidden' : ''}>{t('nav.logout')}</span>
           </button>
         </div>
       </aside>

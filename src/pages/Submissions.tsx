@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
+import { useParams } from 'react-router-dom'
+import { LocalizedLink } from '../components/LocalizedLink'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +16,8 @@ import {
 } from 'lucide-react'
 import { fmtDate } from '../lib/format'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
+import type { TranslateFn } from '../i18n'
 import { demoEmailForRole } from '../lib/auth'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
@@ -50,15 +54,6 @@ import type {
   Species,
 } from '../types'
 
-const STATUS_TR: Record<string, string> = {
-  draft: 'Taslak',
-  pending_verification: 'Vet onayı bekliyor',
-  needs_info: 'Eksik bilgi istendi',
-  verified: 'Doğrulandı',
-  rejected: 'Reddedildi',
-  linked: 'Vakaya bağlandı',
-}
-
 const STATUS_PILL: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-700 ring-slate-200',
   pending_verification: 'bg-amber-50 text-amber-900 ring-amber-200',
@@ -68,52 +63,59 @@ const STATUS_PILL: Record<string, string> = {
   linked: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
 }
 
-/** User-facing Turkish message; keep raw text for debugging. */
-function presentError(raw: string): { message: string; technical: string } {
-  const t = raw.trim()
-  const lower = t.toLowerCase()
-  if (!t) return { message: 'Beklenmeyen bir hata oluştu.', technical: t }
+function submissionStatusLabel(status: string, t: TranslateFn) {
+  const key = `submissions.status.${status}`
+  const label = t(key)
+  return label === key ? status : label
+}
+
+/** User-facing message; keep raw text for debugging. */
+function presentError(raw: string, tr: TranslateFn): { message: string; technical: string } {
+  const text = raw.trim()
+  const lower = text.toLowerCase()
+  if (!text) return { message: tr('submissions.errors.unexpected'), technical: text }
   if (
     lower.includes('internal server error') ||
     lower === '500' ||
-    /\b500\b/.test(t) ||
+    /\b500\b/.test(text) ||
     lower.includes('server error')
   ) {
     return {
-      message: 'Sunucu şu an işlemi tamamlayamadı. Lütfen kısa süre sonra tekrar deneyin.',
-      technical: t,
+      message: tr('submissions.errors.server'),
+      technical: text,
     }
   }
   if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network')) {
     return {
-      message: 'Bağlantı kurulamadı. Ağınızı kontrol edip yeniden deneyin.',
-      technical: t,
+      message: tr('submissions.errors.network'),
+      technical: text,
     }
   }
   if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('403')) {
     return {
-      message: 'Bu işlem için yetkiniz yok veya oturumunuz sona ermiş olabilir.',
-      technical: t,
+      message: tr('submissions.errors.auth'),
+      technical: text,
     }
   }
   if (lower.includes('timeout') || lower.includes('timed out')) {
     return {
-      message: 'İstek zaman aşımına uğradı. Lütfen tekrar deneyin.',
-      technical: t,
+      message: tr('submissions.errors.timeout'),
+      technical: text,
     }
   }
-  return { message: t, technical: t }
+  return { message: text, technical: text }
 }
 
 function ErrorDetails({ raw }: { raw: string }) {
-  const { message, technical } = presentError(raw)
+  const { t } = useLocale()
+  const { message, technical } = presentError(raw, t)
   const showTech = technical && technical !== message
   return (
     <div className="space-y-1">
       <p>{message}</p>
       {showTech && (
         <details className="text-[11px] text-slate-500">
-          <summary className="cursor-pointer select-none hover:text-slate-700">Teknik ayrıntı</summary>
+          <summary className="cursor-pointer select-none hover:text-slate-700">{t('submissions.errors.technicalDetail')}</summary>
           <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-100/80 p-2 font-mono">
             {technical}
           </pre>
@@ -123,12 +125,10 @@ function ErrorDetails({ raw }: { raw: string }) {
   )
 }
 
-const WIZARD_STEPS = ['Hayvan ve klinik', 'DICOM seç', 'Talep özeti', 'Ödeme']
-
 const DRAFT_STORAGE_KEY = 'vetmind.submissionDraft'
 
-function petSpeciesLabel(species?: string | null): Species {
-  return species === 'feline' ? 'Kedi' : 'Köpek'
+function petSpeciesLabel(species: string | null | undefined, tr: TranslateFn): Species {
+  return (species === 'feline' ? tr('pets.speciesFeline') : tr('pets.speciesCanine')) as Species
 }
 
 function collectFiles(list: FileList | null): File[] {
@@ -137,8 +137,18 @@ function collectFiles(list: FileList | null): File[] {
 }
 
 export default function Submissions() {
+  const { t } = useLocale()
   const { role, pushToast } = useApp()
-  const navigate = useNavigate()
+  const wizardSteps = useMemo(
+    () => [
+      t('submissions.wizard.stepPet'),
+      t('submissions.wizard.stepDicom'),
+      t('submissions.wizard.stepSummary'),
+      t('submissions.wizard.stepPayment'),
+    ],
+    [t],
+  )
+  const navigate = useLocalizedNavigate()
   const { submissionId: routeSubmissionId } = useParams<{ submissionId?: string }>()
   const isOwner = role === 'owner'
   const isVet = role === 'vet' || role === 'clinic_owner'
@@ -187,13 +197,13 @@ export default function Submissions() {
           return null
         })
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Liste yüklenemedi'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('submissions.errors.listLoad')))
       .finally(() => setLoading(false))
   }
 
   const toastError = (title: string, err: unknown) => {
-    const raw = err instanceof Error ? err.message : 'Beklenmeyen hata'
-    const { message, technical } = presentError(raw)
+    const raw = err instanceof Error ? err.message : t('submissions.errors.unexpected')
+    const { message, technical } = presentError(raw, t)
     pushToast({
       tone: 'error',
       title,
@@ -235,7 +245,7 @@ export default function Submissions() {
   ) => {
     const pet = pets.find((p) => p.pet_id === sub.pet_id)
     const patientName = pet?.name || 'Pet'
-    const species = petSpeciesLabel(pet?.species)
+    const species = petSpeciesLabel(pet?.species, t)
     const breed = pet?.breed || undefined
     const clinicalHistory = sub.chief_complaint || sub.clinical_notes || complaint || notes || 'Owner imaging request'
 
@@ -268,7 +278,7 @@ export default function Submissions() {
   const uploadDocAndLink = async (sub: BackendImagingSubmission, files: File[]) => {
     const pet = pets.find((p) => p.pet_id === sub.pet_id)
     const patientName = pet?.name || 'Pet'
-    const species = petSpeciesLabel(pet?.species)
+    const species = petSpeciesLabel(pet?.species, t)
     const doc = await uploadDocuments({
       files,
       patientName,
@@ -348,8 +358,8 @@ export default function Submissions() {
           if (pay.status === 'approved') {
             pushToast({
               tone: 'success',
-              title: 'Ödeme onaylandı',
-              body: 'Önceki onaylı ödeme korundu.',
+              title: t('submissions.toast.paymentApproved'),
+              body: t('submissions.toast.paymentKept'),
             })
             navigate(`/basvurular/${saved.submissionId}`, { replace: true })
             resetWizard()
@@ -370,8 +380,8 @@ export default function Submissions() {
     if (!useDemoDicom && files.length === 0) {
       pushToast({
         tone: 'error',
-        title: 'DICOM seçilmedi',
-        body: 'Kendi .dcm dosyalarınızı ekleyin veya örnek DICOM kullanın.',
+        title: t('submissions.toast.noDicom'),
+        body: t('submissions.toast.noDicomBody'),
       })
       return
     }
@@ -397,7 +407,7 @@ export default function Submissions() {
       setWizardStep(3)
     } catch (e) {
       setSubmitLock(false)
-      toastError('Ödeme adımı hazırlanamadı', e)
+      toastError(t('submissions.toast.preparePayFail'), e)
     } finally {
       setBusy(null)
     }
@@ -420,12 +430,12 @@ export default function Submissions() {
       const linked = await uploadAndLink(row, { files: picked })
       pushToast({
         tone: 'success',
-        title: 'DICOM eklendi',
-        body: `Ingest ${linked.dicom_ingest_id} · ${picked.length} dosya · veteriner doğrulaması gerekir.`,
+        title: t('submissions.toast.dicomAdded'),
+        body: t('submissions.toast.dicomAddedBody', { ingest: linked.dicom_ingest_id || '', count: picked.length }),
       })
       load()
     } catch (e) {
-      toastError('DICOM eklenemedi', e)
+      toastError(t('submissions.toast.dicomAttachFail'), e)
     } finally {
       setBusy(null)
     }
@@ -439,12 +449,12 @@ export default function Submissions() {
       const linked = await uploadAndLink(row, { demo: true })
       pushToast({
         tone: 'success',
-        title: 'Örnek DICOM eklendi',
-        body: `Ingest ${linked.dicom_ingest_id} · veteriner doğrulaması gerekir.`,
+        title: t('submissions.toast.demoAdded'),
+        body: t('submissions.toast.demoAddedBody', { ingest: linked.dicom_ingest_id || '' }),
       })
       load()
     } catch (e) {
-      toastError('DICOM eklenemedi', e)
+      toastError(t('submissions.toast.dicomAttachFail'), e)
     } finally {
       setBusy(null)
     }
@@ -467,12 +477,14 @@ export default function Submissions() {
       const linked = await uploadDocAndLink(row, picked)
       pushToast({
         tone: 'success',
-        title: 'Belge eklendi',
-        body: `Ingest ${linked.document_ingest_id || linked.attachments?.slice(-1)[0]?.ingest_id}`,
+        title: t('submissions.toast.docAdded'),
+        body: t('submissions.toast.docAddedBody', {
+          ingest: linked.document_ingest_id || linked.attachments?.slice(-1)[0]?.ingest_id || '',
+        }),
       })
       load()
     } catch (e) {
-      toastError('Belge eklenemedi', e)
+      toastError(t('submissions.toast.docAttachFail'), e)
     } finally {
       setBusy(null)
     }
@@ -482,7 +494,7 @@ export default function Submissions() {
     const openReq = (s.info_requests || []).find((r) => r.status === 'OPEN')
     const text = (replyDraft[s.submission_id] || '').trim()
     if (!text) {
-      pushToast({ tone: 'error', title: 'Yanıt boş', body: 'Lütfen istenen bilgiyi yazın.' })
+      pushToast({ tone: 'error', title: t('submissions.toast.replyEmpty'), body: t('submissions.toast.replyEmptyBody') })
       return
     }
     setBusy(s.submission_id)
@@ -492,11 +504,11 @@ export default function Submissions() {
       } else {
         await updateSubmission(s.submission_id, { clinical_notes: text })
       }
-      pushToast({ tone: 'success', title: 'Yanıt gönderildi', body: 'Veteriner tekrar inceleyecek.' })
+      pushToast({ tone: 'success', title: t('submissions.toast.replySent'), body: t('submissions.toast.replySentBody') })
       setReplyDraft((prev) => ({ ...prev, [s.submission_id]: '' }))
       load()
     } catch (e) {
-      toastError('Yanıt gönderilemedi', e)
+      toastError(t('submissions.toast.replyFail'), e)
     } finally {
       setBusy(null)
     }
@@ -506,10 +518,10 @@ export default function Submissions() {
     setBusy(submissionId)
     try {
       await closeSubmissionInfoRequest(submissionId, requestId)
-      pushToast({ tone: 'info', title: 'Bilgi isteği kapatıldı' })
+      pushToast({ tone: 'info', title: t('submissions.toast.infoClosed') })
       load()
     } catch (e) {
-      toastError('Kapatılamadı', e)
+      toastError(t('submissions.toast.closeFail'), e)
     } finally {
       setBusy(null)
     }
@@ -524,17 +536,20 @@ export default function Submissions() {
   const removeSubmission = async (s: BackendImagingSubmission) => {
     if (!canDelete(s)) return
     const ok = window.confirm(
-      `Bu başvuruyu silmek istediğinize emin misiniz?\n\n${s.submission_id}\n${s.chief_complaint || s.clinical_notes || 'Başvuru'}`,
+      t('submissions.toast.deleteConfirm', {
+        id: s.submission_id,
+        label: s.chief_complaint || s.clinical_notes || t('submissions.submissionFallback'),
+      }),
     )
     if (!ok) return
     setBusy(`del-${s.submission_id}`)
     try {
       await deleteSubmission(s.submission_id)
-      pushToast({ tone: 'success', title: 'Başvuru silindi', body: s.submission_id })
+      pushToast({ tone: 'success', title: t('submissions.toast.deleted'), body: s.submission_id })
       if (routeSubmissionId === s.submission_id) navigate('/basvurular', { replace: true })
       load()
     } catch (e) {
-      toastError('Silinemedi', e)
+      toastError(t('submissions.toast.deleteFail'), e)
     } finally {
       setBusy(null)
     }
@@ -567,18 +582,18 @@ export default function Submissions() {
     try {
       const record = await getDicomIngestion(ingestId)
       setDetail(record)
-      const files = await fetchIngestDicomFiles(ingestId, 8)
+      const files = await fetchIngestDicomFiles(ingestId, 24)
       if (files.length) {
         const frames = await buildDicomPreviews(files)
         setDetailFrames(frames.filter((f) => f.ok))
       }
     } catch (e) {
       loadedDicomRef.current = null
-      setDetailError(e instanceof Error ? e.message : 'DICOM detayı yüklenemedi')
+      setDetailError(e instanceof Error ? e.message : t('submissions.errors.dicomDetailLoad'))
     } finally {
       setDetailLoading(false)
     }
-  }, [])
+  }, [t])
 
   const openDicomDetail = async (ingestId: string) => {
     if (detailIngestId === ingestId) {
@@ -595,8 +610,8 @@ export default function Submissions() {
     if (action === 'accept' && !row?.dicom_ingest_id) {
       pushToast({
         tone: 'error',
-        title: 'DICOM yok',
-        body: 'Bu başvuruya DICOM bağlı değil. Sahip yeniden yüklemeli veya siz DICOM eklemelisiniz.',
+        title: t('submissions.toast.noDicomOnCase'),
+        body: t('submissions.toast.noDicomOnCaseBody'),
       })
       return
     }
@@ -606,7 +621,7 @@ export default function Submissions() {
         action,
         missing_info_request:
           action === 'request_info'
-            ? infoRequestText[id]?.trim() || 'Lütfen klinik öyküyü tamamlayın.'
+            ? infoRequestText[id]?.trim() || t('submissions.toast.defaultInfoRequest')
             : undefined,
         assigned_reviewer_id: action === 'accept' ? demoEmailForRole('expert') : undefined,
         run_analyze: action === 'accept',
@@ -619,16 +634,16 @@ export default function Submissions() {
         title:
           action === 'accept'
             ? hasDicom
-              ? 'Doğrulandı · DICOM vakaya bağlandı'
-              : 'Doğrulandı · vaka açıldı (DICOM yok)'
+              ? t('submissions.toast.verifiedLinked')
+              : t('submissions.toast.verifiedNoDicom')
             : action === 'reject'
-              ? 'Reddedildi'
-              : 'Eksik bilgi istendi',
-        body: caseId ? `Vaka: ${caseId}` : undefined,
+              ? t('submissions.toast.rejected')
+              : t('submissions.toast.infoRequested'),
+        body: caseId ? t('submissions.toast.caseBody', { caseId }) : undefined,
       })
       load()
     } catch (e) {
-      toastError('İşlem başarısız', e)
+      toastError(t('submissions.toast.actionFail'), e)
     } finally {
       setBusy(null)
     }
@@ -676,9 +691,9 @@ export default function Submissions() {
   return (
     <>
       <PageHeader
-        title="DICOM yükle"
-        subtitle={`Hasta bilgileri → DICOM → özet → ödeme (${DEMO_PRICE_LABEL}) → radyoloji iş akışı`}
-        crumbs={[{ label: 'Ana sayfa', to: '/' }, { label: 'DICOM yükle' }]}
+        title={t('submissions.uploadTitle')}
+        subtitle={t('submissions.uploadSubtitle', { price: DEMO_PRICE_LABEL })}
+        crumbs={[{ label: t('common.home'), to: '/' }, { label: t('submissions.uploadTitle') }]}
       />
       {error && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -689,25 +704,25 @@ export default function Submissions() {
       {isOwner && (
         <Card className="mb-6 p-5">
           <CardHeader
-            title="Yeni görüntüleme talebi"
-            subtitle={`Ödeme (${DEMO_PRICE_LABEL}) sonrası radyoloji iş akışına gönderilir`}
+            title={t('submissions.newImagingRequest')}
+            subtitle={t('submissions.uploadSubtitleShort', { price: DEMO_PRICE_LABEL })}
             icon={<UploadCloud className="h-5 w-5" />}
           />
           {pets.length === 0 ? (
             <p className="px-1 text-sm text-slate-600">
-              Önce{' '}
-              <Link
+              {t('submissions.createPetBeforeLink')}
+              <LocalizedLink
                 className={`font-medium hover:underline ${isOwner ? 'text-sky-700' : 'text-teal-700'}`}
                 to="/hayvanlar"
               >
-                pet profili
-              </Link>{' '}
-              oluşturun.
+                {t('submissions.petProfileLink')}
+              </LocalizedLink>
+              {t('submissions.createPetAfterLink')}
             </p>
           ) : (
             <div className="space-y-5">
               <StepIndicator
-                steps={WIZARD_STEPS}
+                steps={wizardSteps}
                 current={wizardStep}
                 accent={isOwner ? 'sky' : 'teal'}
                 onSelect={(i) => {
@@ -718,7 +733,7 @@ export default function Submissions() {
               {wizardStep === 0 && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="label">
-                    Pet
+                    {t('pets.petLabel')}
                     <select className="input mt-1" value={petId} onChange={(e) => setPetId(e.target.value)}>
                       {pets.map((p) => (
                         <option key={p.pet_id} value={p.pet_id}>
@@ -728,11 +743,11 @@ export default function Submissions() {
                     </select>
                   </label>
                   <label className="label">
-                    Şikâyet
+                    {t('submissions.wizard.complaint')}
                     <input className="input mt-1" value={complaint} onChange={(e) => setComplaint(e.target.value)} />
                   </label>
                   <label className="label sm:col-span-2">
-                    Klinik notlar
+                    {t('submissions.wizard.clinicalNotes')}
                     <textarea
                       className="input mt-1 min-h-[72px]"
                       value={notes}
@@ -745,7 +760,7 @@ export default function Submissions() {
                       disabled={!petId}
                       icon={<ArrowRight className="h-4 w-4" />}
                     >
-                      Devam · DICOM
+                      {t('submissions.wizard.continueDicom')}
                     </Button>
                   </div>
                 </div>
@@ -753,7 +768,7 @@ export default function Submissions() {
 
               {wizardStep === 1 && (
                 <div className="space-y-3">
-                  <p className="label mb-1.5">DICOM görüntüleme</p>
+                  <p className="label mb-1.5">{t('submissions.wizard.dicomViewing')}</p>
                   <div
                     onDragOver={(e) => {
                       e.preventDefault()
@@ -783,9 +798,9 @@ export default function Submissions() {
                       }`}
                     />
                     <p className="mt-2 text-sm font-medium text-navy-900">
-                      {drag ? 'Dosyaları bırakın' : 'DICOM dosya veya klasör sürükleyin'}
+                      {drag ? t('submissions.wizard.dropRelease') : t('submissions.wizard.dropFiles')}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">.dcm / DICOM Part-10 · birden fazla dosya seçilebilir</p>
+                    <p className="mt-1 text-xs text-slate-500">{t('submissions.wizard.dicomHint')}</p>
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <Button
                         type="button"
@@ -797,7 +812,7 @@ export default function Submissions() {
                           fileInputRef.current?.click()
                         }}
                       >
-                        Dosya seç
+                        {t('submissions.wizard.selectFiles')}
                       </Button>
                       <Button
                         type="button"
@@ -809,7 +824,7 @@ export default function Submissions() {
                           folderInputRef.current?.click()
                         }}
                       >
-                        Klasör seç
+                        {t('submissions.wizard.selectFolder')}
                       </Button>
                       <Button
                         type="button"
@@ -820,7 +835,7 @@ export default function Submissions() {
                           setFiles([])
                         }}
                       >
-                        Örnek DICOM kullan
+                        {t('submissions.wizard.useDemoDicom')}
                       </Button>
                     </div>
                     <input
@@ -857,7 +872,7 @@ export default function Submissions() {
                           : 'border border-teal-200 bg-teal-50 text-teal-900'
                       }`}
                     >
-                      Örnek brain MRI DICOM kullanılacak.
+                      {t('submissions.wizard.demoBrainMri')}
                     </p>
                   )}
 
@@ -876,7 +891,7 @@ export default function Submissions() {
                             type="button"
                             className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
                             onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
-                            aria-label={`${f.name} kaldır`}
+                            aria-label={t('submissions.removeFileAria', { name: f.name })}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -891,14 +906,14 @@ export default function Submissions() {
                       icon={<ArrowLeft className="h-4 w-4" />}
                       onClick={() => setWizardStep(0)}
                     >
-                      Geri
+                      {t('common.back')}
                     </Button>
                     <Button
                       onClick={() => setWizardStep(2)}
                       disabled={!useDemoDicom && files.length === 0}
                       icon={<ArrowRight className="h-4 w-4" />}
                     >
-                      Devam · Özet
+                      {t('submissions.wizard.continueSummary')}
                     </Button>
                   </div>
                 </div>
@@ -907,26 +922,26 @@ export default function Submissions() {
               {wizardStep === 2 && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm">
-                    <p className="font-semibold text-navy-900">Talep özeti</p>
+                    <p className="font-semibold text-navy-900">{t('submissions.wizard.summaryTitle')}</p>
                     <dl className="mt-2 grid gap-2 sm:grid-cols-2">
                       <div>
-                        <dt className="text-xs text-slate-500">Pet</dt>
+                        <dt className="text-xs text-slate-500">{t('pets.petLabel')}</dt>
                         <dd className="text-navy-900">{pets.find((p) => p.pet_id === petId)?.name || petId}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-slate-500">Ücret</dt>
+                        <dt className="text-xs text-slate-500">{t('submissions.wizard.fee')}</dt>
                         <dd className="font-semibold text-navy-900">{DEMO_PRICE_LABEL}</dd>
                       </div>
                       <div className="sm:col-span-2">
-                        <dt className="text-xs text-slate-500">Şikâyet / notlar</dt>
-                        <dd className="text-slate-800">{complaint || notes || '—'}</dd>
+                        <dt className="text-xs text-slate-500">{t('submissions.wizard.complaintNotes')}</dt>
+                        <dd className="text-slate-800">{complaint || notes || t('common.dash')}</dd>
                       </div>
                       <div className="sm:col-span-2">
-                        <dt className="text-xs text-slate-500">DICOM</dt>
+                        <dt className="text-xs text-slate-500">{t('vetBoard.detailTabDicom')}</dt>
                         <dd className="text-slate-800">
                           {useDemoDicom
-                            ? 'Örnek brain MRI'
-                            : `${files.length} dosya (${files
+                            ? t('submissions.wizard.demoMriLabel')
+                            : `${t('submissions.wizard.fileCount', { count: files.length })} (${files
                                 .slice(0, 3)
                                 .map((f) => f.name)
                                 .join(', ')}${files.length > 3 ? '…' : ''})`}
@@ -941,7 +956,7 @@ export default function Submissions() {
                       onClick={() => setWizardStep(1)}
                       disabled={!!busy}
                     >
-                      Geri
+                      {t('common.back')}
                     </Button>
                     <Button
                       onClick={() => void preparePaymentStep()}
@@ -954,7 +969,7 @@ export default function Submissions() {
                         )
                       }
                     >
-                      {busy === 'prepare-pay' ? 'Hazırlanıyor…' : 'Ödeme ekranına geç'}
+                      {busy === 'prepare-pay' ? t('submissions.wizard.preparing') : t('submissions.wizard.toPayment')}
                     </Button>
                   </div>
                 </div>
@@ -970,8 +985,8 @@ export default function Submissions() {
                       const sid = result.submission_id || draftSub?.submission_id
                       pushToast({
                         tone: 'success',
-                        title: 'Ödeme onaylandı',
-                        body: 'Talep oluşturuldu ve radyoloji iş akışına gönderildi.',
+                        title: t('submissions.toast.paymentApproved'),
+                        body: t('submissions.toast.paymentSent'),
                       })
                       resetWizard()
                       load()
@@ -988,7 +1003,7 @@ export default function Submissions() {
                       }}
                       disabled={busy === 'finalize'}
                     >
-                      Özet’e dön
+                      {t('submissions.wizard.backToSummary')}
                     </Button>
                   )}
                 </div>
@@ -1022,13 +1037,17 @@ export default function Submissions() {
       />
 
       <Card>
-        <CardHeader title="Başvuru listesi" subtitle={loading ? undefined : `${rows.length} kayıt`} icon={<ClipboardCheck className="h-5 w-5" />} />
+        <CardHeader
+          title={t('submissions.listTitle')}
+          subtitle={loading ? undefined : t('submissions.recordCount', { count: rows.length })}
+          icon={<ClipboardCheck className="h-5 w-5" />}
+        />
         {loading ? (
           <p className="flex items-center gap-2 px-5 py-6 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Yükleniyor…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}
           </p>
         ) : rows.length === 0 ? (
-          <EmptyState compact icon={<ClipboardCheck className="h-5 w-5" />} title="Başvuru yok" text="Henüz kayıt bulunmuyor." />
+          <EmptyState compact icon={<ClipboardCheck className="h-5 w-5" />} title={t('submissions.empty')} text={t('submissions.emptyListText')} />
         ) : (
           <ul className="divide-y divide-slate-100">
             {rows.map((s) => {
@@ -1045,27 +1064,27 @@ export default function Submissions() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${statusCls}`}>
-                          {STATUS_TR[s.status] ?? s.status}
+                          {submissionStatusLabel(s.status, t)}
                         </span>
                         <span className="truncate text-sm font-semibold text-navy-900">
-                          {pet?.name || s.chief_complaint || 'Başvuru'}
+                          {pet?.name || s.chief_complaint || t('submissions.submissionFallback')}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        {s.dicom_ingest_id ? 'DICOM ekli' : 'DICOM yok'}
+                        {s.dicom_ingest_id ? t('submissions.dicomAttached') : t('submissions.dicomMissing')}
                         {' · '}
                         {fmtDate(s.updated_at || s.created_at)}
                         {s.linked_case_id ? (
                           <>
                             {' · '}
-                            <Link className="text-teal-700 hover:underline" to={`/vakalar/${s.linked_case_id}`}>
-                              Vakaya git
-                            </Link>
+                            <LocalizedLink className="text-teal-700 hover:underline" to={`/vakalar/${s.linked_case_id}`}>
+                              {t('submissions.goToCase')}
+                            </LocalizedLink>
                           </>
                         ) : null}
                       </p>
                       {s.missing_info_request && s.status === 'needs_info' && (
-                        <p className="mt-1 text-xs text-amber-800">İstenen: {s.missing_info_request}</p>
+                        <p className="mt-1 text-xs text-amber-800">{t('submissions.requested', { text: s.missing_info_request })}</p>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -1076,16 +1095,16 @@ export default function Submissions() {
                           icon={<Eye className="h-3.5 w-3.5" />}
                           onClick={() => void openDicomDetail(s.dicom_ingest_id!)}
                         >
-                          {detailIngestId === s.dicom_ingest_id ? 'Kapat' : 'DICOM'}
+                          {detailIngestId === s.dicom_ingest_id ? t('submissions.closeDicom') : t('submissions.viewDicom')}
                         </Button>
                       )}
                       {canOwnerAttach(s) && (
                         <>
                           <Button size="sm" disabled={busy === s.submission_id} onClick={() => openAttachPicker(s.submission_id)}>
-                            {s.dicom_ingest_id ? 'Ek DICOM' : 'DICOM ekle'}
+                            {s.dicom_ingest_id ? t('submissions.extraDicom') : t('submissions.addDicom')}
                           </Button>
                           <Button size="sm" variant="secondary" disabled={busy === s.submission_id} onClick={() => void attachDemo(s.submission_id)}>
-                            Örnek
+                            {t('submissions.demoShort')}
                           </Button>
                           <Button
                             size="sm"
@@ -1094,7 +1113,7 @@ export default function Submissions() {
                             disabled={busy === s.submission_id}
                             onClick={() => openDocAttachPicker(s.submission_id)}
                           >
-                            Belge
+                            {t('submissions.document')}
                           </Button>
                         </>
                       )}
@@ -1107,7 +1126,7 @@ export default function Submissions() {
                           disabled={busy === `del-${s.submission_id}`}
                           onClick={() => void removeSubmission(s)}
                         >
-                          Sil
+                          {t('common.delete')}
                         </Button>
                       )}
                     </div>
@@ -1115,16 +1134,16 @@ export default function Submissions() {
                   {s.status === 'needs_info' && (
                     <div className="mt-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5">
                       <label className="block text-xs font-medium text-amber-950">
-                        Veteriner isteğine yanıt
+                        {t('submissions.replyToVet')}
                         <textarea
                           className="input mt-1 min-h-[64px] text-sm"
                           value={replyDraft[s.submission_id] || ''}
                           onChange={(e) => setReplyDraft((prev) => ({ ...prev, [s.submission_id]: e.target.value }))}
-                          placeholder="İstenen klinik bilgiyi yazın…"
+                          placeholder={t('submissions.replyPlaceholder')}
                         />
                       </label>
                       <Button size="sm" disabled={busy === s.submission_id} onClick={() => void sendOwnerReply(s)}>
-                        Yanıtı gönder
+                        {t('submissions.sendReply')}
                       </Button>
                     </div>
                   )}
@@ -1132,7 +1151,7 @@ export default function Submissions() {
                     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
                       {detailLoading && (
                         <p className="flex items-center gap-2 text-sm text-slate-600">
-                          <Loader2 className="h-4 w-4 animate-spin" /> DICOM detayları yükleniyor…
+                          <Loader2 className="h-4 w-4 animate-spin" /> {t('submissions.errors.dicomDetailLoading')}
                         </p>
                       )}
                       {detailError && (
@@ -1144,32 +1163,32 @@ export default function Submissions() {
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <p className="text-sm font-semibold text-navy-900">DICOM özeti</p>
+                              <p className="text-sm font-semibold text-navy-900">{t('submissions.dicomSummary')}</p>
                               <p className="text-xs text-slate-500">
                                 {detail.accepted && detail.case_id
-                                  ? `Vakaya bağlı · ${detail.case_id}`
-                                  : 'Karantinada'}
+                                  ? t('submissions.linkedToCase', { caseId: detail.case_id })
+                                  : t('submissions.quarantined')}
                               </p>
                             </div>
                             <button
                               type="button"
                               className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700"
                               onClick={closeDicomDetail}
-                              aria-label="Kapat"
+                              aria-label={t('common.close')}
                             >
                               <X className="h-4 w-4" />
                             </button>
                           </div>
                           <dl className="grid gap-2 text-xs sm:grid-cols-2">
                             <div>
-                              <dt className="text-slate-500">Hasta</dt>
+                              <dt className="text-slate-500">{t('submissions.patient')}</dt>
                               <dd className="font-medium text-navy-900">
                                 {detail.patient_name} · {detail.species}
                                 {detail.breed ? ` · ${detail.breed}` : ''}
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-slate-500">Önerilen sınıflandırma</dt>
+                              <dt className="text-slate-500">{t('submissions.suggestedClassification')}</dt>
                               <dd className="font-medium text-navy-900">
                                 {detail.classification
                                   ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region} (${detail.classification.confidence})`
@@ -1177,29 +1196,36 @@ export default function Submissions() {
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-slate-500">Study UID</dt>
+                              <dt className="text-slate-500">{t('submissions.studyUid')}</dt>
                               <dd className="break-all font-mono text-[11px] text-navy-800">
                                 {detail.study?.study_instance_uid || '—'}
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-slate-500">Seri / instance</dt>
+                              <dt className="text-slate-500">{t('submissions.seriesInstance')}</dt>
                               <dd className="font-medium text-navy-900">
                                 {detail.study
-                                  ? `${detail.study.series.length} seri · ${detail.study.series.reduce((n, ser) => n + ser.instances.length, 0)} instance`
-                                  : '—'}
+                                  ? t('submissions.seriesInstanceCount', {
+                                      series: detail.study.series.length,
+                                      instances: detail.study.series.reduce((n, ser) => n + ser.instances.length, 0),
+                                    })
+                                  : t('common.dash')}
                                 {detail.quarantined_files?.length
-                                  ? ` · ${detail.quarantined_files.length} dosya`
+                                  ? ` · ${t('submissions.filesCount', { count: detail.quarantined_files.length })}`
                                   : ''}
                               </dd>
                             </div>
                           </dl>
                           {detail.study?.study_description && (
-                            <p className="text-xs text-slate-600">Açıklama: {detail.study.study_description}</p>
+                            <p className="text-xs text-slate-600">
+                              {t('submissions.description')}: {detail.study.study_description}
+                            </p>
                           )}
                           {detail.blocked && (
                             <p className="text-xs text-rose-700">
-                              Engellendi: {detail.block_reason || 'DICOM doğrulama hatası'}
+                              {t('submissions.blocked', {
+                                reason: detail.block_reason || t('submissions.blockDefault'),
+                              })}
                             </p>
                           )}
                           {detail.quarantined_files?.length > 0 && (
@@ -1216,7 +1242,7 @@ export default function Submissions() {
                           )}
                           {detailFrames.length > 0 && (
                             <div>
-                              <p className="mb-2 text-xs font-medium text-slate-600">Önizleme</p>
+                              <p className="mb-2 text-xs font-medium text-slate-600">{t('submissions.preview')}</p>
                               <div className="flex flex-wrap gap-2">
                                 {detailFrames.slice(0, 6).map((f) => (
                                   <div
@@ -1240,9 +1266,7 @@ export default function Submissions() {
                             </div>
                           )}
                           {!detailFrames.length && !detail.blocked && (
-                            <p className="text-xs text-slate-500">
-                              Metadata okundu. Piksel önizleme yoksa dosyalar metadata-only veya decode edilemedi.
-                            </p>
+                            <p className="text-xs text-slate-500">{t('submissions.previewMetaOnly')}</p>
                           )}
                         </div>
                       )}

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card, CardHeader } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -13,6 +14,7 @@ import {
   searchRag,
   type RagCustomDocument,
 } from '../lib/backend'
+import { getKbSources, kbLicenseLabel, kbSourceText, kbTypeLabel } from '../data/mock'
 import { fmtDate, today } from '../lib/format'
 import type { KbSource } from '../types'
 
@@ -57,10 +59,12 @@ function fromBackendDoc(d: RagCustomDocument, i: number): KbSource {
 }
 
 export default function KnowledgeBase() {
+  const { t, intlLocale, locale } = useLocale()
   const { kbSources: seedSources, pushToast, openSource } = useApp()
   const [custom, setCustom] = useState<KbSource[]>([])
   const [saving, setSaving] = useState(false)
-  const kbSources = [...custom, ...seedSources]
+  const localizedSeeds = useMemo(() => getKbSources(locale, seedSources), [locale, seedSources])
+  const kbSources = [...custom, ...localizedSeeds]
 
   useEffect(() => {
     void listCustomRagDocuments()
@@ -135,12 +139,12 @@ export default function KnowledgeBase() {
   return (
     <>
       <PageHeader
-        title="Bilgi Tabanı — Nöroloji"
-        subtitle={`${kbSources.length} kaynak · lexical RAG arama`}
+        title={t('admin.kbTitle')}
+        subtitle={t('admin.kbSubtitle', { count: kbSources.length })}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => setModal(true)}>
-              Kaynak Ekle
+              {t('admin.addSource')}
             </Button>
             <input
               ref={bulkInputRef}
@@ -199,7 +203,7 @@ export default function KnowledgeBase() {
               disabled={bulkLoading}
               onClick={() => bulkInputRef.current?.click()}
             >
-              {bulkLoading ? 'Yükleniyor…' : 'JSONL toplu yükle'}
+              {bulkLoading ? t('common.loading') : t('admin.bulkJsonl')}
             </Button>
           </div>
         }
@@ -207,14 +211,13 @@ export default function KnowledgeBase() {
 
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
-          DEMO FICTION
+          {t('admin.demoFiction')}
         </span>
-        Soldaki seed corpus ({seedSources.length} kaynak) frontend mock’tur. Backend RAG / özel dokümanlar ayrıdır;
-        arama önce API’ye gider, başarısızsa yerel lexical skora düşer — klinik onaylı KB değildir.
+        {t('admin.kbDemoNote', { count: seedSources.length })}
       </div>
 
       <Card className="mb-6">
-        <CardHeader title="Lexical RAG arama" subtitle="Backend RAG + seed mock ayrımı" icon={<Sparkles className="h-5 w-5" />} />
+        <CardHeader title={t('admin.lexicalSearch')} subtitle={t('admin.lexicalSearchSub')} icon={<Sparkles className="h-5 w-5" />} />
         <div className="p-5">
           <form
             onSubmit={(e) => {
@@ -225,9 +228,9 @@ export default function KnowledgeBase() {
           >
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ör. kondrodistrofik ırkta akut parezi" />
+              <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('admin.searchPlaceholder')} />
             </div>
-            <Button type="submit" disabled={!q.trim() || loading}>Ara</Button>
+            <Button type="submit" disabled={!q.trim() || loading}>{t('common.search')}</Button>
           </form>
           <div className="mt-3 flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
@@ -251,7 +254,7 @@ export default function KnowledgeBase() {
                   <li key={h.source.id} className={`animate-fade-up rounded-lg border p-4 ${pass ? 'border-slate-200' : 'border-dashed border-slate-200 opacity-60'}`} style={{ animationDelay: `${i * 70}ms` }}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <button onClick={() => openSource(h.source.id)} className="text-left text-sm font-semibold text-navy-900 hover:text-teal-700">
-                        [{h.source.id}] {h.source.title}
+                        [{h.source.id}] {kbSourceText(h.source, locale).title}
                       </button>
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
@@ -261,10 +264,10 @@ export default function KnowledgeBase() {
                       </div>
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {h.source.section}
+                      {kbSourceText(h.source, locale).section}
                       {!pass && ' · retrieval benzerlik eşiği (0.78) altında — klinik güven değil'}
                     </p>
-                    <p className="mt-2 text-sm leading-relaxed text-navy-800">{h.source.passage}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-navy-800">{kbSourceText(h.source, locale).passage}</p>
                   </li>
                 )
               })}
@@ -274,17 +277,17 @@ export default function KnowledgeBase() {
       </Card>
 
       <Card>
-        <CardHeader title="Kaynaklar" icon={<BookOpen className="h-5 w-5" />} />
+        <CardHeader title={t('admin.sources')} icon={<BookOpen className="h-5 w-5" />} />
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/70">
               <tr>
                 <th className="th">#</th>
-                <th className="th">Kaynak adı</th>
-                <th className="th">Tür</th>
-                <th className="th">Lisans durumu</th>
-                <th className="th text-right">Parça (chunk)</th>
-                <th className="th">İndekslenme</th>
+                <th className="th">{t('admin.colSourceName')}</th>
+                <th className="th">{t('admin.colType')}</th>
+                <th className="th">{t('admin.colLicense')}</th>
+                <th className="th text-right">{t('admin.colChunks')}</th>
+                <th className="th">{t('admin.colIndexed')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -293,21 +296,21 @@ export default function KnowledgeBase() {
                   <td className="td font-mono text-xs text-slate-500">{s.id}</td>
                   <td className="td">
                     <button onClick={() => openSource(s.id)} className="text-left font-medium text-navy-900 hover:text-teal-700">
-                      {s.title}
+                      {kbSourceText(s, locale).title}
                     </button>
                     {s.id >= 20_000 && s.ragApproved !== true && (
                       <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-inset ring-slate-200">
-                        Onaylı KB değil
+                        {t('admin.notApprovedKb')}
                       </span>
                     )}
                   </td>
-                  <td className="td">{s.type}</td>
+                  <td className="td">{kbTypeLabel(s.type, locale)}</td>
                   <td className="td">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${s.license === 'İzinli' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{s.license}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${s.license === 'İzinli' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{kbLicenseLabel(s.license, locale)}</span>
                   </td>
-                  <td className="td text-right font-mono">{s.indexing ? '—' : s.chunks.toLocaleString('tr-TR')}</td>
+                  <td className="td text-right font-mono">{s.indexing ? t('common.dash') : s.chunks.toLocaleString(intlLocale)}</td>
                   <td className="td">
-                    {s.indexing ? <span className="flex items-center gap-1.5 text-teal-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> İndeksleniyor…</span> : <span className="text-slate-500">{fmtDate(s.indexedAt)}</span>}
+                    {s.indexing ? <span className="flex items-center gap-1.5 text-teal-700"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('admin.indexing')}</span> : <span className="text-slate-500">{fmtDate(s.indexedAt)}</span>}
                   </td>
                 </tr>
               ))}
@@ -319,22 +322,22 @@ export default function KnowledgeBase() {
       <Modal
         open={modal}
         onClose={() => setModal(false)}
-        title="Kaynak ekle"
+        title={t('admin.addSourceModal')}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModal(false)}>Vazgeç</Button>
-            <Button disabled={!form.title.trim() || !form.passage.trim() || saving} onClick={() => void add()}>{saving ? 'İndeksleniyor…' : 'Ekle ve indeksle'}</Button>
+            <Button variant="secondary" onClick={() => setModal(false)}>{t('common.cancel')}</Button>
+            <Button disabled={!form.title.trim() || !form.passage.trim() || saving} onClick={() => void add()}>{saving ? t('admin.indexing') : t('admin.addAndIndex')}</Button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <label className="label">Kaynak adı</label>
+            <label className="label">{t('admin.sourceName')}</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="ör. Nöromüsküler Hastalıklar Notları (örnek)" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Tür</label>
+              <label className="label">{t('admin.colType')}</label>
               <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as KbSource['type'] })}>
                 <option>Kitap</option>
                 <option>Bilimsel yayın</option>
@@ -342,7 +345,7 @@ export default function KnowledgeBase() {
               </select>
             </div>
             <div>
-              <label className="label">Lisans durumu</label>
+              <label className="label">{t('admin.colLicense')}</label>
               <select className="input" value={form.license} onChange={(e) => setForm({ ...form, license: e.target.value as KbSource['license'] })}>
                 <option>İzinli</option>
                 <option>Beklemede</option>
@@ -350,7 +353,7 @@ export default function KnowledgeBase() {
             </div>
           </div>
           <div>
-            <label className="label">İçerik (pasaj)</label>
+            <label className="label">{t('admin.contentPassage')}</label>
             <textarea
               className="input min-h-[120px]"
               value={form.passage}

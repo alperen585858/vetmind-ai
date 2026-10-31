@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   Bone,
   Brain,
@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -22,7 +23,7 @@ import { DicomViewer } from '../components/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from '../components/SeriesExplorer'
 import { CLINIC } from '../data/mock'
 import { buildAssessment, makeDocument } from '../data/templates'
-import { localize } from '../lib/localization'
+import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../lib/pipeline'
 import {
@@ -96,7 +97,8 @@ const DEMO_SETS: {
 
 export default function DicomUpload() {
   const { addCase, pushToast, updateCase, user } = useApp()
-  const nav = useNavigate()
+  const { t, locale } = useLocale()
+  const nav = useLocalizedNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
@@ -215,10 +217,10 @@ export default function DicomUpload() {
     submitLockRef.current = false
     pushToast({
       tone: 'info',
-      title: 'İşlem iptal edildi',
-      body: 'Yükleme durduruldu; analiz başlamışsa backend iptal isteği de gönderilir.',
+      title: t('dicom.cancelledTitle'),
+      body: t('dicom.cancelledBody'),
     })
-  }, [pushToast])
+  }, [pushToast, t])
 
   const mergeIncoming = async (incoming: File[], sourceLabel: string) => {
     if (!incoming.length) {
@@ -316,7 +318,7 @@ export default function DicomUpload() {
       setFiles(demoFiles)
       pushToast({
         tone: 'info',
-        title: 'Örnek DICOM yüklendi',
+        title: t('dicom.sampleLoaded'),
         body: 'Görüntüleyici açıldı. İsterseniz metadata önizleyebilir veya analize devam edebilirsiniz.',
       })
     } catch (err) {
@@ -326,7 +328,7 @@ export default function DicomUpload() {
           : err instanceof Error
             ? err.message
             : 'Örnek indirilemedi'
-      pushToast({ tone: 'error', title: 'Örnek DICOM alınamadı', body: message })
+      pushToast({ tone: 'error', title: t('dicom.sampleFailed'), body: message })
     } finally {
       setBusy(false)
       setUploadProgress(null)
@@ -347,14 +349,14 @@ export default function DicomUpload() {
   const runPreview = async (kind?: DicomDemoKind) => {
     const formErr = validatePatientForm({ patientName, species, consent: true })
     if (formErr.patientName) {
-      pushToast({ tone: 'warning', title: 'Hasta adı gerekli', body: 'Yüklemeden önce hasta adını girin.' })
+      pushToast({ tone: 'warning', title: t('dicom.patientNameRequired'), body: t('dicom.patientNameBeforeUpload') })
       return
     }
     if (!kind && files.length === 0) {
       pushToast({
         tone: 'warning',
         title: 'Dosya yok',
-        body: 'Önce .dcm sürükleyin veya örnek veri setini kullanın.',
+        body: t('dicom.needDcmFirst'),
       })
       return
     }
@@ -386,7 +388,7 @@ export default function DicomUpload() {
       setPendingDemo(kind ?? null)
       applyDefaults(upload)
       if (upload.blocked) {
-        pushToast({ tone: 'error', title: 'Yükleme engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
+        pushToast({ tone: 'error', title: t('dicom.uploadBlocked'), body: upload.block_reason ?? t('dicom.validationError') })
       } else {
         pushToast({
           tone: 'success',
@@ -431,14 +433,14 @@ export default function DicomUpload() {
 
   const submit = async () => {
     if (submitLockRef.current) {
-      pushToast({ tone: 'warning', title: 'İşlem sürüyor', body: 'Yinelenen gönderim engellendi.' })
+      pushToast({ tone: 'warning', title: t('dicom.duplicateBlocked'), body: t('dicom.duplicateBody') })
       return
     }
     const formErrors = validatePatientForm({ patientName, species, consent })
     if (formErrors.patientName || formErrors.consent) {
       pushToast({
         tone: 'warning',
-        title: formErrors.patientName ? 'Hasta adı gerekli' : 'Onay gerekli',
+        title: formErrors.patientName ? t('dicom.patientNameRequired') : t('dicom.confirmRequired'),
         body: formErrors.consent ?? formErrors.patientName,
       })
       return
@@ -498,7 +500,7 @@ export default function DicomUpload() {
         setPreview(upload)
         applyDefaults(upload)
         if (upload.blocked) {
-          pushToast({ tone: 'error', title: 'Yükleme engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
+          pushToast({ tone: 'error', title: t('dicom.uploadBlocked'), body: upload.block_reason ?? t('dicom.validationError') })
           return
         }
         ingestId = upload.ingest_id
@@ -542,8 +544,8 @@ export default function DicomUpload() {
       }
       const neuro = EMPTY_NEURO
       const stamp = nowStamp()
-      const loc = localize(neuro, clinical)
-      let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp)
+      const loc = localize(neuro, clinical, locale)
+      let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
       if (result.report && result.findings) {
         built = {
           ...built,
@@ -748,7 +750,7 @@ export default function DicomUpload() {
       )}
 
       <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Onay</h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('dicom.confirmSection')}</h3>
         <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-3 text-xs leading-relaxed text-navy-800 transition hover:border-teal-200 hover:bg-teal-50/30">
           <input
             type="checkbox"
@@ -847,7 +849,7 @@ export default function DicomUpload() {
         </ul>
         {preview?.blocked && (
           <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-xs text-rose-800 ring-1 ring-inset ring-rose-200">
-            {preview.block_reason ?? 'Yükleme engellendi'}
+            {preview.block_reason ?? t('dicom.uploadBlocked')}
           </p>
         )}
         {preview?.issues?.some((i) => i.severity === 'warning') && !preview.blocked && (
@@ -871,7 +873,7 @@ export default function DicomUpload() {
           onClick={() => void submit()}
           icon={<Sparkles className="h-4 w-4" />}
         >
-          {busy ? 'İşleniyor…' : 'Analize gönder'}
+          {busy ? t('dicom.processing') : t('dicom.sendToAnalysis')}
         </Button>
         {(busy || uploading) && (
           <Button variant="secondary" className="w-full" onClick={cancelInFlight}>
@@ -1036,8 +1038,9 @@ export default function DicomUpload() {
   return (
     <>
       <PageHeader
-        title="DICOM Yükleme"
-        crumbs={[{ label: 'Vakalar', to: '/vakalar' }, { label: 'DICOM Yükle' }]}
+        title={t('dicom.title')}
+        subtitle={t('dicom.pageSubtitle')}
+        crumbs={[{ label: t('nav.cases'), to: '/vakalar' }, { label: t('dicom.title') }]}
         actions={
           <div className="flex items-center gap-2">
             {workspacePhase !== 'EMPTY' && (

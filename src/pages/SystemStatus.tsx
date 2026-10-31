@@ -5,7 +5,9 @@ import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
 import { DEPLOYMENTS, SERVICES } from '../data/mock'
+import { useLocale } from '../context/LocaleContext'
 import { fmtDate } from '../lib/format'
+import type { TranslateFn } from '../i18n'
 import {
   BackendUnavailableError,
   applyRetentionPlan,
@@ -17,7 +19,21 @@ import {
   type RetentionPlanResponse,
 } from '../lib/backend'
 
+function deploymentStatusLabel(status: string, t: TranslateFn) {
+  if (status === 'Başarılı') return t('admin.success')
+  if (status === 'Geri alındı') return t('admin.rolledBack')
+  return status
+}
+
+function deploymentKindLabel(kind: string, t: TranslateFn) {
+  if (kind === 'Model') return t('admin.deployKindModel')
+  if (kind === 'Servis') return t('admin.deployKindService')
+  if (kind === 'Bilgi tabanı') return t('admin.deployKindKb')
+  return kind
+}
+
 export default function SystemStatus() {
+  const { t } = useLocale()
   const vramUsed = 29.4
   const vramTotal = 48
   const [health, setHealth] = useState<BackendHealth | null>(null)
@@ -48,7 +64,7 @@ export default function SystemStatus() {
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Health alınamadı',
+                : t('admin.healthFetchFail'),
           )
         }),
       fetchModelReadiness()
@@ -63,7 +79,7 @@ export default function SystemStatus() {
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Model readiness alınamadı',
+                : t('admin.readinessFetchFail'),
           )
         }),
     ]).finally(() => setLoading(false))
@@ -88,7 +104,7 @@ export default function SystemStatus() {
             ? err.message
             : err instanceof Error
               ? err.message
-              : 'Retention plan alınamadı',
+              : t('admin.retentionFetchFail'),
         )
       })
       .finally(() => setRetentionLoading(false))
@@ -99,26 +115,30 @@ export default function SystemStatus() {
   return (
     <>
       <PageHeader
-        title="Sistem Durumu"
+        title={t('admin.systemTitle')}
         subtitle={
           health
-            ? `Backend /health · v${health.version} · storage=${health.storage} · rag=${health.rag}`
+            ? t('admin.systemSubtitleLive', {
+                version: health.version,
+                storage: health.storage,
+                rag: health.rag,
+              })
             : loading
-              ? 'Backend /health sorgulanıyor…'
-              : 'Son güncelleme: az önce · canlı health'
+              ? t('admin.systemSubtitleLoading')
+              : t('admin.systemSubtitleIdle')
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={loadHealth} disabled={loading}>
-              Yenile
+              {t('common.refresh')}
             </Button>
             {backendOk ? (
               <span className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-200">
-                <CheckCircle2 className="h-3.5 w-3.5" /> API canlı
+                <CheckCircle2 className="h-3.5 w-3.5" /> {t('admin.apiLive')}
               </span>
             ) : (
               <span className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                <AlertTriangle className="h-3.5 w-3.5" /> {healthError ? 'API yok' : 'Health bekleniyor'}
+                <AlertTriangle className="h-3.5 w-3.5" /> {healthError ? t('admin.apiDown') : t('admin.healthPending')}
               </span>
             )}
           </div>
@@ -244,21 +264,19 @@ export default function SystemStatus() {
         <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">
           DEMO FICTION
         </span>
-        <p className="text-xs text-slate-500">
-          Aşağıdaki servis / GPU / dağıtım kartları illustrative’dır; canlı durum için yalnızca /health ve model readiness kullanın.
-        </p>
+        <p className="text-xs text-slate-500">{t('admin.servicesDemoNote')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SERVICES.map((s) => (
-          <Card key={s.name} className="p-4">
+          <Card key={s.key} className="p-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="font-semibold text-navy-900">{s.name}</p>
+              <p className="font-semibold text-navy-900">{t(`services.${s.key}`)}</p>
               <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                Illustrative
+                {t('admin.illustrative')}
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">{s.detail}</p>
+            <p className="mt-1 text-xs text-slate-500">{t(`services.${s.detailKey}`)}</p>
           </Card>
         ))}
       </div>
@@ -394,7 +412,7 @@ export default function SystemStatus() {
                   setApplyOpen(false)
                 })
                 .catch((err) =>
-                  setRetentionError(err instanceof Error ? err.message : 'Apply başarısız'),
+                  setRetentionError(err instanceof Error ? err.message : t('admin.retentionApplyFail')),
                 )
                 .finally(() => setApplying(false))
             }}
@@ -405,30 +423,34 @@ export default function SystemStatus() {
       </Modal>
 
       <Card className="mt-6">
-        <CardHeader title="Son dağıtımlar" subtitle="DEMO FICTION · mock changelog" icon={<Rocket className="h-5 w-5" />} />
+        <CardHeader title={t('admin.deploymentsTitle')} subtitle={t('admin.deploymentsSub')} icon={<Rocket className="h-5 w-5" />} />
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/70">
               <tr>
-                <th className="th">Sürüm</th>
-                <th className="th">Tür</th>
-                <th className="th">Tarih</th>
-                <th className="th">Dağıtan</th>
-                <th className="th">Durum</th>
+                <th className="th">{t('admin.colVersion')}</th>
+                <th className="th">{t('admin.colKind')}</th>
+                <th className="th">{t('common.date')}</th>
+                <th className="th">{t('admin.colDeployedBy')}</th>
+                <th className="th">{t('common.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {DEPLOYMENTS.map((d) => (
                 <tr key={d.version}>
                   <td className="td font-mono text-xs font-medium">{d.version}</td>
-                  <td className="td">{d.kind}</td>
+                  <td className="td">{deploymentKindLabel(d.kind, t)}</td>
                   <td className="td text-slate-500">{fmtDate(d.date)}</td>
                   <td className="td">{d.by}</td>
                   <td className="td">
                     {d.status === 'Başarılı' ? (
-                      <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Başarılı</span>
+                      <span className="flex items-center gap-1.5 text-emerald-700">
+                        <CheckCircle2 className="h-4 w-4" /> {t('admin.success')}
+                      </span>
                     ) : (
-                      <span className="flex items-center gap-1.5 text-orange-700"><Activity className="h-4 w-4" /> {d.status}</span>
+                      <span className="flex items-center gap-1.5 text-orange-700">
+                        <Activity className="h-4 w-4" /> {deploymentStatusLabel(d.status, t)}
+                      </span>
                     )}
                   </td>
                 </tr>
