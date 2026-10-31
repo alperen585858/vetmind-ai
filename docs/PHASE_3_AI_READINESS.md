@@ -33,7 +33,7 @@ Async jobs: `POST /cases/{id}/analyze/async` → job backend (thread default / R
 | HTTP policy | Vision/LLM POST never auto-retried (`HttpClientPolicy.post_max_retries=0`) |
 | DICOM geometry | Rows/Columns, PixelSpacing, SliceThickness, IOP/IPP propagated into model input frames when present |
 | LLM DTO | `findings_source_kind` / model identity separated from `rag_passages`; `rag_is_clinical_validation=false` |
-| Frontend | Processing page shows backend job fields; DEMO/MOCK vs REAL/MIXED banners; no invented progress % |
+| Frontend | Processing page shows backend job fields; DEMO/MOCK vs REAL/MIXED banners; `progress_pct` only from orchestrator stage checkpoints (never time/GPU estimates) |
 
 ---
 
@@ -151,7 +151,7 @@ Note: On a nearly full system volume, pytest may need `TMPDIR` pointed at a work
 - Real pixel decode / volume prep / medically significant transforms
 - Pixel authorization grant in default config (default-deny)
 - Automatic retry of Vision/LLM POSTs
-- Invented confidence scores or GPU/progress estimates
+- Invented confidence scores or GPU/time-based progress estimates (stage checkpoint `progress_pct` is allowed)
 - Training, model hosting, or paid external LLM by default
 - Encryption, de-identification, or multi-tenant isolation claims
 - Payment / billing

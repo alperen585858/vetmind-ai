@@ -343,10 +343,13 @@ export async function createAndAnalyzeCase(input: {
     neutered?: boolean
     neuro_exam?: Record<string, string | string[] | boolean | number | null>
   }
+  signal?: AbortSignal
+  cancelBackendOnAbort?: boolean
 }): Promise<BackendPipelineResult> {
   const { modality, anatomical_region } = scenarioRouting(input.scenario)
   const created = await request<{ case_id: string }>('/cases', {
     method: 'POST',
+    signal: input.signal,
     body: JSON.stringify({
       patient_name: input.patientName,
       species: toBackendSpecies(input.species),
@@ -361,7 +364,10 @@ export async function createAndAnalyzeCase(input: {
       referring_clinic: '',
     }),
   })
-  return analyzeCaseAsyncAndWait(created.case_id)
+  return analyzeCaseAsyncAndWait(created.case_id, {
+    signal: input.signal,
+    cancelBackendOnAbort: input.cancelBackendOnAbort,
+  })
 }
 
 /** Multipart DICOM metadata upload (pixels ignored for diagnosis). */
@@ -499,19 +505,35 @@ export async function confirmDocumentIngest(ingestId: string): Promise<BackendCa
   })
 }
 
-export async function confirmDocumentAndAnalyze(ingestId: string): Promise<BackendPipelineResult> {
+export async function confirmDocumentAndAnalyze(
+  ingestId: string,
+  opts?: { signal?: AbortSignal; cancelBackendOnAbort?: boolean },
+): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDocumentIngest(ingestId)
-  return analyzeCaseAsyncAndWait(caseRecord.case_id)
+  return analyzeCaseAsyncAndWait(caseRecord.case_id, {
+    signal: opts?.signal,
+    cancelBackendOnAbort: opts?.cancelBackendOnAbort,
+  })
 }
 
 /** Enqueue background analyze and poll until completed/failed.
  *
- * `signal` aborts **client polling only** — it does not cancel the backend job.
+ * `signal` aborts **client polling only** by default — it does not cancel the backend job.
+ * Pass `cancelBackendOnAbort: true` to also POST `/jobs/{id}/cancel` when the signal aborts
+ * (or when {@link PollingCancelledError} is thrown after enqueue).
  * Catch {@link PollingCancelledError} vs network/backend failures separately.
  */
 export async function analyzeCaseAsyncAndWait(
   caseId: string,
-  opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
+  opts?: {
+    timeoutMs?: number
+    intervalMs?: number
+    signal?: AbortSignal
+    /** Fired once the async job is enqueued (before polling). */
+    onJobEnqueued?: (jobId: string) => void
+    /** If true, aborting `signal` also requests cooperative backend cancel. */
+    cancelBackendOnAbort?: boolean
+  },
 ): Promise<BackendPipelineResult> {
   // Real LLM drafts (draft + repair + differentials + verifier) take ~1 min on a laptop;
   // the backend job keeps running regardless, so wait long and poll gently.
@@ -520,6 +542,14 @@ export async function analyzeCaseAsyncAndWait(
   const maxIntervalMs = Math.max(intervalMs, 1_500)
   const signal = opts?.signal
   let jobId: string | undefined
+  const cancelBackendIfNeeded = async () => {
+    if (!opts?.cancelBackendOnAbort || !jobId) return
+    try {
+      await requestCancelAnalysisJob(jobId)
+    } catch {
+      /* best-effort — poll abort already happened */
+    }
+  }
   try {
     throwIfAborted(signal)
     const job = await request<{ job_id: string; status: string; case_id: string }>(
@@ -527,6 +557,7 @@ export async function analyzeCaseAsyncAndWait(
       { method: 'POST', signal },
     )
     jobId = job.job_id
+    opts?.onJobEnqueued?.(job.job_id)
     const deadline = Date.now() + timeoutMs
     let status = job.status
     while (Date.now() < deadline) {
@@ -576,7 +607,9 @@ export async function analyzeCaseAsyncAndWait(
             status === 'completed'
               ? 'Async analyze completed.'
               : `Async analyze ended with status=${status}.`,
-            'Client poll abort does not cancel the backend job.',
+            opts?.cancelBackendOnAbort
+              ? 'Client abort also requests backend job cancel when enabled.'
+              : 'Client poll abort does not cancel the backend job.',
           ],
         }
       }
@@ -585,9 +618,13 @@ export async function analyzeCaseAsyncAndWait(
     }
     throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
   } catch (err) {
-    if (err instanceof PollingCancelledError) throw err
+    if (err instanceof PollingCancelledError) {
+      await cancelBackendIfNeeded()
+      throw err
+    }
     const name = err instanceof Error ? err.name : ''
     if (name === 'AbortError') {
+      await cancelBackendIfNeeded()
       throw new PollingCancelledError('Job polling cancelled by client', jobId)
     }
     throw err
@@ -711,9 +748,15 @@ export async function confirmDicomAndAnalyze(input: {
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
+  onJobEnqueued?: (jobId: string) => void
+  cancelBackendOnAbort?: boolean
 }): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDicomClassification(input)
-  return analyzeCaseAsyncAndWait(caseRecord.case_id, { signal: input.signal })
+  return analyzeCaseAsyncAndWait(caseRecord.case_id, {
+    signal: input.signal,
+    onJobEnqueued: input.onJobEnqueued,
+    cancelBackendOnAbort: input.cancelBackendOnAbort,
+  })
 }
 
 export async function listBackendCases(): Promise<BackendCaseSummary[]> {
@@ -766,6 +809,41 @@ export async function listCaseMessages(
   caseId: string,
 ): Promise<import('../types').BackendCaseMessage[]> {
   return request(`/cases/${caseId}/messages`)
+}
+
+export interface AiChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+  created_at?: string
+  author_id?: string | null
+}
+
+export interface AiChatResponse {
+  case_id: string
+  reply: string
+  history: AiChatTurn[]
+  provider: string
+  note?: string
+}
+
+export async function listCaseAiChat(caseId: string): Promise<AiChatTurn[]> {
+  return request(`/cases/${encodeURIComponent(caseId)}/ai-chat`)
+}
+
+export async function askCaseAiChat(
+  caseId: string,
+  message: string,
+  opts?: { signal?: AbortSignal },
+): Promise<AiChatResponse> {
+  return request(`/cases/${encodeURIComponent(caseId)}/ai-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+    signal: opts?.signal,
+  })
+}
+
+export async function clearCaseAiChat(caseId: string): Promise<AiChatTurn[]> {
+  return request(`/cases/${encodeURIComponent(caseId)}/ai-chat`, { method: 'DELETE' })
 }
 
 export async function postCaseMessage(
@@ -856,6 +934,13 @@ export type BackendAnalysisJob = {
   cancel_requested?: boolean
   timeout_s?: number | null
   idempotency_key?: string | null
+  /** Checkpoint stage from orchestrator — not a time estimate. */
+  pipeline_stage?: string | null
+  /** 0–100 from completed pipeline stages only. */
+  progress_pct?: number
+  stage_label?: string | null
+  vision_adapter_index?: number | null
+  vision_adapter_total?: number | null
 }
 
 export async function getAnalysisJob(jobId: string, signal?: AbortSignal): Promise<BackendAnalysisJob> {
@@ -1002,6 +1087,37 @@ export async function submitBackendReview(caseId: string, payload: {
   return request(`/cases/${caseId}/review`, {
     method: 'POST',
     body: JSON.stringify({ reviewer_id: currentActorId(), ...payload }),
+  })
+}
+
+/**
+ * Full imaging+LLM re-analyze for an existing case (including ones that already have a draft/report).
+ * Approved / immutable reports cannot be analyzed in place — opens a revision fork first when requested.
+ */
+export async function resendCaseToAI(
+  caseId: string,
+  opts?: {
+    signal?: AbortSignal
+    cancelBackendOnAbort?: boolean
+    onJobEnqueued?: (jobId: string) => void
+    /** When true, POST request_revision before analyze (required for approved/immutable). */
+    openRevisionFirst?: boolean
+    revisionComment?: string
+  },
+): Promise<BackendPipelineResult> {
+  if (opts?.openRevisionFirst) {
+    await submitBackendReview(caseId, {
+      action: 'request_revision',
+      comment:
+        opts.revisionComment ??
+        'AI tam pipeline yeniden analizi için yeni düzenlenebilir sürüm açıldı. Önceki onaylı sürüm geçmişte korunur.',
+      reason_codes: ['report_quality'],
+    })
+  }
+  return analyzeCaseAsyncAndWait(caseId, {
+    signal: opts?.signal,
+    cancelBackendOnAbort: opts?.cancelBackendOnAbort,
+    onJobEnqueued: opts?.onJobEnqueued,
   })
 }
 

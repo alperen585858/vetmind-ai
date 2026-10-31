@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, Clock, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Stethoscope, UploadCloud, XCircle,
+  AlertCircle, AlertTriangle, BookOpen, Brain, CheckCircle2, ChevronDown, ClipboardList, Clock, FileSearch, FileText, FolderOpen, History, Image as ImageIcon, Info, Loader2, MessageSquare, Microscope, Sparkles, Stethoscope, UploadCloud, XCircle,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
@@ -26,6 +26,7 @@ import {
 } from '../lib/displayClean'
 import {
   BackendUnavailableError,
+  PollingCancelledError,
   appendCaseClinicalNote,
   attachCaseDocument,
   closeCaseInfoRequest,
@@ -36,6 +37,8 @@ import {
   getPetMedicalHistory,
   listCaseActivity,
   replyCaseInfoRequest,
+  requestCancelAnalysisJob,
+  resendCaseToAI,
   resolveDemoKindForCase,
   uploadDocuments,
   type PetHistoryEntry,
@@ -106,11 +109,13 @@ function DetailSkeleton() {
 export default function CaseDetail() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
-  const { getCase, role, hydrateBackendCase } = useApp()
+  const { getCase, role, hydrateBackendCase, pushToast } = useApp()
   const nav = useNavigate()
   const c = getCase(id)
   const [loading, setLoading] = useState(() => Boolean(id.startsWith('case-') && !c))
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [stoppingAnalysis, setStoppingAnalysis] = useState(false)
+  const [resendingAi, setResendingAi] = useState(false)
   const [tab, setTab] = useState<CaseDetailTab>(() => normalizeCaseDetailTab(params.get('tab')))
   const [summaryModule, setSummaryModule] = useState<CaseDetailModule>(() => caseDetailModule(params.get('tab')))
   const [modulesOpen, setModulesOpen] = useState(() => {
@@ -261,10 +266,54 @@ export default function CaseDetail() {
           >
             DICOM görüntüle
           </Button>
-          {(c.status === 'isleniyor' || (c.status === 'ai_analizi' && c.processingStartedAt)) && (
-            <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
-              İşlem hattını izle
-            </Button>
+          {(c.status === 'isleniyor' || c.status === 'ai_analizi') && (
+            <>
+              <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
+                İşlem hattını izle
+              </Button>
+              {(c.backendJobId || c.backendCaseId) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={stoppingAnalysis}
+                  icon={
+                    stoppingAnalysis ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <XCircle className="h-4 w-4" />
+                    )
+                  }
+                  onClick={() => {
+                    const jobId = c.backendJobId
+                    if (!jobId || stoppingAnalysis) {
+                      nav(`/vakalar/${c.id}/isleme`)
+                      return
+                    }
+                    setStoppingAnalysis(true)
+                    void requestCancelAnalysisJob(jobId)
+                      .then(async () => {
+                        pushToast({
+                          tone: 'info',
+                          title: 'Analiz durduruluyor',
+                          body: 'İptal isteği gönderildi.',
+                        })
+                        if (c.backendCaseId) await hydrateBackendCase(c.backendCaseId)
+                        nav(`/vakalar/${c.id}/isleme`)
+                      })
+                      .catch((err) => {
+                        pushToast({
+                          tone: 'error',
+                          title: 'Analiz durdurulamadı',
+                          body: err instanceof Error ? err.message : undefined,
+                        })
+                      })
+                      .finally(() => setStoppingAnalysis(false))
+                  }}
+                >
+                  {stoppingAnalysis ? 'Durduruluyor…' : 'Analizi durdur'}
+                </Button>
+              )}
+            </>
           )}
           {role === 'expert' &&
             (c.status === 'uzman_incelemesinde' ||
@@ -296,6 +345,64 @@ export default function CaseDetail() {
               Revize et / çalışma alanı
             </Button>
           )}
+          {role === 'expert' &&
+            Boolean(c.backendCaseId || c.id.startsWith('case-')) &&
+            !['isleniyor', 'ai_analizi', 'taslak'].includes(c.status) && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={resendingAi}
+                icon={
+                  resendingAi ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )
+                }
+                onClick={() => {
+                  const caseKey = c.backendCaseId || c.id
+                  if (!caseKey.startsWith('case-') || resendingAi) return
+                  const openRevisionFirst = c.status === 'onaylandi'
+                  setResendingAi(true)
+                  void resendCaseToAI(caseKey, { openRevisionFirst, cancelBackendOnAbort: true })
+                    .then(async (result) => {
+                      await hydrateBackendCase(caseKey)
+                      pushToast({
+                        tone: result.outcome === 'failed' ? 'error' : 'success',
+                        title:
+                          result.outcome === 'failed'
+                            ? 'AI yeniden gönderim başarısız'
+                            : 'AI yeniden çalıştı',
+                        body:
+                          result.outcome === 'failed'
+                            ? result.job.error_message || undefined
+                            : openRevisionFirst
+                              ? 'Onaylı sürüm korundu; yeni taslak hazır.'
+                              : 'Yeni taslak hazır.',
+                      })
+                      nav(`/vakalar/${c.id}/isleme`)
+                    })
+                    .catch((err) => {
+                      if (err instanceof PollingCancelledError) {
+                        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+                        return
+                      }
+                      pushToast({
+                        tone: 'error',
+                        title: 'AI yeniden gönderilemedi',
+                        body: err instanceof Error ? err.message : undefined,
+                      })
+                    })
+                    .finally(() => setResendingAi(false))
+                }}
+              >
+                {resendingAi
+                  ? 'AI çalışıyor…'
+                  : c.status === 'onaylandi'
+                    ? "Revizyon + AI'ya yolla"
+                    : "AI'ya tekrar yolla"}
+              </Button>
+            )}
         </div>
       </section>
 

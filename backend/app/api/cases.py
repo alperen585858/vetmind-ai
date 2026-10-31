@@ -6,6 +6,9 @@ from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_ADMIN, CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
 from app.schemas.case import (
+    AiChatAsk,
+    AiChatResponse,
+    AiChatTurn,
     CaseAssignmentUpdate,
     CaseCreate,
     CaseMessageCreate,
@@ -163,6 +166,38 @@ def mark_messages_read(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> list[CaseMessageView]:
     return service.mark_messages_read(case_id, principal=principal)
+
+
+@router.get("/{case_id}/ai-chat", response_model=list[AiChatTurn])
+def list_ai_chat(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> list[AiChatTurn]:
+    """Expert-only ChatGPT-style history for this case."""
+    return service.list_ai_chat(case_id, principal=principal)
+
+
+@router.post("/{case_id}/ai-chat", response_model=AiChatResponse)
+def ask_ai_chat(
+    case_id: str,
+    payload: AiChatAsk,
+    request: Request,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> AiChatResponse:
+    """Ask a question about the case; answer uses findings/draft context + configured LLM."""
+    container = get_container(request)
+    return service.ask_ai_chat(case_id, payload, settings=container.settings, principal=principal)
+
+
+@router.delete("/{case_id}/ai-chat", response_model=list[AiChatTurn])
+def clear_ai_chat(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> list[AiChatTurn]:
+    return service.clear_ai_chat(case_id, principal=principal)
 
 
 @router.patch("/{case_id}/assignment", response_model=CaseRecord)

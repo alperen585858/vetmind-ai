@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
+  Square,
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -21,9 +22,11 @@ import { SkeletonRows } from '../components/Skeleton'
 import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
 import {
   BackendUnavailableError,
+  PollingCancelledError,
   analyzeCaseAsyncAndWait,
   getAnalysisJob,
   getBackendCase,
+  requestCancelAnalysisJob,
   type BackendAnalysisJob,
 } from '../lib/backend'
 import type { BackendPipelineResult } from '../types'
@@ -62,6 +65,10 @@ function statusIcon(status: string) {
   return <Circle className="h-5 w-5 text-slate-400" />
 }
 
+function isInFlightStatus(status: string | undefined): boolean {
+  return status === 'queued' || status === 'running' || status === 'cancel_requested'
+}
+
 export default function Processing() {
   const { id = '' } = useParams()
   const { getCase, updateCase, hydrateBackendCase, pushToast } = useApp()
@@ -71,6 +78,8 @@ export default function Processing() {
   const [job, setJob] = useState<BackendAnalysisJob | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const retryAbortRef = useRef<AbortController | null>(null)
 
   const caseId = c?.backendCaseId || c?.id || id
 
@@ -94,6 +103,18 @@ export default function Processing() {
     void refresh()
   }, [refresh])
 
+  const jobStatus = job?.status ?? (c?.backendOutcome ? 'completed' : 'unknown')
+  const inFlight = isInFlightStatus(job?.status) || retrying
+
+  // Live-poll while analysis (or cooperative cancel) is in progress.
+  useEffect(() => {
+    if (!inFlight || !isBackend || !caseId.startsWith('case-')) return
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 1500)
+    return () => window.clearInterval(timer)
+  }, [inFlight, isBackend, caseId, refresh])
+
   const mode = analysisModeBanner(
     job?.analysis_mode,
     c?.backendFindings?.source_kind,
@@ -110,12 +131,47 @@ export default function Processing() {
     return parts.join(' · ') || 'Study metadata'
   }, [c])
 
+  const onStop = async () => {
+    const jobId = job?.job_id ?? c?.backendJobId
+    if (!c || !jobId || stopping) return
+    setStopping(true)
+    setLoadError(null)
+    try {
+      // If a local retry poll is running, abort it; cancelBackendOnAbort handles server cancel.
+      retryAbortRef.current?.abort()
+      const updated = await requestCancelAnalysisJob(jobId)
+      setJob(updated)
+      pushToast({
+        tone: 'info',
+        title: 'Analiz durduruluyor',
+        body: 'İptal isteği gönderildi; iş kooperatif olarak sonlanacak.',
+      })
+      await hydrateBackendCase(caseId)
+      await refresh()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'İptal isteği başarısız'
+      setLoadError(message)
+      pushToast({ tone: 'error', title: 'Analiz durdurulamadı', body: message })
+    } finally {
+      setStopping(false)
+    }
+  }
+
   const onRetry = async () => {
     if (!c || !caseId.startsWith('case-')) return
+    retryAbortRef.current?.abort()
+    const controller = new AbortController()
+    retryAbortRef.current = controller
     setRetrying(true)
     setLoadError(null)
     try {
-      const result: BackendPipelineResult = await analyzeCaseAsyncAndWait(caseId)
+      const result: BackendPipelineResult = await analyzeCaseAsyncAndWait(caseId, {
+        signal: controller.signal,
+        cancelBackendOnAbort: true,
+        onJobEnqueued: (jobId) => {
+          updateCase(c.id, { backendJobId: jobId, status: 'ai_analizi' })
+        },
+      })
       setJob(await getAnalysisJob(result.job.job_id))
       updateCase(c.id, {
         backendOutcome: result.outcome,
@@ -136,6 +192,16 @@ export default function Processing() {
       })
       await hydrateBackendCase(caseId)
     } catch (err) {
+      if (err instanceof PollingCancelledError) {
+        pushToast({
+          tone: 'info',
+          title: 'Analiz durduruldu',
+          body: 'İstemci izleme ve backend iptal isteği uygulandı.',
+        })
+        await hydrateBackendCase(caseId)
+        await refresh()
+        return
+      }
       const message =
         err instanceof BackendUnavailableError
           ? err.message
@@ -145,6 +211,7 @@ export default function Processing() {
       setLoadError(message)
       pushToast({ tone: 'error', title: 'Yeniden deneme başarısız', body: message })
     } finally {
+      if (retryAbortRef.current === controller) retryAbortRef.current = null
       setRetrying(false)
     }
   }
@@ -190,11 +257,15 @@ export default function Processing() {
     )
   }
 
-  const jobStatus = job?.status ?? (c.backendOutcome ? 'completed' : 'unknown')
   const outcome = job?.outcome ?? c.backendOutcome
   const failed = outcome === 'failed' || jobStatus === 'failed' || jobStatus === 'timed_out'
   const unsupported = outcome === 'unsupported'
-  const cancelled = jobStatus === 'cancelled' || jobStatus === 'cancel_requested'
+  const cancelled = jobStatus === 'cancelled'
+  const cancelling = jobStatus === 'cancel_requested' || stopping
+  const canStop =
+    Boolean(job?.job_id ?? c.backendJobId) &&
+    (isInFlightStatus(job?.status) || retrying) &&
+    jobStatus !== 'cancel_requested'
 
   return (
     <>
@@ -240,8 +311,44 @@ export default function Processing() {
                   {outcome ? ` · outcome=${outcome}` : ''}
                 </p>
                 <p className="mt-1 text-xs text-slate-600">
-                  İlerleme yüzdesi / GPU metrikleri uydurulmaz. Yalnızca backend job alanları gösterilir.
+                  {cancelling
+                    ? 'İptal isteği alındı; pipeline uygun noktada duracak.'
+                    : inFlight
+                      ? 'Analiz sürüyor. Yüzde, tamamlanan pipeline aşamalarından gelir (zaman tahmini değil).'
+                      : 'Yüzde yalnızca backend checkpoint alanlarından gösterilir; GPU/zaman tahmini yok.'}
                 </p>
+                {(inFlight || (job?.progress_pct != null && job.progress_pct > 0)) && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium text-navy-800">
+                        {job?.stage_label || job?.pipeline_stage || (inFlight ? 'Analiz' : '—')}
+                        {job?.pipeline_stage === 'vision_adapters' &&
+                        job.vision_adapter_total != null &&
+                        job.vision_adapter_total > 0
+                          ? ` · model ${(job.vision_adapter_index ?? 0) + 1}/${job.vision_adapter_total}`
+                          : ''}
+                      </span>
+                      <span className="font-mono font-semibold tabular-nums text-teal-800">
+                        {Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%
+                      </span>
+                    </div>
+                    <div
+                      className="h-2 overflow-hidden rounded-full bg-slate-100"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.max(0, Math.min(100, job?.progress_pct ?? 0))}
+                      aria-label="Analiz ilerleme yüzdesi"
+                    >
+                      <div
+                        className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 {job?.error_message && (
                   <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{job.error_message}</p>
                 )}
@@ -294,16 +401,57 @@ export default function Processing() {
                   {job?.timeout_s != null ? `${job.timeout_s}s` : '—'}
                 </dd>
               </div>
+              <div className="grid grid-cols-5 gap-2 py-2">
+                <dt className="col-span-2 text-slate-500">Aşama</dt>
+                <dd className="col-span-3 text-xs">
+                  {job?.stage_label || job?.pipeline_stage || '—'}
+                  {job?.progress_pct != null ? ` · ${job.progress_pct}%` : ''}
+                </dd>
+              </div>
             </dl>
           </Card>
 
-          {(failed || unsupported || cancelled) && (
+          {inFlight && (
+            <Card className="border-teal-100 p-5">
+              <p className="flex items-start gap-2 text-sm text-navy-800">
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-teal-600" />
+                {cancelling
+                  ? 'Analiz durduruluyor…'
+                  : 'AI analizi devam ediyor. Durdurmak kooperatif iptal isteği gönderir.'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={
+                    cancelling ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )
+                  }
+                  disabled={!canStop || stopping}
+                  onClick={() => void onStop()}
+                >
+                  {cancelling ? 'Durduruluyor…' : 'Analizi durdur'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void refresh()}>
+                  Job yenile
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => nav(`/vakalar/${c.id}`)}>
+                  Vaka detayı
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {(failed || unsupported || cancelled) && !inFlight && (
             <Card className="border-rose-100 p-5">
               <p className="flex items-start gap-2 text-sm text-rose-900">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 {failed && 'Analiz başarısız veya zaman aşımı — onaylanabilir AI taslak yok.'}
                 {unsupported && 'Desteklenmeyen modalite/bölge — manuel inceleme; AI draft onayı kapalı.'}
-                {cancelled && 'Job iptal edildi (cooperative). İstemci poll abort ile aynı değildir.'}
+                {cancelled && 'Job iptal edildi (cooperative).'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -322,7 +470,7 @@ export default function Processing() {
             </Card>
           )}
 
-          {!failed && !unsupported && !cancelled && (
+          {!failed && !unsupported && !cancelled && !inFlight && (
             <Card className="p-5">
               <p className="text-sm text-navy-800">
                 Analiz tamamlandıysa uzman incelemesine geçebilirsiniz.

@@ -21,6 +21,7 @@ from app.schemas.enums import (
 )
 from app.review_sla import apply_review_sla
 from app.schemas.findings import StructuredFindings
+from app.orchestration.progress import apply_pipeline_progress
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.report import DraftReport
 from app.validation.report_validator import ReportValidator
@@ -84,6 +85,7 @@ class AIOrchestrator:
         job: AnalysisJob,
         *,
         cancel_probe: Callable[[], bool] | None = None,
+        on_progress: Callable[[AnalysisJob], None] | None = None,
     ) -> PipelineResult:
         def _cancelled() -> bool:
             if job.cancel_requested or job.status == JobStatus.CANCEL_REQUESTED:
@@ -97,6 +99,27 @@ class AIOrchestrator:
             except Exception:  # noqa: BLE001 — probe must never crash the pipeline
                 return False
             return False
+
+        def _checkpoint(
+            stage: str,
+            *,
+            vision_adapter_index: int | None = None,
+            vision_adapter_total: int | None = None,
+            done: bool = False,
+        ) -> None:
+            apply_pipeline_progress(
+                job,
+                stage,
+                vision_adapter_index=vision_adapter_index,
+                vision_adapter_total=vision_adapter_total,
+                done=done,
+            )
+            if on_progress is None:
+                return
+            try:
+                on_progress(job)
+            except Exception:  # noqa: BLE001 — progress persistence must not fail the run
+                return
 
         if _cancelled():
             job.status = JobStatus.CANCELLED
@@ -113,6 +136,7 @@ class AIOrchestrator:
 
         job.status = JobStatus.RUNNING
         job.started_at = _now()
+        _checkpoint("prep_metadata")
         messages: list[str] = [
             "Orchestrator run (sync within worker/request). FE poll abort does not cancel this job."
         ]
@@ -137,6 +161,7 @@ class AIOrchestrator:
                 f"codes={list(model_input.pixel_authorization.reason_codes)}"
             )
 
+            _checkpoint("route_models")
             # Capability route → mock scenario overrides → REAL/MOCK execution policy.
             decision = self._execution_policy.apply(
                 self._scenario_policy.apply(case, self._router.route(case))
@@ -185,7 +210,14 @@ class AIOrchestrator:
 
             outputs: list[StructuredFindings] = []
             failures: list[str] = []
-            for model_id in decision.model_ids:
+            model_ids = list(decision.model_ids)
+            vision_total = len(model_ids)
+            for idx, model_id in enumerate(model_ids):
+                _checkpoint(
+                    "vision_adapters",
+                    vision_adapter_index=idx,
+                    vision_adapter_total=max(vision_total, 1),
+                )
                 if _cancelled():
                     job.status = JobStatus.CANCELLED
                     job.outcome = PipelineOutcome.FAILED
@@ -226,6 +258,7 @@ class AIOrchestrator:
                 case.updated_at = _now()
                 return PipelineResult(job=job, outcome=PipelineOutcome.FAILED, messages=messages + failures)
 
+            _checkpoint("normalize_findings", vision_adapter_total=max(vision_total, 1))
             findings = normalize_outputs(outputs, model_input=model_input)
             if failures:
                 findings.warnings.extend(failures)
@@ -233,6 +266,7 @@ class AIOrchestrator:
                     findings.execution_status = ModelExecutionStatus.PARTIAL
 
             if findings.execution_status == ModelExecutionStatus.UNSUPPORTED or not decision.supported:
+                apply_pipeline_progress(job, "finalize", done=True)
                 job.status = JobStatus.COMPLETED
                 job.outcome = PipelineOutcome.UNSUPPORTED
                 job.completed_at = _now()
@@ -286,6 +320,7 @@ class AIOrchestrator:
                     messages=messages + [job.error_message],
                 )
 
+            _checkpoint("llm_draft")
             try:
                 report = self._llm.generate_draft(case, findings)
             except LLMProviderError as exc:
@@ -326,6 +361,7 @@ class AIOrchestrator:
                     messages=messages + [job.error_message],
                 )
 
+            _checkpoint("validate_report")
             validation = self._validator.validate(report, findings)
             messages.extend(validation.warnings)
             messages.extend(validation.errors)
@@ -345,6 +381,7 @@ class AIOrchestrator:
                 case.status = CaseLifecycleStatus.AWAITING_REVIEW
 
             apply_review_sla(case)
+            _checkpoint("finalize", done=True)
             job.status = JobStatus.COMPLETED
             job.outcome = outcome
             job.completed_at = _now()
@@ -371,4 +408,6 @@ class AIOrchestrator:
 
     @staticmethod
     def new_job(case_id: str) -> AnalysisJob:
-        return AnalysisJob(job_id=f"job-{uuid4().hex[:12]}", case_id=case_id, status=JobStatus.QUEUED)
+        job = AnalysisJob(job_id=f"job-{uuid4().hex[:12]}", case_id=case_id, status=JobStatus.QUEUED)
+        apply_pipeline_progress(job, "queued")
+        return job

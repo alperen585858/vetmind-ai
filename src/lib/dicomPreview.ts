@@ -190,6 +190,11 @@ export function autoWindow(frame: DicomFramePreview): { center: number; width: n
   return { center: min + width / 2, width }
 }
 
+/** Rec. 601 luma — RGB CR / SendToPACS secondary capture → grayscale preview. */
+function rgbToLuma(r: number, g: number, b: number): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b
+}
+
 function extractPixels(
   byteArray: Uint8Array,
   dataSet: ReturnType<typeof parseDicom>,
@@ -202,9 +207,12 @@ function extractPixels(
   const bitsAllocated = dataSet.uint16('x00280100') ?? 16
   const pixelRepresentation = dataSet.uint16('x00280103') ?? 0
   const samplesPerPixel = dataSet.uint16('x00280002') ?? 1
+  const planarConfig = dataSet.uint16('x00280006') ?? 0
   const slope = dataSet.floatString('x00281053') ?? 1
   const intercept = dataSet.floatString('x00281052') ?? 0
-  if (samplesPerPixel !== 1) throw new Error(`Çok kanallı görüntü desteklenmiyor (samples=${samplesPerPixel})`)
+  if (samplesPerPixel !== 1 && samplesPerPixel !== 3) {
+    throw new Error(`Çok kanallı görüntü desteklenmiyor (samples=${samplesPerPixel})`)
+  }
 
   const transferSyntax = tag(dataSet, 'x00020010') || ''
   // Encapsulated / JPEG / RLE etc. — dicom-parser raw PixelData often unusable without a codec.
@@ -225,6 +233,37 @@ function extractPixels(
   const length = pixelElement.length
   const count = rows * cols
   const out = new Float32Array(count)
+
+  // Color CR / SendToPACS DEMO often ships SamplesPerPixel=3 (RGB), 8-bit.
+  if (samplesPerPixel === 3) {
+    if (bitsAllocated !== 8) {
+      throw new Error(`RGB BitsAllocated=${bitsAllocated} desteklenmiyor (yalnız 8-bit)`)
+    }
+    const needed = count * 3
+    const view = byteArray.subarray(offset, offset + Math.min(length, needed))
+    if (view.length < needed) {
+      throw new Error('RGB PixelData eksik veya kısa')
+    }
+    if (planarConfig === 1) {
+      // RRR… GGG… BBB…
+      for (let i = 0; i < count; i++) {
+        const r = view[i] ?? 0
+        const g = view[count + i] ?? 0
+        const b = view[count * 2 + i] ?? 0
+        out[i] = rgbToLuma(r, g, b) * slope + intercept
+      }
+    } else {
+      // Interleaved RGBRGB…
+      for (let i = 0; i < count; i++) {
+        const base = i * 3
+        const r = view[base] ?? 0
+        const g = view[base + 1] ?? 0
+        const b = view[base + 2] ?? 0
+        out[i] = rgbToLuma(r, g, b) * slope + intercept
+      }
+    }
+    return out
+  }
 
   if (bitsAllocated === 8) {
     const view = byteArray.subarray(offset, offset + Math.min(length, count))

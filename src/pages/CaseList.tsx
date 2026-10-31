@@ -7,8 +7,10 @@ import {
   ClipboardList,
   FilePlus2,
   FolderOpen,
+  Loader2,
   RefreshCw,
   Search,
+  Trash2,
   UploadCloud,
   Users,
 } from 'lucide-react'
@@ -18,7 +20,9 @@ import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { CaseTable } from '../components/CaseTable'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
 import { STATUS_META, STATUS_ORDER } from '../components/StatusBadge'
+import { deleteBackendCase } from '../lib/backend'
 import type { BackendModality, CaseStatus, VetCase } from '../types'
 
 function TableSkeleton() {
@@ -92,7 +96,7 @@ function expertKey(c: VetCase): string {
 }
 
 export default function CaseList() {
-  const { cases, role, refreshBackendCases, backendSyncing, pushToast } = useApp()
+  const { cases, role, refreshBackendCases, backendSyncing, pushToast, removeCase } = useApp()
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<CaseStatus | ''>('')
@@ -101,6 +105,10 @@ export default function CaseList() {
   const [expert, setExpert] = useState('')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [initialLoad, setInitialLoad] = useState(true)
+  const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
+  const [pendingBulk, setPendingBulk] = useState<VetCase[] | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const canDeleteCases = role === 'expert' || role === 'vet' || role === 'admin'
 
   useEffect(() => {
     let cancelled = false
@@ -167,6 +175,67 @@ export default function CaseList() {
     setSpecies('')
     setModality('')
     setExpert('')
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || deleting) return
+    const target = pendingDelete
+    setDeleting(true)
+    try {
+      await deleteBackendCase(target.backendCaseId || target.id)
+      removeCase(target.id)
+      setPendingDelete(null)
+      pushToast({
+        tone: 'success',
+        title: 'Vaka silindi',
+        body: `${target.patient.name} · ${target.no}`,
+      })
+    } catch (err) {
+      pushToast({
+        tone: 'error',
+        title: 'Silinemedi',
+        body: err instanceof Error ? err.message : 'Sunucu hatası',
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const confirmBulkDelete = async () => {
+    if (!pendingBulk?.length || deleting) return
+    const targets = pendingBulk
+    setDeleting(true)
+    let ok = 0
+    const failures: string[] = []
+    try {
+      for (const target of targets) {
+        try {
+          await deleteBackendCase(target.backendCaseId || target.id)
+          removeCase(target.id)
+          ok += 1
+        } catch (err) {
+          failures.push(
+            `${target.no}: ${err instanceof Error ? err.message : 'hata'}`,
+          )
+        }
+      }
+      setPendingBulk(null)
+      if (ok > 0) {
+        pushToast({
+          tone: failures.length ? 'warning' : 'success',
+          title: `${ok} vaka silindi`,
+          body: failures.length ? `${failures.length} vaka silinemedi.` : undefined,
+        })
+      } else {
+        pushToast({
+          tone: 'error',
+          title: 'Hiçbir vaka silinemedi',
+          body: failures[0],
+        })
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
@@ -349,7 +418,12 @@ export default function CaseList() {
         {showSkeleton ? (
           <TableSkeleton />
         ) : filtered.length ? (
-          <CaseTable cases={filtered} showPriority={role === 'expert'} />
+          <CaseTable
+            cases={filtered}
+            showPriority={role === 'expert'}
+            onDelete={canDeleteCases ? (c) => setPendingDelete(c) : undefined}
+            onBulkDelete={canDeleteCases ? (list) => setPendingBulk(list) : undefined}
+          />
         ) : cases.length === 0 ? (
           <EmptyState
             icon={<FolderOpen className="h-6 w-6" />}
@@ -381,6 +455,84 @@ export default function CaseList() {
           />
         )}
       </Card>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => {
+          if (!deleting) setPendingDelete(null)
+        }}
+        title="Vakayı silmek istediğinize emin misiniz?"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDelete(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting}
+              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? 'Siliniyor…' : 'Evet, sil'}
+            </Button>
+          </>
+        }
+      >
+        {pendingDelete ? (
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>
+              <strong className="text-navy-900">{pendingDelete.patient.name}</strong> vakasını (
+              <span className="font-mono text-xs">{pendingDelete.no}</span>) kalıcı olarak silmek istediğinize emin
+              misiniz?
+            </p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">{pendingDelete.id}</p>
+            <p className="text-xs text-rose-700">Bu işlem geri alınamaz. Rapor, bulgular ve sohbet geçmişi de silinir.</p>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingBulk?.length)}
+        onClose={() => {
+          if (!deleting) setPendingBulk(null)
+        }}
+        title="Seçilen vakaları silmek istediğinize emin misiniz?"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingBulk(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting}
+              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              onClick={() => void confirmBulkDelete()}
+            >
+              {deleting ? 'Siliniyor…' : `Evet, ${pendingBulk?.length ?? 0} vakayı sil`}
+            </Button>
+          </>
+        }
+      >
+        {pendingBulk?.length ? (
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>
+              <strong className="text-navy-900">{pendingBulk.length} vaka</strong> kalıcı olarak silinecek. Emin
+              misiniz?
+            </p>
+            <ul className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
+              {pendingBulk.slice(0, 20).map((c) => (
+                <li key={c.id}>
+                  {c.no} · {c.patient.name}
+                </li>
+              ))}
+              {pendingBulk.length > 20 ? <li>… +{pendingBulk.length - 20} daha</li> : null}
+            </ul>
+            <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+          </div>
+        ) : null}
+      </Modal>
     </>
   )
 }

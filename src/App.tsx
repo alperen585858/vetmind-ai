@@ -17,6 +17,7 @@ import DicomUpload from './pages/DicomUpload'
 import Processing from './pages/Processing'
 import CaseDetail from './pages/CaseDetail'
 import RadiologistWorkspace from './pages/RadiologistWorkspace'
+import ExpertAiResend from './pages/ExpertAiResend'
 import ReviewQueue from './pages/ReviewQueue'
 import ReportList from './pages/ReportList'
 import ApprovedReport from './pages/ApprovedReport'
@@ -79,6 +80,7 @@ export default function App() {
             />
             <Route path="vakalar/:id/calisma" element={<Gate roles={['expert']}><RadiologistWorkspace /></Gate>} />
             <Route path="kuyruk" element={<Gate roles={['expert']}><ReviewQueue /></Gate>} />
+            <Route path="ai-tekrar" element={<Gate roles={['expert']}><ExpertAiResend /></Gate>} />
             <Route path="hayvanlar" element={<Gate roles={['owner']}><OwnerPets /></Gate>} />
             <Route path="basvurular" element={<Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>} />
             <Route path="basvurular/:submissionId" element={<Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>} />

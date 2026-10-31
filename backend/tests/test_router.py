@@ -43,6 +43,14 @@ def test_xr_thorax_routes_to_mock_xr() -> None:
     assert decision.model_ids == ["mock-xr-vision-v1"]
 
 
+def test_xr_cr_style_unknown_region_routes_to_mock_xr() -> None:
+    """SendToPACS CR/DX often lacks thorax tags; CR maps to XR and must still route."""
+    for region in (AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER):
+        decision = ModelRouter().route(_case(modality=Modality.XR, anatomical_region=region))
+        assert decision.supported is True, region
+        assert decision.model_ids == ["mock-xr-vision-v1"]
+
+
 def test_router_ignores_mock_scenario() -> None:
     """Production router must not branch on MockScenario."""
     decision = ModelRouter().route(_case(scenario=MockScenario.CONFLICTING))

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Image as ImageIcon,
   MoreHorizontal,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 import type { VetCase } from '../types'
@@ -88,15 +89,30 @@ export function CaseTable({
   cases,
   showPriority = false,
   selectable = true,
+  onDelete,
+  onBulkDelete,
 }: {
   cases: VetCase[]
   showPriority?: boolean
   selectable?: boolean
+  /** When set, shows a delete control (caller must confirm). */
+  onDelete?: (c: VetCase) => void
+  /** When set with selectable, shows bulk delete for checked rows (caller must confirm). */
+  onBulkDelete?: (cases: VetCase[]) => void
 }) {
   const nav = useNavigate()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const allIds = useMemo(() => cases.map((c) => c.id), [cases])
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id))
+  const selectedCases = useMemo(() => cases.filter((c) => selected.has(c.id)), [cases, selected])
+  const canBulk = Boolean(onBulkDelete) && selectable
+
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => allIds.includes(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [allIds])
 
   const toggleAll = () => {
     setSelected((prev) => {
@@ -115,6 +131,31 @@ export function CaseTable({
   }
 
   return (
+    <div>
+      {canBulk && selectedCases.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100 bg-rose-50/80 px-4 py-2.5 sm:px-5">
+          <p className="text-sm font-medium text-rose-950">
+            <strong>{selectedCases.length}</strong> vaka seçildi
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
+              onClick={() => setSelected(new Set())}
+            >
+              Seçimi temizle
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+              onClick={() => onBulkDelete?.(selectedCases)}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Seçilenleri sil
+            </button>
+          </div>
+        </div>
+      )}
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-slate-100">
         <thead className="bg-slate-50/80">
@@ -223,20 +264,34 @@ export function CaseTable({
                   >
                     Aç <ChevronRight className="h-3.5 w-3.5" />
                   </button>
-                  <button
-                    type="button"
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-navy-700"
-                    aria-label="Diğer işlemler"
-                    onClick={() => nav(`/vakalar/${c.id}`)}
-                  >
-                    <MoreHorizontal className="h-4 w-4" aria-hidden />
-                  </button>
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                      onClick={() => onDelete(c)}
+                      aria-label={`${c.no} vakasını sil`}
+                      title="Vakayı sil"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      Sil
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-navy-700"
+                      aria-label="Diğer işlemler"
+                      onClick={() => nav(`/vakalar/${c.id}`)}
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden />
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

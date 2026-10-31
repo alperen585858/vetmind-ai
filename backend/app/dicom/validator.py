@@ -186,7 +186,7 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
         issues.append(
             _error(
                 DicomValidationCode.UNSUPPORTED_MODALITY,
-                "Upload includes unsupported modality values (only MR/CT/XR are accepted for routing).",
+                "Upload includes unsupported modality values (MR/CT/XR and CR/DX/DR→XR are accepted for routing).",
             )
         )
     if len({m for m in modalities if m in _supported_mods}) > 1:

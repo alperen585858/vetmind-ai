@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Trash2, UploadCloud } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
@@ -13,6 +13,7 @@ import { nowStamp, today } from '../lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../lib/pipeline'
 import {
   BackendUnavailableError,
+  PollingCancelledError,
   confirmDicomAndAnalyze,
   createAndAnalyzeCase,
   draftToSections,
@@ -172,6 +173,7 @@ export default function NewCase() {
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dicomInputRef = useRef<HTMLInputElement>(null)
+  const submitAbortRef = useRef<AbortController | null>(null)
 
   const P = <K extends keyof Patient>(k: K, v: Patient[K]) => setPatient((p) => ({ ...p, [k]: v }))
   const C = <K extends keyof ClinicalInfo>(k: K, v: ClinicalInfo[K]) => setClinical((c) => ({ ...c, [k]: v }))
@@ -350,6 +352,9 @@ export default function NewCase() {
     let backendFindings: VetCase['backendFindings']
     let backendDraft: VetCase['backendDraft']
 
+    submitAbortRef.current?.abort()
+    const controller = new AbortController()
+    submitAbortRef.current = controller
     setSubmitting(true)
     try {
       const history = `${clinical.complaint}\n${clinical.history}`.trim()
@@ -397,6 +402,8 @@ export default function NewCase() {
           anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
           patientName: patient.name,
           clinicalHistory: history,
+          signal: controller.signal,
+          cancelBackendOnAbort: true,
         })
       } else if (pipeline === 'document_context') {
         const blobs = files.map((f) => f.file).filter((f): f is File => Boolean(f))
@@ -424,7 +431,10 @@ export default function NewCase() {
           pushToast({ tone: 'error', title: 'Doküman ingest engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
           return
         }
-        result = await confirmDocumentAndAnalyze(upload.ingest_id)
+        result = await confirmDocumentAndAnalyze(upload.ingest_id, {
+          signal: controller.signal,
+          cancelBackendOnAbort: true,
+        })
       } else {
         result = await createAndAnalyzeCase({
           patientName: patient.name,
@@ -464,6 +474,8 @@ export default function NewCase() {
               hyperesthesia: neuro.hyperesthesia,
             },
           },
+          signal: controller.signal,
+          cancelBackendOnAbort: true,
         })
       }
       backendCaseId = result.job.case_id
@@ -501,10 +513,16 @@ export default function NewCase() {
       }
     } catch (err) {
       setSubmitting(false)
+      if (submitAbortRef.current === controller) submitAbortRef.current = null
+      if (err instanceof PollingCancelledError || (err instanceof DOMException && err.name === 'AbortError')) {
+        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+        return
+      }
       const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'Backend isteği başarısız.'
       pushToast({ tone: 'error', title: 'FastAPI backend yanıt vermedi', body: message })
       return
     }
+    if (submitAbortRef.current === controller) submitAbortRef.current = null
     setSubmitting(false)
 
     const id = backendCaseId
@@ -1055,18 +1073,30 @@ export default function NewCase() {
               <p className="flex-1 text-sm text-navy-800">
                 Gönderdiğinizde AI ön değerlendirme çalışır ve taslak <strong>uzman veteriner hekim onayına</strong> iletilir.
               </p>
-              <Button
-                size="lg"
-                onClick={() => void submit()}
-                disabled={
-                  !patient.name.trim() ||
-                  submitting ||
-                  (pipeline === 'dicom_metadata' && Boolean(dicomPreview?.blocked))
-                }
-                icon={<Sparkles className="h-4 w-4" />}
-              >
-                {submitting ? 'İşleniyor…' : pipeline === 'dicom_metadata' ? 'Onayla ve Analiz Çalıştır' : 'Yapay Zekâ Değerlendirmesine Gönder'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="lg"
+                  onClick={() => void submit()}
+                  disabled={
+                    !patient.name.trim() ||
+                    submitting ||
+                    (pipeline === 'dicom_metadata' && Boolean(dicomPreview?.blocked))
+                  }
+                  icon={<Sparkles className="h-4 w-4" />}
+                >
+                  {submitting ? 'İşleniyor…' : pipeline === 'dicom_metadata' ? 'Onayla ve Analiz Çalıştır' : 'Yapay Zekâ Değerlendirmesine Gönder'}
+                </Button>
+                {submitting && (
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    icon={<Square className="h-4 w-4" />}
+                    onClick={() => submitAbortRef.current?.abort()}
+                  >
+                    Analizi durdur
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}

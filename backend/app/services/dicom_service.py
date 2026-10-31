@@ -236,7 +236,7 @@ class DicomService:
         if modality not in _ROUTABLE_MODALITIES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Confirmed modality is unsupported for the mock imaging pipeline (use MR/CT/XR).",
+                detail="Confirmed modality is unsupported for the mock imaging pipeline (use MR/CT/XR; CR/DX/DR map to XR).",
             )
         if region not in _ROUTABLE_REGIONS:
             raise HTTPException(

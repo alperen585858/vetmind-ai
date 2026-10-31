@@ -47,6 +47,36 @@ class CaseMessageCreate(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
 
 
+class AiChatTurn(BaseModel):
+    """Expert ↔ case-context LLM chat (not clinical advice; draft assistant only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+    created_at: datetime = Field(default_factory=utcnow)
+    author_id: Optional[str] = None
+
+
+class AiChatAsk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class AiChatResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: str
+    reply: str
+    history: list[AiChatTurn] = Field(default_factory=list)
+    provider: str = "mock"
+    note: str = (
+        "Vaka bağlamlı asistan yanıtı. Klinik karar / tanı yerine geçmez; "
+        "uzman onayı olmadan iletilmez."
+    )
+
+
 class CaseMessageView(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -202,6 +232,8 @@ class CaseRecord(BaseModel):
     review_history: list[ReviewFeedback] = Field(default_factory=list)
     # Phase 12: case messaging + report delivery (approved content never mutated).
     messages: list[CaseMessage] = Field(default_factory=list)
+    # Expert AI assistant chat (ChatGPT-style Q&A over case context). Cap in service.
+    ai_chat: list[AiChatTurn] = Field(default_factory=list)
     report_available_at: Optional[datetime] = None
     report_delivered_at: Optional[datetime] = None
     report_viewed_at: Optional[datetime] = None
