@@ -254,3 +254,6 @@ class CaseSummary(BaseModel):
     pet_owner_subject: Optional[str] = None
     submission_id: Optional[str] = None
     vet_verified: bool = True
+    # Report revision signal for list UIs (approved v1 stays locked; v2+ = revised).
+    current_report_version: Optional[int] = None
+    report_version_count: int = 0

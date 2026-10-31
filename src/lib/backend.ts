@@ -720,6 +720,10 @@ export async function listBackendCases(): Promise<BackendCaseSummary[]> {
   return request<BackendCaseSummary[]>('/cases')
 }
 
+export async function deleteBackendCase(caseId: string): Promise<void> {
+  await request<void>(`/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' })
+}
+
 export async function listBackendWorklist(filters?: {
   status?: string
   modality?: string

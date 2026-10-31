@@ -60,6 +60,7 @@ interface AppState {
   getCase: (id: string) => VetCase | undefined
   addCase: (c: VetCase) => void
   updateCase: (id: string, patch: Partial<VetCase> | ((c: VetCase) => Partial<VetCase>)) => void
+  removeCase: (id: string) => void
   refreshBackendCases: () => Promise<{ ok: boolean; count: number; error?: string }>
   hydrateBackendCase: (caseId: string) => Promise<VetCase | null>
   backendSyncing: boolean
@@ -174,6 +175,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCases((all) => all.map((c) => (c.id === id ? { ...c, ...(typeof patch === 'function' ? patch(c) : patch) } : c)))
   }, [])
 
+  const removeCase = useCallback<AppState['removeCase']>((id) => {
+    setCases((all) => all.filter((c) => c.id !== id && c.backendCaseId !== id))
+  }, [])
+
   const refreshBackendCases = useCallback(async () => {
     setBackendSyncing(true)
     try {
@@ -278,6 +283,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       getCase: (id) => cases.find((c) => c.id === id || c.backendCaseId === id),
       addCase: (c) => setCases((all) => [c, ...all.filter((x) => x.id !== c.id)]),
       updateCase,
+      removeCase,
       refreshBackendCases,
       hydrateBackendCase,
       backendSyncing,
@@ -308,6 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshUserProfile,
       refreshAuthMode,
       updateCase,
+      removeCase,
       refreshBackendCases,
       hydrateBackendCase,
       pushToast,

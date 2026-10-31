@@ -320,18 +320,34 @@ export default function RadiologistWorkspace() {
           edited_impression: text.degerlendirme,
           edited_recommendations: text.oneriler,
         })
-        await hydrateBackendCase(caseKey)
+        const mapped = await hydrateBackendCase(caseKey)
+        if (action === 'request_revision') {
+          if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+          const history = await listReportVersions(caseKey)
+          setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+        }
       }
       pushToast({
         tone: action === 'approve' ? 'success' : 'info',
         title:
-          action === 'approve' ? 'Rapor onaylandı' : action === 'reject' ? 'Rapor reddedildi' : 'Revizyon istendi',
+          action === 'approve'
+            ? 'Rapor onaylandı'
+            : action === 'reject'
+              ? 'Rapor reddedildi'
+              : immutable
+                ? 'Yeni sürüm açıldı — düzenleyebilirsiniz'
+                : 'Revizyon istendi',
+        body:
+          action === 'request_revision' && immutable
+            ? 'Önceki onaylı sürüm kilitli kaldı. Değişiklikleri kaydedip yeniden onaylayın.'
+            : undefined,
       })
       setModal(null)
       setReason('')
       setReasonCodes([])
       if (action === 'approve') nav(`/raporlar/${caseRow.id}`)
-      else nav('/kuyruk')
+      else if (action === 'reject') nav('/kuyruk')
+      // request_revision: stay in workspace so the expert can edit the new mutable version
     } catch (err) {
       pushToast({
         tone: 'error',
@@ -518,10 +534,9 @@ export default function RadiologistWorkspace() {
                 size="sm"
                 variant="secondary"
                 icon={<Send className="h-3.5 w-3.5" />}
-                disabled={immutable}
                 onClick={() => setModal('revizyon')}
               >
-                Revizyon
+                {immutable ? 'Revize et' : 'Revizyon'}
               </Button>
               <Button
                 size="sm"
@@ -544,7 +559,10 @@ export default function RadiologistWorkspace() {
               )}
             </div>
             {immutable && (
-              <p className="mt-2 text-xs text-emerald-800">Onaylı sürüm kilitli — içerik değiştirilemez.</p>
+              <p className="mt-2 text-xs text-emerald-800">
+                Onaylı sürüm kilitli. <strong>Revize et</strong> ile yeni düzenlenebilir sürüm açılır; eski onaylı
+                sürüm geçmişte kalır.
+              </p>
             )}
           </Card>
 
@@ -640,14 +658,29 @@ export default function RadiologistWorkspace() {
       <Modal
         open={modal !== null}
         onClose={() => setModal(null)}
-        title={modal === 'approve' ? 'Raporu onayla' : modal === 'revizyon' ? 'Revizyon iste' : 'Reddet'}
+        title={
+          modal === 'approve'
+            ? 'Raporu onayla'
+            : modal === 'revizyon'
+              ? immutable
+                ? 'Onaylı raporu revize et'
+                : 'Revizyon iste'
+              : 'Reddet'
+        }
       >
         {modal === 'approve' ? (
           <p className="text-sm text-slate-600">
-            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez.
+            Onay sonrası sürüm <strong>immutable</strong> olur ve kliniklere teslimata açılır. İçerik sonradan değiştirilemez;
+            gerekirse yeni sürüm açarak revize edebilirsiniz.
           </p>
         ) : (
           <>
+            {modal === 'revizyon' && immutable && (
+              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                Mevcut onaylı sürüm <strong>kilitli kalır</strong>. Yeni bir düzenlenebilir sürüm açılır; düzenleyip yeniden
+                onaylayana kadar sahip tarafında önceki onaylı rapor görünür.
+              </p>
+            )}
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Gerekçe kodları (Feedback Store)
             </p>

@@ -287,6 +287,15 @@ export default function CaseDetail() {
               Onaylı raporu görüntüle
             </Button>
           )}
+          {role === 'expert' && c.status === 'onaylandi' && (
+            <Button
+              variant="secondary"
+              icon={<Microscope className="h-4 w-4" />}
+              onClick={() => nav(`/vakalar/${c.id}/calisma`)}
+            >
+              Revize et / çalışma alanı
+            </Button>
+          )}
         </div>
       </section>
 

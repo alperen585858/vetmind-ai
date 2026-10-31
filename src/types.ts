@@ -585,6 +585,8 @@ export interface BackendCaseSummary {
   pet_owner_subject?: string | null
   submission_id?: string | null
   vet_verified?: boolean
+  current_report_version?: number | null
+  report_version_count?: number
 }
 
 export interface BackendCaseRecord {
@@ -684,6 +686,8 @@ export interface VetCase {
   handoffNotes?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number
+  /** Number of report versions (from list summary); >1 means revised. */
+  reportVersionCount?: number
   unreadMessages?: number
   reportAvailableAt?: string
   reportDeliveredAt?: string

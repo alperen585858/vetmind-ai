@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
+from app.auth.rbac import CAP_ADMIN, CAP_CASE_WRITE
 from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
@@ -288,6 +289,10 @@ class CaseService:
             pet_owner_subject=getattr(c, "pet_owner_subject", None),
             submission_id=getattr(c, "submission_id", None),
             vet_verified=bool(getattr(c, "vet_verified", True)),
+            current_report_version=getattr(c, "current_report_version", None)
+            or (c.draft_report.version if c.draft_report is not None else None),
+            report_version_count=len(getattr(c, "report_versions", None) or [])
+            or (1 if c.draft_report is not None else 0),
         )
 
     def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
@@ -793,6 +798,36 @@ class CaseService:
             if principal.via == "jwt" and principal.role not in {"expert", "admin", "demo", "service"}:
                 case = case.model_copy(update={"internal_notes": []})
         return case
+
+    def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
+        """Permanently remove a case (and its jobs). Demo / list cleanup — not clinical archival."""
+        case = self._repo.get_case(case_id)
+        if case is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+        assert_case_access(principal, case, isolation=self._tenant_isolation)
+
+        # Pet owners may only delete their own finalized reports.
+        if principal.role == "owner" and principal.via == "jwt":
+            if case.status != CaseLifecycleStatus.APPROVED:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+            pet_owner = getattr(case, "pet_owner_subject", None) or case.owner_subject
+            if pet_owner is None or pet_owner != principal.subject:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+        elif principal.via != "disabled" and not (
+            principal.can(CAP_CASE_WRITE)
+            or principal.can(CAP_ADMIN)
+            or principal.role in {"clinic_owner", "expert", "admin", "demo", "service"}
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
+
+        self._repo.delete_case(case_id)
+        nsvc = self._notifications
+        if nsvc is not None and hasattr(nsvc, "delete_for_cases"):
+            try:
+                nsvc.delete_for_cases({case_id})  # type: ignore[union-attr]
+            except Exception:
+                pass
+        self._emit_audit("case.delete", principal=principal, resource=case_id)
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
         if getattr(case, "vet_verified", True) is False:

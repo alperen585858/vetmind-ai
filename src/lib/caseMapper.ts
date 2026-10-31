@@ -150,6 +150,26 @@ function ownerLabelFromBackend(ownerSubject?: string | null, petOwnerSubject?: s
   return (petOwnerSubject || ownerSubject || '').trim()
 }
 
+/**
+ * Whether a case belongs to the logged-in pet owner.
+ * Prefer pet_owner_subject (email); fall back to patient.ownerName for local/legacy rows.
+ * Orphan approved cases (null ownership) must NOT match every owner.
+ */
+export function caseBelongsToOwner(
+  c: Pick<VetCase, 'petOwnerSubject' | 'patient'>,
+  opts: { email?: string | null; name?: string | null },
+): boolean {
+  const email = (opts.email || '').trim().toLowerCase()
+  const name = (opts.name || '').trim()
+  const subject = (c.petOwnerSubject || '').trim().toLowerCase()
+  if (subject) return Boolean(email) && subject === email
+  const label = (c.patient.ownerName || '').trim()
+  if (!label) return false
+  if (email && label.toLowerCase() === email) return true
+  if (name && label === name) return true
+  return false
+}
+
 /** Lightweight row for list views (from CaseSummary). */
 function priorityFromBackend(p?: string | null): VetCase['priority'] {
   if (p === 'stat') return 'STAT'
@@ -200,6 +220,8 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     petOwnerSubject: s.pet_owner_subject ?? undefined,
     petId: s.pet_id ?? undefined,
     submissionId: s.submission_id ?? undefined,
+    currentReportVersion: s.current_report_version ?? undefined,
+    reportVersionCount: s.report_version_count ?? undefined,
   }
 }
 
@@ -446,6 +468,8 @@ export function mergeBackendCases(local: VetCase[], backend: VetCase[]): VetCase
       seriesCount: row.seriesCount ?? prev.seriesCount,
       instanceCount: row.instanceCount ?? prev.instanceCount,
       classificationConfirmed: row.classificationConfirmed ?? prev.classificationConfirmed,
+      currentReportVersion: row.currentReportVersion ?? prev.currentReportVersion,
+      reportVersionCount: row.reportVersionCount ?? prev.reportVersionCount,
       fromBackend: true,
     }
   })

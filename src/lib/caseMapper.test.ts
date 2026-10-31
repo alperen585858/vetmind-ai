@@ -1,12 +1,60 @@
 import { describe, expect, it } from 'vitest'
 import {
   analysisStatusLabel,
+  caseBelongsToOwner,
   caseStatusFromLifecycle,
   expertReviewLabel,
   recordToVetCase,
   summaryToVetCase,
 } from './caseMapper'
-import type { BackendCaseRecord, BackendCaseSummary } from '../types'
+import type { BackendCaseRecord, BackendCaseSummary, VetCase } from '../types'
+
+function ownerCase(partial: Partial<VetCase> & Pick<VetCase, 'petOwnerSubject'> & { ownerName?: string }): VetCase {
+  return {
+    id: 'case-x',
+    no: 'VM-X',
+    patient: {
+      name: 'Pax',
+      species: 'Köpek',
+      breed: 'Golden',
+      sex: 'Erkek',
+      neutered: true,
+      age: 5,
+      weight: 30,
+      ownerName: partial.ownerName ?? '',
+      ownerPhone: '',
+    },
+    clinical: {
+      complaint: '',
+      onset: 'Akut',
+      course: 'Stabil',
+      medications: '',
+      history: '',
+    },
+    neuro: {
+      consciousness: 'Uyanık',
+      gait: 'Normal',
+      limbs: [],
+      posturalThoracic: 'Normal',
+      posturalPelvic: 'Normal',
+      reflexThoracic: 'Normal',
+      reflexPelvic: 'Normal',
+      cranialNerves: [],
+      deepPain: 'Değerlendirilmedi',
+      hyperesthesia: 'Yok',
+    },
+    documents: [],
+    status: 'onaylandi',
+    module: 'Nöroloji',
+    priority: 'Normal',
+    createdAt: '2026-10-22',
+    clinic: '',
+    vetName: '',
+    corrections: [],
+    timeline: [],
+    petOwnerSubject: partial.petOwnerSubject,
+  }
+}
 
 describe('caseMapper list/detail helpers', () => {
   it('maps summary fields used by case list filters', () => {
@@ -98,5 +146,22 @@ describe('caseMapper list/detail helpers', () => {
     expect(mapped.neuro.gait).toBe('Ataksi')
     expect(mapped.neuro.consciousness).toBe('Depresif')
     expect(mapped.neuro.limbs).toEqual(['Sol arka'])
+  })
+})
+
+describe('caseBelongsToOwner', () => {
+  it('matches pet_owner_subject email and ignores orphan approved cases', () => {
+    const mine = ownerCase({ petOwnerSubject: 'owner@demo.local' })
+    const orphan = ownerCase({ petOwnerSubject: undefined, ownerName: '' })
+    const opts = { email: 'owner@demo.local', name: 'Mehmet Yılmaz' }
+    expect(caseBelongsToOwner(mine, opts)).toBe(true)
+    expect(caseBelongsToOwner(orphan, opts)).toBe(false)
+  })
+
+  it('falls back to patient.ownerName for local rows without petOwnerSubject', () => {
+    const byEmail = ownerCase({ petOwnerSubject: undefined, ownerName: 'owner@demo.local' })
+    const byName = ownerCase({ petOwnerSubject: undefined, ownerName: 'Mehmet Yılmaz' })
+    expect(caseBelongsToOwner(byEmail, { email: 'owner@demo.local', name: 'Mehmet Yılmaz' })).toBe(true)
+    expect(caseBelongsToOwner(byName, { email: 'owner@demo.local', name: 'Mehmet Yılmaz' })).toBe(true)
   })
 })

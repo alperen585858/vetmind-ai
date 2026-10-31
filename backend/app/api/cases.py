@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
+from app.auth.rbac import CAP_ADMIN, CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
 from app.schemas.case import (
     CaseAssignmentUpdate,
     CaseCreate,
@@ -261,6 +261,24 @@ def get_case(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> CaseRecord:
     return service.get_case(case_id, principal=principal)
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> None:
+    """Delete a case/report from the store (confirmation is UI-side)."""
+    # Owners have cases:read only; staff need write/review/admin — service enforces ownership.
+    if not (
+        principal.can(CAP_CASE_WRITE)
+        or principal.can(CAP_REVIEW)
+        or principal.can(CAP_ADMIN)
+        or principal.role in {"owner", "clinic_owner", "demo", "service"}
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
+    service.delete_case(case_id, principal=principal)
 
 
 @router.post("/{case_id}/model-input", response_model=ImagingModelInput)
