@@ -44,6 +44,12 @@ def map_task_outputs_to_findings(
             )
 
     if outputs.detection:
+        fixed_boxes = not outputs.detection.computed_from_input
+        if fixed_boxes and outputs.detection.boxes:
+            warnings.append(
+                "Detection boxes are fixed values from model metadata, not predicted from this study; "
+                "labelled SYNTHETIC."
+            )
         for i, box in enumerate(outputs.detection.boxes):
             label = box.label or "detection"
             findings.append(
@@ -59,7 +65,7 @@ def map_task_outputs_to_findings(
                     source_model=outputs.model_id,
                     source_model_version=outputs.model_version,
                     requires_review=True,
-                    synthetic=synthetic,
+                    synthetic=synthetic or fixed_boxes,
                     model_confidence=box.score,
                     evidence_references=[
                         EvidenceReference(
@@ -83,12 +89,18 @@ def map_task_outputs_to_findings(
                             review_status="pending",
                             include_in_report=False,
                             note=(
-                                "AI-proposed localization. Supportive evidence only — "
+                                "SYNTHETIC fixed box from model metadata — not localized on this study."
+                                if fixed_boxes
+                                else "AI-proposed localization. Supportive evidence only — "
                                 "veterinary radiologist review required."
                             ),
                         )
                     ],
-                    uncertainty_note="Detection head output; expert review required.",
+                    uncertainty_note=(
+                        "Fixed box from model metadata, not computed from this study."
+                        if fixed_boxes
+                        else "Detection head output; expert review required."
+                    ),
                 )
             )
 

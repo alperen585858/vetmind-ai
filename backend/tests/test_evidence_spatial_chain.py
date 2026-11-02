@@ -49,3 +49,27 @@ def test_native_and_already_chained_boxes_untouched() -> None:
     native = BoundingBoxEvidence(x_min=1, y_min=1, x_max=2, y_max=2)
     sf = attach_spatial_chain(_findings(native), chain)
     assert sf.findings[0].evidence_references[0].bbox.transform_chain == []
+
+
+def test_fixed_checkpoint_boxes_are_synthetic_even_if_model_is_real() -> None:
+    from app.models.task_output_mapper import map_task_outputs_to_findings
+    from app.schemas.case import CaseRecord
+    from app.schemas.model_outputs import BoundingBox2D, DetectionOutput, ModelTaskOutputs
+
+    case = CaseRecord(
+        case_id="c1", patient_name="P", species=Species.CANINE, modality=Modality.MR,
+        anatomical_region=AnatomicalRegion.BRAIN,
+    )
+    box = BoundingBox2D(x_min=1, y_min=1, x_max=5, y_max=5, label="LESION")
+    base = dict(model_id="mri", model_version="1", case_id="c1",
+                execution_status=ModelExecutionStatus.SUCCESS, source_kind=SourceKind.REAL)
+
+    fixed = map_task_outputs_to_findings(
+        case, ModelTaskOutputs(**base, detection=DetectionOutput(boxes=[box], computed_from_input=False))
+    )
+    assert fixed.findings[0].synthetic is True
+    assert "not localized on this study" in fixed.findings[0].evidence_references[0].note
+    assert any("fixed values from model metadata" in w for w in fixed.warnings)
+
+    predicted = map_task_outputs_to_findings(case, ModelTaskOutputs(**base, detection=DetectionOutput(boxes=[box])))
+    assert predicted.findings[0].synthetic is False

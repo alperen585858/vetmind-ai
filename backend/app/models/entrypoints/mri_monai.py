@@ -204,6 +204,7 @@ class MRIMonaiEntrypoint:
                 if boxes:
                     detection = DetectionOutput(
                         boxes=boxes,
+                        computed_from_input=False,
                         coordinate_space=str(
                             self._cached.payload.get("detection_coordinate_space")
                             or "model_input"

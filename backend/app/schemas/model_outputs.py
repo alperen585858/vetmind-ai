@@ -79,6 +79,9 @@ class DetectionOutput(BaseModel):
     task: Literal["detection"] = "detection"
     boxes: list[BoundingBox2D] = Field(default_factory=list)
     coordinate_space: str = "pixel_2d"
+    # False when boxes are fixed values (e.g. declared in checkpoint metadata) rather than
+    # predicted from this study; such boxes are synthetic whatever source_kind says.
+    computed_from_input: bool = True
 
 
 class SegmentationRegion(BaseModel):
