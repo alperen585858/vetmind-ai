@@ -128,6 +128,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+**Windows (PowerShell):** Python 3.12 önerilir (3.13+ sürümlerinde bazı paketlerin hazır sürümü olmayabilir).
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1      # "running scripts is disabled" hatası: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+`package.json` içindeki `backend:dev*` komutları macOS/Linux sözdizimi kullanır (`.venv/bin/...`); Windows'ta
+backend'i yukarıdaki gibi başlatın. Kod değiştiği halde backend eski gibi davranıyorsa otomatik yeniden
+yükleme takılmış olabilir: `Ctrl+C` ile durdurup yeniden başlatın.
+
 ### 4.2 Frontend (ayrı terminal, repo kökü)
 
 ```bash
@@ -345,8 +359,40 @@ $env:VETMIND_LOCAL_TORCH_MODALITIES="XR"; $env:VETMIND_LOCAL_TORCH_REGIONS="THOR
 |---------|-----|----------------|
 | `vet@demo.local` | Veteriner hekim | DICOM yükle, vaka oluştur, analiz başlat |
 | `expert@demo.local` | Uzman hekim (VRM) | İnceleme / onay / red / revizyon |
-| `owner@demo.local` | Klinik sahibi | Rapor okuma |
-| `admin@demo.local` | Admin | Bilgi tabanı, sistem durumu, RAG admin |
+| `owner@demo.local` | Hayvan sahibi | Görüntüleme talebi, rapor okuma |
+| `clinic-owner@demo.local` | Klinik sahibi | Klinik vakaları ve raporlar |
+| `admin@demo.local` | Admin | Kullanıcılar, bilgi tabanı, sistem durumu |
+
+Admin → **Kullanıcılar** sayfasında oluşturulan hesaplar da giriş ekranından giriş yapabilir.
+
+### Örnek vakalar
+
+Demo için altı hazır vaka backend'e **gerçek vaka olarak** yüklenebilir (sentetik DICOM; görüntüleyici,
+atama, onay ve rapor uçtan uca çalışır):
+
+| Hasta | Görüntü | Durum |
+|-------|---------|-------|
+| Duman (kedi) | Beyin MR | Onaylandı |
+| Zeytin (köpek) | Toraks röntgeni | Onaylandı · `owner@demo.local`'ın raporlarında |
+| Tarçın (köpek) | Servikal MR | Revizyon istendi |
+| Paşa (köpek) | Servikal MR | Uzmana atandı, acil · `owner@demo.local`'ın hayvanı |
+| Karamel (köpek) | Beyin BT | İnceleme bekliyor |
+| Pamuk (kedi) | Beyin MR | Taslak |
+
+```bash
+cd backend
+python scripts/seed_demo.py           # örnekleri yükle
+python scripts/seed_demo.py --reset   # sil ve yeniden yükle (demo öncesi temiz başlangıç)
+python scripts/seed_demo.py --remove  # yalnızca örnekleri sil
+```
+
+Windows'ta `python` yerine `.\.venv\Scripts\python.exe`. Otomatik yükleme için backend'i
+`VETMIND_DEMO_SEED=1` ile başlatın; yalnızca **hiç vaka yokken** çalışır.
+
+Örnek vakalar `demo_seed` ile işaretlidir: `--remove` gerçek vakalara dokunmaz; vakayla birlikte analiz
+işlerini, DICOM kayıtlarını, karantina dosyalarını, bildirimleri ve vakaya bağlı mesajları siler. Örneklerin
+onayları uzman geri bildirim veri setine ve Model Performansı sayfasına **girmez**. Gerçek veriye geçerken
+yeni ve boş bir veritabanıyla başlamak en temizidir.
 
 ### Önerilen senaryo (5–10 dk)
 
@@ -789,6 +835,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_DATABASE_URL` / `DATABASE_URL` | — | Postgres DSN |
 | `VETMIND_QUARANTINE_ROOT` | `./data/quarantine` | Karantina kökü |
 | `VETMIND_ASYNC_DELAY_MS` | `400` | Async yapay gecikme (0–10000) |
+| `VETMIND_DEMO_SEED` | `0` | `1` → vaka yokken örnek vakaları yükle (§5 Örnek vakalar) |
 
 ### Jobs
 
@@ -819,6 +866,9 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_LLM_VERIFIER_MODEL_ID` | yazar model | Farklı hakem modeli (aynı sunucu) |
 | `VETMIND_LLM_REPORT_LANGUAGE` | `tr` | `tr` \| `en` |
 | `VETMIND_LLM_TEMPERATURE` / `_MAX_TOKENS` / `_JSON_MODE` | `0.2` / `2048` / `schema` | Bkz. [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) |
+| `VETMIND_CLASSIFIER_LLM` | `0` | `1` → DICOM sınıflandırıcıda boşlukları dil modeli doldurur (§4.4) |
+| `VETMIND_CLASSIFIER_LLM_MODEL_ID` | `VETMIND_LLM_MODEL_ID` | Sınıflandırıcı için ayrı model |
+| `VETMIND_CLASSIFIER_LLM_TIMEOUT_S` | `20` | Aşılırsa o yükleme için kurallarla devam edilir |
 
 ### Auth / güvenlik
 
@@ -1066,4 +1116,4 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 ---
 
-*Son güncelleme: 2026-10-30 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5)*
+*Son güncelleme: 2026-11-02 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5) · DICOM sınıflandırıcı (Türkçe kurallar + LLM) · örnek vakalar*
