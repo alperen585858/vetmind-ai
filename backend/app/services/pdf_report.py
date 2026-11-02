@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import struct
 import zlib
 from io import BytesIO
@@ -405,6 +406,15 @@ def build_approved_report_pdf(
                         png = path.read_bytes()
                 except (ValueError, OSError):
                     png = None
+            tampered = bool(
+                png
+                and fig.overlay_content_sha256
+                and hashlib.sha256(png).hexdigest() != fig.overlay_content_sha256
+            )
+            if tampered:
+                # The frozen figure no longer matches what the radiologist approved.
+                png = None
+                story.append(Paragraph(_esc("Kanıt görseli bütünlük kontrolünden geçmedi; gösterilmiyor."), caption))
             if png:
                 img = _image_flowable(png)
                 if img is not None:

@@ -54,3 +54,33 @@ def test_missing_overlay_is_reported_on_freeze(tmp_path: Path) -> None:
     out = freeze_evidence_into_report(case, draft, store=store)
     assert out.evidence_figures == []
     assert any("ev-gone" in w and "missing" in w for w in out.validation_warnings)
+
+
+def test_pdf_skips_figure_whose_file_changed_after_approval(tmp_path: Path, monkeypatch) -> None:
+    import hashlib
+
+    import app.services.pdf_report as pdf
+    from app.schemas.report import ReportEvidenceFigure
+
+    shown: list[bytes] = []
+    monkeypatch.setattr(pdf, "_image_flowable", lambda png: shown.append(png) or None)
+    rel = "_report_evidence/c/v1/ev/overlay.png"
+    (tmp_path / rel).parent.mkdir(parents=True)
+    (tmp_path / rel).write_bytes(b"approved-image")
+    fig = ReportEvidenceFigure(
+        finding_id="f", evidence_id="ev", origin="ai_proposed", overlay_ref=rel,
+        overlay_content_sha256=hashlib.sha256(b"approved-image").hexdigest(), caption="c", disclaimer="d",
+    )
+    case = CaseRecord(case_id="c", patient_name="P", species=Species.CANINE, modality=Modality.MR,
+                      anatomical_region=AnatomicalRegion.BRAIN)
+    s = ReportSection(text="t")
+    draft = DraftReport(report_id="r", case_id="c", generation=GenerationMetadata(provider_id="p", model_id="m", model_version="1"),
+                        technique=s, findings=s, impression=s, recommendations=s, evidence_figures=[fig])
+
+    pdf.build_approved_report_pdf(case, draft, evidence_root=tmp_path)
+    assert shown == [b"approved-image"]
+
+    (tmp_path / rel).write_bytes(b"swapped-image")
+    shown.clear()
+    pdf.build_approved_report_pdf(case, draft, evidence_root=tmp_path)
+    assert shown == [], "a figure that no longer matches its approved hash must not be printed"

@@ -57,6 +57,30 @@ def test_renderer_maps_model_space_to_native() -> None:
     )
     assert rendered.png_bytes[:8] == b"\x89PNG\r\n\x1a\n"
     assert rendered.width == 64
+    px = _decode_png(rendered.png_bytes)
+    red = (220, 40, 40)
+    assert tuple(px[16, 8]) == red, "left edge of the box at native x=8"
+    assert tuple(px[16, 24]) == red, "right edge at native x=24"
+    assert tuple(px[16, 4]) != red, "nothing drawn at the unscaled model-space position"
+
+
+def _decode_png(data: bytes) -> np.ndarray:
+    """Decode the renderer's own PNG (RGB8, filter 0) for pixel assertions."""
+    import struct
+    import zlib
+
+    pos, idat, w, h = 8, b"", 0, 0
+    while pos < len(data):
+        (length,) = struct.unpack(">I", data[pos : pos + 4])
+        tag, body = data[pos + 4 : pos + 8], data[pos + 8 : pos + 8 + length]
+        if tag == b"IHDR":
+            w, h = struct.unpack(">II", body[:8])
+        elif tag == b"IDAT":
+            idat += body
+        pos += 12 + length
+    raw = zlib.decompress(idat)
+    rows = [raw[y * (w * 3 + 1) + 1 : (y + 1) * (w * 3 + 1)] for y in range(h)]
+    return np.frombuffer(b"".join(rows), dtype=np.uint8).reshape(h, w, 3)
 
 
 def test_attach_and_review_then_freeze(tmp_path: Path) -> None:

@@ -42,10 +42,17 @@ def _png_rgb(arr_u8: np.ndarray) -> bytes:
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
+
+
+# Larger slices are refused (callers record "render refused") instead of exhausting
+# memory/CPU in the pure-Python PNG encoder.
+MAX_RENDER_PIXELS = 40_000_000
 
 
 def _to_display_rgb(gray: np.ndarray) -> np.ndarray:
+    if gray.size > MAX_RENDER_PIXELS:
+        raise ValueError(f"slice too large to render ({gray.size} pixels > {MAX_RENDER_PIXELS})")
     g = gray.astype(np.float32)
     if g.ndim == 3 and g.shape[0] in (1, 3):
         g = g[0] if g.shape[0] == 1 else g.mean(axis=0)
