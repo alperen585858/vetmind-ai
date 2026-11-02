@@ -166,7 +166,10 @@ class CaseService:
         if self._user_settings is not None:
             for subject in subjects:
                 try:
-                    settings = self._user_settings.get(subject)  # type: ignore[attr-defined]
+                    # Stored settings only: get() returns defaults ("tr") for users who never
+                    # saved any, which hid both the env default and the case owner's choice.
+                    lookup = getattr(self._user_settings, "get_stored", None)
+                    settings = lookup(subject) if lookup else None
                     lang = getattr(settings, "language", None)
                     if lang in {"tr", "en"}:
                         return lang

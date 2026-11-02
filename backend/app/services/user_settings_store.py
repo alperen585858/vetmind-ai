@@ -12,6 +12,10 @@ from app.schemas.user_settings import UserSettings, UserSettingsUpdate, utcnow
 class UserSettingsStore(Protocol):
     def get(self, subject: str) -> UserSettings: ...
 
+    def get_stored(self, subject: str) -> UserSettings | None:
+        """Only settings the user actually saved (``get`` falls back to defaults)."""
+        ...
+
     def update(self, subject: str, patch: UserSettingsUpdate) -> UserSettings: ...
 
 
@@ -35,6 +39,9 @@ class InMemoryUserSettingsStore:
     def get(self, subject: str) -> UserSettings:
         key = subject.strip().lower()
         return self._by_subject.get(key) or _defaults(key)
+
+    def get_stored(self, subject: str) -> UserSettings | None:
+        return self._by_subject.get(subject.strip().lower())
 
     def update(self, subject: str, patch: UserSettingsUpdate) -> UserSettings:
         key = subject.strip().lower()
@@ -70,6 +77,13 @@ class SqliteUserSettingsStore:
         if not row:
             return _defaults(key)
         return UserSettings.model_validate_json(row["payload"])
+
+    def get_stored(self, subject: str) -> UserSettings | None:
+        row = self._conn.execute(
+            "SELECT payload FROM user_settings WHERE subject=?",
+            (subject.strip().lower(),),
+        ).fetchone()
+        return UserSettings.model_validate_json(row["payload"]) if row else None
 
     def update(self, subject: str, patch: UserSettingsUpdate) -> UserSettings:
         key = subject.strip().lower()
