@@ -1588,7 +1588,9 @@
       "toastChatClearFailed": "Sohbet silinemedi",
       "analysisFailedOutcome": "Analiz failed döndü",
       "resultLabel": "Sonuç: {outcome}",
-      "unknownError": "Bilinmeyen hata"
+      "unknownError": "Bilinmeyen hata",
+      "revisionLeftOpen": "Vaka revizyonda açık kaldı; önceki onaylı sürüm geçmişte korunuyor.",
+      "revisionComment": "AI tam pipeline yeniden analizi için yeni düzenlenebilir sürüm açıldı. Önceki onaylı sürüm geçmişte korunur."
     },
     "processing": "İşleniyor…",
     "provenance": "Köken",

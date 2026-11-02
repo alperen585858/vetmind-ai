@@ -1588,7 +1588,9 @@
       "toastChatClearFailed": "Could not clear chat",
       "analysisFailedOutcome": "Analysis returned failed",
       "resultLabel": "Result: {outcome}",
-      "unknownError": "Unknown error"
+      "unknownError": "Unknown error",
+      "revisionLeftOpen": "The case stays open in revision; the previous approved version is kept in the history.",
+      "revisionComment": "A new editable version was opened for a full AI pipeline re-analysis. The previous approved version is kept in the history."
     },
     "processing": "Processing…",
     "provenance": "Provenance",

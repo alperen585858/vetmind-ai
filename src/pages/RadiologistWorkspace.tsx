@@ -396,6 +396,7 @@ export default function RadiologistWorkspace() {
         signal: controller.signal,
         cancelBackendOnAbort: true,
         openRevisionFirst,
+        revisionComment: t('ai.resend.revisionComment'),
       })
       const mapped = await hydrateBackendCase(caseKey)
       if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
@@ -405,7 +406,9 @@ export default function RadiologistWorkspace() {
         pushToast({
           tone: 'error',
           title: t('review.workspace.toastResendFailed'),
-          body: result.job.error_message || undefined,
+          body: [result.job.error_message, openRevisionFirst ? t('ai.resend.revisionLeftOpen') : null]
+            .filter(Boolean)
+            .join(' ') || undefined,
         })
       } else {
         pushToast({
@@ -418,7 +421,7 @@ export default function RadiologistWorkspace() {
       }
     } catch (err) {
       if (err instanceof PollingCancelledError) {
-        pushToast({ tone: 'info', title: t('review.workspace.toastAnalysisStopped') })
+        pushToast({ tone: 'info', title: t('review.workspace.toastAnalysisStopped'), body: openRevisionFirst ? t('ai.resend.revisionLeftOpen') : undefined })
         await hydrateBackendCase(caseKey)
         return
       }

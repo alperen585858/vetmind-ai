@@ -164,12 +164,17 @@ export default function ExpertAiResend() {
         signal: controller.signal,
         cancelBackendOnAbort: true,
         openRevisionFirst,
+        revisionComment: t('ai.resend.revisionComment'),
       })
       await hydrateBackendCase(caseId)
       if (result.outcome === 'failed') {
         const msg = result.job.error_message || t('ai.resend.analysisFailedOutcome')
         setRunById((prev) => ({ ...prev, [caseId]: { phase: 'error', message: msg } }))
-        pushToast({ tone: 'error', title: t('ai.resend.toastResendFailed'), body: msg })
+        pushToast({
+          tone: 'error',
+          title: t('ai.resend.toastResendFailed'),
+          body: openRevisionFirst ? `${msg} ${t('ai.resend.revisionLeftOpen')}` : msg,
+        })
         return
       }
       setRunById((prev) => ({
@@ -185,7 +190,7 @@ export default function ExpertAiResend() {
     } catch (err) {
       if (err instanceof PollingCancelledError) {
         setRunById((prev) => ({ ...prev, [caseId]: { phase: 'idle' } }))
-        pushToast({ tone: 'info', title: t('ai.resend.toastStopped') })
+        pushToast({ tone: 'info', title: t('ai.resend.toastStopped'), body: openRevisionFirst ? t('ai.resend.revisionLeftOpen') : undefined })
         await hydrateBackendCase(caseId)
         load()
         return
