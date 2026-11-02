@@ -195,7 +195,7 @@ export default function RadiologistWorkspace() {
     const clinic = displayClinic(c.clinic)
     return [
       `${c.patient.species} · ${c.patient.breed}`,
-      c.patient.age ? `${c.patient.age} yaş` : null,
+      c.patient.age ? t('review.workspace.ageYears', { age: c.patient.age }) : null,
       c.modality || null,
       c.anatomicalRegion || null,
       clinic || null,
@@ -263,23 +263,23 @@ export default function RadiologistWorkspace() {
                         status: 'uzman_incelemesinde',
                       })
                       await hydrateBackendCase(caseKey)
-                      pushToast({ tone: 'success', title: 'Manuel taslak başlatıldı' })
+                      pushToast({ tone: 'success', title: t('review.workspace.manualDraftStarted') })
                     })
                     .catch((err) =>
                       pushToast({
                         tone: 'error',
-                        title: 'Manuel taslak başlatılamadı',
+                        title: t('review.workspace.manualDraftFailed'),
                         body: err instanceof Error ? err.message : undefined,
                       }),
                     )
                     .finally(() => setSaving(false))
                 }}
               >
-                {saving ? 'Başlatılıyor…' : 'Manuel taslak başlat'}
+                {saving ? t('review.workspace.manualDraftStarting') : t('review.workspace.manualDraftStart')}
               </Button>
             ) : (
               <LocalizedLink to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
-                Vaka detayı
+                {t('review.workspace.caseDetailLink')}
               </LocalizedLink>
             )
           }
@@ -299,10 +299,10 @@ export default function RadiologistWorkspace() {
       if (caseKey.startsWith('case-')) {
         const draft = await saveBackendDraftReport(caseKey, text)
         updateCase(caseRow.id, { report: text, aiDraft: text, backendDraft: draft })
-        if (!opts?.silent) pushToast({ tone: 'success', title: 'Taslak kaydedildi' })
+        if (!opts?.silent) pushToast({ tone: 'success', title: t('review.workspace.toastDraftSaved') })
       } else {
         updateCase(caseRow.id, { report: text, aiDraft: text })
-        if (!opts?.silent) pushToast({ tone: 'success', title: 'Yerel taslak güncellendi' })
+        if (!opts?.silent) pushToast({ tone: 'success', title: t('review.workspace.toastLocalDraftUpdated') })
       }
       return true
     } catch (err) {
@@ -348,15 +348,15 @@ export default function RadiologistWorkspace() {
         tone: action === 'approve' ? 'success' : 'info',
         title:
           action === 'approve'
-            ? 'Rapor onaylandı'
+            ? t('review.workspace.toastApproved')
             : action === 'reject'
-              ? 'Rapor reddedildi'
+              ? t('review.workspace.toastRejected')
               : immutable
-                ? 'Yeni sürüm açıldı — düzenleyebilirsiniz'
-                : 'Revizyon istendi',
+                ? t('review.workspace.toastNewVersionOpened')
+                : t('review.workspace.toastRevisionRequested'),
         body:
           action === 'request_revision' && immutable
-            ? 'Önceki onaylı sürüm kilitli kaldı. Değişiklikleri kaydedip yeniden onaylayın.'
+            ? t('review.workspace.toastApprovedStaysLocked')
             : undefined,
       })
       setModal(null)
@@ -404,27 +404,27 @@ export default function RadiologistWorkspace() {
       if (result.outcome === 'failed') {
         pushToast({
           tone: 'error',
-          title: 'AI yeniden gönderim başarısız',
+          title: t('review.workspace.toastResendFailed'),
           body: result.job.error_message || undefined,
         })
       } else {
         pushToast({
           tone: 'success',
-          title: 'AI yeniden çalıştı',
+          title: t('review.workspace.toastResendDone'),
           body: openRevisionFirst
-            ? 'Onaylı sürüm korundu; yeni AI taslağı hazır.'
-            : 'Görüntü + taslak pipeline tamamlandı.',
+            ? t('review.workspace.toastResendApprovedKept')
+            : t('review.workspace.toastResendPipelineDone'),
         })
       }
     } catch (err) {
       if (err instanceof PollingCancelledError) {
-        pushToast({ tone: 'info', title: 'Analiz durduruldu' })
+        pushToast({ tone: 'info', title: t('review.workspace.toastAnalysisStopped') })
         await hydrateBackendCase(caseKey)
         return
       }
       pushToast({
         tone: 'error',
-        title: 'AI yeniden gönderilemedi',
+        title: t('review.workspace.toastResendError'),
         body: err instanceof Error ? err.message : undefined,
       })
     } finally {
@@ -457,13 +457,13 @@ export default function RadiologistWorkspace() {
       setReasonCodes([])
       pushToast({
         tone: 'success',
-        title: `Yeni taslak hazır (v${updated.draft_report?.version ?? '?'})`,
-        body: 'Yapay zekâ gerekçenizi dikkate alarak yeniden yazdı. Önceki sürüm geçmişte duruyor.',
+        title: t('review.workspace.toastRegenerated', { version: updated.draft_report?.version ?? '?' }),
+        body: t('review.workspace.toastRegeneratedBody'),
       })
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Yeniden yazma başarısız',
+        title: t('review.workspace.toastRegenerateFailed'),
         body: err instanceof Error ? err.message : undefined,
       })
     } finally {
@@ -493,7 +493,7 @@ export default function RadiologistWorkspace() {
             {c.reviewDueAt ? (
               <span
                 className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
-                title={`${slaHoursForPriority(c.priority)} saat uzman yanıt SLA`}
+                title={t('review.workspace.slaTitle', { hours: slaHoursForPriority(c.priority) })}
               >
                 <Clock className="h-3 w-3" aria-hidden />
                 {formatSlaRemaining(c.reviewDueAt)}
@@ -589,8 +589,7 @@ export default function RadiologistWorkspace() {
               aiOverlayStyle={evidenceFocus?.origin === 'vet_manual' ? 'vet' : 'ai'}
             />
             <p className="text-[11px] text-slate-500">
-              Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri
-              karşılaştır · R reset · ok tuşları dilim. AI kutusu: kesikli kırmızı; vet: mavi.
+              {t('review.workspace.shortcutsHelp')}
             </p>
           </div>
         )}
@@ -852,8 +851,7 @@ export default function RadiologistWorkspace() {
       >
         <div className="space-y-3 text-sm text-slate-600">
           <p>
-            <strong className="text-navy-900">{caseRow.patient.name}</strong> vakasını kalıcı olarak silmek istediğinize
-            emin misiniz?
+            <strong className="text-navy-900">{caseRow.patient.name}</strong> {t('review.workspace.deleteConfirmBody')}
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
             {caseRow.no} · {caseKey}
