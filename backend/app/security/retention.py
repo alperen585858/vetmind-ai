@@ -173,6 +173,7 @@ def cleanup_vision_artifacts(
     *,
     older_than_days: int,
     dry_run: bool = False,
+    protected_case_ids: set[str] | frozenset[str] = frozenset(),
 ) -> list[str]:
     """Remove aged bridge/vision prep dirs (tensor_f16.npy, prep_meta) under artifact root.
 
@@ -199,8 +200,15 @@ def cleanup_vision_artifacts(
             continue
         # Working AI evidence under _evidence may age out; report packages are separate.
         if name == "_evidence":
+            from app.models.evidence_store import _safe
+
+            protected = {_safe(cid) for cid in protected_case_ids}
             for case_dir in child.iterdir():
                 if not case_dir.is_dir():
+                    continue
+                # Overlays of cases still under review are not "aged": the report is not
+                # frozen yet and would silently lose its figures.
+                if case_dir.name in protected:
                     continue
                 mtime = datetime.fromtimestamp(case_dir.stat().st_mtime, tz=timezone.utc)
                 if mtime >= cutoff:
@@ -228,6 +236,17 @@ def cleanup_vision_artifacts(
         shutil.rmtree(child, ignore_errors=True)
         removed.append(name)
     return removed
+
+
+OPEN_FOR_EVIDENCE = frozenset(
+    {"created", "awaiting_classification_confirmation", "analyzing", "awaiting_review",
+     "manual_review", "revision_requested"}
+)
+
+
+def open_case_ids(cases) -> set[str]:
+    """Cases whose working evidence may still be reviewed or frozen into a report."""
+    return {c.case_id for c in cases if getattr(c.status, "value", c.status) in OPEN_FOR_EVIDENCE}
 
 
 def trim_audit_log(path: Path | None, *, keep_days: int) -> int:

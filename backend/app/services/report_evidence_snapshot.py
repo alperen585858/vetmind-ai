@@ -52,6 +52,12 @@ def freeze_evidence_into_report(
                 dest_filename="overlay.png",
             )
         except (FileNotFoundError, ValueError, OSError):
+            # Selected for the report but the overlay is gone: say so instead of a silent drop.
+            draft.validation_warnings = [
+                *draft.validation_warnings,
+                f"Evidence {ev.evidence_id} was selected for the report but its overlay image is "
+                "missing; the figure is not in the approved report.",
+            ]
             continue
         caption = f"{finding_id}: {ev.description or 'AI-supported imaging evidence'}"
         figures.append(

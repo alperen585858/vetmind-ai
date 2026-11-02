@@ -14,6 +14,7 @@ from app.security.retention import (
     apply_case_retention,
     cleanup_temp_under_quarantine,
     cleanup_vision_artifacts,
+    open_case_ids,
     trim_audit_log,
 )
 
@@ -71,6 +72,7 @@ def retention_plan_dry_run(
         cleanup_vision_artifacts(
             _vision_artifact_root(container),
             older_than_days=art_days,
+            protected_case_ids=open_case_ids(cases),
             dry_run=True,
         )
         if art_days
@@ -112,6 +114,7 @@ def retention_apply(
         cleanup_vision_artifacts(
             _vision_artifact_root(container),
             older_than_days=art_days,
+            protected_case_ids=open_case_ids(cases),
             dry_run=False,
         )
         if art_days
