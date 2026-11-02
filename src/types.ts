@@ -150,6 +150,13 @@ export interface BackendRadiologistPayoutDetail {
   payouts: BackendRadiologistCasePayout[]
 }
 
+export interface BackendRadiologistPayoutSettings {
+  fee_per_case: number
+  currency: 'EUR'
+  updated_at?: string | null
+  updated_by?: string | null
+}
+
 export interface BackendClinicStats {
   clinic_id: string
   case_count: number

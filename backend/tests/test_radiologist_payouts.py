@@ -99,6 +99,24 @@ def test_ledger_lists_experts_and_tracks_fixed_fee(tmp_path: Path) -> None:
     assert detail.status_code == 200
     assert any(p["case_id"] == case_id and p["status"] == "owed" for p in detail.json()["payouts"])
 
+    # Change fee — unpaid rows rewrite to new amount
+    fee_put = client.put(
+        "/api/v1/admin/radiologist-payouts/settings",
+        json={"fee_per_case": 55, "apply_to_unpaid": True},
+        headers=_hdr(admin),
+    )
+    assert fee_put.status_code == 200, fee_put.text
+    assert fee_put.json()["fee_per_case"] == 55
+
+    detail2 = client.get("/api/v1/admin/radiologist-payouts/expert@demo.local", headers=_hdr(admin))
+    owed = next(p for p in detail2.json()["payouts"] if p["case_id"] == case_id)
+    assert owed["status"] == "owed"
+    assert owed["amount"] == 55
+    assert detail2.json()["summary"]["amount_owed"] == 55
+
+    ledger3 = client.get("/api/v1/admin/radiologist-payouts", headers=_hdr(admin))
+    assert ledger3.json()["fee_per_case"] == 55
+
     paid = client.post(
         "/api/v1/admin/radiologist-payouts/expert@demo.local/mark-paid",
         json={},

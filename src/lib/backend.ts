@@ -1453,6 +1453,16 @@ export async function markRadiologistPaid(email: string, caseIds?: string[]) {
   )
 }
 
+export async function updateRadiologistPayoutFee(feePerCase: number, applyToUnpaid = true) {
+  return request<import('../types').BackendRadiologistPayoutSettings>(
+    '/admin/radiologist-payouts/settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify({ fee_per_case: feePerCase, apply_to_unpaid: applyToUnpaid }),
+    },
+  )
+}
+
 // --- Phase 17 functional expansion ---
 
 export interface AppNotification {

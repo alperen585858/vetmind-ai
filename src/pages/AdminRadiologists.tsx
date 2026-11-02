@@ -9,6 +9,7 @@ import {
   fetchRadiologistPayoutDetail,
   fetchRadiologistPayoutLedger,
   markRadiologistPaid,
+  updateRadiologistPayoutFee,
 } from '../lib/backend'
 import type {
   BackendRadiologistCasePayout,
@@ -29,20 +30,26 @@ export default function AdminRadiologists() {
   const [payouts, setPayouts] = useState<BackendRadiologistCasePayout[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [busyEmail, setBusyEmail] = useState<string | null>(null)
+  const [feeDraft, setFeeDraft] = useState('40')
+  const [feeSaving, setFeeSaving] = useState(false)
+  const [feeSavedHint, setFeeSavedHint] = useState<string | null>(null)
 
-  const load = () => {
+  const load = async () => {
     setLoading(true)
-    void fetchRadiologistPayoutLedger()
-      .then((data) => {
-        setLedger(data)
-        setError(null)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : t('admin.radiologistsLoadFail')))
-      .finally(() => setLoading(false))
+    try {
+      const data = await fetchRadiologistPayoutLedger()
+      setLedger(data)
+      setFeeDraft(String(data.fee_per_case))
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.radiologistsLoadFail'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    load()
+    void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -66,7 +73,7 @@ export default function AdminRadiologists() {
     try {
       const detail = await markRadiologistPaid(row.radiologist_subject)
       setPayouts(detail.payouts)
-      load()
+      await load()
       if (selected === row.radiologist_subject) {
         setSelected(row.radiologist_subject)
       }
@@ -77,8 +84,34 @@ export default function AdminRadiologists() {
     }
   }
 
+  const onSaveFee = async () => {
+    const next = Number(feeDraft)
+    if (!Number.isFinite(next) || next < 1 || !Number.isInteger(next)) {
+      setError(t('admin.radiologistsFeeInvalid'))
+      return
+    }
+    setFeeSaving(true)
+    setError(null)
+    setFeeSavedHint(null)
+    try {
+      const settings = await updateRadiologistPayoutFee(next, true)
+      setFeeDraft(String(settings.fee_per_case))
+      setFeeSavedHint(t('admin.radiologistsFeeSaved'))
+      await load()
+      if (selected) {
+        const detail = await fetchRadiologistPayoutDetail(selected)
+        setPayouts(detail.payouts)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.radiologistsFeeSaveFail'))
+    } finally {
+      setFeeSaving(false)
+    }
+  }
+
   const fee = ledger?.fee_per_case ?? 40
   const currency = ledger?.currency ?? 'EUR'
+  const feeDirty = Number(feeDraft) !== fee
 
   return (
     <>
@@ -93,12 +126,41 @@ export default function AdminRadiologists() {
       {error && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>
       )}
+      {feeSavedHint && (
+        <p className="mb-4 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">{feeSavedHint}</p>
+      )}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t('admin.radiologistsFee')}</p>
-          <p className="mt-1 text-2xl font-semibold text-navy-900">{money(fee, currency)}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{t('admin.radiologistsFeeHint')}</p>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">{t('admin.radiologistsFee')}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="input w-28"
+                  value={feeDraft}
+                  onChange={(e) => {
+                    setFeeDraft(e.target.value)
+                    setFeeSavedHint(null)
+                  }}
+                />
+                <span className="text-sm font-medium text-slate-600">{currency}</span>
+              </div>
+            </label>
+            <Button
+              size="sm"
+              disabled={feeSaving || !feeDirty}
+              onClick={() => void onSaveFee()}
+              icon={feeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}
+            >
+              {feeSaving ? t('admin.saving') : t('admin.radiologistsFeeSave')}
+            </Button>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-500">{t('admin.radiologistsFeeEditHint')}</p>
         </Card>
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t('admin.radiologistsUnpaidCases')}</p>
