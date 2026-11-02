@@ -30,7 +30,7 @@ def test_approval_during_chat_call_is_kept(tmp_path: Path, monkeypatch) -> None:
     cid = _demo_upload_confirm_analyze(client)
     service = client.app.state.container.cases
 
-    def slow_answer(case, question, history, settings):
+    def slow_answer(case, question, history, settings, **_kwargs):
         # Someone approves the report while the model is still "thinking".
         service.submit_review(cid, ReviewFeedback(reviewer_id="expert-demo", action=ReviewAction.APPROVE))
         return "Cevap.", "ollama"

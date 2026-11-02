@@ -566,7 +566,13 @@ class CaseService:
         author_id = principal.subject if principal and principal.via != "disabled" else "demo"
         history = list(case.ai_chat or [])
         try:
-            reply, provider = answer_case_question(case, payload.message, history, settings)
+            reply, provider = answer_case_question(
+                case,
+                payload.message,
+                history,
+                settings,
+                language=self._resolve_report_language(case, principal=principal),
+            )
         except LLMProviderError as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

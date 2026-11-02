@@ -51,3 +51,35 @@ def test_chat_masks_context_question_and_history(captured) -> None:
         assert secret not in sent, secret
     assert "Fenobarbital" in sent  # structured history now included
     assert "<case_context>" in sent
+
+
+def test_chat_language_and_provider_rules(captured, monkeypatch) -> None:
+    import app.llm.interfaces as li
+
+    settings = replace(load_settings(), llm_provider="ollama", llm_model_id="qwen2.5:7b")
+    chat.answer_case_question(_case(), "What is this lesion?", [], settings, language="en")
+    assert "Answer in English" in captured[-1]
+
+    with pytest.raises(li.LLMConfigError, match="does not support"):
+        chat.answer_case_question(_case(), "Soru?", [], replace(settings, llm_provider="http"))
+    reply, kind = chat.answer_case_question(_case(), "Soru?", [], replace(settings, llm_provider="mock"))
+    assert kind == "mock" and "Sahte asistan" in reply
+
+
+def test_anthropic_chat_alternates_roles(monkeypatch) -> None:
+    sent: list = []
+    real_client = httpx.Client
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        import json as _j
+
+        sent.append(_j.loads(req.read()))
+        return httpx.Response(200, json={"content": [{"type": "text", "text": "Claude cevabı."}]})
+
+    monkeypatch.setattr(chat.httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
+    settings = replace(load_settings(), llm_provider="anthropic", llm_api_key="k")
+    history = [AiChatTurn(role="user", content="İlk soru"), AiChatTurn(role="assistant", content="İlk cevap")]
+    reply, kind = chat.answer_case_question(_case(), "İkinci soru", history, settings)
+    assert (reply, kind) == ("Claude cevabı.", "anthropic")
+    roles = [m["role"] for m in sent[0]["messages"]]
+    assert roles == ["user", "assistant", "user"] and sent[0]["system"].startswith("Sen VetMind AI")
