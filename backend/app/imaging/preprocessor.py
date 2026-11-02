@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from app.imaging.contracts import PreprocessingContract, TransformProvenance
+from app.imaging.geometry import resize_step
 from app.imaging.interfaces import PrepValidationError
 from app.imaging.pixel_ops import (
     KNOWN_TRANSFORMS,
@@ -134,8 +135,12 @@ class ContractImagePreprocessor:
             work["tensor_layout"] = layout
 
         # Optional resize after layout (XR). Only runs when resize_hw provided.
+        spatial_chain: list[dict] = []
         if TRANSFORM_RESIZE_2D in contract.allowed_transforms and resize_hw is not None:
             h, w = resize_hw
+            src_h, src_w = int(tensor.shape[-2]), int(tensor.shape[-1])
+            step = resize_step(src_h=src_h, src_w=src_w, dst_h=h, dst_w=w)
+            spatial_chain.append({"name": step.name, "params": dict(step.params)})
             if work.get("tensor_layout") == "chw":
                 tensor = resize_2d(tensor, height=h, width=w)
             elif tensor.ndim == 2:
@@ -171,6 +176,7 @@ class ContractImagePreprocessor:
             source_sop_uids=sops,
             pixels_loaded=True,
             authorization_reason_codes=(),
+            spatial_chain=tuple(spatial_chain),
             note="Transforms applied only as listed on PreprocessingContract.",
         )
         return work, provenance

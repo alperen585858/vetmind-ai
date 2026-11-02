@@ -41,6 +41,9 @@ class TransformProvenance:
     source_sop_uids: tuple[str, ...] = ()
     pixels_loaded: bool = False
     authorization_reason_codes: tuple[str, ...] = ()
+    # Spatial steps native → model input, as {"name", "params"} dicts (see app.imaging.geometry).
+    # Model-space boxes need these to be drawn back on the original slice.
+    spatial_chain: tuple[dict, ...] = ()
     note: str = "Provenance only. Empty steps means metadata package only."
 
 

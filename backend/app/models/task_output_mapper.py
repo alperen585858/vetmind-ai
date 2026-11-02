@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import BoundingBoxEvidence, EvidenceReference, Finding, StructuredFindings
@@ -177,3 +179,18 @@ def map_task_outputs_to_findings(
             "mapped_from": "model_task_outputs/1.0.0",
         },
     )
+
+
+def attach_spatial_chain(findings: StructuredFindings, chain: Sequence[dict]) -> StructuredFindings:
+    """Give model-space boxes the prep transforms they need to be drawn on the native slice.
+
+    Boxes that already carry a chain, or are already native, are left alone.
+    """
+    if not chain:
+        return findings
+    for finding in findings.findings:
+        for ev in finding.evidence_references:
+            bbox = getattr(ev, "bbox", None)
+            if bbox is not None and bbox.coordinate_space == "model_input" and not bbox.transform_chain:
+                ev.bbox = bbox.model_copy(update={"transform_chain": [dict(step) for step in chain]})
+    return findings

@@ -21,7 +21,7 @@ from app.models.errors import (
     ModelUnavailableError,
 )
 from app.models.pixel_bridge import AuthorizedPixelBridge
-from app.models.task_output_mapper import map_task_outputs_to_findings
+from app.models.task_output_mapper import attach_spatial_chain, map_task_outputs_to_findings
 from app.routing.capabilities import ModelCapability
 from app.schemas.case import CaseRecord
 from app.schemas.findings import StructuredFindings
@@ -141,6 +141,8 @@ class IntegrationBridge:
                 except ValueError as exc:
                     raise InferenceFailedError(str(exc)) from exc
                 findings = map_task_outputs_to_findings(case, result)
+                if prepared is not None:
+                    attach_spatial_chain(findings, prepared.provenance.spatial_chain)
             else:
                 raise InferenceFailedError(
                     "Entrypoint returned unsupported result type "
