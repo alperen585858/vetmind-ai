@@ -77,6 +77,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
 | **Auth** | Opsiyonel JWT (HS256) + API key + RBAC + klinik/owner izolasyon; protected deployment mode |
 | **Kalıcılık** | memory / SQLite / PostgreSQL JSON(B) — CaseRecord, jobs, ingestions |
+| **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
 | **Remote Vision** | `HttpRemoteVisionModel` + `scripts/mock_vision_server.py` iskeleti |
 | **Provenance** | `source_kind` ∈ {mock, real, mixed}; UI’da DEMO/MOCK / REAL/MIXED banner’ları |
 | **E2E** | Playwright tam klinik akış + negatif senaryolar; pytest Phase 6 journey suite |
@@ -86,7 +87,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 
 | Yok | Açıklama |
 |-----|----------|
-| Eğitilmiş klinik Vision / VLM | Varsayılan: fixture mock; piksel analizi yok (`metadata_only`) |
+| Eğitilmiş klinik Vision / VLM | Varsayılan: fixture mock; piksel analizi yok (`metadata_only`). Röntgen için insan verisiyle eğitilmiş demo modeli takılabilir (§4.5); MR / BT için eğitilmiş model yok |
 | Ücretli / üretim LLM | Varsayılan `MockLLMProvider` |
 | PACS / DICOMweb | Yok |
 | OCR | Doküman metin stub |
@@ -153,6 +154,7 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 | `npm test` | Vitest |
 | `npm run backend:dev` | uvicorn (`.venv`), sahte (mock) LLM |
 | `npm run backend:dev:ai` | uvicorn + **gerçek model**: Ollama `qwen2.5:7b`, prompt v5, hakem açık (§4.4) |
+| `npm run backend:dev:vision` | `backend:dev:ai` + **gerçek röntgen modeli** (§4.5) |
 | `npm run backend:test` | pytest |
 | `npm run e2e` | Playwright (sistem Chrome; browser indirmez) |
 | `npm run e2e:ui` | Playwright UI mode |
@@ -213,6 +215,74 @@ $env:VETMIND_LLM_PROVIDER="ollama"; $env:VETMIND_LLM_MODEL_ID="qwen2.5:7b"; $env
 | Çok yavaş | RAM yetersiz ya da başka model de yüklü. `ollama ps` ile bakın; hakemi kapatmak için `VETMIND_LLM_VERIFY=false`. |
 
 Modelsiz çalışmak (arkadaşınızda Ollama yoksa) için eskisi gibi `npm run backend:dev`.
+
+### 4.5 Gerçek görüntü modeliyle çalıştırma (röntgen)
+
+Varsayılan kurulumda görüntü analizi **sahte (mock)** çalışır. Göğüs/toraks röntgenini gerçek bir yapay
+zekâ modeliyle analiz ettirmek için aşağıdakileri **bir kez** yapın. Yapmazsanız uygulama eskisi gibi mock
+ile çalışmaya devam eder; hiçbir şey bozulmaz.
+
+> ⚠️ Bu model **insan** göğüs röntgenleriyle eğitildi (TorchXRayVision, DenseNet121). Köpek/kedi
+> görüntülerinde ne kadar doğru olduğu **bilinmiyor**. Sistem bunu her raporda uyarı olarak yazar ve
+> modeli `clinically_validated=false` olarak işaretler. Demo ve başlangıç noktasıdır, teşhis aracı değildir.
+
+**Gereksinimler:** §4.4'tekiler (Ollama + `qwen2.5:7b`) · ~2 GB ek disk (PyTorch + MONAI).
+
+**İlk kurulum (bir kez, repo kökünden):**
+
+```bash
+# 1) Görüntü kütüphanelerini kur (PyTorch, MONAI, TorchXRayVision — ~1–2 GB, birkaç dakika)
+cd backend && .venv/bin/pip install -r requirements-vision.txt
+
+# 2) Model dosyasını oluştur (~30 MB indirir; artifacts/vet-xr-thorax-v1/model.pt yazar)
+.venv/bin/python scripts/export_xray_model.py
+cd ..
+```
+
+Model dosyası **Git'e girmez** (`artifacts/` yok sayılır); her bilgisayarda 2. adımla oluşturulur.
+
+**Her çalıştırmada — iki terminal:**
+
+| Terminal | Komut | Ne yapar |
+|----------|-------|----------|
+| 1 | `npm run backend:dev:vision` | API (8000) — gerçek LLM **ve** gerçek röntgen modeli. **Kapatmayın.** |
+| 2 | `npm run dev` | Arayüz (5173) |
+
+**Nasıl denenir:** Veteriner olarak DICOM yükleme sayfasından bir **göğüs röntgeni** (DX/CR, bölge THORAX)
+yükleyin, tür seçin, onay kutularını işaretleyip analizi başlatın. Röntgen analizi 1–2 saniye sürer; ardından
+rapor qwen ile yazılır (birkaç dakika). Bulgular "gerçek model" (`source_kind=real`) olarak görünür.
+
+**Model hangi bulguları verir:** kalp büyümesi (`CARDIOMEGALY_SUSPECTED`), plevral sıvı
+(`PLEURAL_EFFUSION_SUSPECTED`), akciğer opasitesi (`PULMONARY_OPACITY`), pnömotoraks, konsolidasyon,
+ödem, nodül, toraks kitlesi, kırık. Eşik 0,5; altında kalan bulgu rapora girmez (bu "normal" anlamına gelmez).
+
+**Sınırlar:** Sadece **röntgen + toraks** gerçek modele gider. MR ve BT yüklemeleri hâlâ mock ile çalışır
+(bu modaliteler için eğitilmiş model takılmadı). Model kutu çizmez, sadece bulgu sınıflandırır.
+
+**İsteğe bağlı — dosya sabitleme:** `export_xray_model.py` çıktısında bir `sha256:` değeri yazar.
+`VETMIND_LOCAL_TORCH_WEIGHTS_SHA256=<değer>` verirseniz, dosya değişirse sistem modeli yüklemeyi reddeder.
+
+**Windows (PowerShell):**
+
+```powershell
+cd backend
+$env:VETMIND_LLM_PROVIDER="ollama"; $env:VETMIND_LLM_MODEL_ID="qwen2.5:7b"; $env:VETMIND_LLM_TIMEOUT_S="600"; $env:VETMIND_LLM_VERIFY="false"
+$env:VETMIND_PIXEL_ANALYSIS_OPT_IN="true"; $env:VETMIND_LOCAL_TORCH_MODEL_ID="vet-xr-thorax-v1"
+$env:VETMIND_LOCAL_TORCH_ENTRYPOINT="app.models.entrypoints.xray_monai:build_entrypoint"
+$env:VETMIND_LOCAL_TORCH_WEIGHTS_PATH="../artifacts/vet-xr-thorax-v1/model.pt"
+$env:VETMIND_LOCAL_TORCH_MODALITIES="XR"; $env:VETMIND_LOCAL_TORCH_REGIONS="THORAX"; $env:VETMIND_LOCAL_TORCH_MODEL_VERSION="0.1.0-txrv-human"
+.venv\Scripts\uvicorn app.main:app --reload --reload-dir app --port 8000
+```
+
+**Sorun giderme:**
+
+| Belirti | Neden / çözüm |
+|---------|---------------|
+| Röntgen bulguları hâlâ "mock / demo" | (a) Backend `backend:dev:vision` ile değil, `backend:dev` / `backend:dev:ai` ile açık — kapatıp doğru komutla başlatın. (b) Model dosyası yok (2. adım yapılmamış) — sistem bu durumda hata vermez, mock'a geçer; `ls artifacts/vet-xr-thorax-v1/model.pt` ile bakın. |
+| Analiz "PyTorch unavailable" / "MONAI unavailable" ile başarısız | 1. adım yapılmamış: `requirements-vision.txt` kurun. |
+| "does not match the pinned SHA-256" | Model dosyası yeniden oluşturulmuş; yeni `sha256:` değerini verin ya da sabitlemeyi kaldırın. |
+| Rapor yazılırken tarayıcı takılıyor | qwen ekran kartını %100 kullanıyor. Birkaç dakika bekleyin; sayfayı kapatsanız da analiz arkada sürer. |
+| İki backend aynı anda (ör. 8000 mock, 8001 vision) | Arayüzü `VETMIND_API_PROXY=http://127.0.0.1:8001 npx vite --port 5175` ile ikinci backend'e bağlayın. |
 
 ---
 
@@ -425,7 +495,9 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine map eder.
 | `remote-vision-v1` (yapılandırılabilir) | `VETMIND_VISION_ENDPOINT` set ise HTTP |
 
 Mock’lar: `source_kind=MOCK`, `Finding.synthetic=True`.  
-Pixel: default-deny; bugün hiçbir capability `allows_pixel_analysis=True` değil.
+Pixel: default-deny. Varsayılan kurulumda hiçbir capability `allows_pixel_analysis=True` değil; `VETMIND_LOCAL_TORCH_*`
+ile yerel model tanımlanınca (§4.5, `vet-xr-thorax-v1`) o model piksel alır — yine de `VETMIND_PIXEL_ANALYSIS_OPT_IN=true`,
+onaylı sınıflandırma ve vaka bazında görüntü izni + analiz onayı şarttır.
 
 ### 8.3 LLM katmanı
 

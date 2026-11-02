@@ -51,6 +51,15 @@ Configure via `.env` (`VETMIND_LOCAL_TORCH_*`, see `.env.example`). Entrypoints:
 | CT | `app.models.entrypoints.ct_monai:build_entrypoint` |
 | MRI | `app.models.entrypoints.mri_monai:build_entrypoint` |
 
+Pretrained chest X-ray demo (human-data TorchXRayVision DenseNet121, not veterinary-validated):
+
+```bash
+.venv/bin/python scripts/export_xray_model.py   # writes ../artifacts/vet-xr-thorax-v1/model.pt, prints SHA-256
+cd .. && npm run backend:dev:vision             # backend with Ollama LLM + this XR model
+```
+
+Full Turkish guide: root `README.md` §4.5.
+
 Offline training lives under repo-root `ml/` (never imported by FastAPI by default).
 
 - API: http://127.0.0.1:8000  
