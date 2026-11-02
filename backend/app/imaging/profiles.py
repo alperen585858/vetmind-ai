@@ -120,8 +120,9 @@ def xray_2d_profile(
         species=species,
         transfer_syntaxes=frozenset({_EXPLICIT_LE, _IMPLICIT_LE}),
     )
-    # Extend base 2D transforms with optional resize + quality (still contract-gated).
-    transforms = tuple(base.allowed_transforms) + (
+    # Radiographs have no Hounsfield units: drop hu_window, which would otherwise demand a
+    # CT-style WW/WC. Then extend with optional resize + quality (still contract-gated).
+    transforms = tuple(t for t in base.allowed_transforms if t != TRANSFORM_HU_WINDOW) + (
         TRANSFORM_RESIZE_2D,
         TRANSFORM_QUALITY_CHECK,
     )

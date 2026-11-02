@@ -110,6 +110,9 @@ class AppContainer:
 
         local_cap = local_capability_from_settings(self.settings)
         if local_cap is not None:
+            # Register first: the adapter copies this list and looks itself up in it for
+            # pixel authorization (missing → DENIED_MODEL_NOT_PIXEL_CAPABLE on every run).
+            capabilities.insert(0, local_cap)
             artifact_root = (
                 Path(self.settings.vision_artifact_root)
                 if self.settings.vision_artifact_root
@@ -118,6 +121,7 @@ class AppContainer:
             local_adapter = build_optional_local_torch(
                 model_id=local_cap.model_id,
                 weights_path=self.settings.local_torch_weights_path,
+                weights_sha256=self.settings.local_torch_weights_sha256,
                 entrypoint=self.settings.local_torch_entrypoint,
                 version=local_cap.model_version,
                 device=self.settings.local_torch_device,
@@ -150,7 +154,6 @@ class AppContainer:
                     pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
                 )
             self.models[local_cap.model_id] = local_adapter
-            capabilities.insert(0, local_cap)
 
         # F8: fail fast if enabled capabilities lack adapters or IDs conflict.
         validate_registry_capabilities(capabilities, self.models)
