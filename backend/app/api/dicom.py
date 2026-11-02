@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -6,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container, get_dicom_service
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.rbac import CAP_DICOM
+from app.auth.rbac import CAP_ADMIN, CAP_DICOM
 from app.dicom.fixtures import (
     brain_ct_study_files,
     brain_mri_study_files,
@@ -24,6 +26,8 @@ router = APIRouter(
     tags=["dicom"],
     dependencies=[Depends(require_auth), Depends(require_capability(CAP_DICOM))],
 )
+
+EVAL_RESULTS_DIR = Path(__file__).resolve().parents[2] / "eval" / "results"
 
 _MAX_FILES = 200
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
@@ -266,3 +270,18 @@ def confirm_classification(
     principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
     return service.confirm(ingest_id, payload, principal=principal)
+
+
+@router.get("/eval/latest")
+def latest_classification_eval(
+    _auth=Depends(require_capability(CAP_ADMIN)),
+) -> dict:
+    """Newest offline classification eval (scripts/classification_eval.py). Synthetic only."""
+    files = sorted(EVAL_RESULTS_DIR.glob("cls-*.json")) if EVAL_RESULTS_DIR.is_dir() else []
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No classification evaluation results yet. Run scripts/classification_eval.py.",
+        )
+    data = json.loads(files[-1].read_text(encoding="utf-8"))
+    return {"file": files[-1].name, **data}

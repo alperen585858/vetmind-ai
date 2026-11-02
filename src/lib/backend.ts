@@ -306,6 +306,58 @@ export async function fetchLatestLlmEval(): Promise<LlmEvalResult | null> {
   }
 }
 
+export interface ClassificationFieldSummary {
+  labels: string[]
+  matrix: number[][]
+  accuracy: number
+  macro_f1: number
+  per_class: Record<string, { precision: number; recall: number; f1: number; specificity: number; support: number }>
+  n: number
+}
+
+export interface ClassificationEvalRun {
+  label: string
+  classifier: string
+  summary: {
+    modality: ClassificationFieldSummary
+    region: ClassificationFieldSummary
+    species: ClassificationFieldSummary | null
+    n_cases: number
+    synthetic: boolean
+    clinical_validation: boolean
+    note: string
+  }
+  cases: Array<{
+    case_id: string
+    title: string
+    modality: { gold: string; pred: string; correct: boolean }
+    region: { gold: string; pred: string; correct: boolean }
+    species: { gold: string; pred: string; correct: boolean } | null
+    needs_confirmation: boolean
+    disagreement: boolean
+  }>
+}
+
+export interface ClassificationEvalResult {
+  file: string
+  set: string
+  set_version: number
+  set_note?: string
+  synthetic?: boolean
+  clinical_validation?: boolean
+  runs: ClassificationEvalRun[]
+}
+
+/** Latest scripts/classification_eval.py result, or null when none has been run yet. */
+export async function fetchLatestClassificationEval(): Promise<ClassificationEvalResult | null> {
+  try {
+    return await request<ClassificationEvalResult>('/dicom/eval/latest')
+  } catch (err) {
+    if (err instanceof BackendUnavailableError) throw err
+    return null
+  }
+}
+
 /**
  * Create a synthetic case and run mock analysis synchronously.
  * The analyze endpoint blocks until the pipeline finishes; job_id is a run id, not a queue ticket.

@@ -1,1 +1,1 @@
-"""Offline evaluation of the LLM report layer (see scripts/llm_eval.py)."""
+"""Offline evaluation helpers (LLM reports + DICOM classification metrics)."""

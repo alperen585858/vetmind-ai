@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "name": "VetMind DICOM classification seed set",
+  "note": "Sentetik metadata vakaları. Etiketler kural sınıflandırıcı + ders metrik iskeleti için yazıldı; uzman klinik doğrulaması yok. Klinik validasyon iddiası taşımaz. VRM/uzman verisi gelince genişletilir.",
+  "cases": [
+    {
+      "id": "brain-mri-canine",
+      "title": "Net Brain MRI + canine",
+      "study": {
+        "study_description": "Canine Brain MRI",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "T1 AX BRAIN",
+            "body_part_examined": "BRAIN"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "BRAIN",
+        "species": "canine"
+      }
+    },
+    {
+      "id": "cervical-mri",
+      "title": "Net Cervical MRI",
+      "study": {
+        "study_description": "Cervical spine MRI",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "SAG C SPINE T2",
+            "body_part_examined": "CERVICAL"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "CERVICAL",
+        "species": null
+      }
+    },
+    {
+      "id": "brain-ct",
+      "title": "Net Brain CT",
+      "study": {
+        "study_description": "Head CT",
+        "series": [
+          {
+            "modality": "CT",
+            "series_description": "AX HEAD",
+            "body_part_examined": "HEAD"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "CT",
+        "region": "BRAIN",
+        "species": null
+      }
+    },
+    {
+      "id": "thorax-xr",
+      "title": "Net Thorax XR",
+      "study": {
+        "study_description": "Thoracic radiograph",
+        "series": [
+          {
+            "modality": "XR",
+            "series_description": "LAT THORAX",
+            "body_part_examined": "CHEST"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "XR",
+        "region": "THORAX",
+        "species": null
+      }
+    },
+    {
+      "id": "thorax-xr-feline",
+      "title": "Thorax XR + feline token",
+      "study": {
+        "study_description": "Feline chest XR",
+        "series": [
+          {
+            "modality": "XR",
+            "series_description": "VD THORAX",
+            "body_part_examined": "THORAX"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "XR",
+        "region": "THORAX",
+        "species": "feline"
+      }
+    },
+    {
+      "id": "cervical-body-part",
+      "title": "Region from BodyPartExamined only",
+      "study": {
+        "study_description": null,
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "T2 SAG",
+            "body_part_examined": "C-SPINE"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "CERVICAL",
+        "species": null
+      }
+    },
+    {
+      "id": "xr-no-region-default",
+      "title": "XR without region tokens → weak THORAX default",
+      "study": {
+        "study_description": "Plain film study",
+        "series": [
+          {
+            "modality": "XR",
+            "series_description": "LATERAL VIEW",
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "XR",
+        "region": "THORAX",
+        "species": null
+      }
+    },
+    {
+      "id": "unsupported-modality",
+      "title": "Unsupported modality → OTHER",
+      "study": {
+        "study_description": "Ultrasound abdomen",
+        "series": [
+          {
+            "modality": "OTHER",
+            "series_description": "ABD US",
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "OTHER",
+        "region": "OTHER",
+        "species": null
+      }
+    },
+    {
+      "id": "missing-modality",
+      "title": "No modality tag",
+      "study": {
+        "study_description": "Brain MRI canine",
+        "series": [
+          {
+            "modality": null,
+            "series_description": "T1 AX BRAIN",
+            "body_part_examined": "BRAIN"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "OTHER",
+        "region": "BRAIN",
+        "species": "canine"
+      }
+    },
+    {
+      "id": "ambiguous-regions",
+      "title": "Brain + thorax tokens → UNKNOWN",
+      "study": {
+        "study_description": "Brain and thorax survey",
+        "series": [
+          {
+            "modality": "CT",
+            "series_description": "HEAD CHEST",
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "CT",
+        "region": "UNKNOWN",
+        "species": null
+      }
+    },
+    {
+      "id": "hybrid-disagreement",
+      "title": "Study brain vs series C-spine — gold=BRAIN, classifier often UNKNOWN",
+      "note": "Gold reflects study intent; classifier may mark UNKNOWN due to conflicting tokens (confusion-matrix demo).",
+      "study": {
+        "study_description": "Brain MRI canine",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "SAG C SPINE T2",
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "BRAIN",
+        "species": "canine"
+      }
+    },
+    {
+      "id": "mixed-modality",
+      "title": "MR + CT in one study — dominant MR (2 vs 1)",
+      "study": {
+        "study_description": "Brain multimodal",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "T1 AX BRAIN",
+            "body_part_examined": "BRAIN"
+          },
+          {
+            "modality": "MR",
+            "series_description": "T2 AX BRAIN",
+            "body_part_examined": "BRAIN"
+          },
+          {
+            "modality": "CT",
+            "series_description": "AX HEAD",
+            "body_part_examined": "HEAD"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "BRAIN",
+        "species": null
+      }
+    },
+    {
+      "id": "species-conflict",
+      "title": "Canine + feline tokens — species unset",
+      "study": {
+        "study_description": "Canine feline mixed label Brain MRI",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "AX BRAIN",
+            "body_part_examined": "BRAIN"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "BRAIN",
+        "species": null
+      }
+    },
+    {
+      "id": "empty-metadata",
+      "title": "Empty descriptions",
+      "study": {
+        "study_description": null,
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": null,
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "UNKNOWN",
+        "species": null
+      }
+    },
+    {
+      "id": "other-region-text",
+      "title": "Descriptive text without region tokens → OTHER",
+      "study": {
+        "study_description": "Follow-up examination",
+        "series": [
+          {
+            "modality": "CT",
+            "series_description": "ROUTINE SERIES",
+            "body_part_examined": null
+          }
+        ]
+      },
+      "expected": {
+        "modality": "CT",
+        "region": "OTHER",
+        "species": null
+      }
+    },
+    {
+      "id": "brain-mri-dog-patient",
+      "title": "Species from PatientName-like DICOM field",
+      "study": {
+        "study_description": "Brain MRI",
+        "patient_name_from_dicom": "DOG^Rex",
+        "series": [
+          {
+            "modality": "MR",
+            "series_description": "FLAIR AX BRAIN",
+            "body_part_examined": "CRANIUM"
+          }
+        ]
+      },
+      "expected": {
+        "modality": "MR",
+        "region": "BRAIN",
+        "species": "canine"
+      }
+    }
+  ]
+}

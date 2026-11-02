@@ -7,9 +7,12 @@ import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { useLocale } from '../context/LocaleContext'
 import {
+  fetchLatestClassificationEval,
   fetchLatestLlmEval,
   fetchLlmFeedback,
   fetchLlmStatus,
+  type ClassificationEvalResult,
+  type ClassificationFieldSummary,
   type LlmEvalResult,
   type LlmEvalRun,
   type LlmFeedbackSummary,
@@ -62,11 +65,70 @@ function bestIndex(values: (number | null | undefined)[], better: 'high' | 'low'
   return valid.filter((v) => v === target).length === 1 ? nums.indexOf(target) : -1
 }
 
+function FieldMetricsCard({
+  title,
+  field,
+  confusionLabel,
+}: {
+  title: string
+  field: ClassificationFieldSummary
+  confusionLabel: string
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-100 p-4">
+      <h3 className="mb-2 text-sm font-semibold text-navy-900">{title}</h3>
+      <dl className="mb-3 grid grid-cols-3 gap-2 text-center text-sm">
+        <div>
+          <dt className="text-[10px] uppercase text-slate-500">Acc</dt>
+          <dd className="font-semibold text-navy-900">{pct(field.accuracy)}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase text-slate-500">Macro-F1</dt>
+          <dd className="font-semibold text-navy-900">{pct(field.macro_f1)}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] uppercase text-slate-500">n</dt>
+          <dd className="font-semibold text-navy-900">{field.n}</dd>
+        </div>
+      </dl>
+      <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">{confusionLabel}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr>
+              <th className="px-1 py-0.5 text-left text-slate-400" />
+              {field.labels.map((lab) => (
+                <th key={lab} className="px-1 py-0.5 font-mono font-normal text-slate-500">{lab}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {field.labels.map((lab, i) => (
+              <tr key={lab}>
+                <td className="px-1 py-0.5 font-mono text-slate-500">{lab}</td>
+                {field.matrix[i].map((v, j) => (
+                  <td
+                    key={j}
+                    className={`px-1 py-0.5 text-center ${i === j ? 'font-semibold text-emerald-700' : 'text-navy-900'}`}
+                  >
+                    {v}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function ModelPerformance() {
   const { t, intlLocale } = useLocale()
   const [status, setStatus] = useState<LlmStatus | null>(null)
   const [feedback, setFeedback] = useState<LlmFeedbackSummary | null>(null)
   const [evalResult, setEvalResult] = useState<LlmEvalResult | null>(null)
+  const [clsEval, setClsEval] = useState<ClassificationEvalResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -82,11 +144,12 @@ export default function ModelPerformance() {
   const load = () => {
     setLoading(true)
     setError(null)
-    Promise.all([fetchLlmStatus(), fetchLlmFeedback(), fetchLatestLlmEval()])
-      .then(([s, f, e]) => {
+    Promise.all([fetchLlmStatus(), fetchLlmFeedback(), fetchLatestLlmEval(), fetchLatestClassificationEval()])
+      .then(([s, f, e, c]) => {
         setStatus(s)
         setFeedback(f)
         setEvalResult(e)
+        setClsEval(c)
       })
       .catch((err) => setError(err instanceof Error ? err.message : t('admin.loadDataFail')))
       .finally(() => setLoading(false))
@@ -229,6 +292,46 @@ export default function ModelPerformance() {
           )}
         </Card>
       </div>
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('admin.clsEvalTitle')}</h2>
+      {clsEval?.runs?.[0] ? (
+        <Card className="mb-8">
+          <CardHeader
+            title={t('admin.clsEvalTitle')}
+            subtitle={`${clsEval.set} · ${clsEval.runs[0].summary.n_cases} ${t('admin.clsEvalCases').toLowerCase()} · ${clsEval.file}`}
+            icon={<FlaskConical className="h-5 w-5" />}
+          />
+          <p className="px-5 pb-3 text-xs text-amber-800">{t('admin.clsEvalSubtitle')}</p>
+          <div className="grid gap-4 px-5 pb-4 md:grid-cols-2 xl:grid-cols-3">
+            <FieldMetricsCard
+              title={t('admin.clsEvalModality')}
+              field={clsEval.runs[0].summary.modality}
+              confusionLabel={t('admin.clsEvalConfusion')}
+            />
+            <FieldMetricsCard
+              title={t('admin.clsEvalRegion')}
+              field={clsEval.runs[0].summary.region}
+              confusionLabel={t('admin.clsEvalConfusion')}
+            />
+            {clsEval.runs[0].summary.species && (
+              <FieldMetricsCard
+                title={t('admin.clsEvalSpecies')}
+                field={clsEval.runs[0].summary.species}
+                confusionLabel={t('admin.clsEvalConfusion')}
+              />
+            )}
+          </div>
+          <p className="border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">{t('admin.clsEvalFooter')}</p>
+        </Card>
+      ) : (
+        <Card className="mb-8">
+          <EmptyState
+            icon={<FlaskConical className="h-6 w-6" />}
+            title={t('admin.clsEvalEmpty')}
+            text={t('admin.clsEvalEmptyText')}
+          />
+        </Card>
+      )}
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('admin.offlineEval')}</h2>
       {runs.length ? (
