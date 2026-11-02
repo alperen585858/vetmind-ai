@@ -35,6 +35,7 @@ class LocalTorchConfig:
     model_id: str
     version: str = "0.0.0-unconfigured"
     weights_path: Optional[str] = None
+    weights_sha256: Optional[str] = None  # pin; see Settings.local_torch_weights_sha256
     entrypoint: Optional[str] = None  # e.g. "package.module:build_model"
     device: str = "cpu"
     input_layout: str = "chw"  # chw | dhw
@@ -124,6 +125,7 @@ class LocalTorchVisionAdapter:
             model_id=self.model_id,
             version=self.version,
             timeout_s=self._config.timeout_s,
+            weights_sha256=self._config.weights_sha256,
         )
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:

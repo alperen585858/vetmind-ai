@@ -136,6 +136,7 @@ class AppContainer:
                         model_id=local_cap.model_id,
                         version=local_cap.model_version,
                         weights_path=self.settings.local_torch_weights_path,
+                        weights_sha256=self.settings.local_torch_weights_sha256,
                         entrypoint=self.settings.local_torch_entrypoint,
                         device=self.settings.local_torch_device,
                         timeout_s=self.settings.local_torch_timeout_s,

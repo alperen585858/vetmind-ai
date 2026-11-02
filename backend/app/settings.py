@@ -43,6 +43,9 @@ class Settings:
     # Optional local PyTorch Vision (weights + entrypoint required for loaded state).
     local_torch_model_id: str | None = None
     local_torch_weights_path: str | None = None
+    # Expected SHA-256 of the checkpoint. When set, a mismatch refuses to load, and only a
+    # pinned checkpoint may use full (pickle) loading; otherwise weights_only loading is used.
+    local_torch_weights_sha256: str | None = None
     local_torch_entrypoint: str | None = None
     local_torch_model_version: str = "0.0.0-unconfigured"
     local_torch_device: str = "cpu"
@@ -224,6 +227,7 @@ def load_settings() -> Settings:
 
     local_torch_model_id = os.getenv("VETMIND_LOCAL_TORCH_MODEL_ID") or None
     local_torch_weights_path = os.getenv("VETMIND_LOCAL_TORCH_WEIGHTS_PATH") or None
+    local_torch_weights_sha256 = (os.getenv("VETMIND_LOCAL_TORCH_WEIGHTS_SHA256") or "").strip().lower() or None
     local_torch_entrypoint = os.getenv("VETMIND_LOCAL_TORCH_ENTRYPOINT") or None
     local_torch_model_version = (
         os.getenv("VETMIND_LOCAL_TORCH_MODEL_VERSION", "0.0.0-unconfigured").strip()
@@ -384,6 +388,7 @@ def load_settings() -> Settings:
         pixel_analysis_opt_in=pixel_analysis_opt_in,
         local_torch_model_id=local_torch_model_id,
         local_torch_weights_path=local_torch_weights_path,
+        local_torch_weights_sha256=local_torch_weights_sha256,
         local_torch_entrypoint=local_torch_entrypoint,
         local_torch_model_version=local_torch_model_version,
         local_torch_device=local_torch_device,

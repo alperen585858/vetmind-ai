@@ -88,6 +88,25 @@ def file_sha256(path: Path, *, max_bytes: int | None = None) -> str:
     return h.hexdigest()
 
 
+_DIGEST_MEMO: dict[tuple[str, int, int], str] = {}
+_DIGEST_LOCK = threading.Lock()
+
+
+def cached_file_sha256(path: Path) -> str:
+    """file_sha256 memoised on (resolved path, size, mtime): checkpoints are large and
+    readiness / every analyze used to re-hash the whole file."""
+    st = path.stat()
+    key = (str(path.resolve()), st.st_size, st.st_mtime_ns)
+    with _DIGEST_LOCK:
+        hit = _DIGEST_MEMO.get(key)
+    if hit is not None:
+        return hit
+    digest = file_sha256(path)
+    with _DIGEST_LOCK:
+        _DIGEST_MEMO[key] = digest
+    return digest
+
+
 def require_weights_file(weights_path: str | None, *, model_id: str) -> Path:
     if not weights_path or not str(weights_path).strip():
         raise ModelUnavailableError(
@@ -109,14 +128,24 @@ def load_torch_checkpoint(
     device: str = "cpu",
     cache: WeightCache | None = None,
     map_location: str | None = None,
+    expected_sha256: str | None = None,
 ) -> CachedWeights:
-    """Load a torch checkpoint into the cache. Lazy-imports torch."""
+    """Load a torch checkpoint into the cache. Lazy-imports torch.
+
+    Loading is ``weights_only`` (no code execution from the file). Full pickle loading is
+    allowed only for a checkpoint pinned by ``expected_sha256``; a pin mismatch refuses.
+    """
     path = require_weights_file(weights_path, model_id=model_id)
     key = WeightCacheKey(model_id=model_id, version=version, device=device)
     store = cache or global_weight_cache()
     hit = store.get(key)
-    digest = file_sha256(path)
-    if hit is not None and hit.digest_sha256 == digest and hit.weights_path == str(path):
+    digest = cached_file_sha256(path)
+    pin = (expected_sha256 or "").strip().lower() or None
+    if pin is not None and digest != pin:
+        raise ModelUnavailableError(
+            f"Checkpoint for {model_id!r} does not match the pinned SHA-256; refusing to load."
+        )
+    if hit is not None and hit.digest_sha256 == digest and hit.weights_path == str(path.resolve()):
         return hit
 
     try:
@@ -129,14 +158,27 @@ def load_torch_checkpoint(
 
     loc = map_location or device
     try:
-        payload = torch.load(str(path), map_location=loc, weights_only=False)
-    except TypeError:
-        # Older torch without weights_only=
+        payload = torch.load(str(path), map_location=loc, weights_only=True)
+    except TypeError as exc:
+        # Torch too old for weights_only=: full pickle load only for a pinned file.
+        if pin is None:
+            raise ModelUnavailableError(
+                f"Torch cannot safely load {model_id!r} (no weights_only); "
+                "set VETMIND_LOCAL_TORCH_WEIGHTS_SHA256 to trust this exact file."
+            ) from exc
         payload = torch.load(str(path), map_location=loc)
-    except Exception as exc:  # noqa: BLE001
-        raise ModelUnavailableError(
-            f"Failed to load checkpoint for {model_id!r}: {type(exc).__name__}: {exc}"
-        ) from exc
+    except Exception as exc:  # noqa: BLE001 — e.g. UnpicklingError for objects beyond tensors/dicts
+        if pin is None:
+            raise ModelUnavailableError(
+                f"Checkpoint for {model_id!r} needs full pickle loading; "
+                "set VETMIND_LOCAL_TORCH_WEIGHTS_SHA256 to trust this exact file."
+            ) from exc
+        try:
+            payload = torch.load(str(path), map_location=loc, weights_only=False)
+        except Exception as exc2:  # noqa: BLE001
+            raise ModelUnavailableError(
+                f"Failed to load checkpoint for {model_id!r}: {type(exc2).__name__}: {exc2}"
+            ) from exc2
 
     meta: dict[str, Any] = {}
     if isinstance(payload, dict):
@@ -200,7 +242,7 @@ def readiness_weight_fields(
 
     if weights_path and Path(weights_path).is_file():
         try:
-            out["weight_digest_sha256"] = file_sha256(Path(weights_path))
+            out["weight_digest_sha256"] = cached_file_sha256(Path(weights_path))
         except OSError:
             out["weight_digest_sha256"] = ""
         key = WeightCacheKey(model_id=model_id, version=version, device=device)

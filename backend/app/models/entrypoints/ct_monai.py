@@ -68,6 +68,7 @@ class CTMonaiEntrypoint:
         model_id: str,
         version: str,
         weights_path: str | None = None,
+        weights_sha256: str | None = None,
         device: str = "cpu",
         timeout_s: float = 60.0,
         score_threshold: float = 0.5,
@@ -77,6 +78,7 @@ class CTMonaiEntrypoint:
         self.model_id = model_id
         self.version = version
         self.weights_path = weights_path
+        self.weights_sha256 = weights_sha256
         self.device = device
         self.timeout_s = timeout_s
         self.score_threshold = score_threshold
@@ -95,6 +97,7 @@ class CTMonaiEntrypoint:
             model_id=self.model_id,
             version=self.version,
             device=self.device,
+            expected_sha256=self.weights_sha256,
         )
         payload = self._cached.payload
         self._label_names = checkpoint_label_names(payload, _DEFAULT_LABELS)
