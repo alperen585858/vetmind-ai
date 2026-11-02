@@ -577,14 +577,18 @@ class CaseService:
 
         user_turn = AiChatTurn(role="user", content=payload.message.strip(), author_id=author_id)
         assistant_turn = AiChatTurn(role="assistant", content=reply, author_id="vetmind-ai")
-        history = [*history, user_turn, assistant_turn]
-        # Bound growth for SQLite rows / demo DB size.
-        if len(history) > 40:
-            history = history[-40:]
-        case.ai_chat = history
-        case.updated_at = _now()
-        append_activity(case, kind="ai_chat", actor_subject=author_id, detail=f"{len(payload.message)} chars")
-        self._repo.save_case(case)
+        # The model call can take a minute: reload and change only the chat, so an approval,
+        # draft save or analysis result written meanwhile is not overwritten by a stale copy.
+        with self._lock:
+            latest = self.get_case(case_id, principal=principal)
+            history = [*(latest.ai_chat or []), user_turn, assistant_turn]
+            # Bound growth for SQLite rows / demo DB size.
+            if len(history) > 40:
+                history = history[-40:]
+            latest.ai_chat = history
+            latest.updated_at = _now()
+            append_activity(latest, kind="ai_chat", actor_subject=author_id, detail=f"{len(payload.message)} chars")
+            self._repo.save_case(latest)
         self._emit_audit("case.ai_chat", principal=principal, resource=case_id)
         return AiChatResponse(
             case_id=case.case_id,
@@ -596,10 +600,12 @@ class CaseService:
     def clear_ai_chat(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[AiChatTurn]:
-        case = self.get_case(case_id, principal=principal)
-        case.ai_chat = []
-        case.updated_at = _now()
-        self._repo.save_case(case)
+        with self._lock:
+            case = self.get_case(case_id, principal=principal)
+            case.ai_chat = []
+            case.updated_at = _now()
+            self._repo.save_case(case)
+        self._emit_audit("case.ai_chat.clear", principal=principal, resource=case_id)
         return []
 
     def mark_report_delivered(
