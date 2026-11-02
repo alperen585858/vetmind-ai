@@ -16,6 +16,8 @@ from app.schemas.radiologist_payout import (
     RadiologistCasePayout,
     RadiologistPayoutDetail,
     RadiologistPayoutLedger,
+    RadiologistPayoutSettings,
+    RadiologistPayoutSettingsUpdate,
     RadiologistPayoutSummary,
     utcnow,
 )
@@ -38,16 +40,24 @@ class RadiologistPayoutService:
         workflow: "WorkflowService | None" = None,
     ) -> None:
         self._store = store
-        self._fee = max(1, int(fee_per_case))
         self._audit = audit
         self._cases_repo = cases_repo
         self._workflow = workflow
+        # Seed default only when store has no prior value other than constructor default.
+        current = self._store.get_settings()
+        if current.fee_per_case == RADIOLOGIST_CASE_FEE and fee_per_case != RADIOLOGIST_CASE_FEE:
+            self._store.save_settings(
+                RadiologistPayoutSettings(fee_per_case=max(1, int(fee_per_case)))
+            )
 
     def bind_workflow(self, workflow: "WorkflowService") -> None:
         self._workflow = workflow
 
     def bind_cases_repo(self, repo: "CaseRepository") -> None:
         self._cases_repo = repo
+
+    def _fee(self) -> int:
+        return max(1, int(self._store.get_settings().fee_per_case))
 
     def _require_admin(self, principal: AuthPrincipal) -> None:
         if principal.via == "disabled":
@@ -89,10 +99,11 @@ class RadiologistPayoutService:
         if not subject:
             subject = "unknown-radiologist"
         now = approved_at or utcnow()
+        fee = self._fee()
         payout = RadiologistCasePayout(
             case_id=case_id,
             radiologist_subject=subject,
-            amount=self._fee,
+            amount=fee,
             currency="EUR",
             status="owed",
             approved_at=now,
@@ -104,7 +115,45 @@ class RadiologistPayoutService:
             event_type="radiologist_payout.accrued",
             actor=subject,
             resource=case_id,
-            detail=f"{self._fee} {RADIOLOGIST_CASE_CURRENCY}",
+            detail=f"{fee} {RADIOLOGIST_CASE_CURRENCY}",
+        )
+        return saved
+
+    def get_settings(self, *, principal: AuthPrincipal) -> RadiologistPayoutSettings:
+        self._require_admin(principal)
+        return self._store.get_settings()
+
+    def update_settings(
+        self,
+        payload: RadiologistPayoutSettingsUpdate,
+        *,
+        principal: AuthPrincipal,
+    ) -> RadiologistPayoutSettings:
+        self._require_admin(principal)
+        fee = max(1, int(payload.fee_per_case))
+        now = utcnow()
+        settings = RadiologistPayoutSettings(
+            fee_per_case=fee,
+            currency="EUR",
+            updated_at=now,
+            updated_by=principal.subject,
+        )
+        saved = self._store.save_settings(settings)
+
+        rewritten = 0
+        if payload.apply_to_unpaid:
+            for row in self._store.list_payouts():
+                if row.status != "owed" or row.amount == fee:
+                    continue
+                updated = row.model_copy(update={"amount": fee, "updated_at": now})
+                self._store.save_payout(updated)
+                rewritten += 1
+
+        self._audit_event(
+            event_type="radiologist_payout.fee_updated",
+            actor=principal.subject,
+            resource="settings",
+            detail=f"fee={fee} rewritten_unpaid={rewritten}",
         )
         return saved
 
@@ -183,7 +232,7 @@ class RadiologistPayoutService:
             paid_cases=len(paid),
             amount_owed=sum(r.amount for r in unpaid),
             amount_paid=sum(r.amount for r in paid),
-            fee_per_case=self._fee,
+            fee_per_case=self._fee(),
             currency="EUR",
         )
 
@@ -196,7 +245,7 @@ class RadiologistPayoutService:
         ]
         radiologists.sort(key=lambda r: (-r.unpaid_cases, -r.amount_owed, r.radiologist_subject))
         return RadiologistPayoutLedger(
-            fee_per_case=self._fee,
+            fee_per_case=self._fee(),
             currency="EUR",
             radiologists=radiologists,
             total_unpaid_cases=sum(r.unpaid_cases for r in radiologists),

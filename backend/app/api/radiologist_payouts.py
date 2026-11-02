@@ -1,4 +1,4 @@
-"""Admin radiologist payout ledger API (fixed fee per approved case)."""
+"""Admin radiologist payout ledger API (editable fixed fee per approved case)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from app.schemas.radiologist_payout import (
     MarkRadiologistPaidRequest,
     RadiologistPayoutDetail,
     RadiologistPayoutLedger,
+    RadiologistPayoutSettings,
+    RadiologistPayoutSettingsUpdate,
 )
 
 router = APIRouter(
@@ -30,8 +32,26 @@ def list_radiologist_payouts(
     principal: AuthPrincipal = Depends(require_auth),
     service=Depends(_svc),
 ) -> RadiologistPayoutLedger:
-    """Per-radiologist unpaid case count and amount owed (fixed fee × cases)."""
+    """Per-radiologist unpaid case count and amount owed (fee × unpaid cases)."""
     return service.get_ledger(principal=principal)
+
+
+@router.get("/settings", response_model=RadiologistPayoutSettings)
+def get_radiologist_payout_settings(
+    principal: AuthPrincipal = Depends(require_auth),
+    service=Depends(_svc),
+) -> RadiologistPayoutSettings:
+    return service.get_settings(principal=principal)
+
+
+@router.put("/settings", response_model=RadiologistPayoutSettings)
+def update_radiologist_payout_settings(
+    payload: RadiologistPayoutSettingsUpdate,
+    principal: AuthPrincipal = Depends(require_auth),
+    service=Depends(_svc),
+) -> RadiologistPayoutSettings:
+    """Update fee per approved case. By default rewrites unpaid row amounts."""
+    return service.update_settings(payload, principal=principal)
 
 
 @router.get("/{email}", response_model=RadiologistPayoutDetail)

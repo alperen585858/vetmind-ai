@@ -75,3 +75,22 @@ class MarkRadiologistPaidRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_ids: Optional[list[str]] = None
+
+
+class RadiologistPayoutSettings(BaseModel):
+    """Persisted admin fee config (applies to new approvals + unpaid rows when updated)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fee_per_case: int = Field(default=RADIOLOGIST_CASE_FEE, ge=1, le=100_000)
+    currency: Literal["EUR"] = "EUR"
+    updated_at: Optional[datetime] = None
+    updated_by: Optional[str] = None
+
+
+class RadiologistPayoutSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fee_per_case: int = Field(ge=1, le=100_000)
+    # When true (default), rewrite amount on all currently owed rows to the new fee.
+    apply_to_unpaid: bool = True

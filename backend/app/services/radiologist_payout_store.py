@@ -1,4 +1,4 @@
-"""Persist radiologist case payouts (JSON document store)."""
+"""Persist radiologist case payouts + fee settings (JSON document store)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, Protocol
 
-from app.schemas.radiologist_payout import RadiologistCasePayout
+from app.schemas.radiologist_payout import (
+    RADIOLOGIST_CASE_FEE,
+    RadiologistCasePayout,
+    RadiologistPayoutSettings,
+)
 
 
 class RadiologistPayoutStore(Protocol):
@@ -20,11 +24,16 @@ class RadiologistPayoutStore(Protocol):
 
     def list_by_radiologist(self, radiologist_subject: str) -> list[RadiologistCasePayout]: ...
 
+    def get_settings(self) -> RadiologistPayoutSettings: ...
+
+    def save_settings(self, settings: RadiologistPayoutSettings) -> RadiologistPayoutSettings: ...
+
 
 class InMemoryRadiologistPayoutStore:
     def __init__(self) -> None:
         self._by_id: dict[str, RadiologistCasePayout] = {}
         self._by_case: dict[str, str] = {}
+        self._settings = RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
 
     def save_payout(self, payout: RadiologistCasePayout) -> RadiologistCasePayout:
         self._by_id[payout.payout_id] = payout
@@ -49,6 +58,13 @@ class InMemoryRadiologistPayoutStore:
             reverse=True,
         )
 
+    def get_settings(self) -> RadiologistPayoutSettings:
+        return self._settings
+
+    def save_settings(self, settings: RadiologistPayoutSettings) -> RadiologistPayoutSettings:
+        self._settings = settings
+        return settings
+
 
 class SqliteRadiologistPayoutStore:
     def __init__(self, db_path: Path | str) -> None:
@@ -70,9 +86,20 @@ class SqliteRadiologistPayoutStore:
                 ON radiologist_payouts(radiologist_subject);
             CREATE INDEX IF NOT EXISTS idx_rpay_case
                 ON radiologist_payouts(case_id);
+            CREATE TABLE IF NOT EXISTS radiologist_payout_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                payload TEXT NOT NULL
+            );
             """
         )
         self._conn.commit()
+        if self._conn.execute("SELECT 1 FROM radiologist_payout_settings WHERE id=1").fetchone() is None:
+            default = RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
+            self._conn.execute(
+                "INSERT INTO radiologist_payout_settings (id, payload) VALUES (1, ?)",
+                (default.model_dump_json(),),
+            )
+            self._conn.commit()
 
     def save_payout(self, payout: RadiologistCasePayout) -> RadiologistCasePayout:
         self._conn.execute(
@@ -125,6 +152,26 @@ class SqliteRadiologistPayoutStore:
             (radiologist_subject,),
         ).fetchall()
         return [RadiologistCasePayout.model_validate_json(r["payload"]) for r in rows]
+
+    def get_settings(self) -> RadiologistPayoutSettings:
+        row = self._conn.execute(
+            "SELECT payload FROM radiologist_payout_settings WHERE id=1"
+        ).fetchone()
+        if row is None:
+            return RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
+        return RadiologistPayoutSettings.model_validate_json(row["payload"])
+
+    def save_settings(self, settings: RadiologistPayoutSettings) -> RadiologistPayoutSettings:
+        self._conn.execute(
+            """
+            INSERT INTO radiologist_payout_settings (id, payload)
+            VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET payload=excluded.payload
+            """,
+            (settings.model_dump_json(),),
+        )
+        self._conn.commit()
+        return settings
 
 
 def build_radiologist_payout_store(settings) -> RadiologistPayoutStore:
