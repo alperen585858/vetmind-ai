@@ -222,6 +222,7 @@ class ModelRegistry:
             "remaining_steps_to_first_real_model": [
                 "Register a ModelCapability with source_kind=real and allows_pixel_analysis only after legal/ethics review",
                 "Provide weights_path (local_torch) or endpoint_url (HTTP) via secure env — never commit secrets",
+                "Pin the checkpoint with VETMIND_LOCAL_TORCH_WEIGHTS_SHA256 (required for full pickle loading)",
                 "Install optional vision deps: pip install -r requirements-vision.txt (torch/monai/opencv)",
                 "Set VETMIND_LOCAL_TORCH_ENTRYPOINT e.g. app.models.entrypoints.xray_monai:build_entrypoint",
                 "Set preprocessing_contract_id to profile.mri_volume / profile.ct_volume / profile.xray_2d",

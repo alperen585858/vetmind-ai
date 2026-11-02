@@ -159,8 +159,8 @@ def test_cancel_after_llm_discards_draft(tmp_path: Path, monkeypatch: pytest.Mon
     flags = {"cancel": False}
     original_generate = container.orchestrator._llm.generate_draft
 
-    def generate_and_arm_cancel(c, f):  # noqa: ANN001
-        report = original_generate(c, f)
+    def generate_and_arm_cancel(c, f, **kw):  # noqa: ANN001 — generate_draft now takes language=
+        report = original_generate(c, f, **kw)
         flags["cancel"] = True
         return report
 
@@ -182,5 +182,8 @@ def test_readiness_remaining_steps_aligned() -> None:
         adapters=default_model_registry(),
     )
     steps = view.readiness_payload()["remaining_steps_to_first_real_model"]
-    assert len(steps) == 8
-    assert any("consent" in s.lower() or "imaging_analysis_consent" in s for s in steps)
+    # Content, not a fixed count: the checklist grows as integration steps are added.
+    text = " ".join(steps)
+    for must in ("imaging_analysis_consent", "VETMIND_PIXEL_ANALYSIS_OPT_IN", "VETMIND_LOCAL_TORCH_ENTRYPOINT",
+                 "VETMIND_LOCAL_TORCH_WEIGHTS_SHA256", "immutable"):
+        assert must in text, must
