@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode, useRef } from 'react'
 import { LocalizedLink } from './LocalizedLink'
 import { AlertTriangle, FileImage, Loader2, PawPrint, Search, Trash2, X } from 'lucide-react'
 import { Button } from './Button'
@@ -459,12 +459,19 @@ export function VetSubmissionsBoard({
   const selectedPet = selected ? petById.get(selected.pet_id) : undefined
   const detailOpen = Boolean(selected)
 
+  // Pick the default tab once per selected submission. Re-running on every `rows` reload
+  // (after each action) used to throw the user back to the first tab.
+  const tabInitFor = useRef<string | null>(null)
   useEffect(() => {
+    const row = selectedId ? rows.find((r) => r.submission_id === selectedId) : null
+    if (!selectedId) {
+      tabInitFor.current = null
+      return
+    }
+    if (tabInitFor.current === selectedId || !row) return
+    tabInitFor.current = selectedId
     setInfoOpen(false)
-    const row = selectedId
-      ? rows.find((r) => r.submission_id === selectedId)
-      : null
-    setDetailTab(row?.dicom_ingest_id ? 'dicom' : 'genel')
+    setDetailTab(row.dicom_ingest_id ? 'dicom' : 'genel')
   }, [selectedId, rows])
 
   useEffect(() => {
