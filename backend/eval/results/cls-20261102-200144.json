@@ -1,0 +1,1781 @@
+{
+  "set": "VetMind DICOM classification — Turkish / free-text set",
+  "set_version": 1,
+  "set_note": "Sentetik metadata. Ekip tarafından yazıldı; Türkçe açıklamalar, kısaltmalar, ırk adları ve tuzak vakalar kural sınıflandırıcının zayıf yerlerini ölçmek için hazırlandı. Yazarların beklentisini yansıtabilir; gerçek ölçüm VRM'den anonim metadata gelince yapılmalı. Klinik validasyon değildir.",
+  "synthetic": true,
+  "clinical_validation": false,
+  "runs": [
+    {
+      "label": "metadata_rules_v1",
+      "classifier": "classify_study",
+      "llm_model": null,
+      "llm_calls": 0,
+      "mean_ms": 0.0,
+      "summary": {
+        "modality": {
+          "labels": [
+            "CT",
+            "MR",
+            "XR"
+          ],
+          "matrix": [
+            [
+              5,
+              0,
+              0
+            ],
+            [
+              0,
+              11,
+              0
+            ],
+            [
+              0,
+              0,
+              3
+            ]
+          ],
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "per_class": {
+            "CT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 5.0
+            },
+            "MR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 11.0
+            },
+            "XR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 3.0
+            }
+          },
+          "n": 19
+        },
+        "region": {
+          "labels": [
+            "BRAIN",
+            "CERVICAL",
+            "OTHER",
+            "THORAX",
+            "UNKNOWN"
+          ],
+          "matrix": [
+            [
+              1,
+              0,
+              5,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              3,
+              0
+            ],
+            [
+              0,
+              0,
+              2,
+              0,
+              0
+            ]
+          ],
+          "accuracy": 0.3684210526315789,
+          "macro_f1": 0.2705882352941177,
+          "per_class": {
+            "BRAIN": {
+              "precision": 1.0,
+              "recall": 0.14285714285714285,
+              "f1": 0.25,
+              "specificity": 1.0,
+              "support": 7.0
+            },
+            "CERVICAL": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 1.0,
+              "support": 3.0
+            },
+            "OTHER": {
+              "precision": 0.21428571428571427,
+              "recall": 1.0,
+              "f1": 0.35294117647058826,
+              "specificity": 0.3125,
+              "support": 3.0
+            },
+            "THORAX": {
+              "precision": 0.75,
+              "recall": 0.75,
+              "f1": 0.75,
+              "specificity": 0.9333333333333333,
+              "support": 4.0
+            },
+            "UNKNOWN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 1.0,
+              "support": 2.0
+            }
+          },
+          "n": 19
+        },
+        "species": {
+          "labels": [
+            "__none__",
+            "canine",
+            "feline"
+          ],
+          "matrix": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              2,
+              1,
+              0
+            ],
+            [
+              3,
+              0,
+              1
+            ]
+          ],
+          "accuracy": 0.2857142857142857,
+          "macro_f1": 0.3,
+          "per_class": {
+            "__none__": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 0.2857142857142857,
+              "support": 0.0
+            },
+            "canine": {
+              "precision": 1.0,
+              "recall": 0.3333333333333333,
+              "f1": 0.5,
+              "specificity": 1.0,
+              "support": 3.0
+            },
+            "feline": {
+              "precision": 1.0,
+              "recall": 0.25,
+              "f1": 0.4,
+              "specificity": 1.0,
+              "support": 4.0
+            }
+          },
+          "n": 7
+        },
+        "n_cases": 19,
+        "synthetic": true,
+        "clinical_validation": false,
+        "note": "Synthetic metadata labels only. Confusion / precision / recall / F1 are for offline demo of classification metrics — not clinical validation."
+      },
+      "cases": [
+        {
+          "case_id": "tr-kafa-mr",
+          "title": "Türkçe 'KAFA MR', sadece sekans adlı seri",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-beyin-kopek",
+          "title": "Türkçe 'BEYIN MR KOPEK'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "canine",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "tr-kranial-kedi",
+          "title": "Türkçe 'KRANIAL BT KEDI'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "feline",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "tr-boyun-bt",
+          "title": "Türkçe 'BOYUN BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-servikal-omurga",
+          "title": "Türkçe yazım 'SERVIKAL OMURGA'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-boyun-omurgasi",
+          "title": "Türkçe 'Boyun omurgasi', küçük harf",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-toraks-xr",
+          "title": "Türkçe 'TORAKS LL' röntgen",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "ambiguous",
+          "species": null
+        },
+        {
+          "case_id": "tr-gogus-kedi",
+          "title": "Türkçe 'GOGUS GRAFISI KEDI'",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "ambiguous",
+          "species": {
+            "gold": "feline",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "tr-akciger-bt",
+          "title": "Türkçe 'AKCIGER BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "breed-golden",
+          "title": "Irk adı + Türkçe bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "canine",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "breed-british",
+          "title": "Irk adı (kedi) + 'kafa BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "feline",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "sequence-only",
+          "title": "Sadece sekans adları — bölge belirlenemez",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-lomber",
+          "title": "Lomber omurga — desteklenmeyen bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-batin",
+          "title": "Batın BT — desteklenmeyen bölge",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-torakolomber",
+          "title": "Tuzak: torakolomber toraks değildir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-kafa-boyun",
+          "title": "Tuzak: iki bölge birden — onay gerekir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-injection",
+          "title": "Açıklamada modele talimat denemesi",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "THORAX",
+            "correct": false
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "control-en-brain",
+          "title": "Kontrol: düzgün İngilizce beyin",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "BRAIN",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "control-en-thorax",
+          "title": "Kontrol: düzgün İngilizce toraks",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        }
+      ]
+    },
+    {
+      "label": "metadata_rules_v1+llm",
+      "classifier": "classify_study+llm",
+      "llm_model": "ollama:qwen2.5:7b",
+      "llm_calls": 17,
+      "mean_ms": 3704.6,
+      "summary": {
+        "modality": {
+          "labels": [
+            "CT",
+            "MR",
+            "XR"
+          ],
+          "matrix": [
+            [
+              5,
+              0,
+              0
+            ],
+            [
+              0,
+              11,
+              0
+            ],
+            [
+              0,
+              0,
+              3
+            ]
+          ],
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "per_class": {
+            "CT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 5.0
+            },
+            "MR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 11.0
+            },
+            "XR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 3.0
+            }
+          },
+          "n": 19
+        },
+        "region": {
+          "labels": [
+            "BRAIN",
+            "CERVICAL",
+            "OTHER",
+            "THORAX",
+            "UNKNOWN"
+          ],
+          "matrix": [
+            [
+              3,
+              2,
+              1,
+              1,
+              0
+            ],
+            [
+              0,
+              3,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              4,
+              0
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0
+            ]
+          ],
+          "accuracy": 0.6842105263157895,
+          "macro_f1": 0.5811111111111111,
+          "per_class": {
+            "BRAIN": {
+              "precision": 1.0,
+              "recall": 0.42857142857142855,
+              "f1": 0.6,
+              "specificity": 1.0,
+              "support": 7.0
+            },
+            "CERVICAL": {
+              "precision": 0.5,
+              "recall": 1.0,
+              "f1": 0.6666666666666666,
+              "specificity": 0.8125,
+              "support": 3.0
+            },
+            "OTHER": {
+              "precision": 0.6,
+              "recall": 1.0,
+              "f1": 0.75,
+              "specificity": 0.875,
+              "support": 3.0
+            },
+            "THORAX": {
+              "precision": 0.8,
+              "recall": 1.0,
+              "f1": 0.8888888888888888,
+              "specificity": 0.9333333333333333,
+              "support": 4.0
+            },
+            "UNKNOWN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 1.0,
+              "support": 2.0
+            }
+          },
+          "n": 19
+        },
+        "species": {
+          "labels": [
+            "canine",
+            "feline"
+          ],
+          "matrix": [
+            [
+              3,
+              0
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "per_class": {
+            "canine": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 3.0
+            },
+            "feline": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 4.0
+            }
+          },
+          "n": 7
+        },
+        "n_cases": 19,
+        "synthetic": true,
+        "clinical_validation": false,
+        "note": "Synthetic metadata labels only. Confusion / precision / recall / F1 are for offline demo of classification metrics — not clinical validation."
+      },
+      "cases": [
+        {
+          "case_id": "tr-kafa-mr",
+          "title": "Türkçe 'KAFA MR', sadece sekans adlı seri",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "CERVICAL",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-beyin-kopek",
+          "title": "Türkçe 'BEYIN MR KOPEK'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "BRAIN",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "tr-kranial-kedi",
+          "title": "Türkçe 'KRANIAL BT KEDI'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "BRAIN",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "tr-boyun-bt",
+          "title": "Türkçe 'BOYUN BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-servikal-omurga",
+          "title": "Türkçe yazım 'SERVIKAL OMURGA'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-boyun-omurgasi",
+          "title": "Türkçe 'Boyun omurgasi', küçük harf",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-toraks-xr",
+          "title": "Türkçe 'TORAKS LL' röntgen",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-gogus-kedi",
+          "title": "Türkçe 'GOGUS GRAFISI KEDI'",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "tr-akciger-bt",
+          "title": "Türkçe 'AKCIGER BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "breed-golden",
+          "title": "Irk adı + Türkçe bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "breed-british",
+          "title": "Irk adı (kedi) + 'kafa BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "CERVICAL",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "sequence-only",
+          "title": "Sadece sekans adları — bölge belirlenemez",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-lomber",
+          "title": "Lomber omurga — desteklenmeyen bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-batin",
+          "title": "Batın BT — desteklenmeyen bölge",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-torakolomber",
+          "title": "Tuzak: torakolomber toraks değildir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-kafa-boyun",
+          "title": "Tuzak: iki bölge birden — onay gerekir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "CERVICAL",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "trap-injection",
+          "title": "Açıklamada modele talimat denemesi",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "THORAX",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": true,
+          "confidence": "low",
+          "classification_status": "ambiguous",
+          "species": null
+        },
+        {
+          "case_id": "control-en-brain",
+          "title": "Kontrol: düzgün İngilizce beyin",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "BRAIN",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "control-en-thorax",
+          "title": "Kontrol: düzgün İngilizce toraks",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        }
+      ]
+    },
+    {
+      "label": "metadata_rules_v1+llm",
+      "classifier": "classify_study+llm",
+      "llm_model": "ollama:qwen2.5:3b",
+      "llm_calls": 17,
+      "mean_ms": 3446.2,
+      "summary": {
+        "modality": {
+          "labels": [
+            "CT",
+            "MR",
+            "XR"
+          ],
+          "matrix": [
+            [
+              5,
+              0,
+              0
+            ],
+            [
+              0,
+              11,
+              0
+            ],
+            [
+              0,
+              0,
+              3
+            ]
+          ],
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "per_class": {
+            "CT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 5.0
+            },
+            "MR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 11.0
+            },
+            "XR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 3.0
+            }
+          },
+          "n": 19
+        },
+        "region": {
+          "labels": [
+            "BRAIN",
+            "CERVICAL",
+            "OTHER",
+            "THORAX",
+            "UNKNOWN"
+          ],
+          "matrix": [
+            [
+              1,
+              0,
+              5,
+              1,
+              0
+            ],
+            [
+              0,
+              3,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              3,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              4,
+              0
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0
+            ]
+          ],
+          "accuracy": 0.5789473684210527,
+          "macro_f1": 0.4992063492063492,
+          "per_class": {
+            "BRAIN": {
+              "precision": 1.0,
+              "recall": 0.14285714285714285,
+              "f1": 0.25,
+              "specificity": 1.0,
+              "support": 7.0
+            },
+            "CERVICAL": {
+              "precision": 0.75,
+              "recall": 1.0,
+              "f1": 0.8571428571428571,
+              "specificity": 0.9375,
+              "support": 3.0
+            },
+            "OTHER": {
+              "precision": 0.3333333333333333,
+              "recall": 1.0,
+              "f1": 0.5,
+              "specificity": 0.625,
+              "support": 3.0
+            },
+            "THORAX": {
+              "precision": 0.8,
+              "recall": 1.0,
+              "f1": 0.8888888888888888,
+              "specificity": 0.9333333333333333,
+              "support": 4.0
+            },
+            "UNKNOWN": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 1.0,
+              "support": 2.0
+            }
+          },
+          "n": 19
+        },
+        "species": {
+          "labels": [
+            "__none__",
+            "canine",
+            "feline",
+            "other"
+          ],
+          "matrix": [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              3,
+              0,
+              0
+            ],
+            [
+              1,
+              0,
+              2,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          "accuracy": 0.7142857142857143,
+          "macro_f1": 0.41666666666666663,
+          "per_class": {
+            "__none__": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 0.8571428571428571,
+              "support": 0.0
+            },
+            "canine": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "specificity": 1.0,
+              "support": 3.0
+            },
+            "feline": {
+              "precision": 1.0,
+              "recall": 0.5,
+              "f1": 0.6666666666666666,
+              "specificity": 1.0,
+              "support": 4.0
+            },
+            "other": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "specificity": 0.8571428571428571,
+              "support": 0.0
+            }
+          },
+          "n": 7
+        },
+        "n_cases": 19,
+        "synthetic": true,
+        "clinical_validation": false,
+        "note": "Synthetic metadata labels only. Confusion / precision / recall / F1 are for offline demo of classification metrics — not clinical validation."
+      },
+      "cases": [
+        {
+          "case_id": "tr-kafa-mr",
+          "title": "Türkçe 'KAFA MR', sadece sekans adlı seri",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-beyin-kopek",
+          "title": "Türkçe 'BEYIN MR KOPEK'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "tr-kranial-kedi",
+          "title": "Türkçe 'KRANIAL BT KEDI'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "feline",
+            "pred": "__none__",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "tr-boyun-bt",
+          "title": "Türkçe 'BOYUN BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-servikal-omurga",
+          "title": "Türkçe yazım 'SERVIKAL OMURGA'",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-boyun-omurgasi",
+          "title": "Türkçe 'Boyun omurgasi', küçük harf",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "CERVICAL",
+            "pred": "CERVICAL",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-toraks-xr",
+          "title": "Türkçe 'TORAKS LL' röntgen",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "tr-gogus-kedi",
+          "title": "Türkçe 'GOGUS GRAFISI KEDI'",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "ambiguous",
+          "species": {
+            "gold": "feline",
+            "pred": "other",
+            "correct": false
+          }
+        },
+        {
+          "case_id": "tr-akciger-bt",
+          "title": "Türkçe 'AKCIGER BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "breed-golden",
+          "title": "Irk adı + Türkçe bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "breed-british",
+          "title": "Irk adı (kedi) + 'kafa BT'",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "sequence-only",
+          "title": "Sadece sekans adları — bölge belirlenemez",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "OTHER",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-lomber",
+          "title": "Lomber omurga — desteklenmeyen bölge",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "tr-batin",
+          "title": "Batın BT — desteklenmeyen bölge",
+          "modality": {
+            "gold": "CT",
+            "pred": "CT",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-torakolomber",
+          "title": "Tuzak: torakolomber toraks değildir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "OTHER",
+            "pred": "OTHER",
+            "correct": true
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "low",
+          "classification_status": "unsupported",
+          "species": null
+        },
+        {
+          "case_id": "trap-kafa-boyun",
+          "title": "Tuzak: iki bölge birden — onay gerekir",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "UNKNOWN",
+            "pred": "CERVICAL",
+            "correct": false
+          },
+          "needs_confirmation": true,
+          "disagreement": false,
+          "confidence": "medium",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "trap-injection",
+          "title": "Açıklamada modele talimat denemesi",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "THORAX",
+            "correct": false
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": null
+        },
+        {
+          "case_id": "control-en-brain",
+          "title": "Kontrol: düzgün İngilizce beyin",
+          "modality": {
+            "gold": "MR",
+            "pred": "MR",
+            "correct": true
+          },
+          "region": {
+            "gold": "BRAIN",
+            "pred": "BRAIN",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "canine",
+            "pred": "canine",
+            "correct": true
+          }
+        },
+        {
+          "case_id": "control-en-thorax",
+          "title": "Kontrol: düzgün İngilizce toraks",
+          "modality": {
+            "gold": "XR",
+            "pred": "XR",
+            "correct": true
+          },
+          "region": {
+            "gold": "THORAX",
+            "pred": "THORAX",
+            "correct": true
+          },
+          "needs_confirmation": false,
+          "disagreement": false,
+          "confidence": "high",
+          "classification_status": "ready",
+          "species": {
+            "gold": "feline",
+            "pred": "feline",
+            "correct": true
+          }
+        }
+      ]
+    }
+  ]
+}
