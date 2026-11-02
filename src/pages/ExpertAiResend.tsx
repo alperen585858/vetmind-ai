@@ -91,6 +91,9 @@ export default function ExpertAiResend() {
   }, [rows])
 
   const selected = display.find((c) => (c.backendCaseId || c.id) === selectedId) || null
+  // Latest selection, read inside async chat handlers to drop results for a case the user left.
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
 
   useEffect(() => {
     chatAbortRef.current?.abort()
@@ -202,6 +205,8 @@ export default function ExpertAiResend() {
   async function sendChat() {
     if (!selectedId || !draft.trim() || sending) return
     const text = draft.trim()
+    const caseAtSend = selectedId
+    const stillOnCase = () => selectedIdRef.current === caseAtSend
     setDraft('')
     chatAbortRef.current?.abort()
     const controller = new AbortController()
@@ -209,9 +214,12 @@ export default function ExpertAiResend() {
     setSending(true)
     setChat((prev) => [...prev, { role: 'user', content: text }])
     try {
-      const res = await askCaseAiChat(selectedId, text, { signal: controller.signal })
-      setChat(res.history)
+      const res = await askCaseAiChat(caseAtSend, text, { signal: controller.signal })
+      if (stillOnCase()) setChat(res.history)
     } catch (err) {
+      // Switching case aborts the request: the question belongs to the old case, so
+      // do not put it back into the composer of the new one.
+      if (!stillOnCase()) return
       const aborted =
         (err instanceof DOMException && err.name === 'AbortError') ||
         (err instanceof Error && err.name === 'AbortError')
