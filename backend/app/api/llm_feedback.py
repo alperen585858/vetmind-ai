@@ -46,7 +46,11 @@ def latest_eval(
     _auth=Depends(require_capability(CAP_ADMIN)),
 ) -> dict:
     """Newest offline evaluation (scripts/llm_eval.py), without report texts."""
-    files = sorted(EVAL_RESULTS_DIR.glob("*.json")) if EVAL_RESULTS_DIR.is_dir() else []
+    files = (
+        sorted(p for p in EVAL_RESULTS_DIR.glob("*.json") if not p.name.startswith("cls-"))
+        if EVAL_RESULTS_DIR.is_dir()
+        else []
+    )
     if not files:
         raise HTTPException(status_code=404, detail="No evaluation results yet. Run scripts/llm_eval.py.")
     data = json.loads(files[-1].read_text(encoding="utf-8"))
