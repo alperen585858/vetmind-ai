@@ -99,8 +99,13 @@ export default function Processing() {
 
   const caseId = c?.backendCaseId || c?.id || id
 
+  // One refresh at a time: a slow response finishing after a newer one used to overwrite
+  // the job and make the progress bar jump backwards.
+  const refreshing = useRef(false)
   const refresh = useCallback(async () => {
     if (!isBackend || !caseId.startsWith('case-')) return
+    if (refreshing.current) return
+    refreshing.current = true
     setLoadError(null)
     try {
       const record = await getBackendCase(caseId)
@@ -112,6 +117,8 @@ export default function Processing() {
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : t('cases.processing.jobStatusFailed'))
+    } finally {
+      refreshing.current = false
     }
   }, [caseId, hydrateBackendCase, isBackend, t])
 
@@ -410,7 +417,7 @@ export default function Processing() {
                 <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
                 <dd className="col-span-3 text-xs">
                   {stageLabel(job) || t('common.dash')}
-                  {job?.progress_pct != null ? ` · ${job.progress_pct}%` : ''}
+                  {job?.progress_pct != null ? ` · ${Math.max(0, Math.min(100, job.progress_pct))}%` : ''}
                 </dd>
               </div>
             </dl>
