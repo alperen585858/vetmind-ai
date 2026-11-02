@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import require_capability
 from app.auth.principal import AuthPrincipal
-from app.auth.rbac import CAP_CASE_READ, CAP_CASE_WRITE
+from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
 from app.schemas.findings import BoundingBoxEvidence, StructuredFindings
 from app.services.case_service import CaseService
 from app.services.evidence_review import EvidenceReviewError
@@ -110,7 +110,7 @@ def post_evidence_review(
     evidence_id: str,
     body: EvidenceReviewBody,
     service: CaseService = Depends(get_case_service),
-    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_WRITE)),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
 ) -> StructuredFindings:
     try:
         return service.review_case_evidence(
@@ -131,7 +131,7 @@ def post_manual_evidence(
     case_id: str,
     body: ManualEvidenceBody,
     service: CaseService = Depends(get_case_service),
-    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_WRITE)),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
 ) -> StructuredFindings:
     try:
         return service.add_case_manual_evidence(
