@@ -290,7 +290,7 @@ function VetDashboard() {
           <CardHeader title={t('dashboard.caseDistribution')} subtitle={t('dashboard.last7Days')} />
           <div className="h-48 px-2 pb-3 pr-3">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <LineChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} width={28} />
