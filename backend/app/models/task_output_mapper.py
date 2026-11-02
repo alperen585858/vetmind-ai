@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
-from app.schemas.findings import EvidenceReference, Finding, StructuredFindings
+from app.schemas.findings import BoundingBoxEvidence, EvidenceReference, Finding, StructuredFindings
 from app.schemas.model_outputs import ModelTaskOutputs
 
 
@@ -63,9 +63,27 @@ def map_task_outputs_to_findings(
                         EvidenceReference(
                             evidence_id=f"{case.case_id}-det-{i + 1}-ev",
                             description="Detection bounding box evidence",
+                            evidence_type="bbox",
                             sop_instance_uid=box.sop_instance_uid,
                             frame_index=box.frame_index,
-                            note="Pixel coordinates; not a clinical diagnosis.",
+                            bbox=BoundingBoxEvidence(
+                                x_min=box.x_min,
+                                y_min=box.y_min,
+                                x_max=box.x_max,
+                                y_max=box.y_max,
+                                coordinate_space=(
+                                    "model_input"
+                                    if outputs.detection.coordinate_space == "model_input"
+                                    else "pixel_2d_native"
+                                ),
+                            ),
+                            origin="ai_proposed",
+                            review_status="pending",
+                            include_in_report=False,
+                            note=(
+                                "AI-proposed localization. Supportive evidence only — "
+                                "veterinary radiologist review required."
+                            ),
                         )
                     ],
                     uncertainty_note="Detection head output; expert review required.",
@@ -90,9 +108,18 @@ def map_task_outputs_to_findings(
                         EvidenceReference(
                             evidence_id=f"{case.case_id}-seg-{i + 1}-ev",
                             description="Segmentation mask reference",
+                            evidence_type="segmentation_mask",
                             sop_instance_uid=region.sop_instance_uid,
                             frame_index=region.frame_index,
-                            note=f"mask_encoding={region.mask_encoding or 'none'}",
+                            mask_ref=region.mask_ref,
+                            mask_encoding=region.mask_encoding,
+                            origin="ai_proposed",
+                            review_status="pending",
+                            include_in_report=False,
+                            note=(
+                                f"mask_encoding={region.mask_encoding or 'none'}. "
+                                "AI-proposed; veterinary review required before report inclusion."
+                            ),
                         )
                     ],
                     uncertainty_note="Segmentation head output; expert review required.",

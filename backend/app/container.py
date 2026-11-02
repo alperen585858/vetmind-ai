@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
 from app.models.bridge_resources import ResourceLimits
+from app.models.evidence_store import EvidenceArtifactStore
 from app.models.http_vision import build_optional_http_vision
 from app.models.local_torch import LocalTorchConfig, LocalTorchVisionAdapter, build_optional_local_torch
 from app.models.mock_vision import default_model_registry
@@ -33,6 +36,8 @@ from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
 from app.services.payment_service import PaymentService
 from app.services.payment_store import build_payment_store
+from app.services.radiologist_payout_service import RadiologistPayoutService
+from app.services.radiologist_payout_store import build_radiologist_payout_store
 from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
 from app.settings import Settings, load_settings, validate_security_settings
@@ -105,15 +110,25 @@ class AppContainer:
 
         local_cap = local_capability_from_settings(self.settings)
         if local_cap is not None:
+            artifact_root = (
+                Path(self.settings.vision_artifact_root)
+                if self.settings.vision_artifact_root
+                else None
+            )
             local_adapter = build_optional_local_torch(
                 model_id=local_cap.model_id,
                 weights_path=self.settings.local_torch_weights_path,
                 entrypoint=self.settings.local_torch_entrypoint,
                 version=local_cap.model_version,
                 device=self.settings.local_torch_device,
+                timeout_s=self.settings.local_torch_timeout_s,
+                window_center=self.settings.local_torch_window_center,
+                window_width=self.settings.local_torch_window_width,
+                pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
                 capabilities=capabilities,
                 quarantine=self.quarantine,
                 limits=None,
+                artifact_root=artifact_root,
             )
             if local_adapter is None:
                 local_adapter = LocalTorchVisionAdapter(
@@ -124,9 +139,14 @@ class AppContainer:
                         entrypoint=self.settings.local_torch_entrypoint,
                         device=self.settings.local_torch_device,
                         timeout_s=self.settings.local_torch_timeout_s,
+                        window_center=self.settings.local_torch_window_center,
+                        window_width=self.settings.local_torch_window_width,
+                        pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
                     ),
                     capabilities=capabilities,
                     quarantine=self.quarantine,
+                    artifact_root=artifact_root,
+                    pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
                 )
             self.models[local_cap.model_id] = local_adapter
             capabilities.insert(0, local_cap)
@@ -162,6 +182,12 @@ class AppContainer:
         self.llm_provider = build_llm_provider(self.settings)
         self.llm = LLMGateway(self.llm_provider, rag=self.rag)
         self.validator = ReportValidator()
+        evidence_root = (
+            Path(self.settings.vision_artifact_root)
+            if self.settings.vision_artifact_root
+            else self.quarantine.root
+        )
+        self.evidence_store = EvidenceArtifactStore(evidence_root)
         self.orchestrator = AIOrchestrator(
             self.router,
             self.models,
@@ -171,6 +197,7 @@ class AppContainer:
             execution_policy=self.execution_policy,
             pixel_analysis_opt_in=self.settings.pixel_analysis_opt_in,
             quarantine_root=self.settings.quarantine_root,
+            evidence_store=self.evidence_store,
         )
         self.job_backend = build_job_backend(
             backend=self.settings.job_backend,
@@ -194,6 +221,7 @@ class AppContainer:
             notifications=self.notifications,
             user_settings=self.user_settings,
             default_report_language=self.settings.llm_report_language,
+            evidence_store=self.evidence_store,
         )
         self.dicom = DicomService(
             self.repo,
@@ -224,6 +252,13 @@ class AppContainer:
             audit=self.audit,
             tenant_isolation=self.settings.tenant_isolation,
         )
+        self.radiologist_payout_store = build_radiologist_payout_store(self.settings)
+        self.radiologist_payouts = RadiologistPayoutService(
+            self.radiologist_payout_store,
+            audit=self.audit,
+            cases_repo=self.repo,
+        )
+        self.cases.bind_radiologist_payouts(self.radiologist_payouts)
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -234,6 +269,7 @@ class AppContainer:
             payments=self.payments,
         )
         self.payments.bind_workflow(self.workflow)
+        self.radiologist_payouts.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
         self.messaging_store = build_messaging_store(self.settings)
         self.messaging = MessagingService(

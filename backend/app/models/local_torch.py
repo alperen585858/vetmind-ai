@@ -42,6 +42,7 @@ class LocalTorchConfig:
     timeout_s: float = 30.0
     window_center: float | None = None
     window_width: float | None = None
+    pixel_analysis_opt_in: bool = False
     task_capabilities: tuple[str, ...] = (
         "classification",
         "detection",
@@ -63,6 +64,7 @@ class LocalTorchVisionAdapter:
         limits: ResourceLimits | None = None,
         artifact_root: Path | None = None,
         entrypoint_instance: VisionEntrypoint | None = None,
+        pixel_analysis_opt_in: bool | None = None,
     ) -> None:
         self._config = config
         self.model_id = config.model_id
@@ -72,6 +74,11 @@ class LocalTorchVisionAdapter:
         self._limits = limits or ResourceLimits(inference_timeout_s=config.timeout_s)
         self._artifact_root = artifact_root
         self._entrypoint_instance = entrypoint_instance
+        self._pixel_analysis_opt_in = (
+            bool(pixel_analysis_opt_in)
+            if pixel_analysis_opt_in is not None
+            else bool(config.pixel_analysis_opt_in)
+        )
 
     @property
     def configured(self) -> bool:
@@ -132,6 +139,7 @@ class LocalTorchVisionAdapter:
             quarantine=self._quarantine,
             limits=self._limits,
             artifact_root=self._artifact_root,
+            pixel_analysis_opt_in=self._pixel_analysis_opt_in,
         )
         return bridge.analyze(
             case,
@@ -142,11 +150,21 @@ class LocalTorchVisionAdapter:
                 requires_pixels=self._config.requires_pixels,
                 window_center=self._config.window_center,
                 window_width=self._config.window_width,
-                keep_tensor_in_memory=False,
+                # Keep tensor for infer when artifact workspace may be cleaned after;
+                # entrypoints also accept .npy artifact paths written by the bridge.
+                keep_tensor_in_memory=True,
             ),
         )
 
-    def describe_readiness(self) -> dict[str, str | bool | list[str]]:
+    def describe_readiness(self) -> dict:
+        from app.models.weight_cache import readiness_weight_fields
+
+        extra = readiness_weight_fields(
+            model_id=self.model_id,
+            version=self.version,
+            device=self._config.device,
+            weights_path=self._config.weights_path,
+        )
         return {
             "model_id": self.model_id,
             "version": self.version,
@@ -156,9 +174,12 @@ class LocalTorchVisionAdapter:
             "requires_pixels": self._config.requires_pixels,
             "input_layout": self._config.input_layout,
             "device": self._config.device,
+            "window_center": self._config.window_center,
+            "window_width": self._config.window_width,
             "task_capabilities": list(self._config.task_capabilities),
             "source_kind": SourceKind.REAL.value,
             "note": "Bridge-ready. Weights load only via configured entrypoint.",
+            **extra,
         }
 
     def empty_task_outputs(self, case: CaseRecord) -> ModelTaskOutputs:
@@ -180,9 +201,14 @@ def build_optional_local_torch(
     entrypoint: str | None,
     version: str = "0.0.0-unconfigured",
     device: str = "cpu",
+    timeout_s: float = 30.0,
+    window_center: float | None = None,
+    window_width: float | None = None,
+    pixel_analysis_opt_in: bool = False,
     capabilities: list[ModelCapability] | None = None,
     quarantine: QuarantineStore | None = None,
     limits: ResourceLimits | None = None,
+    artifact_root: Path | None = None,
 ) -> ImagingModel | None:
     """Return an adapter only when ops explicitly supplies weights + entrypoint."""
     if not weights_path or not entrypoint:
@@ -194,10 +220,16 @@ def build_optional_local_torch(
             weights_path=weights_path,
             entrypoint=entrypoint,
             device=device,
+            timeout_s=timeout_s,
+            window_center=window_center,
+            window_width=window_width,
+            pixel_analysis_opt_in=pixel_analysis_opt_in,
         ),
         capabilities=capabilities,
         quarantine=quarantine,
         limits=limits,
+        artifact_root=artifact_root,
+        pixel_analysis_opt_in=pixel_analysis_opt_in,
     )
 
 

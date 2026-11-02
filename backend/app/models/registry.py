@@ -222,11 +222,34 @@ class ModelRegistry:
             "remaining_steps_to_first_real_model": [
                 "Register a ModelCapability with source_kind=real and allows_pixel_analysis only after legal/ethics review",
                 "Provide weights_path (local_torch) or endpoint_url (HTTP) via secure env — never commit secrets",
+                "Install optional vision deps: pip install -r requirements-vision.txt (torch/monai/opencv)",
+                "Set VETMIND_LOCAL_TORCH_ENTRYPOINT e.g. app.models.entrypoints.xray_monai:build_entrypoint",
                 "Set preprocessing_contract_id to profile.mri_volume / profile.ct_volume / profile.xray_2d",
-                "For CT: supply explicit window_center/window_width at analyze time (no silent presets)",
+                "For CT: supply VETMIND_LOCAL_TORCH_WINDOW_CENTER/WIDTH (no silent presets)",
                 "Confirm case imaging_source_permission_verified + imaging_analysis_consent_verified",
+                "Set VETMIND_PIXEL_ANALYSIS_OPT_IN=1 only after policy review",
                 "Verify multi-ingest DICOM merge + series selection on /cases/{id}/model-input",
                 "Run IntegrationBridge path (not mock adapter) and refuse analyze on typed errors (no fake findings)",
                 "Expert-review approved reports remain immutable",
             ],
+            "vision_runtime": _vision_runtime_snapshot(),
         }
+
+
+def _vision_runtime_snapshot() -> dict[str, Any]:
+    """Best-effort torch/MONAI/CUDA inventory (no hard dependency)."""
+    from app.models.weight_cache import global_weight_cache, readiness_weight_fields
+
+    fields = readiness_weight_fields(
+        model_id="_runtime",
+        version="0",
+        device="cpu",
+        weights_path=None,
+    )
+    return {
+        "torch_available": fields.get("torch_available"),
+        "cuda_available": fields.get("cuda_available"),
+        "monai_available": fields.get("monai_available"),
+        "monai_version": fields.get("monai_version"),
+        "weight_cache": global_weight_cache().describe(),
+    }

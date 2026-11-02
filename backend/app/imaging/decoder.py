@@ -85,6 +85,9 @@ class AuthorizedDicomDecoder:
             if ts not in contract.allowed_transfer_syntaxes:
                 raise PrepValidationError(f"Unsupported transfer syntax {ts}.")
 
+        slope = _optional_float(getattr(ds, "RescaleSlope", None), default=1.0)
+        intercept = _optional_float(getattr(ds, "RescaleIntercept", None), default=0.0)
+
         return {
             "pixels": arr,
             "rows": int(getattr(ds, "Rows", arr.shape[-2] if arr.ndim >= 2 else 0) or 0),
@@ -98,6 +101,8 @@ class AuthorizedDicomDecoder:
             "sop_instance_uid": _optional_str(getattr(ds, "SOPInstanceUID", None)),
             "series_instance_uid": _optional_str(getattr(ds, "SeriesInstanceUID", None)),
             "transfer_syntax_uid": ts,
+            "rescale_slope": slope,
+            "rescale_intercept": intercept,
             "pixels_loaded": True,
             "note": "Decoded under PreprocessingContract. Not clinical validation.",
         }
@@ -117,6 +122,15 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _optional_float(value: Any, *, default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _multi_str(value: Any) -> str | None:

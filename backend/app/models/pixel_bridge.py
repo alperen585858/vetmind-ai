@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -141,12 +142,15 @@ class AuthorizedPixelBridge:
                     "pixel_spacing": decoded[0].get("pixel_spacing"),
                     "sop_instance_uid": decoded[0].get("sop_instance_uid"),
                     "sop_instance_uids": [decoded[0].get("sop_instance_uid")],
+                    "rescale_slope": decoded[0].get("rescale_slope", 1.0),
+                    "rescale_intercept": decoded[0].get("rescale_intercept", 0.0),
                 }
             prepared, provenance = self._preprocessor.preprocess(
                 volume=volume,
                 contract=contract,
                 window_center=window_center,
                 window_width=window_width,
+                modality_hint=case.modality.value,
             )
         except PrepValidationError as exc:
             raise IncompatibleInputError(str(exc)) from exc
@@ -164,19 +168,22 @@ class AuthorizedPixelBridge:
 
         artifact_path: str | None = None
         if workspace is not None:
-            # Persist shape sidecar only by default (not raw clinical pixels to disk unless asked).
+            digest = hashlib.sha256(np.ascontiguousarray(tensor).tobytes()).hexdigest()
             meta = (
                 f"shape={','.join(str(x) for x in tensor.shape)}\n"
                 f"layout={prepared.get('tensor_layout')}\n"
                 f"contract={contract.contract_id}\n"
+                f"content_sha256={digest}\n"
+                f"quality_warnings={prepared.get('quality_warnings') or []}\n"
             ).encode("utf-8")
             artifact_path = str(workspace.write_bytes("prep_meta.txt", meta))
-            if keep_tensor_in_memory is False and self._artifact_root is not None:
-                # Optional compact float16 dump for local entrypoints under workspace.
-                path = workspace.path / "tensor_f16.npy"
-                np.save(path, tensor.astype(np.float16, copy=False))
-                artifact_path = str(path)
-                enforce_tensor_bytes(path.stat().st_size, self._limits)
+            # Always persist float16 tensor under workspace for entrypoints / hash audit.
+            # Quarantine originals are never overwritten.
+            path = workspace.path / "tensor_f16.npy"
+            np.save(path, tensor.astype(np.float16, copy=False))
+            artifact_path = str(path)
+            enforce_tensor_bytes(path.stat().st_size, self._limits)
+            workspace.write_bytes("prep_content.sha256", f"{digest}\n".encode("utf-8"))
 
         return PreparedTensorBundle(
             layout=str(prepared.get("tensor_layout") or contract.output_tensor_layout),

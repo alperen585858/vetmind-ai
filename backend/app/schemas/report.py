@@ -88,6 +88,25 @@ class ReportSection(BaseModel):
     cited_finding_ids: list[str] = Field(default_factory=list)
 
 
+class ReportEvidenceFigure(BaseModel):
+    """Immutable snapshot pointer for an evidence overlay embedded in an approved report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    evidence_id: str
+    origin: Literal["ai_proposed", "vet_manual"] = "ai_proposed"
+    overlay_ref: str  # path under immutable report package
+    overlay_content_sha256: str = ""
+    caption: str = ""
+    disclaimer: str = (
+        "AI-suspected region (veterinary brain imaging). Supportive evidence only — "
+        "veterinary radiologist review required. Not a final diagnosis."
+    )
+    sop_instance_uid: Optional[str] = None
+    frame_index: Optional[int] = None
+
+
 class DraftReport(BaseModel):
     """LLM (or mock LLM) radiology report draft. Always requires expert review.
 
@@ -123,6 +142,8 @@ class DraftReport(BaseModel):
     # Model text per section, captured when the pipeline draft is created. Expert edits
     # never change it, so AI-vs-expert differences survive approval (feedback dataset).
     ai_sections: dict[str, str] = Field(default_factory=dict)
+    # Frozen at approve: selected vet-approved evidence overlays (durable paths).
+    evidence_figures: list[ReportEvidenceFigure] = Field(default_factory=list)
     rag_note: str = (
         "Optional RAG citations list retrieved demo passages (retrieval similarity score only). "
         "Score is not clinical confidence. Citations are not clinical evidence and do not validate findings."

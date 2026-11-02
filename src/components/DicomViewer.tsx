@@ -98,6 +98,8 @@ export function DicomViewer({
   onActiveFrameChange,
   focusSopUid,
   focusRequestId = 0,
+  aiOverlayBbox,
+  aiOverlayStyle = 'ai',
 }: {
   frames: DicomFramePreview[]
   loading?: boolean
@@ -105,6 +107,9 @@ export function DicomViewer({
   onActiveFrameChange?: (frame: DicomFramePreview, index: number) => void
   focusSopUid?: string | null
   focusRequestId?: number
+  /** Native pixel-space bbox for AI / vet localization overlay. */
+  aiOverlayBbox?: { x_min: number; y_min: number; x_max: number; y_max: number } | null
+  aiOverlayStyle?: 'ai' | 'vet'
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -211,7 +216,27 @@ export function DicomViewer({
     const canvas = canvasRef.current
     if (!canvas || !frame) return
     renderFrameToCanvas(canvas, frame, { windowCenter: wc, windowWidth: ww, invert })
-  }, [frame, wc, ww, invert])
+    if (aiOverlayBbox) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        const color = aiOverlayStyle === 'vet' ? '#1d4ed8' : '#dc2626'
+        ctx.save()
+        ctx.strokeStyle = color
+        ctx.lineWidth = 2
+        if (aiOverlayStyle === 'ai') ctx.setLineDash([6, 4])
+        const x = aiOverlayBbox.x_min
+        const y = aiOverlayBbox.y_min
+        const w = Math.max(1, aiOverlayBbox.x_max - aiOverlayBbox.x_min)
+        const h = Math.max(1, aiOverlayBbox.y_max - aiOverlayBbox.y_min)
+        ctx.strokeRect(x, y, w, h)
+        ctx.setLineDash([])
+        ctx.fillStyle = color
+        ctx.font = '12px sans-serif'
+        ctx.fillText(aiOverlayStyle === 'vet' ? 'Vet' : 'AI', x + 2, Math.max(12, y - 4))
+        ctx.restore()
+      }
+    }
+  }, [frame, wc, ww, invert, aiOverlayBbox, aiOverlayStyle])
 
   useEffect(() => {
     paint()

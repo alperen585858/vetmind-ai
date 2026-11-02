@@ -22,7 +22,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { currentActorId } from '../lib/auth'
-import { AIFindingsPanel } from '../components/AIFindingsPanel'
+import { AIFindingsPanel, type EvidenceFocus } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { CaseProgressTracker } from '../components/CaseProgressTracker'
@@ -47,6 +47,7 @@ import {
   saveBackendDraftReport,
   regenerateBackendReport,
   resendCaseToAI,
+  reviewCaseEvidence,
   submitBackendReview,
   type PetHistoryEntry,
 } from '../lib/backend'
@@ -93,6 +94,8 @@ export default function RadiologistWorkspace() {
   const [showDicom, setShowDicom] = useState(true)
   const [regenerating, setRegenerating] = useState(false)
   const [resendingAi, setResendingAi] = useState(false)
+  const [evidenceFocus, setEvidenceFocus] = useState<EvidenceFocus | null>(null)
+  const [focusRequestId, setFocusRequestId] = useState(0)
   const resendAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -576,10 +579,18 @@ export default function RadiologistWorkspace() {
                 {error}
               </p>
             )}
-            <DicomViewer frames={frames} loading={loadingFrames} className="min-h-[420px] xl:min-h-[560px]" />
+            <DicomViewer
+              frames={frames}
+              loading={loadingFrames}
+              className="min-h-[420px] xl:min-h-[560px]"
+              focusSopUid={evidenceFocus?.sop}
+              focusRequestId={focusRequestId}
+              aiOverlayBbox={evidenceFocus?.bbox ?? null}
+              aiOverlayStyle={evidenceFocus?.origin === 'vet_manual' ? 'vet' : 'ai'}
+            />
             <p className="text-[11px] text-slate-500">
               Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri
-              karşılaştır · R reset · ok tuşları dilim.
+              karşılaştır · R reset · ok tuşları dilim. AI kutusu: kesikli kırmızı; vet: mavi.
             </p>
           </div>
         )}
@@ -587,7 +598,28 @@ export default function RadiologistWorkspace() {
         <div className={`space-y-3 ${showDicom ? '' : 'mx-auto w-full max-w-[920px]'}`}>
           <AIFindingsPanel
             findings={c.backendFindings}
-            analysisMode={c.backendDraft?.generation?.source_kind === 'real' ? 'real' : 'mock'}
+            analysisMode={
+              (c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind || 'mock')
+                .toString()
+                .toLowerCase()
+            }
+            onFocusEvidence={(focus) => {
+              setEvidenceFocus(focus)
+              setFocusRequestId((n) => n + 1)
+            }}
+            onReviewEvidence={(evidenceId, action, includeInReport) => {
+              if (!c.backendCaseId) return
+              void reviewCaseEvidence(c.backendCaseId, evidenceId, {
+                action,
+                include_in_report: includeInReport,
+              })
+                .then((sf) => {
+                  updateCase(c.id, { backendFindings: sf })
+                })
+                .catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : 'Evidence review failed')
+                })
+            }}
           />
 
           <ReportDocumentEditor caseData={c} value={text} onChange={setText} disabled={immutable} />

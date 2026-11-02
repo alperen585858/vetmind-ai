@@ -48,6 +48,7 @@ class AIOrchestrator:
         *,
         pixel_analysis_opt_in: bool = False,
         quarantine_root: Path | None = None,
+        evidence_store: object | None = None,
     ) -> None:
         self._router = router
         self._models = model_registry
@@ -58,6 +59,7 @@ class AIOrchestrator:
         self._execution_policy = execution_policy or ModelExecutionPolicy()
         self._pixel_analysis_opt_in = bool(pixel_analysis_opt_in)
         self._quarantine_root = quarantine_root
+        self._evidence_store = evidence_store
         self._prep = MetadataOnlyPreparationPipeline(
             capabilities=list(self._router.list_capabilities()),
             pixel_analysis_opt_in=self._pixel_analysis_opt_in,
@@ -273,6 +275,19 @@ class AIOrchestrator:
 
             _checkpoint("normalize_findings", vision_adapter_total=max(vision_total, 1))
             findings = normalize_outputs(outputs, model_input=model_input)
+            if self._evidence_store is not None:
+                try:
+                    from app.models.evidence_attach import attach_rendered_evidence, ensure_evidence_ids
+                    from app.models.evidence_store import EvidenceArtifactStore
+
+                    store = self._evidence_store
+                    if isinstance(store, EvidenceArtifactStore):
+                        findings = ensure_evidence_ids(findings)
+                        findings = attach_rendered_evidence(case, findings, store=store)
+                except Exception as exc:  # noqa: BLE001 — evidence render must not abort pipeline
+                    findings.warnings.append(
+                        f"Evidence overlay attach skipped: {type(exc).__name__}."
+                    )
             if failures:
                 findings.warnings.extend(failures)
                 if findings.execution_status == ModelExecutionStatus.SUCCESS:

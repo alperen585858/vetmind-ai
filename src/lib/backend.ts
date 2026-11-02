@@ -1433,6 +1433,26 @@ export async function updateManagedUser(
   })
 }
 
+export async function fetchRadiologistPayoutLedger() {
+  return request<import('../types').BackendRadiologistPayoutLedger>('/admin/radiologist-payouts')
+}
+
+export async function fetchRadiologistPayoutDetail(email: string) {
+  return request<import('../types').BackendRadiologistPayoutDetail>(
+    `/admin/radiologist-payouts/${encodeURIComponent(email)}`,
+  )
+}
+
+export async function markRadiologistPaid(email: string, caseIds?: string[]) {
+  return request<import('../types').BackendRadiologistPayoutDetail>(
+    `/admin/radiologist-payouts/${encodeURIComponent(email)}/mark-paid`,
+    {
+      method: 'POST',
+      body: JSON.stringify(caseIds ? { case_ids: caseIds } : {}),
+    },
+  )
+}
+
 // --- Phase 17 functional expansion ---
 
 export interface AppNotification {
@@ -1547,4 +1567,50 @@ export async function listCaseActivity(caseId: string) {
   return request<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>(
     `/cases/${caseId}/activity`,
   )
+}
+
+export async function reviewCaseEvidence(
+  caseId: string,
+  evidenceId: string,
+  body: {
+    action: 'accept' | 'reject' | 'set_include' | 'edit'
+    include_in_report?: boolean
+    vet_note?: string
+    bbox?: {
+      x_min: number
+      y_min: number
+      x_max: number
+      y_max: number
+      coordinate_space?: string
+      transform_chain?: { name: string; params: Record<string, number> }[]
+    }
+  },
+) {
+  return request<import('../types').BackendFindings>(`/cases/${caseId}/evidence/${evidenceId}/review`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function addManualCaseEvidence(
+  caseId: string,
+  body: {
+    finding_id: string
+    bbox: {
+      x_min: number
+      y_min: number
+      x_max: number
+      y_max: number
+      coordinate_space?: string
+    }
+    sop_instance_uid?: string
+    frame_index?: number
+    description?: string
+    include_in_report?: boolean
+  },
+) {
+  return request<import('../types').BackendFindings>(`/cases/${caseId}/evidence`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }

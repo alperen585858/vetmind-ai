@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Sparkles,
   UploadCloud,
+  Wallet,
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -92,6 +93,7 @@ export function Sidebar({
     admin: [
       { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },
       { to: '/mesajlar', label: t('nav.messagesSupport'), icon: <MessageSquare className={ic} /> },
+      { to: '/radyologlarim', label: t('nav.myRadiologists'), icon: <Wallet className={ic} /> },
       { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className={ic} /> },
       { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },

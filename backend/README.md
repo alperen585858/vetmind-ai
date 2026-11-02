@@ -33,6 +33,26 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+### Optional Vision (PyTorch / MONAI)
+
+Default demo does **not** install or import torch. For local Vision inference workers:
+
+```bash
+pip install -r requirements-vision.txt
+# CPU torch example (if needed):
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+Configure via `.env` (`VETMIND_LOCAL_TORCH_*`, see `.env.example`). Entrypoints:
+
+| Modality | Entrypoint |
+|----------|------------|
+| XR | `app.models.entrypoints.xray_monai:build_entrypoint` |
+| CT | `app.models.entrypoints.ct_monai:build_entrypoint` |
+| MRI | `app.models.entrypoints.mri_monai:build_entrypoint` |
+
+Offline training lives under repo-root `ml/` (never imported by FastAPI by default).
+
 - API: http://127.0.0.1:8000  
 - OpenAPI: http://127.0.0.1:8000/docs  
 - Health: http://127.0.0.1:8000/api/v1/health

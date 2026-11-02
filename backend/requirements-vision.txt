@@ -1,0 +1,16 @@
+# Optional medical imaging / deep learning extras.
+# NOT required for the default mock/metadata demo.
+# Install only on GPU workers or local Vision development machines:
+#
+#   pip install -r requirements.txt -r requirements-vision.txt
+#
+# Torch CPU wheels (example):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Then install the remaining packages from this file.
+
+torch>=2.2.0
+monai>=1.3.0
+opencv-python-headless>=4.8.0
+# Optional decode helpers for compressed DICOM (add when needed):
+# pylibjpeg>=2.0.0
+# pylibjpeg-libjpeg>=2.0.0
