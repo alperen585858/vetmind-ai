@@ -80,7 +80,9 @@ def test_real_output_not_synthetic_by_default() -> None:
     assert merged.findings[0].synthetic is False
     assert merged.findings[0].source_model == "future-real-adapter"
     assert merged.findings[0].source_model_version == "1.0.0"
-    assert any("klinik doğrulama anlamına gelmez" in w for w in merged.warnings)
+    # The separate "real ≠ clinically validated" banner was removed on purpose (45da3ec);
+    # a real-only run must still not be flagged as mixed-source.
+    assert not any("KARMA KAYNAK" in w for w in merged.warnings)
 
 
 def test_mixed_fusion_retains_per_finding_identity() -> None:
