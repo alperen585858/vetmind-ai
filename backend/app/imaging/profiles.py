@@ -9,12 +9,15 @@ from app.imaging.contracts import PreprocessingContract, pixel_2d_contract, pixe
 from app.imaging.pixel_ops import (
     TRANSFORM_APPLY_SPACING,
     TRANSFORM_EXTRACT_PIXELS,
+    TRANSFORM_HU_RESCALE,
     TRANSFORM_HU_WINDOW,
     TRANSFORM_MONOCHROME_INVERT,
     TRANSFORM_NORMALIZE,
     TRANSFORM_ORDER_SLICES,
     TRANSFORM_PREPARE_2D,
     TRANSFORM_PREPARE_3D,
+    TRANSFORM_QUALITY_CHECK,
+    TRANSFORM_RESIZE_2D,
 )
 from app.schemas.enums import AnatomicalRegion, Modality, Species
 
@@ -55,6 +58,7 @@ def mri_volume_profile(
             TRANSFORM_APPLY_SPACING,
             TRANSFORM_NORMALIZE,
             TRANSFORM_PREPARE_3D,
+            TRANSFORM_QUALITY_CHECK,
         ),
         output_tensor_layout="dhw",
         notes="MRI volume profile — no HU window; intensity normalize only.",
@@ -86,12 +90,17 @@ def ct_volume_profile(
             TRANSFORM_MONOCHROME_INVERT,
             TRANSFORM_ORDER_SLICES,
             TRANSFORM_APPLY_SPACING,
+            TRANSFORM_HU_RESCALE,
             TRANSFORM_HU_WINDOW,
             TRANSFORM_NORMALIZE,
             TRANSFORM_PREPARE_3D,
+            TRANSFORM_QUALITY_CHECK,
         ),
         output_tensor_layout="dhw",
-        notes="CT volume profile — hu_window requires explicit WW/WC at preprocess.",
+        notes=(
+            "CT volume profile — RescaleSlope/Intercept → HU then explicit WW/WC "
+            "(no silent presets)."
+        ),
     )
 
 
@@ -111,6 +120,11 @@ def xray_2d_profile(
         species=species,
         transfer_syntaxes=frozenset({_EXPLICIT_LE, _IMPLICIT_LE}),
     )
+    # Extend base 2D transforms with optional resize + quality (still contract-gated).
+    transforms = tuple(base.allowed_transforms) + (
+        TRANSFORM_RESIZE_2D,
+        TRANSFORM_QUALITY_CHECK,
+    )
     return PreprocessingContract(
         contract_id=f"profile.xray_2d:{model_id}",
         model_id=model_id,
@@ -120,9 +134,9 @@ def xray_2d_profile(
         species=species,
         requires_pixels=True,
         allowed_transfer_syntaxes=base.allowed_transfer_syntaxes,
-        allowed_transforms=base.allowed_transforms,
+        allowed_transforms=transforms,
         output_tensor_layout="chw",
-        notes="X-ray 2D profile — single-frame CHW after window/normalize.",
+        notes="X-ray 2D profile — single-frame CHW; optional OpenCV resize when sized.",
     )
 
 

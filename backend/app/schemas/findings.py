@@ -1,5 +1,6 @@
+from datetime import datetime
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -12,9 +13,18 @@ from app.schemas.enums import (
     Species,
 )
 
-FINDINGS_SCHEMA_VERSION = "1.2.0"
+FINDINGS_SCHEMA_VERSION = "1.3.0"
 
 Laterality = Literal["LEFT", "RIGHT", "MIDLINE", "UNKNOWN"]
+EvidenceOrigin = Literal["ai_proposed", "vet_manual"]
+EvidenceReviewStatus = Literal["pending", "accepted", "rejected", "edited"]
+EvidenceType = Literal["bbox", "segmentation_mask", "heatmap", "overlay"]
+CoordinateSpace = Literal["pixel_2d_native", "model_input", "patient", "pixel_2d"]
+
+EVIDENCE_DISCLAIMER = (
+    "AI-suspected region (veterinary brain imaging). Supportive evidence only — "
+    "veterinary radiologist review required. Not a final diagnosis."
+)
 
 
 class ConflictReasonCode(str, Enum):
@@ -26,19 +36,65 @@ class ConflictReasonCode(str, Enum):
     MULTI_MODEL = "multi_model"
 
 
+class BoundingBoxEvidence(BaseModel):
+    """2D localization. Prefer pixel_2d_native for display/PDF after invert of prep transforms."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+    coordinate_space: CoordinateSpace = "pixel_2d_native"
+    # Ordered prep/display transforms from native → model_input (invert to display on DICOM).
+    transform_chain: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class VolumeGeometryRef(BaseModel):
+    """Physical / index geometry for 3D mask alignment (brain MR/CT)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shape_dhw: tuple[int, int, int]
+    spacing_dhw_mm: Optional[tuple[float, float, float]] = None
+    origin_xyz_mm: Optional[tuple[float, float, float]] = None
+    direction_9: Optional[tuple[float, ...]] = None
+
+
 class EvidenceReference(BaseModel):
-    """Evidence pointer. Optional DICOM UIDs link to ImagingModelInput frames when present."""
+    """Evidence pointer + optional localization. AI-proposed vs vet-approved are explicit."""
 
     model_config = ConfigDict(extra="forbid")
 
     evidence_id: str
     description: str
+    evidence_type: EvidenceType = "overlay"
     series_hint: Optional[str] = None
     study_instance_uid: Optional[str] = None
     series_instance_uid: Optional[str] = None
     sop_instance_uid: Optional[str] = None
     frame_index: Optional[int] = None
-    note: str = "Evidence reference only. Pixel-level imaging analysis may not have been performed."
+    instance_number: Optional[int] = None
+    # Frame geometry snapshot (orientation / spacing) at emit time.
+    image_orientation_patient: Optional[str] = None
+    image_position_patient: Optional[str] = None
+    pixel_spacing_mm: Optional[tuple[float, float]] = None
+    # Prefer artifact path refs over embedding clinical masks in API JSON.
+    mask_ref: Optional[str] = None
+    mask_encoding: Optional[str] = None  # none | rle | path_ref
+    overlay_ref: Optional[str] = None  # rendered PNG id/path in evidence store
+    heatmap_ref: Optional[str] = None
+    bbox: Optional[BoundingBoxEvidence] = None
+    volume_geometry: Optional[VolumeGeometryRef] = None
+    # Review lifecycle — AI marks start pending; PDF uses include_in_report only.
+    origin: EvidenceOrigin = "ai_proposed"
+    review_status: EvidenceReviewStatus = "pending"
+    include_in_report: bool = False
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    vet_note: Optional[str] = None
+    supersedes_evidence_id: Optional[str] = None
+    note: str = EVIDENCE_DISCLAIMER
 
 
 class Finding(BaseModel):

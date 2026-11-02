@@ -168,6 +168,68 @@ def cleanup_temp_under_quarantine(
     return removed
 
 
+def cleanup_vision_artifacts(
+    artifact_root: Path,
+    *,
+    older_than_days: int,
+    dry_run: bool = False,
+) -> list[str]:
+    """Remove aged bridge/vision prep dirs (tensor_f16.npy, prep_meta) under artifact root.
+
+    Never deletes quarantine DICOM originals. Paths must live under ``artifact_root``.
+    """
+    removed: list[str] = []
+    if older_than_days < 1 or not artifact_root.is_dir():
+        return removed
+    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    root = artifact_root.resolve()
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        name = child.name
+        # Never TTL-delete immutable approved report evidence packages.
+        if name in {"_report_evidence"} or name.startswith("_report_evidence"):
+            continue
+        if not (
+            name.startswith("bridge-")
+            or name.startswith("vision-")
+            or name == "_bridge_tmp"
+            or name == "_evidence"
+        ):
+            continue
+        # Working AI evidence under _evidence may age out; report packages are separate.
+        if name == "_evidence":
+            for case_dir in child.iterdir():
+                if not case_dir.is_dir():
+                    continue
+                mtime = datetime.fromtimestamp(case_dir.stat().st_mtime, tz=timezone.utc)
+                if mtime >= cutoff:
+                    continue
+                if dry_run:
+                    removed.append(f"_evidence/{case_dir.name}")
+                    continue
+                import shutil
+
+                shutil.rmtree(case_dir, ignore_errors=True)
+                removed.append(f"_evidence/{case_dir.name}")
+            continue
+        try:
+            child.resolve().relative_to(root)
+        except ValueError:
+            continue
+        mtime = datetime.fromtimestamp(child.stat().st_mtime, tz=timezone.utc)
+        if mtime >= cutoff:
+            continue
+        if dry_run:
+            removed.append(name)
+            continue
+        import shutil
+
+        shutil.rmtree(child, ignore_errors=True)
+        removed.append(name)
+    return removed
+
+
 def trim_audit_log(path: Path | None, *, keep_days: int) -> int:
     """Rewrite audit JSONL keeping events newer than keep_days. Returns removed count."""
     if path is None or not path.is_file() or keep_days < 1:

@@ -138,7 +138,12 @@ def download_approved_report_pdf(
         snap = service.get_report_version(case_id, version, principal=principal)
         if not snap.immutable:
             raise HTTPException(status_code=409, detail="Selected version is not an approved immutable snapshot.")
-        pdf = build_approved_report_pdf(case, snap, quarantine=quarantine)
+        pdf = build_approved_report_pdf(
+            case,
+            snap,
+            quarantine=quarantine,
+            evidence_root=container.evidence_store.root,
+        )
         ver = version
     else:
         report = case.draft_report
@@ -147,10 +152,20 @@ def download_approved_report_pdf(
             if not snaps:
                 raise HTTPException(status_code=409, detail="No immutable approved report to export.")
             snap = max(snaps, key=lambda s: s.version)
-            pdf = build_approved_report_pdf(case, snap, quarantine=quarantine)
+            pdf = build_approved_report_pdf(
+                case,
+                snap,
+                quarantine=quarantine,
+                evidence_root=container.evidence_store.root,
+            )
             ver = snap.version
         else:
-            pdf = build_approved_report_pdf(case, report, quarantine=quarantine)
+            pdf = build_approved_report_pdf(
+                case,
+                report,
+                quarantine=quarantine,
+                evidence_root=container.evidence_store.root,
+            )
             ver = report.version
     filename = f"radyoloji-raporu-{case_id}-v{ver}.pdf"
     return Response(

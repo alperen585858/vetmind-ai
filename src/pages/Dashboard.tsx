@@ -928,6 +928,9 @@ function AdminDashboard() {
         subtitle={t('dashboard.adminSubtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => nav('/radyologlarim')}>
+              {t('nav.myRadiologists')}
+            </Button>
             <Button variant="secondary" onClick={() => nav('/kullanicilar')}>
               {t('admin.users')}
             </Button>

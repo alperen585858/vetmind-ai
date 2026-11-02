@@ -255,6 +255,7 @@ def build_approved_report_pdf(
     report: DraftReport | ReportVersionSnapshot,
     *,
     quarantine: Any | None = None,
+    evidence_root: Path | None = None,
 ) -> bytes:
     """Build a PDF that reads like a clinical radiology report, with study images when available."""
     font = _resolve_font()
@@ -377,6 +378,40 @@ def build_approved_report_pdf(
     for label, text in sections:
         story.append(Paragraph(label, h2))
         story.append(Paragraph(_esc(text).replace("\n", "<br/>") or "—", body))
+
+    # Immutable AI / vet evidence figures (only those frozen into the report package).
+    figures = list(getattr(content, "evidence_figures", None) or [])
+    if figures:
+        story.append(Paragraph("AI-Supported Imaging Evidence", h2))
+        story.append(
+            Paragraph(
+                _esc(
+                    "Veterinary radiologist-selected localization overlays. "
+                    "Supportive evidence only — not a final diagnosis."
+                ),
+                caption,
+            )
+        )
+        root = evidence_root
+        if root is None and quarantine is not None:
+            root = quarantine.root
+        for fig in figures[:8]:
+            png: bytes | None = None
+            if root is not None and fig.overlay_ref:
+                try:
+                    path = (Path(root) / fig.overlay_ref).resolve()
+                    path.relative_to(Path(root).resolve())
+                    if path.is_file():
+                        png = path.read_bytes()
+                except (ValueError, OSError):
+                    png = None
+            if png:
+                img = _image_flowable(png)
+                if img is not None:
+                    story.append(img)
+            story.append(Paragraph(_esc(fig.caption or fig.evidence_id), caption))
+            story.append(Paragraph(_esc(fig.disclaimer), caption))
+            story.append(Spacer(1, 4))
 
     story.append(Spacer(1, 16))
     sign = Table(

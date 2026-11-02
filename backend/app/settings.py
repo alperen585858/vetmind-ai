@@ -53,6 +53,13 @@ class Settings:
     local_torch_modalities: tuple[str, ...] = ()
     local_torch_regions: tuple[str, ...] = ()
     local_torch_species: tuple[str, ...] = ()
+    # Explicit CT WW/WC for local torch (no silent clinical presets).
+    local_torch_window_center: float | None = None
+    local_torch_window_width: float | None = None
+    # Optional bridge artifact root (defaults under quarantine/_bridge_tmp).
+    vision_artifact_root: str | None = None
+    # Optional temperature scaling artifact for calibration (path to JSON).
+    vision_calibration_path: str | None = None
     # LLM provider: mock (default) | stub | http (requires llm_endpoint; no startup probe)
     # | openai (any OpenAI-compatible API) | ollama | anthropic.
     llm_provider: str = "mock"
@@ -243,6 +250,18 @@ def load_settings() -> Settings:
     local_torch_modalities = _csv_tuple("VETMIND_LOCAL_TORCH_MODALITIES")
     local_torch_regions = _csv_tuple("VETMIND_LOCAL_TORCH_REGIONS")
     local_torch_species = _csv_tuple("VETMIND_LOCAL_TORCH_SPECIES")
+    try:
+        wc_raw = os.getenv("VETMIND_LOCAL_TORCH_WINDOW_CENTER")
+        local_torch_window_center = float(wc_raw) if wc_raw not in (None, "") else None
+    except ValueError:
+        local_torch_window_center = None
+    try:
+        ww_raw = os.getenv("VETMIND_LOCAL_TORCH_WINDOW_WIDTH")
+        local_torch_window_width = float(ww_raw) if ww_raw not in (None, "") else None
+    except ValueError:
+        local_torch_window_width = None
+    vision_artifact_root = os.getenv("VETMIND_VISION_ARTIFACT_ROOT") or None
+    vision_calibration_path = os.getenv("VETMIND_VISION_CALIBRATION_PATH") or None
 
     llm_provider = os.getenv("VETMIND_LLM_PROVIDER", "mock").strip().lower() or "mock"
     llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
@@ -375,6 +394,10 @@ def load_settings() -> Settings:
         local_torch_modalities=local_torch_modalities,
         local_torch_regions=local_torch_regions,
         local_torch_species=local_torch_species,
+        local_torch_window_center=local_torch_window_center,
+        local_torch_window_width=local_torch_window_width,
+        vision_artifact_root=vision_artifact_root,
+        vision_calibration_path=vision_calibration_path,
         llm_provider=llm_provider,
         llm_endpoint=llm_endpoint,
         llm_provider_id=llm_provider_id,

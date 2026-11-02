@@ -32,6 +32,7 @@ import OwnerPets from './pages/OwnerPets'
 import Submissions from './pages/Submissions'
 import Messages from './pages/Messages'
 import AdminUsers from './pages/AdminUsers'
+import AdminRadiologists from './pages/AdminRadiologists'
 import Settings from './pages/Settings'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
@@ -122,6 +123,7 @@ export default function App() {
               <Gate roles={['owner', 'expert', 'admin']}><Messages /></Gate>,
             )}
             {dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>)}
+            {dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>)}
             {dualRoutes(
               'raporlar',
               'reports',

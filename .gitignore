@@ -14,3 +14,11 @@ e2e-report
 test-results
 playwright-report
 e2e/.data
+# Vision weights / prep caches (keep .gitkeep only)
+artifacts/**
+!artifacts/.gitkeep
+ml/datasets/**/raw/
+ml/**/__pycache__/
+*.pt
+*.pth
+*.onnx

@@ -1,0 +1,9 @@
+model_id: vet-xr-thorax-v1
+version: 0.0.1-example
+entrypoint: app.models.entrypoints.xray_monai:build_entrypoint
+weights_path: artifacts/vet-xr-thorax-v1/model.pt
+device: cpu
+modalities: [XR]
+regions: [THORAX]
+score_threshold: 0.5
+clinically_approved: false

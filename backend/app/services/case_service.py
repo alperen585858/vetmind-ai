@@ -108,6 +108,8 @@ class CaseService:
         notifications: object | None = None,
         user_settings: object | None = None,
         default_report_language: str = "tr",
+        evidence_store: object | None = None,
+        radiologist_payouts: object | None = None,
     ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
@@ -117,7 +119,9 @@ class CaseService:
         self._jobs = job_backend or ThreadJobBackend(delay_ms=self._async_delay_ms)
         self._tenant_isolation = tenant_isolation
         self._audit_log = audit
+        self._radiologist_payouts = radiologist_payouts
         self._feedback = feedback
+        self._evidence_store = evidence_store
         self._notifications = notifications
         self._user_settings = user_settings
         lang = (default_report_language or "tr").strip().lower() or "tr"
@@ -128,6 +132,24 @@ class CaseService:
             max_concurrent=self._max_concurrent_analyze,
             path=analyze_gate_path,
         )
+
+    def bind_radiologist_payouts(self, service: object | None) -> None:
+        """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
+        self._radiologist_payouts = service
+
+    def _record_radiologist_payout(self, case: CaseRecord, reviewer_id: str) -> None:
+        svc = self._radiologist_payouts
+        if svc is None:
+            return
+        try:
+            svc.record_approval(  # type: ignore[attr-defined]
+                case_id=case.case_id,
+                radiologist_subject=reviewer_id,
+                approved_at=case.report_available_at or case.updated_at,
+            )
+        except Exception:
+            # Payout ledger must not block clinical approval.
+            pass
 
     def _resolve_report_language(
         self,
@@ -1286,6 +1308,66 @@ class CaseService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Structured findings are not available yet.")
         return case.structured_findings
 
+    def review_case_evidence(
+        self,
+        case_id: str,
+        evidence_id: str,
+        *,
+        action: str,
+        principal: AuthPrincipal,
+        include_in_report: bool | None = None,
+        vet_note: str | None = None,
+        bbox: object | None = None,
+    ) -> StructuredFindings:
+        from app.schemas.findings import BoundingBoxEvidence
+        from app.services.evidence_review import review_evidence
+
+        case = self.get_case(case_id, principal=principal)
+        sf = review_evidence(
+            case,
+            evidence_id,
+            action=action,  # type: ignore[arg-type]
+            reviewer_id=principal.subject,
+            include_in_report=include_in_report,
+            vet_note=vet_note,
+            bbox=bbox if isinstance(bbox, BoundingBoxEvidence) else None,
+        )
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        return sf
+
+    def add_case_manual_evidence(
+        self,
+        case_id: str,
+        *,
+        finding_id: str,
+        principal: AuthPrincipal,
+        bbox: object,
+        sop_instance_uid: str | None = None,
+        frame_index: int | None = None,
+        description: str = "Radiologist manual mark",
+        include_in_report: bool = True,
+    ) -> StructuredFindings:
+        from app.schemas.findings import BoundingBoxEvidence
+        from app.services.evidence_review import add_manual_evidence
+
+        if not isinstance(bbox, BoundingBoxEvidence):
+            raise HTTPException(status_code=400, detail="bbox required")
+        case = self.get_case(case_id, principal=principal)
+        sf = add_manual_evidence(
+            case,
+            finding_id=finding_id,
+            reviewer_id=principal.subject,
+            bbox=bbox,
+            sop_instance_uid=sop_instance_uid,
+            frame_index=frame_index,
+            description=description,
+            include_in_report=include_in_report,
+        )
+        case.updated_at = _now()
+        self._repo.save_case(case)
+        return sf
+
     def get_report(
         self, case_id: str, *, version: int | None = None, principal: AuthPrincipal | None = None
     ) -> DraftReport:
@@ -1541,6 +1623,23 @@ class CaseService:
                 detail=f"Cannot approve draft in status '{report.status.value}'.",
             )
 
+        if self._evidence_store is not None:
+            try:
+                from app.models.evidence_store import EvidenceArtifactStore
+                from app.services.report_evidence_snapshot import freeze_evidence_into_report
+
+                if isinstance(self._evidence_store, EvidenceArtifactStore):
+                    freeze_evidence_into_report(
+                        case,
+                        report,
+                        store=self._evidence_store,
+                        findings=case.structured_findings,
+                    )
+            except Exception:
+                # Approval must not fail solely on evidence copy; PDF may omit figures.
+                report.validation_warnings = list(report.validation_warnings) + [
+                    "Evidence snapshot incomplete; PDF may omit AI evidence figures."
+                ]
         freeze_approved(
             case,
             report,
@@ -1560,6 +1659,7 @@ class CaseService:
         case.review_history.append(feedback)
         case.updated_at = _now()
         saved = self._repo.save_case(case)
+        self._record_radiologist_payout(saved, feedback.reviewer_id)
         for recipient in {saved.pet_owner_subject, saved.owner_subject, "vet@demo.local"}:
             if not recipient or recipient == feedback.reviewer_id:
                 continue

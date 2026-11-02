@@ -55,7 +55,8 @@ class SliceOrderedVolumeAssembler:
             slices.append(pix)
 
         volume = stack_ordered_slices(slices, order)
-        spacing = parse_pixel_spacing(decoded[order[0]].get("pixel_spacing"))
+        first = decoded[order[0]]
+        spacing = parse_pixel_spacing(first.get("pixel_spacing"))
         return {
             "volume": volume,
             "shape_dhw": tuple(int(x) for x in volume.shape),
@@ -65,6 +66,8 @@ class SliceOrderedVolumeAssembler:
             "modality": case.modality.value,
             "anatomical_region": case.anatomical_region.value,
             "sop_instance_uids": [decoded[i].get("sop_instance_uid") for i in order],
+            "rescale_slope": float(first.get("rescale_slope", 1.0) or 1.0),
+            "rescale_intercept": float(first.get("rescale_intercept", 0.0) or 0.0),
             "pixels_loaded": True,
             "note": "Volume assembled under contract. Not a clinical reconstruction claim.",
         }

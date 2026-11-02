@@ -1,0 +1,18 @@
+{
+  "dataset_id": "vet-xr-thorax-example",
+  "version": "0.0.0-example",
+  "license": "INTERNAL-DUA-REQUIRED",
+  "species": ["canine", "feline"],
+  "modality": "XR",
+  "anatomical_region": "THORAX",
+  "split_unit": "patient_id",
+  "label_names": [
+    "PULMONARY_OPACITY",
+    "CARDIOMEGALY_SUSPECTED",
+    "PLEURAL_EFFUSION_SUSPECTED"
+  ],
+  "notes": [
+    "Example only — replace with governed veterinary data.",
+    "Never commit identifiable imaging or owner PHI."
+  ]
+}

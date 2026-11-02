@@ -45,14 +45,41 @@ def _sort_frames(frames: Sequence[ModelInputFrameRef]) -> list[ModelInputFrameRe
     return [fr for _, fr in keyed]
 
 
-def _series_score(series: ModelInputSeriesRef, *, prefer_3d: bool) -> tuple:
+_MRI_SEQUENCE_HINTS: tuple[tuple[str, int], ...] = (
+    ("t1", 2),
+    ("t2", 3),
+    ("flair", 4),
+    ("fse", 2),
+    ("gre", 1),
+    ("dwi", 2),
+    ("stir", 2),
+)
+
+
+def _mri_sequence_bonus(series: ModelInputSeriesRef) -> int:
+    """Soft preference for common neuro sequences from SeriesDescription (metadata only)."""
+    desc = (series.series_description or "").lower()
+    bonus = 0
+    for token, weight in _MRI_SEQUENCE_HINTS:
+        if token in desc:
+            bonus = max(bonus, weight)
+    return bonus
+
+
+def _series_score(
+    series: ModelInputSeriesRef,
+    *,
+    prefer_3d: bool,
+    modality: Modality | None = None,
+) -> tuple:
     """Higher is better. Prefer more frames + spatial coverage for 3D."""
     frames = series.frames
     n = len(frames)
     spatial = sum(1 for f in frames if _frame_has_spatial(f))
     pixels = sum(1 for f in frames if f.has_pixel_data)
     if prefer_3d:
-        return (spatial, n, pixels, series.series_instance_uid)
+        seq = _mri_sequence_bonus(series) if modality == Modality.MR else 0
+        return (spatial, n, pixels, seq, series.series_instance_uid)
     # 2D: prefer single-frame with pixels
     single_bonus = 1 if n == 1 else 0
     return (pixels, single_bonus, -n, series.series_instance_uid)
@@ -80,7 +107,7 @@ def select_series_for_modality(
         candidates = list(series)
 
     if modality == Modality.XR:
-        best = max(candidates, key=lambda s: _series_score(s, prefer_3d=False))
+        best = max(candidates, key=lambda s: _series_score(s, prefer_3d=False, modality=modality))
         ordered = _sort_frames(best.frames)
         # XR uses a single frame — first after spatial/instance sort.
         picked = ordered[:1] if ordered else ()
@@ -96,18 +123,24 @@ def select_series_for_modality(
         )
 
     if modality in {Modality.MR, Modality.CT}:
-        best = max(candidates, key=lambda s: _series_score(s, prefer_3d=True))
+        best = max(
+            candidates,
+            key=lambda s: _series_score(s, prefer_3d=True, modality=modality),
+        )
         ordered = _sort_frames(best.frames)
         hint = "mri_volume" if modality == Modality.MR else "ct_volume"
         spatial_n = sum(1 for f in ordered if _frame_has_spatial(f))
+        seq_note = ""
+        if modality == Modality.MR:
+            seq_note = f" sequence_bonus={_mri_sequence_bonus(best)};"
         return SeriesSelection(
             mode="volume_stack",
             series_instance_uids=(best.series_instance_uid,),
             frames=tuple(ordered),
             reason=(
                 f"{modality.value} 3D: selected series {best.series_instance_uid} "
-                f"with {len(ordered)} frame(s), {spatial_n} with ImagePositionPatient; "
-                "sorted by IPP/InstanceNumber."
+                f"with {len(ordered)} frame(s), {spatial_n} with ImagePositionPatient;"
+                f"{seq_note} sorted by IPP/InstanceNumber."
             ),
             profile_hint=hint,
         )

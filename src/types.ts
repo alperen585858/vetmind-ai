@@ -110,6 +110,46 @@ export interface BackendManagedUser {
   password?: string | null
 }
 
+export interface BackendRadiologistPayoutSummary {
+  radiologist_subject: string
+  display_name?: string | null
+  active: boolean
+  approved_cases: number
+  unpaid_cases: number
+  paid_cases: number
+  amount_owed: number
+  amount_paid: number
+  fee_per_case: number
+  currency: 'EUR'
+}
+
+export interface BackendRadiologistCasePayout {
+  payout_id: string
+  case_id: string
+  radiologist_subject: string
+  amount: number
+  currency: 'EUR'
+  status: 'owed' | 'paid'
+  approved_at: string
+  paid_at?: string | null
+  marked_paid_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BackendRadiologistPayoutLedger {
+  fee_per_case: number
+  currency: 'EUR'
+  radiologists: BackendRadiologistPayoutSummary[]
+  total_unpaid_cases: number
+  total_amount_owed: number
+}
+
+export interface BackendRadiologistPayoutDetail {
+  summary: BackendRadiologistPayoutSummary
+  payouts: BackendRadiologistCasePayout[]
+}
+
 export interface BackendClinicStats {
   clinic_id: string
   case_count: number
@@ -307,6 +347,36 @@ export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'brain_ct' | 'thorax_
 
 export type BackendSpecies = 'canine' | 'feline' | 'other'
 
+export interface BackendEvidenceReference {
+  evidence_id: string
+  description: string
+  evidence_type?: 'bbox' | 'segmentation_mask' | 'heatmap' | 'overlay'
+  series_hint?: string | null
+  study_instance_uid?: string | null
+  series_instance_uid?: string | null
+  sop_instance_uid?: string | null
+  frame_index?: number | null
+  mask_ref?: string | null
+  mask_encoding?: string | null
+  overlay_ref?: string | null
+  heatmap_ref?: string | null
+  bbox?: {
+    x_min: number
+    y_min: number
+    x_max: number
+    y_max: number
+    coordinate_space?: string
+    transform_chain?: { name: string; params: Record<string, number> }[]
+  } | null
+  origin?: 'ai_proposed' | 'vet_manual'
+  review_status?: 'pending' | 'accepted' | 'rejected' | 'edited'
+  include_in_report?: boolean
+  reviewed_by?: string | null
+  vet_note?: string | null
+  supersedes_evidence_id?: string | null
+  note?: string
+}
+
 export interface BackendFinding {
   finding_id: string
   finding_code: string
@@ -314,10 +384,14 @@ export interface BackendFinding {
   anatomical_location: string
   finding_status: string
   source_model: string
+  source_model_version?: string | null
   requires_review: boolean
   synthetic: boolean
   laterality?: 'LEFT' | 'RIGHT' | 'MIDLINE' | 'UNKNOWN'
   conflict_group_id?: string | null
+  model_confidence?: number | null
+  evidence_references?: BackendEvidenceReference[]
+  uncertainty_note?: string | null
 }
 
 export interface BackendFindings {
@@ -333,6 +407,7 @@ export interface BackendFindings {
   review_required: boolean
   contributing_model_ids?: string[]
   contributing_source_kinds?: string[]
+  processing_metadata?: Record<string, string>
   potential_conflicts?: {
     conflict_id: string
     finding_ids: string[]

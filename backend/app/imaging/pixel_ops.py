@@ -15,23 +15,29 @@ from app.imaging.interfaces import PrepValidationError
 
 TRANSFORM_EXTRACT_PIXELS = "extract_pixels"
 TRANSFORM_NORMALIZE = "normalize_01"
+TRANSFORM_HU_RESCALE = "hu_rescale"
 TRANSFORM_HU_WINDOW = "hu_window"
 TRANSFORM_MONOCHROME_INVERT = "monochrome1_invert"
 TRANSFORM_APPLY_SPACING = "apply_pixel_spacing"
 TRANSFORM_ORDER_SLICES = "order_slices"
 TRANSFORM_PREPARE_2D = "prepare_2d"
 TRANSFORM_PREPARE_3D = "prepare_3d"
+TRANSFORM_RESIZE_2D = "resize_2d"
+TRANSFORM_QUALITY_CHECK = "quality_check"
 
 KNOWN_TRANSFORMS = frozenset(
     {
         TRANSFORM_EXTRACT_PIXELS,
         TRANSFORM_NORMALIZE,
+        TRANSFORM_HU_RESCALE,
         TRANSFORM_HU_WINDOW,
         TRANSFORM_MONOCHROME_INVERT,
         TRANSFORM_APPLY_SPACING,
         TRANSFORM_ORDER_SLICES,
         TRANSFORM_PREPARE_2D,
         TRANSFORM_PREPARE_3D,
+        TRANSFORM_RESIZE_2D,
+        TRANSFORM_QUALITY_CHECK,
     }
 )
 
@@ -54,6 +60,17 @@ def normalize_01(pixels: np.ndarray) -> np.ndarray:
     return ((arr - lo) / (hi - lo)).astype(np.float32)
 
 
+def apply_rescale_to_hu(
+    pixels: np.ndarray,
+    *,
+    rescale_slope: float = 1.0,
+    rescale_intercept: float = 0.0,
+) -> np.ndarray:
+    """Apply DICOM RescaleSlope/Intercept → calibrated units (typically HU for CT)."""
+    arr = as_float_array(pixels)
+    return (arr * float(rescale_slope) + float(rescale_intercept)).astype(np.float32)
+
+
 def apply_window(
     pixels: np.ndarray,
     *,
@@ -69,6 +86,53 @@ def apply_window(
     hi = window_center + half
     clipped = np.clip(arr, lo, hi)
     return ((clipped - lo) / (hi - lo)).astype(np.float32)
+
+
+def resize_2d(
+    pixels: np.ndarray,
+    *,
+    height: int,
+    width: int,
+    use_clahe: bool = False,
+) -> np.ndarray:
+    """Resize HW or CHW to target H×W. Prefer OpenCV when available; else NumPy box."""
+    if height < 1 or width < 1:
+        raise PrepValidationError("resize_2d height/width must be ≥ 1")
+    arr = as_float_array(pixels)
+    channel_first = False
+    if arr.ndim == 3 and arr.shape[0] in (1, 3):
+        channel_first = True
+        planes = [arr[c] for c in range(arr.shape[0])]
+    elif arr.ndim == 2:
+        planes = [arr]
+    else:
+        raise PrepValidationError(f"resize_2d unsupported shape {arr.shape}")
+
+    try:
+        import cv2  # type: ignore[import-not-found]
+
+        resized_planes = []
+        for plane in planes:
+            # OpenCV expects uint8 or float; keep float32 spatial resize.
+            out = cv2.resize(plane, (width, height), interpolation=cv2.INTER_AREA)
+            if use_clahe:
+                # CLAHE on display-scaled copy then remap — optional enhance, not clinical.
+                u8 = np.clip(out * 255.0 if out.max() <= 1.5 else out, 0, 255).astype(np.uint8)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                u8 = clahe.apply(u8)
+                out = u8.astype(np.float32) / 255.0
+            resized_planes.append(out.astype(np.float32))
+    except Exception:
+        # Deterministic NumPy nearest-neighbor fallback (no OpenCV required for core).
+        resized_planes = []
+        for plane in planes:
+            ys = (np.linspace(0, plane.shape[0] - 1, height)).astype(np.int32)
+            xs = (np.linspace(0, plane.shape[1] - 1, width)).astype(np.int32)
+            resized_planes.append(plane[ys][:, xs].astype(np.float32))
+
+    if channel_first or len(resized_planes) > 1:
+        return np.stack(resized_planes, axis=0)
+    return resized_planes[0]
 
 
 def apply_photometric(pixels: np.ndarray, photometric: str | None) -> np.ndarray:
