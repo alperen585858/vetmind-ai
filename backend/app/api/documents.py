@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.deps import get_document_service
 from app.auth.deps import require_auth, require_capability
+from app.auth.visibility import case_for_principal
 from app.auth.principal import AuthPrincipal
 from app.auth.rbac import CAP_DOCUMENTS
 from app.schemas.case import CaseRecord
@@ -79,4 +80,4 @@ def confirm_document_ingestion(
     service: DocumentService = Depends(get_document_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
-    return service.confirm(ingest_id, payload, principal=principal)
+    return case_for_principal(service.confirm(ingest_id, payload, principal=principal), principal)

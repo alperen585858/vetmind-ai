@@ -906,9 +906,8 @@ class CaseService:
             ):
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
             self._emit_audit("case.read", principal=principal, resource=case_id)
-            # Internal radiologist notes are not visible to owners/vets.
-            if principal.via == "jwt" and principal.role not in {"expert", "admin", "demo", "service"}:
-                case = case.model_copy(update={"internal_notes": []})
+            # Radiologist-only fields are filtered on the response (app.auth.visibility),
+            # never here: services save what get_case returns.
         return case
 
     def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:

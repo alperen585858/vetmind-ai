@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
+from app.auth.visibility import case_for_principal
 from app.auth.rbac import (
     CAP_ADMIN,
     CAP_CASE_READ,
@@ -169,7 +170,8 @@ def vet_action(
     """Vet verify / reject / request missing info. Accept creates a clinical case."""
     if principal.role not in {"vet", "admin", "demo", "service"} and principal.via != "disabled":
         raise HTTPException(status_code=403, detail="Veterinarian verification required.")
-    return service.vet_action(submission_id, payload, principal=principal)
+    result = service.vet_action(submission_id, payload, principal=principal)
+    return case_for_principal(result, principal) if isinstance(result, CaseRecord) else result
 
 
 @router.post("/submissions/{submission_id}/attachments", response_model=ImagingSubmission)

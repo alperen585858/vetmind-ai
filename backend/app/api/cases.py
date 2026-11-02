@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
+from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
 from app.schemas.case import (
     AiChatAsk,
@@ -86,7 +87,7 @@ def create_case(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_WRITE)),
 ) -> CaseRecord:
-    return service.create_case(payload, principal=principal)
+    return case_for_principal(service.create_case(payload, principal=principal), principal)
 
 
 @router.get("", response_model=list[CaseSummary])
@@ -210,7 +211,7 @@ def update_assignment(
     """Vet (cases:write) or radiologist (review) may assign / set priority."""
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assignment not allowed.")
-    return service.update_assignment(case_id, payload, principal=principal)
+    return case_for_principal(service.update_assignment(case_id, payload, principal=principal), principal)
 
 
 @router.post("/{case_id}/clinical-notes", response_model=CaseRecord)
@@ -222,7 +223,7 @@ def append_clinical_note(
 ) -> CaseRecord:
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-    return service.append_clinical_note(case_id, payload, principal=principal)
+    return case_for_principal(service.append_clinical_note(case_id, payload, principal=principal), principal)
 
 
 @router.post("/{case_id}/internal-notes", response_model=CaseRecord)
@@ -232,7 +233,7 @@ def append_internal_note(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
 ) -> CaseRecord:
-    return service.append_internal_note(case_id, payload, principal=principal)
+    return case_for_principal(service.append_internal_note(case_id, payload, principal=principal), principal)
 
 
 @router.post("/{case_id}/info-requests", response_model=CaseRecord, status_code=status.HTTP_201_CREATED)
@@ -244,7 +245,7 @@ def create_case_info_request(
 ) -> CaseRecord:
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-    return service.create_info_request(case_id, payload, principal=principal)
+    return case_for_principal(service.create_info_request(case_id, payload, principal=principal), principal)
 
 
 @router.post("/{case_id}/info-requests/{request_id}/reply", response_model=CaseRecord)
@@ -257,7 +258,7 @@ def reply_case_info_request(
 ) -> CaseRecord:
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW) or principal.role == "owner"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-    return service.reply_info_request(case_id, request_id, payload, principal=principal)
+    return case_for_principal(service.reply_info_request(case_id, request_id, payload, principal=principal), principal)
 
 
 @router.post("/{case_id}/info-requests/{request_id}/close", response_model=CaseRecord)
@@ -269,7 +270,7 @@ def close_case_info_request(
 ) -> CaseRecord:
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-    return service.close_info_request(case_id, request_id, principal=principal)
+    return case_for_principal(service.close_info_request(case_id, request_id, principal=principal), principal)
 
 
 @router.post("/{case_id}/documents", response_model=CaseRecord)
@@ -284,9 +285,10 @@ def attach_case_document(
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
     container = get_container(request)
-    return service.attach_document_ingest(
+    case = service.attach_document_ingest(
         case_id, payload, principal=principal, documents_svc=container.documents
     )
+    return case_for_principal(case, principal)
 
 
 @router.get("/{case_id}", response_model=CaseRecord)
@@ -295,7 +297,7 @@ def get_case(
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> CaseRecord:
-    return service.get_case(case_id, principal=principal)
+    return case_for_principal(service.get_case(case_id, principal=principal), principal)
 
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)

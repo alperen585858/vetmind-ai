@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
+from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
 from app.container import AppContainer
 from app.schemas.case import CaseActivityEvent, CaseRecord, ReportDraftUpdate, ReviewFeedback
@@ -22,7 +23,7 @@ def mark_report_delivered(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> CaseRecord:
     """Mark approved report as delivered to clinic (does not alter report content)."""
-    return service.mark_report_delivered(case_id, principal=principal)
+    return case_for_principal(service.mark_report_delivered(case_id, principal=principal), principal)
 
 
 @router.post("/cases/{case_id}/report/viewed", response_model=CaseRecord)
@@ -32,7 +33,7 @@ def mark_report_viewed(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> CaseRecord:
     """Record first clinic/viewer open of an approved report (immutable content preserved)."""
-    return service.mark_report_viewed(case_id, principal=principal)
+    return case_for_principal(service.mark_report_viewed(case_id, principal=principal), principal)
 
 
 @router.get("/cases/{case_id}/report", response_model=DraftReport)

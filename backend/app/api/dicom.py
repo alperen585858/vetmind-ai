@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container, get_dicom_service
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
+from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_DICOM
 from app.dicom.fixtures import (
     brain_ct_study_files,
@@ -269,7 +270,7 @@ def confirm_classification(
     service: DicomService = Depends(get_dicom_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseRecord:
-    return service.confirm(ingest_id, payload, principal=principal)
+    return case_for_principal(service.confirm(ingest_id, payload, principal=principal), principal)
 
 
 @router.get("/eval/latest")
