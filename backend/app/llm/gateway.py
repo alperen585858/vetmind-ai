@@ -39,7 +39,8 @@ _STRUCTURED_HISTORY_LABELS = (
 )
 
 
-def _compose_history(case: CaseRecord) -> str:
+def compose_history(case: CaseRecord) -> str:
+    """Free-text + structured history (handoff notes excluded), unredacted."""
     parts = [case.clinical_history.strip()] if case.clinical_history and case.clinical_history.strip() else []
     structured = case.clinical_history_structured
     if structured is not None:
@@ -62,7 +63,7 @@ def build_generation_input(
     if case.document_context is not None:
         doc_count = len(case.document_context.documents)
     redacted = redact_personal_data(
-        _compose_history(case),
+        compose_history(case),
         known=[(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")],
     )
     lang = (language or "tr").strip().lower() or "tr"
