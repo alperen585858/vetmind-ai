@@ -67,7 +67,7 @@ function applySidebarPref(compact: boolean) {
 
 export default function Settings() {
   const { role, user, signOut, pushToast, applyUserProfile } = useApp()
-  const { t, setLocale, intlLocale } = useLocale()
+  const { t, locale, setLocale, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
   const [settings, setSettings] = useState<BackendUserSettings | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -126,7 +126,7 @@ export default function Settings() {
         report_ready_alerts: settings.report_ready_alerts,
         message_alerts: settings.message_alerts,
         compact_sidebar: settings.compact_sidebar,
-        language: settings.language,
+        language: settings.language ?? locale,
       })
       setSettings(saved)
       setDisplayName(saved.display_name)
@@ -271,7 +271,7 @@ export default function Settings() {
                 <span className="label">{t('settings.language')}</span>
                 <select
                   className="input mt-1"
-                  value={settings.language}
+                  value={settings.language ?? locale}
                   onChange={(e) => {
                     const lang = e.target.value
                     if (!isLocale(lang)) return

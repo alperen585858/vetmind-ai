@@ -158,7 +158,8 @@ export type BackendUserSettings = {
   report_ready_alerts: boolean
   message_alerts: boolean
   compact_sidebar: boolean
-  language: 'tr' | 'en'
+  /** null until the user picks a language (client keeps its own locale). */
+  language: 'tr' | 'en' | null
   updated_at: string
 }
 

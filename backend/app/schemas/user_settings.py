@@ -23,7 +23,9 @@ class UserSettings(BaseModel):
     report_ready_alerts: bool = True
     message_alerts: bool = True
     compact_sidebar: bool = False
-    language: Literal["tr", "en"] = "tr"
+    # None until the user picks one: clients keep their own locale, and report language
+    # falls back to the case owner / deployment default (see CaseService).
+    language: Optional[Literal["tr", "en"]] = None
     updated_at: datetime = Field(default_factory=utcnow)
 
 

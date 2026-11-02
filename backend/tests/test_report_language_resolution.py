@@ -41,3 +41,13 @@ def test_actor_choice_wins() -> None:
     store.update("vet@x", UserSettingsUpdate(language="en"))
     store.update("expert@x", UserSettingsUpdate(language="tr"))
     assert _service(store, "en")._resolve_report_language(CASE, principal=EXPERT) == "tr"
+
+
+def test_settings_api_does_not_invent_a_language(tmp_path) -> None:
+    from tests.test_phase6_e2e_journey import _auth_client, _hdr, _token
+
+    c = _auth_client(tmp_path)
+    token = _token(c, "expert@demo.local")
+    assert c.get("/api/v1/settings/me", headers=_hdr(token)).json()["language"] is None
+    assert c.put("/api/v1/settings/me", json={"language": "en"}, headers=_hdr(token)).json()["language"] == "en"
+    assert c.get("/api/v1/settings/me", headers=_hdr(token)).json()["language"] == "en"
