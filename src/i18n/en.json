@@ -708,7 +708,9 @@
       "securityTitle": "Safety / limits",
       "security1": "Pixel access is default-deny.",
       "security2": "RAG citations are not clinical validation.",
-      "security3": "Provider errors are not silently ignored."
+      "security3": "Provider errors are not silently ignored.",
+      "studyMetadata": "Study metadata",
+      "models": "Models"
     },
     "workflow": {
       "dicom": "DICOM uploaded",
@@ -890,7 +892,17 @@
     "failed": "Failed",
     "manual": "Manual",
     "noAnalysis": "No analysis",
-    "aiCompleted": "AI analysis completed"
+    "aiCompleted": "AI analysis completed",
+    "stages": {
+      "queued": "Queued",
+      "prep_metadata": "Preparing metadata",
+      "route_models": "Routing models",
+      "vision_adapters": "Image analysis",
+      "normalize_findings": "Merging findings",
+      "llm_draft": "Writing draft",
+      "validate_report": "Validating report",
+      "finalize": "Finishing"
+    }
   },
   "dicom": {
     "title": "Upload DICOM",
@@ -1014,6 +1026,30 @@
       "approvedBy": "Approved · {name}",
       "immutableSuffix": " · immutable",
       "localVersion": "local"
+    },
+    "doc": {
+      "name": "Name",
+      "speciesBreed": "Species / breed",
+      "sex": "Sex",
+      "ageWeight": "Age / weight",
+      "owner": "Owner",
+      "clinic": "Clinic",
+      "modality": "Modality",
+      "region": "Region",
+      "submitted": "Submitted",
+      "review": "Review",
+      "radiologist": "Radiologist",
+      "approvedAt": "Approved on",
+      "delivery": "Delivery",
+      "loadFailed": "Could not load the report from the server. PDF/print is unavailable without the API or a session.",
+      "patientInfo": "Patient information",
+      "neutered": "neutered",
+      "intact": "intact",
+      "studyClinic": "Study / clinic",
+      "viewed": "Viewed",
+      "delivered": "Delivered",
+      "ready": "Ready",
+      "ageWeightValue": "{age} y · {weight} kg"
     }
   },
   "messages": {
@@ -1193,6 +1229,32 @@
       "docAttachFail": "Could not attach document",
       "replyFail": "Could not send reply",
       "defaultInfoRequest": "Please complete the clinical history."
+    },
+    "board": {
+      "dicomBlocked": "DICOM blocked",
+      "validationError": "Validation error",
+      "speciesBreed": "Species / breed",
+      "clinicalHistory": "Clinical history",
+      "referringClinic": "Referring clinic",
+      "modality": "Modality",
+      "region": "Anatomical region",
+      "confidence": "Confidence",
+      "noClassification": "No classification",
+      "description": "Description",
+      "seriesInstances": "Series / instances",
+      "blockedNoPreview": "Blocked ingest — no preview",
+      "metadataOnly": "Metadata read. No pixel preview means the files could not be decoded.",
+      "species": "Species",
+      "breed": "Breed",
+      "age": "Age",
+      "clinicalNote": "Clinical note",
+      "dicomSummary": "DICOM summary",
+      "loading": "Loading…",
+      "openFullReview": "Open full review",
+      "review": "Review →",
+      "complaint": "Complaint",
+      "requestedInfo": "Requested information",
+      "name": "Name"
     }
   },
   "vetBoard": {
@@ -1453,7 +1515,9 @@
     "success": "Succeeded",
     "rolledBack": "Rolled back",
     "activeStaff": "active",
-    "inactiveStaff": "inactive"
+    "inactiveStaff": "inactive",
+    "evalCasesSubtitle": "{set} · {n} cases{repeats} · prompt {prompt} · {file}",
+    "evalRepeats": " × {r} repeats"
   },
   "notifications": {
     "title": "Notifications",
@@ -1522,7 +1586,9 @@
       "toastReplyFailed": "Could not get reply",
       "toastChatCleared": "Chat cleared",
       "toastChatClearFailed": "Could not clear chat",
-      "analysisFailedOutcome": "Analysis returned failed"
+      "analysisFailedOutcome": "Analysis returned failed",
+      "resultLabel": "Result: {outcome}",
+      "unknownError": "Unknown error"
     },
     "processing": "Processing…",
     "provenance": "Provenance",

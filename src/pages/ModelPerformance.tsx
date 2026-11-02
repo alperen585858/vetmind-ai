@@ -339,7 +339,13 @@ export default function ModelPerformance() {
           <Card className="min-w-0 xl:col-span-3">
             <CardHeader
               title={t('admin.modelCompare')}
-              subtitle={`${evalResult?.set} · ${caseIds.length} vaka${repeats > 1 ? ` × ${repeats} tekrar` : ''} · prompt ${runs[0].prompt_version || t('common.dash')} · ${evalResult?.file}`}
+              subtitle={t('admin.evalCasesSubtitle', {
+                set: evalResult?.set ?? '',
+                n: caseIds.length,
+                repeats: repeats > 1 ? t('admin.evalRepeats', { r: repeats }) : '',
+                prompt: runs[0].prompt_version || t('common.dash'),
+                file: evalResult?.file ?? '',
+              })}
               icon={<FlaskConical className="h-5 w-5" />}
             />
             <div className="overflow-x-auto">

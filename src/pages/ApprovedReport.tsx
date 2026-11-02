@@ -226,7 +226,7 @@ export default function ApprovedReport() {
                 void hydrateBackendCase(id).then((mapped) => {
                   if (!mapped) {
                     setLoadError(
-                      'Backend raporu yüklenemedi. API kapalıysa veya oturum yoksa PDF/print kullanılamaz.',
+                      t('reports.doc.loadFailed'),
                     )
                   } else {
                     setLoadError(null)
@@ -428,14 +428,14 @@ export default function ApprovedReport() {
 
         <section className="grid gap-6 border-b border-slate-100 px-8 py-5 text-sm sm:grid-cols-2">
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Hasta bilgileri</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('reports.doc.patientInfo')}</p>
             <dl className="space-y-1">
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Ad</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.name')}</dt>
                 <dd className="font-medium text-navy-900">{p.name}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Tür / Irk</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.speciesBreed')}</dt>
                 <dd className="text-navy-900">
                   {p.species} · {p.breed}
                 </dd>
@@ -443,19 +443,19 @@ export default function ApprovedReport() {
               {showDemoPatientExtras && (
                 <>
                   <div className="flex gap-2">
-                    <dt className="w-28 text-slate-500">Cinsiyet</dt>
+                    <dt className="w-28 text-slate-500">{t('reports.doc.sex')}</dt>
                     <dd className="text-navy-900">
-                      {p.sex}, {p.neutered ? 'kısırlaştırılmış' : 'kısırlaştırılmamış'}
+                      {p.sex}, {p.neutered ? t('reports.doc.neutered') : t('reports.doc.intact')}
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-28 text-slate-500">Yaş / Kilo</dt>
+                    <dt className="w-28 text-slate-500">{t('reports.doc.ageWeight')}</dt>
                     <dd className="text-navy-900">
-                      {p.age} yaş · {p.weight} kg
+                      {t('reports.doc.ageWeightValue', { age: p.age, weight: p.weight })}
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-28 text-slate-500">Sahip</dt>
+                    <dt className="w-28 text-slate-500">{t('reports.doc.owner')}</dt>
                     <dd className="text-navy-900">{p.ownerName}</dd>
                   </div>
                 </>
@@ -463,53 +463,53 @@ export default function ApprovedReport() {
             </dl>
           </div>
           <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">İnceleme / klinik</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('reports.doc.studyClinic')}</p>
             <dl className="space-y-1">
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Klinik</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.clinic')}</dt>
                 <dd className="text-navy-900">{c.clinic || '—'}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Modalite</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.modality')}</dt>
                 <dd className="text-navy-900">{c.modality ?? '—'}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Bölge</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.region')}</dt>
                 <dd className="text-navy-900">{c.anatomicalRegion ?? '—'}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Başvuru</dt>
-                <dd className="text-navy-900">{fmtDate(c.createdAt)}</dd>
+                <dt className="w-28 text-slate-500">{t('reports.doc.submitted')}</dt>
+                <dd className="text-navy-900">{fmtDate(c.createdAt, locale)}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">İnceleme</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.review')}</dt>
                 <dd className="text-navy-900">{reviewStatus}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Radyolog</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.radiologist')}</dt>
                 <dd className="text-navy-900">{c.approvedBy || c.backendDraft?.reviewed_by || '—'}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Onay tarihi</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.approvedAt')}</dt>
                 <dd className="text-navy-900">
                   {c.approvedAt
-                    ? fmtDate(c.approvedAt)
+                    ? fmtDate(c.approvedAt, locale)
                     : c.reportAvailableAt
-                      ? fmtDate(c.reportAvailableAt)
+                      ? fmtDate(c.reportAvailableAt, locale)
                       : c.backendDraft?.updated_at
-                        ? fmtDate(c.backendDraft.updated_at)
+                        ? fmtDate(c.backendDraft.updated_at, locale)
                         : '—'}
                 </dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 text-slate-500">Teslimat</dt>
+                <dt className="w-28 text-slate-500">{t('reports.doc.delivery')}</dt>
                 <dd className="text-navy-900">
                   {c.reportViewedAt
-                    ? `Görüldü · ${fmtDate(c.reportViewedAt)}`
+                    ? `${t('reports.doc.viewed')} · ${fmtDate(c.reportViewedAt, locale)}`
                     : c.reportDeliveredAt
-                      ? `İletildi · ${fmtDate(c.reportDeliveredAt)}`
+                      ? `${t('reports.doc.delivered')} · ${fmtDate(c.reportDeliveredAt, locale)}`
                       : c.reportAvailableAt
-                        ? 'Hazır'
+                        ? t('reports.doc.ready')
                         : '—'}
                 </dd>
               </div>

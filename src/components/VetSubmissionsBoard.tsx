@@ -157,8 +157,8 @@ function DicomReviewPanel({
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm text-rose-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <p className="font-semibold">DICOM engellendi</p>
-            <p className="mt-0.5 text-rose-800">{detail.block_reason || 'Doğrulama hatası'}</p>
+            <p className="font-semibold">{t('submissions.board.dicomBlocked')}</p>
+            <p className="mt-0.5 text-rose-800">{detail.block_reason || t('submissions.board.validationError')}</p>
           </div>
         </div>
       )}
@@ -178,13 +178,13 @@ function DicomReviewPanel({
             DICOM hasta
           </p>
           <div className="space-y-2">
-            <Field label="Ad" value={detail.patient_name || '—'} />
+            <Field label={t('submissions.board.name')} value={detail.patient_name || '—'} />
             <Field
-              label="Tür / ırk"
+              label={t('submissions.board.speciesBreed')}
               value={[speciesTr(detail.species, t) || detail.species, detail.breed].filter(Boolean).join(' · ') || '—'}
             />
-            {detail.clinical_history ? <Field label="Klinik öykü" value={detail.clinical_history} /> : null}
-            {detail.referring_clinic ? <Field label="Gönderen klinik" value={detail.referring_clinic} /> : null}
+            {detail.clinical_history ? <Field label={t('submissions.board.clinicalHistory')} value={detail.clinical_history} /> : null}
+            {detail.referring_clinic ? <Field label={t('submissions.board.referringClinic')} value={detail.referring_clinic} /> : null}
           </div>
         </div>
 
@@ -194,10 +194,10 @@ function DicomReviewPanel({
           </p>
           {detail.classification ? (
             <div className="space-y-2">
-              <Field label="Modalite" value={detail.classification.suggested_modality} />
-              <Field label="Anatomik bölge" value={detail.classification.suggested_anatomical_region} />
+              <Field label={t('submissions.board.modality')} value={detail.classification.suggested_modality} />
+              <Field label={t('submissions.board.region')} value={detail.classification.suggested_anatomical_region} />
               <Field
-                label="Güven"
+                label={t('submissions.board.confidence')}
                 value={`${detail.classification.confidence}${
                   detail.classification.needs_confirmation ? ' · onay gerekli' : ''
                 }`}
@@ -211,7 +211,7 @@ function DicomReviewPanel({
               ) : null}
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Sınıflandırma yok</p>
+            <p className="text-sm text-slate-500">{t('submissions.board.noClassification')}</p>
           )}
         </div>
       </div>
@@ -220,7 +220,7 @@ function DicomReviewPanel({
         <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Study</p>
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-[11px] text-slate-400">Açıklama</dt>
+            <dt className="text-[11px] text-slate-400">{t('submissions.board.description')}</dt>
             <dd className="font-medium text-navy-900">{detail.study?.study_description || '—'}</dd>
           </div>
           <div>
@@ -228,7 +228,7 @@ function DicomReviewPanel({
             <dd className="font-medium text-navy-900">{detail.study?.accession_number || '—'}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Seri / instance</dt>
+            <dt className="text-[11px] text-slate-400">{t('submissions.board.seriesInstances')}</dt>
             <dd className="font-medium text-navy-900">
               {series.length} seri · {instanceCount} instance
               {detail.quarantined_files?.length
@@ -308,8 +308,8 @@ function DicomReviewPanel({
         {frames.length === 0 ? (
           <p className="text-sm text-slate-500">
             {detail.blocked
-              ? 'Engellenmiş ingest — önizleme yok'
-              : 'Metadata okundu. Piksel önizleme yoksa dosyalar decode edilemedi.'}
+              ? t('submissions.board.blockedNoPreview')
+              : t('submissions.board.metadataOnly')}
           </p>
         ) : (
           <div className="space-y-3">
@@ -745,21 +745,21 @@ export function VetSubmissionsBoard({
                     <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-soft">
                       <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sahip</p>
                       <div className="space-y-2">
-                        <Field label="Ad" value={ownerShort} />
+                        <Field label={t('submissions.board.name')} value={ownerShort} />
                         <Field label="E-posta" value={selected.pet_owner_subject || '—'} />
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-soft">
                       <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Hasta</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <Field label="Ad" value={selectedPet?.name || displayName(selected)} />
+                        <Field label={t('submissions.board.name')} value={selectedPet?.name || displayName(selected)} />
                         <Field
-                          label="Tür"
+                          label={t('submissions.board.species')}
                           value={speciesTr(selectedPet?.species || detail?.species, t) || '—'}
                         />
-                        <Field label="Irk" value={selectedPet?.breed || detail?.breed || '—'} />
+                        <Field label={t('submissions.board.breed')} value={selectedPet?.breed || detail?.breed || '—'} />
                         <Field
-                          label="Yaş"
+                          label={t('submissions.board.age')}
                           value={selectedPet?.age_years != null ? `${selectedPet.age_years}` : '—'}
                         />
                       </div>
@@ -768,7 +768,7 @@ export function VetSubmissionsBoard({
 
                   {(selected.chief_complaint || selected.clinical_notes) && (
                     <div className="rounded-xl border border-slate-200 px-3.5 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Klinik not</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('submissions.board.clinicalNote')}</p>
                       <p className="mt-1 text-sm text-navy-900">
                         {selected.chief_complaint || selected.clinical_notes}
                       </p>
@@ -782,19 +782,19 @@ export function VetSubmissionsBoard({
                       className="flex w-full items-center justify-between rounded-xl border border-teal-200/80 bg-teal-50/50 px-3.5 py-3 text-left transition hover:bg-teal-50"
                     >
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">DICOM özeti</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">{t('submissions.board.dicomSummary')}</p>
                         <p className="mt-1 text-sm text-navy-900">
                           {detail?.classification
                             ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region}`
                             : detailLoading
-                              ? 'Yükleniyor…'
-                              : 'Tam incelemeye geç'}
+                              ? t('submissions.board.loading')
+                              : t('submissions.board.openFullReview')}
                           {detail?.study
                             ? ` · ${detail.study.series.length} seri`
                             : ''}
                         </p>
                       </div>
-                      <span className="text-xs font-medium text-teal-700">İncele →</span>
+                      <span className="text-xs font-medium text-teal-700">{t('submissions.board.review')}</span>
                     </button>
                   )}
                 </>
@@ -803,7 +803,7 @@ export function VetSubmissionsBoard({
               {detailTab === 'klinik' && (
                 <div className="space-y-3 text-sm">
                   <div className="rounded-xl border border-slate-200 px-3.5 py-3">
-                    <p className="text-[11px] font-semibold uppercase text-slate-500">Şikâyet</p>
+                    <p className="text-[11px] font-semibold uppercase text-slate-500">{t('submissions.board.complaint')}</p>
                     <p className="mt-1 text-navy-900">{selected.chief_complaint || '—'}</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 px-3.5 py-3">
@@ -812,7 +812,7 @@ export function VetSubmissionsBoard({
                   </div>
                   {selected.missing_info_request ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-3">
-                      <p className="text-[11px] font-semibold uppercase text-amber-800">İstenen bilgi</p>
+                      <p className="text-[11px] font-semibold uppercase text-amber-800">{t('submissions.board.requestedInfo')}</p>
                       <p className="mt-1 text-amber-950">{selected.missing_info_request}</p>
                     </div>
                   ) : null}

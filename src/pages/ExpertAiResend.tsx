@@ -171,7 +171,7 @@ export default function ExpertAiResend() {
       }
       setRunById((prev) => ({
         ...prev,
-        [caseId]: { phase: 'done', message: `Sonuç: ${result.outcome}` },
+        [caseId]: { phase: 'done', message: t('ai.resend.resultLabel', { outcome: result.outcome }) },
       }))
       pushToast({
         tone: 'success',
@@ -187,7 +187,7 @@ export default function ExpertAiResend() {
         load()
         return
       }
-      const msg = err instanceof Error ? err.message : 'Bilinmeyen hata'
+      const msg = err instanceof Error ? err.message : t('ai.resend.unknownError')
       setRunById((prev) => ({ ...prev, [caseId]: { phase: 'error', message: msg } }))
       pushToast({ tone: 'error', title: t('ai.resend.toastResendSendFailed'), body: msg })
     } finally {

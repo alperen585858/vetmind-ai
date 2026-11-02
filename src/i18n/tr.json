@@ -708,7 +708,9 @@
       "securityTitle": "Güvenlik / sınırlar",
       "security1": "Piksel erişimi varsayılan kapalı (default-deny).",
       "security2": "RAG atıfları klinik doğrulama değildir.",
-      "security3": "Provider hataları sessizce yok sayılmaz."
+      "security3": "Provider hataları sessizce yok sayılmaz.",
+      "studyMetadata": "Çalışma metadatası",
+      "models": "Modeller"
     },
     "workflow": {
       "dicom": "DICOM Yüklendi",
@@ -890,7 +892,17 @@
     "failed": "Başarısız",
     "manual": "Manuel",
     "noAnalysis": "Analiz yok",
-    "aiCompleted": "AI analizi tamamlandı"
+    "aiCompleted": "AI analizi tamamlandı",
+    "stages": {
+      "queued": "Sırada",
+      "prep_metadata": "Metadata hazırlığı",
+      "route_models": "Model yönlendirme",
+      "vision_adapters": "Görüntü analizi",
+      "normalize_findings": "Bulgular birleştiriliyor",
+      "llm_draft": "Taslak yazılıyor",
+      "validate_report": "Rapor doğrulama",
+      "finalize": "Tamamlanıyor"
+    }
   },
   "dicom": {
     "title": "DICOM Yükle",
@@ -1014,6 +1026,30 @@
       "approvedBy": "Onaylandı · {name}",
       "immutableSuffix": " · immutable",
       "localVersion": "local"
+    },
+    "doc": {
+      "name": "Ad",
+      "speciesBreed": "Tür / Irk",
+      "sex": "Cinsiyet",
+      "ageWeight": "Yaş / Kilo",
+      "owner": "Sahip",
+      "clinic": "Klinik",
+      "modality": "Modalite",
+      "region": "Bölge",
+      "submitted": "Başvuru",
+      "review": "İnceleme",
+      "radiologist": "Radyolog",
+      "approvedAt": "Onay tarihi",
+      "delivery": "Teslimat",
+      "loadFailed": "Backend raporu yüklenemedi. API kapalıysa veya oturum yoksa PDF/print kullanılamaz.",
+      "patientInfo": "Hasta bilgileri",
+      "neutered": "kısırlaştırılmış",
+      "intact": "kısırlaştırılmamış",
+      "studyClinic": "İnceleme / klinik",
+      "viewed": "Görüldü",
+      "delivered": "İletildi",
+      "ready": "Hazır",
+      "ageWeightValue": "{age} yaş · {weight} kg"
     }
   },
   "messages": {
@@ -1193,6 +1229,32 @@
       "docAttachFail": "Belge eklenemedi",
       "replyFail": "Yanıt gönderilemedi",
       "defaultInfoRequest": "Lütfen klinik öyküyü tamamlayın."
+    },
+    "board": {
+      "dicomBlocked": "DICOM engellendi",
+      "validationError": "Doğrulama hatası",
+      "speciesBreed": "Tür / ırk",
+      "clinicalHistory": "Klinik öykü",
+      "referringClinic": "Gönderen klinik",
+      "modality": "Modalite",
+      "region": "Anatomik bölge",
+      "confidence": "Güven",
+      "noClassification": "Sınıflandırma yok",
+      "description": "Açıklama",
+      "seriesInstances": "Seri / instance",
+      "blockedNoPreview": "Engellenmiş ingest — önizleme yok",
+      "metadataOnly": "Metadata okundu. Piksel önizleme yoksa dosyalar decode edilemedi.",
+      "species": "Tür",
+      "breed": "Irk",
+      "age": "Yaş",
+      "clinicalNote": "Klinik not",
+      "dicomSummary": "DICOM özeti",
+      "loading": "Yükleniyor…",
+      "openFullReview": "Tam incelemeye geç",
+      "review": "İncele →",
+      "complaint": "Şikâyet",
+      "requestedInfo": "İstenen bilgi",
+      "name": "Ad"
     }
   },
   "vetBoard": {
@@ -1453,7 +1515,9 @@
     "success": "Başarılı",
     "rolledBack": "Geri alındı",
     "activeStaff": "aktif",
-    "inactiveStaff": "pasif"
+    "inactiveStaff": "pasif",
+    "evalCasesSubtitle": "{set} · {n} vaka{repeats} · prompt {prompt} · {file}",
+    "evalRepeats": " × {r} tekrar"
   },
   "notifications": {
     "title": "Bildirimler",
@@ -1522,7 +1586,9 @@
       "toastReplyFailed": "Yanıt alınamadı",
       "toastChatCleared": "Sohbet temizlendi",
       "toastChatClearFailed": "Sohbet silinemedi",
-      "analysisFailedOutcome": "Analiz failed döndü"
+      "analysisFailedOutcome": "Analiz failed döndü",
+      "resultLabel": "Sonuç: {outcome}",
+      "unknownError": "Bilinmeyen hata"
     },
     "processing": "İşleniyor…",
     "provenance": "Köken",

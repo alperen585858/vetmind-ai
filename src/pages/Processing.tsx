@@ -81,6 +81,13 @@ export default function Processing() {
   const { id = '' } = useParams()
   const { getCase, updateCase, hydrateBackendCase, pushToast } = useApp()
   const { t } = useLocale()
+  // Backend stage_label is Turkish; translate the stage id, fall back to the backend text.
+  const stageLabel = (j: { pipeline_stage?: string | null; stage_label?: string | null } | null | undefined) => {
+    if (!j) return ''
+    const key = j.pipeline_stage ? `analysis.stages.${j.pipeline_stage}` : ''
+    const translated = key ? t(key) : ''
+    return translated && translated !== key ? translated : j.stage_label || j.pipeline_stage || ''
+  }
   const nav = useLocalizedNavigate()
   const c = getCase(id)
   const isBackend = Boolean(c?.backendCaseId || id.startsWith('case-'))
@@ -133,7 +140,7 @@ export default function Processing() {
       c.studyInstanceUid ? `UID …${c.studyInstanceUid.slice(-10)}` : null,
       c.instanceCount != null ? t('cases.processing.imagesCount', { n: String(c.instanceCount) }) : null,
     ].filter(Boolean)
-    return parts.join(' · ') || 'Study metadata'
+    return parts.join(' · ') || t('cases.processing.studyMetadata')
   }, [c, t])
 
   const onStop = async () => {
@@ -323,7 +330,7 @@ export default function Processing() {
                     <div className="mt-3">
                       <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                         <span className="font-medium text-navy-800">
-                          {job?.stage_label || job?.pipeline_stage || (inFlight ? t('analysis.analyzing') : t('common.dash'))}
+                          {stageLabel(job) || (inFlight ? t('analysis.analyzing') : t('common.dash'))}
                           {job?.pipeline_stage === 'vision_adapters' &&
                           job.vision_adapter_total != null &&
                           job.vision_adapter_total > 0
@@ -375,7 +382,7 @@ export default function Processing() {
                 <dd className="col-span-3 font-mono text-xs">{job?.job_id ?? c.backendJobId ?? t('common.dash')}</dd>
               </div>
               <div className="grid grid-cols-5 gap-2 py-2">
-                <dt className="col-span-2 text-slate-500">Modeller</dt>
+                <dt className="col-span-2 text-slate-500">{t('cases.processing.models')}</dt>
                 <dd className="col-span-3 text-xs">
                   {(
                     (job?.routed_model_ids?.length
@@ -402,7 +409,7 @@ export default function Processing() {
               <div className="grid grid-cols-5 gap-2 py-2">
                 <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
                 <dd className="col-span-3 text-xs">
-                  {job?.stage_label || job?.pipeline_stage || t('common.dash')}
+                  {stageLabel(job) || t('common.dash')}
                   {job?.progress_pct != null ? ` · ${job.progress_pct}%` : ''}
                 </dd>
               </div>
