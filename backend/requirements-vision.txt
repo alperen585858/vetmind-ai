@@ -10,6 +10,8 @@
 
 torch>=2.2.0
 monai>=1.3.0
+# Pretrained chest X-ray DenseNet (human data; demo/initialization only):
+torchxrayvision>=1.2.0
 opencv-python-headless>=4.8.0
 # Optional decode helpers for compressed DICOM (add when needed):
 # pylibjpeg>=2.0.0

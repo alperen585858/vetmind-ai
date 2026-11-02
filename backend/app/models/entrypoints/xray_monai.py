@@ -61,6 +61,61 @@ class TinyXRClassifier:
         return self.net(x)
 
 
+# Pretrained chest-radiograph DenseNet121 from TorchXRayVision (human data). The checkpoint
+# keeps its 18 human pathologies as ``source_labels``; ``label_map`` picks the ones reported
+# as vet finding codes. Outputs are already sigmoid + operating-point normalized (0.5 = cut).
+TXRV_ARCHITECTURE = "txrv_densenet121"
+_TXRV_INPUT_SIZE = 224
+_TXRV_INTENSITY = 1024.0  # the model expects pixels in [-1024, 1024]
+
+DEFAULT_TXRV_LABEL_MAP: dict[str, str] = {
+    "Cardiomegaly": "CARDIOMEGALY_SUSPECTED",
+    "Effusion": "PLEURAL_EFFUSION_SUSPECTED",
+    "Lung Opacity": "PULMONARY_OPACITY",
+    "Pneumothorax": "PNEUMOTHORAX_SUSPECTED",
+    "Consolidation": "PULMONARY_CONSOLIDATION_SUSPECTED",
+    "Edema": "PULMONARY_EDEMA_SUSPECTED",
+    "Nodule": "PULMONARY_NODULE_SUSPECTED",
+    "Mass": "THORACIC_MASS_SUSPECTED",
+    "Fracture": "FRACTURE_SUSPECTED",
+}
+
+
+def _require_txrv():
+    try:
+        import torchxrayvision  # type: ignore[import-not-found]
+
+        return torchxrayvision
+    except Exception as exc:  # noqa: BLE001
+        raise ModelUnavailableError(
+            "torchxrayvision unavailable. Install backend/requirements-vision.txt "
+            f"({type(exc).__name__})."
+        ) from exc
+
+
+def _build_txrv_module(state: dict[str, Any], *, num_classes: int):
+    xrv = _require_txrv()
+    op_threshs = state.get("op_threshs")
+    module = xrv.models.DenseNet(weights=None, num_classes=num_classes, op_threshs=op_threshs)
+    module.load_state_dict(state)
+    return module
+
+
+def _txrv_input(x):  # noqa: ANN001 — torch tensor (1, H, W) in [0, 1]
+    """Pad to square (no anatomy cropped), resize to 224 with MONAI, scale to [-1024, 1024]."""
+    try:
+        from monai.transforms import Resize, SpatialPad  # type: ignore[import-not-found]
+    except Exception as exc:  # noqa: BLE001
+        raise ModelUnavailableError(
+            f"MONAI unavailable. Install backend/requirements-vision.txt ({type(exc).__name__})."
+        ) from exc
+    side = int(max(x.shape[-2], x.shape[-1]))
+    x = SpatialPad((side, side))(x)
+    x = Resize((_TXRV_INPUT_SIZE, _TXRV_INPUT_SIZE), mode="area")(x)
+    x = x.as_tensor() if hasattr(x, "as_tensor") else x
+    return (x * 2.0 - 1.0) * _TXRV_INTENSITY
+
+
 class XRayMonaiEntrypoint:
     """Local XR classifier entrypoint."""
 
@@ -88,6 +143,8 @@ class XRayMonaiEntrypoint:
         self._module: Any = None
         self._label_names: list[str] = list(_DEFAULT_LABELS)
         self._clinically_approved = False
+        self._architecture = "tiny_xr_classifier"
+        self._output_index: list[int] | None = None  # txrv: model outputs reported, in label order
 
     def load(self) -> None:
         torch = require_torch()
@@ -103,6 +160,9 @@ class XRayMonaiEntrypoint:
         self._clinically_approved = bool(
             isinstance(payload, dict) and payload.get("clinically_approved") is True
         )
+        if isinstance(payload, dict) and payload.get("architecture") == TXRV_ARCHITECTURE:
+            self._load_txrv(payload)
+            return
         num_classes = len(self._label_names)
         module = TinyXRClassifier(num_classes=num_classes).to(self.device).eval()
         state = None
@@ -125,6 +185,34 @@ class XRayMonaiEntrypoint:
         self._module = module
         self._ready = True
         _ = torch  # silence lint if unused beyond require
+
+    def _load_txrv(self, payload: dict[str, Any]) -> None:
+        source = payload.get("source_labels")
+        state = payload.get("state_dict")
+        if not isinstance(source, (list, tuple)) or not source or not isinstance(state, dict):
+            raise ModelUnavailableError(
+                f"Checkpoint for {self.model_id!r} ({TXRV_ARCHITECTURE}) needs source_labels "
+                "and state_dict. No silent mock fallback."
+            )
+        label_map = payload.get("label_map") or DEFAULT_TXRV_LABEL_MAP
+        picked = [(i, str(label_map[name])) for i, name in enumerate(source) if name in label_map]
+        if not picked:
+            raise ModelUnavailableError(
+                f"Checkpoint for {self.model_id!r}: label_map matches none of source_labels."
+            )
+        try:
+            module = _build_txrv_module(state, num_classes=len(source))
+        except ModelUnavailableError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise ModelUnavailableError(
+                f"Incompatible XR weights for {self.model_id!r}: {type(exc).__name__}."
+            ) from exc
+        self._module = module.to(self.device).eval()
+        self._output_index = [i for i, _ in picked]
+        self._label_names = [code for _, code in picked]
+        self._architecture = TXRV_ARCHITECTURE
+        self._ready = True
 
     def is_ready(self) -> bool:
         return self._ready
@@ -150,9 +238,15 @@ class XRayMonaiEntrypoint:
             x = torch.from_numpy(arr).unsqueeze(0).to(self.device)
             if x.shape[1] == 3:
                 x = x.mean(dim=1, keepdim=True)
+            if self._output_index is not None:
+                x = _txrv_input(x[0].cpu()).unsqueeze(0).to(self.device)
             with torch.no_grad():
-                logits = self._module.forward(x)
-                probs = torch.sigmoid(logits).detach().cpu().numpy().reshape(-1)
+                out = self._module.forward(x)
+                if self._output_index is None:
+                    out = torch.sigmoid(out)
+                probs = out.detach().cpu().numpy().reshape(-1)
+            if self._output_index is not None:
+                probs = probs[self._output_index]
             scores = [float(p) for p in probs.tolist()]
             # Pad/truncate to label count
             while len(scores) < len(self._label_names):
@@ -187,6 +281,11 @@ class XRayMonaiEntrypoint:
             warnings.append(
                 "Checkpoint clinically_approved=false — raw model scores only."
             )
+        if self._architecture == TXRV_ARCHITECTURE:
+            warnings.append(
+                "Weights were trained on human chest radiographs (TorchXRayVision); "
+                "performance on animal radiographs is unknown."
+            )
 
         meta = {
             "adapter": "xray_monai",
@@ -195,9 +294,7 @@ class XRayMonaiEntrypoint:
             "calibrated": "false",
             "clinically_validated": "false",
             "raw_scores": ",".join(f"{n}={s:.4f}" for n, s in zip(self._label_names, scores)),
-            "architecture": str(
-                (self._cached.meta or {}).get("architecture") or "tiny_xr_classifier"
-            ),
+            "architecture": self._architecture,
         }
         status = ModelExecutionStatus.SUCCESS
         if not classification.labels:
@@ -264,3 +361,33 @@ def save_tiny_checkpoint(
     out = path
     torch.save(payload, out)
     return out
+
+
+def save_txrv_checkpoint(
+    path: str,
+    *,
+    weights: str = "densenet121-res224-all",
+    model_id: str = "vet-xr-thorax-v1",
+    version: str = "0.1.0-txrv-human",
+    label_map: dict[str, str] | None = None,
+) -> str:
+    """Export a TorchXRayVision DenseNet121 into a plain (weights_only-loadable) checkpoint.
+
+    Downloads the pretrained weights on first use (~30 MB into ~/.torchxrayvision).
+    """
+    torch = require_torch()
+    xrv = _require_txrv()
+    module = xrv.models.DenseNet(weights=weights)
+    payload = {
+        "model_id": model_id,
+        "version": version,
+        "architecture": TXRV_ARCHITECTURE,
+        "source_weights": f"torchxrayvision:{weights}",
+        "source_labels": list(module.pathologies),
+        "label_map": dict(label_map or DEFAULT_TXRV_LABEL_MAP),
+        "clinically_approved": False,
+        "notes": "Human chest radiograph weights; demo/initialization only, not veterinary-validated.",
+        "state_dict": module.state_dict(),
+    }
+    torch.save(payload, path)
+    return path
