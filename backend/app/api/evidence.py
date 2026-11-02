@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import require_capability
@@ -24,18 +24,18 @@ class EvidenceReviewBody(BaseModel):
 
     action: Literal["accept", "reject", "set_include", "edit"]
     include_in_report: Optional[bool] = None
-    vet_note: Optional[str] = None
+    vet_note: Optional[str] = Field(default=None, max_length=2000)
     bbox: Optional[BoundingBoxEvidence] = None
 
 
 class ManualEvidenceBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    finding_id: str
+    finding_id: str = Field(min_length=1, max_length=200)
     bbox: BoundingBoxEvidence
-    sop_instance_uid: Optional[str] = None
-    frame_index: Optional[int] = None
-    description: str = "Radiologist manual mark"
+    sop_instance_uid: Optional[str] = Field(default=None, max_length=128)
+    frame_index: Optional[int] = Field(default=None, ge=0, le=100_000)
+    description: str = Field(default="Radiologist manual mark", max_length=500)
     include_in_report: bool = True
 
 

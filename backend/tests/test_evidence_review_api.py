@@ -63,3 +63,17 @@ def test_manual_mark_gets_an_overlay_so_it_can_reach_the_report(tmp_path: Path) 
     assert ev["overlay_ref"], "manual mark must be rendered, otherwise the approved PDF drops it"
     png = c.get(f"/api/v1/cases/{cid}/evidence/{ev['evidence_id']}", headers=_hdr(exp))
     assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
+
+
+def test_evidence_inputs_are_bounded(tmp_path: Path) -> None:
+    c, vet, exp, cid, fid = _case(tmp_path)
+    url = f"/api/v1/cases/{cid}/evidence"
+    for bad in (
+        {"finding_id": fid, "bbox": BOX, "description": "x" * 501},
+        {"finding_id": fid, "bbox": {**BOX, "x_min": -1e308}},
+        {"finding_id": fid, "bbox": {**BOX, "x_max": 5}},  # max < min
+        {"finding_id": fid, "bbox": {**BOX, "transform_chain": [{}] * 17}},
+    ):
+        assert c.post(url, json=bad, headers=_hdr(exp)).status_code == 422, bad
+    nan = '{"finding_id": "%s", "bbox": {"x_min": NaN, "y_min": 1, "x_max": 2, "y_max": 2}}' % fid
+    assert c.post(url, content=nan, headers={**_hdr(exp), "Content-Type": "application/json"}).status_code == 422

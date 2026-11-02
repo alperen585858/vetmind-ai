@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
@@ -37,6 +40,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.container = container or AppContainer()
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Same 422 body as FastAPI, minus echoed inputs: NaN/inf inputs cannot be JSON-encoded
+        # (the default handler turned them into a 500) and inputs may carry sensitive text.
+        errors = [{k: v for k, v in err.items() if k not in {"input", "ctx", "url"}} for err in exc.errors()]
+        return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
     ensure_demo_seed(app.state.container)
     app.add_middleware(
         CORSMiddleware,

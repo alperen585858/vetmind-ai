@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.enums import (
     AnatomicalRegion,
@@ -36,18 +36,28 @@ class ConflictReasonCode(str, Enum):
     MULTI_MODEL = "multi_model"
 
 
+BBOX_COORD_LIMIT = 100_000.0
+
+
 class BoundingBoxEvidence(BaseModel):
     """2D localization. Prefer pixel_2d_native for display/PDF after invert of prep transforms."""
 
     model_config = ConfigDict(extra="forbid")
 
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
+    # Finite, bounded coordinates: NaN/inf or huge values break overlay and PDF rendering.
+    x_min: float = Field(ge=-BBOX_COORD_LIMIT, le=BBOX_COORD_LIMIT, allow_inf_nan=False)
+    y_min: float = Field(ge=-BBOX_COORD_LIMIT, le=BBOX_COORD_LIMIT, allow_inf_nan=False)
+    x_max: float = Field(ge=-BBOX_COORD_LIMIT, le=BBOX_COORD_LIMIT, allow_inf_nan=False)
+    y_max: float = Field(ge=-BBOX_COORD_LIMIT, le=BBOX_COORD_LIMIT, allow_inf_nan=False)
     coordinate_space: CoordinateSpace = "pixel_2d_native"
     # Ordered prep/display transforms from native → model_input (invert to display on DICOM).
-    transform_chain: list[dict[str, Any]] = Field(default_factory=list)
+    transform_chain: list[dict[str, Any]] = Field(default_factory=list, max_length=16)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "BoundingBoxEvidence":
+        if self.x_max < self.x_min or self.y_max < self.y_min:
+            raise ValueError("bbox max must not be smaller than min")
+        return self
 
 
 class VolumeGeometryRef(BaseModel):
