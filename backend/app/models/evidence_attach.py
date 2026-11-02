@@ -14,7 +14,7 @@ from app.schemas.case import CaseRecord
 from app.schemas.findings import EVIDENCE_DISCLAIMER, EvidenceReference, StructuredFindings
 
 
-def _load_slice_for_sop(case: CaseRecord, sop: str | None) -> np.ndarray | None:
+def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | None = None) -> np.ndarray | None:
     """Best-effort decode of one quarantine DICOM instance for overlay base image."""
     if not sop or case.model_input is None:
         return None
@@ -51,12 +51,32 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None) -> np.ndarray | None:
         return None
     try:
         ds = dcmread(str(path), force=True)
-        arr = np.asarray(ds.pixel_array).astype(np.float32)
-        if arr.ndim == 3:
-            arr = arr[arr.shape[0] // 2]
-        return arr
+        return pick_frame(
+            np.asarray(ds.pixel_array).astype(np.float32),
+            samples_per_pixel=int(getattr(ds, "SamplesPerPixel", 1) or 1),
+            frame_index=frame_index,
+        )
     except Exception:
         return None
+
+
+def pick_frame(arr: np.ndarray, *, samples_per_pixel: int = 1, frame_index: int | None = None) -> np.ndarray | None:
+    """2D grayscale slice for drawing the box on.
+
+    pydicom shapes: (H, W) single gray · (F, H, W) multi-frame gray · (H, W, 3) single
+    colour · (F, H, W, 3) multi-frame colour. The box's frame_index selects the frame
+    (middle frame only when none is given); colour is converted to luminance.
+    """
+    color = samples_per_pixel > 1
+    if color and arr.ndim >= 3 and arr.shape[-1] in (3, 4):
+        arr = arr[..., :3] @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    if arr.ndim == 3:
+        n = arr.shape[0]
+        idx = frame_index if frame_index is not None else n // 2
+        if not 0 <= idx < n:
+            return None  # box refers to a frame this file does not have: do not draw it elsewhere
+        arr = arr[idx]
+    return arr if arr.ndim == 2 else None
 
 
 def attach_rendered_evidence(
@@ -83,7 +103,7 @@ def attach_rendered_evidence(
                 continue
             base = slice_override
             if base is None:
-                base = _load_slice_for_sop(case, ev.sop_instance_uid)
+                base = _load_slice_for_sop(case, ev.sop_instance_uid, ev.frame_index)
             if base is None:
                 # Cannot render without pixels — keep evidence metadata, warn.
                 updated.warnings.append(

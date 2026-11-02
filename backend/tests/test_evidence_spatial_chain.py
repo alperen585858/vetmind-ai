@@ -73,3 +73,20 @@ def test_fixed_checkpoint_boxes_are_synthetic_even_if_model_is_real() -> None:
 
     predicted = map_task_outputs_to_findings(case, ModelTaskOutputs(**base, detection=DetectionOutput(boxes=[box])))
     assert predicted.findings[0].synthetic is False
+
+
+def test_pick_frame_uses_frame_index_and_handles_colour() -> None:
+    from app.models.evidence_attach import pick_frame
+
+    multi = np.stack([np.full((4, 5), i, dtype=np.float32) for i in range(3)])
+    assert pick_frame(multi, frame_index=2)[0, 0] == 2
+    assert pick_frame(multi)[0, 0] == 1  # middle when unspecified
+    assert pick_frame(multi, frame_index=7) is None  # never draw on the wrong frame
+
+    rgb = np.zeros((4, 5, 3), dtype=np.float32); rgb[..., 1] = 100
+    gray = pick_frame(rgb, samples_per_pixel=3)
+    assert gray.shape == (4, 5) and abs(gray[0, 0] - 58.7) < 1e-3
+
+    rgb_multi = np.zeros((2, 4, 5, 3), dtype=np.float32); rgb_multi[1] = 10
+    assert pick_frame(rgb_multi, samples_per_pixel=3, frame_index=1).shape == (4, 5)
+    assert pick_frame(np.ones((4, 5), dtype=np.float32)).shape == (4, 5)
