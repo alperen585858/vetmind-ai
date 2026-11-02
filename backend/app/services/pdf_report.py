@@ -27,6 +27,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.models.evidence_store import normalize_ref
 from app.schemas.case import CaseRecord
 from app.schemas.report import DraftReport, ReportVersionSnapshot
 
@@ -400,7 +401,7 @@ def build_approved_report_pdf(
             png: bytes | None = None
             if root is not None and fig.overlay_ref:
                 try:
-                    path = (Path(root) / fig.overlay_ref).resolve()
+                    path = (Path(root) / normalize_ref(fig.overlay_ref)).resolve()
                     path.relative_to(Path(root).resolve())
                     if path.is_file():
                         png = path.read_bytes()

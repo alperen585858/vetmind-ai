@@ -17,6 +17,14 @@ from pathlib import Path
 _SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
 
 
+def normalize_ref(relative_path: str) -> str:
+    """Accept refs saved with Windows separators (before refs were stored POSIX-style).
+
+    Safe because ``_safe`` never lets a backslash into a stored file or directory name.
+    """
+    return relative_path.replace("\\", "/")
+
+
 def _safe(part: str, *, max_len: int = 64) -> str:
     cleaned = _SAFE.sub("_", (part or "").strip())[:max_len]
     return cleaned or "x"
@@ -82,7 +90,8 @@ class EvidenceArtifactStore:
         target.write_bytes(data)
         digest = hashlib.sha256(data).hexdigest()
         kind = "overlay_png" if name.endswith(".png") else "mask_npy" if name.endswith(".npy") else "blob"
-        rel = str(target.relative_to(self.root))
+        # Stored refs always use "/" so a DB written on Windows still resolves on Linux/macOS.
+        rel = target.relative_to(self.root).as_posix()
         return StoredArtifact(
             evidence_id=evidence_id,
             relative_path=rel,
@@ -118,7 +127,7 @@ class EvidenceArtifactStore:
         )
 
     def resolve(self, relative_path: str) -> Path:
-        path = (self.root / relative_path).resolve()
+        path = (self.root / normalize_ref(relative_path)).resolve()
         try:
             path.relative_to(self.root)
         except ValueError as exc:
