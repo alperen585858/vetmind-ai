@@ -1365,6 +1365,7 @@ class CaseService:
                 vet_note=vet_note,
                 bbox=bbox if isinstance(bbox, BoundingBoxEvidence) else None,
             )
+            sf = self._render_missing_overlays(case, sf)
             case.updated_at = _now()
             self._repo.save_case(case)
         self._emit_audit(f"evidence.review.{action}", principal=principal, resource=f"{case_id}/{evidence_id}")
@@ -1400,10 +1401,26 @@ class CaseService:
                 description=description,
                 include_in_report=include_in_report,
             )
+            sf = self._render_missing_overlays(case, sf)
             case.updated_at = _now()
             self._repo.save_case(case)
         self._emit_audit("evidence.manual_add", principal=principal, resource=f"{case_id}/{finding_id}")
         return sf
+
+    def _render_missing_overlays(self, case: CaseRecord, sf: StructuredFindings) -> StructuredFindings:
+        """Edited / manual marks need an overlay image, or the approved PDF silently drops them."""
+        from app.models.evidence_attach import attach_rendered_evidence
+        from app.models.evidence_store import EvidenceArtifactStore
+
+        if not isinstance(self._evidence_store, EvidenceArtifactStore):
+            return sf
+        try:
+            rendered = attach_rendered_evidence(case, sf, store=self._evidence_store)
+        except Exception as exc:  # noqa: BLE001 — rendering must not block the review action
+            sf.warnings.append(f"Evidence overlay render skipped: {type(exc).__name__}.")
+            return sf
+        case.structured_findings = rendered
+        return rendered
 
     @staticmethod
     def _assert_evidence_editable(case: CaseRecord) -> None:

@@ -144,7 +144,12 @@ def attach_rendered_evidence(
                         "evidence_type": ev.evidence_type if ev.evidence_type != "overlay" else (
                             "bbox" if ev.bbox else "segmentation_mask"
                         ),
-                        "note": EVIDENCE_DISCLAIMER,
+                        # Keep a SYNTHETIC marker (fixed boxes) visible next to the disclaimer.
+                        "note": (
+                            f"{ev.note} {EVIDENCE_DISCLAIMER}"
+                            if ev.note and ev.note.startswith("SYNTHETIC")
+                            else EVIDENCE_DISCLAIMER
+                        ),
                     }
                 )
             )

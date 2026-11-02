@@ -47,3 +47,19 @@ def test_evidence_frozen_after_approval(tmp_path: Path) -> None:
     ).status_code == 200
     res = _add(c, exp, cid, fid)
     assert res.status_code == 409 and "approved" in res.json()["detail"]
+
+
+def test_manual_mark_gets_an_overlay_so_it_can_reach_the_report(tmp_path: Path) -> None:
+    c, vet, exp, cid, fid = _case(tmp_path)
+    case = c.get(f"/api/v1/cases/{cid}", headers=_hdr(exp)).json()
+    sop = case["model_input"]["series"][0]["frames"][0]["sop_instance_uid"]
+    res = c.post(
+        f"/api/v1/cases/{cid}/evidence",
+        json={"finding_id": fid, "bbox": BOX, "sop_instance_uid": sop, "description": "El ile işaret"},
+        headers=_hdr(exp),
+    )
+    assert res.status_code == 200, res.text
+    ev = next(e for f in res.json()["findings"] for e in f["evidence_references"] if "-vet-" in e["evidence_id"])
+    assert ev["overlay_ref"], "manual mark must be rendered, otherwise the approved PDF drops it"
+    png = c.get(f"/api/v1/cases/{cid}/evidence/{ev['evidence_id']}", headers=_hdr(exp))
+    assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
