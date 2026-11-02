@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.dicom.classifier import classify_study
 from app.dicom.parser import parse_dicom_bytes
 from app.dicom.validator import validate_parsed_instances
@@ -11,6 +13,9 @@ from app.schemas.dicom import (
     DicomValidationIssue,
 )
 from app.schemas.enums import DicomValidationCode, DicomValidationSeverity
+
+if TYPE_CHECKING:
+    from app.dicom.llm_classifier import MetadataLLMClassifier
 
 # Codes that alone make an upload non-confirmable when they dominate the result.
 # Confirm gating still uses ValidationResult.blocked as the authoritative flag.
@@ -45,7 +50,9 @@ class DicomIngestResult:
         return not self.blocked and self.study is not None and self.classification is not None
 
 
-def ingest_dicom_files(files: list[tuple[str, bytes]]) -> DicomIngestResult:
+def ingest_dicom_files(
+    files: list[tuple[str, bytes]], *, llm_classifier: MetadataLLMClassifier | None = None
+) -> DicomIngestResult:
     """Parse, validate, and classify uploaded DICOM files. Does not create a Case."""
     if not files:
         empty = validate_parsed_instances([])
@@ -62,10 +69,10 @@ def ingest_dicom_files(files: list[tuple[str, bytes]]) -> DicomIngestResult:
 
     classification: ClassificationSuggestion | None = None
     if validation.study is not None and not validation.blocked:
-        classification = classify_study(validation.study)
+        classification = classify_study(validation.study, llm=llm_classifier)
     elif validation.study is not None:
         # Still attach a classification hint for blocked unsupported studies when useful.
-        classification = classify_study(validation.study)
+        classification = classify_study(validation.study, llm=llm_classifier)
 
     return DicomIngestResult(
         study=validation.study,

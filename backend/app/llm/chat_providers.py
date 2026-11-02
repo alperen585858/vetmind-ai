@@ -260,6 +260,24 @@ class _ChatProviderBase:
             problems.append(f"These markers do not exist; remove or replace them: {', '.join(unknown)}")
         return problems
 
+    def complete_json(self, system: str, user: str, schema: dict[str, Any], *, tool_name: str) -> dict[str, Any]:
+        """One schema-shaped completion for callers other than report generation
+        (e.g. the metadata classifier). Raises LLMProviderError subclasses on failure."""
+        payload, _ = self._complete(system, user, schema, tool_name=tool_name)
+        if isinstance(payload, dict):
+            return payload
+        text = payload.strip()
+        if text.startswith("```"):
+            text = text.strip("`")
+            text = text[text.find("{") :]
+        try:
+            parsed = json.loads(text)
+        except ValueError as exc:
+            raise LLMMalformedResponseError("LLM output is not valid JSON.") from exc
+        if not isinstance(parsed, dict):
+            raise LLMMalformedResponseError("LLM output JSON must be an object.")
+        return parsed
+
     def _complete(
         self,
         system: str,

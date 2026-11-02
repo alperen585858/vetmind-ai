@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import assert_case_access, can_access_owned
 from app.dicom.ingest import ingest_dicom_files
+from app.dicom.llm_classifier import MetadataLLMClassifier
 from app.models.model_input_builder import build_imaging_model_input
 from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
@@ -53,10 +54,13 @@ class DicomService:
         audit: AuditLogger | None = None,
         malware_scanner: MalwareScanner | None = None,
         feedback: FeedbackStore | None = None,
+        metadata_classifier: MetadataLLMClassifier | None = None,
     ) -> None:
         self._repo = repo
         self._quarantine = quarantine
         self._feedback = feedback
+        # Optional LLM signal for the classifier (VETMIND_CLASSIFIER_LLM); None = rules only.
+        self._metadata_classifier = metadata_classifier
         # Live router capabilities when provided (includes optional remote Vision id).
         self._capabilities = list(capabilities) if capabilities is not None else list(default_capabilities())
         self._tenant_isolation = tenant_isolation
@@ -93,7 +97,7 @@ class DicomService:
             owner_subject=owner,
             clinic_id=clinic,
         )
-        result = ingest_dicom_files(files)
+        result = ingest_dicom_files(files, llm_classifier=self._metadata_classifier)
 
         # Attach quarantine paths onto instance metadata when SOP/filename match order.
         if result.study is not None and stored:

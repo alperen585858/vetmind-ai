@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
+from app.dicom.llm_classifier import build_metadata_classifier
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
 from app.models.bridge_resources import ResourceLimits
@@ -184,6 +185,8 @@ class AppContainer:
         )
         # F11: settings-selected provider (mock default). No network probe at startup.
         self.llm_provider = build_llm_provider(self.settings)
+        # Fails fast on a bad config (like the report LLM); runtime errors fall back to rules.
+        self.metadata_classifier = build_metadata_classifier(self.settings)
         self.llm = LLMGateway(self.llm_provider, rag=self.rag)
         self.validator = ReportValidator()
         evidence_root = (
@@ -235,6 +238,7 @@ class AppContainer:
             audit=self.audit,
             malware_scanner=self.malware_scanner,
             feedback=self.feedback,
+            metadata_classifier=self.metadata_classifier,
         )
         doc_adapter = build_document_text_adapter(
             ocr_endpoint=self.settings.document_ocr_endpoint,

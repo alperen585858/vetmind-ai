@@ -104,6 +104,11 @@ class Settings:
     document_ocr_timeout_s: float = 30.0
     # Load scripted demo cases on startup when the case store is empty (app.demo_seed).
     demo_seed: bool = False
+    # DICOM classifier: ask the configured LLM when metadata rules are unsure (app.dicom.llm_classifier).
+    # Off by default; uses the VETMIND_LLM_* provider, optionally with its own model id.
+    classifier_llm: bool = False
+    classifier_llm_model_id: str | None = None
+    classifier_llm_timeout_s: float = 20.0
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
         "Optional remote Vision via VETMIND_VISION_ENDPOINT. "
@@ -142,6 +147,13 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
 
 
 def _env_optional_int(name: str) -> int | None:
@@ -440,6 +452,9 @@ def load_settings() -> Settings:
         document_ocr_endpoint=document_ocr_endpoint,
         document_ocr_timeout_s=max(1.0, document_ocr_timeout_s),
         demo_seed=_env_bool("VETMIND_DEMO_SEED", False),
+        classifier_llm=_env_bool("VETMIND_CLASSIFIER_LLM", False),
+        classifier_llm_model_id=(os.getenv("VETMIND_CLASSIFIER_LLM_MODEL_ID") or "").strip() or None,
+        classifier_llm_timeout_s=max(1.0, _env_float("VETMIND_CLASSIFIER_LLM_TIMEOUT_S", 20.0)),
     )
 
 

@@ -216,6 +216,55 @@ $env:VETMIND_LLM_PROVIDER="ollama"; $env:VETMIND_LLM_MODEL_ID="qwen2.5:7b"; $env
 
 Modelsiz çalışmak (arkadaşınızda Ollama yoksa) için eskisi gibi `npm run backend:dev`.
 
+#### DICOM sınıflandırıcıda yapay zekâ (isteğe bağlı)
+
+Yüklenen çalışmanın bölgesini ve hayvan türünü önce **kurallar** (Türkçe + İngilizce anahtar kelimeler)
+belirler. `VETMIND_CLASSIFIER_LLM=1` ile dil modeli yalnızca boşlukları doldurur: kuralların hiç bölge izi
+bulamadığı açıklamalar (ör. "HIPOFIZ MR") ve ırk adından tür ("Golden Retriever" → köpek). Kuralların
+bulduğu bölgeyi değiştirmez; farklı düşünürse vaka "çelişkili" işaretlenir. Modalite her zaman DICOM
+etiketinden gelir. Modele hasta adı, kimlik ve tarih gönderilmez. Model kapalıysa kurallarla devam edilir.
+
+Rapor modeliyle aynı model (`qwen2.5:7b`) kullanılır; ek indirme gerekmez. Daha küçük `qwen2.5:3b`
+denendi ama sözlük dışı terimlerde (hipofiz, serebellum, trakea…) hiç bölge bulamadı, bu yüzden önerilmez
+(gerekirse `VETMIND_CLASSIFIER_LLM_MODEL_ID` ile ayrı model seçilebilir).
+
+macOS / Linux — `backend:dev:ai` ortamına ek olarak:
+
+```bash
+cd backend && VETMIND_LLM_PROVIDER=ollama VETMIND_LLM_MODEL_ID=qwen2.5:7b VETMIND_CLASSIFIER_LLM=1 \
+  .venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+Windows (PowerShell):
+
+```powershell
+cd backend
+$env:VETMIND_LLM_PROVIDER="ollama"; $env:VETMIND_LLM_MODEL_ID="qwen2.5:7b"; $env:VETMIND_CLASSIFIER_LLM="1"
+.venv\Scripts\uvicorn app.main:app --reload --port 8000
+```
+
+**Ölçüm** (24 Türkçe/zor sentetik vaka, `eval/classification_eval_set_tr.json`; ekip tarafından yazıldı,
+klinik validasyon değildir):
+
+| | Bölge | Tür | Süre / vaka |
+|---|---|---|---|
+| Kurallar + Türkçe sözlük | %87,5 | %66,7 | ~0 |
+| + `qwen2.5:3b` | %87,5 | %100 | ~2,8 sn |
+| + `qwen2.5:7b` | **%95,8** | **%100** | ~3,2 sn |
+
+Sözlük öncesi kurallar ilk 19 vakada bölgede yalnızca %36,8 doğruydu; Türkçe anahtar kelimeler bunun
+çoğunu kapattı. Modelin katkısı sözlük dışı terimlerde (bölge) ve ırk adlarında (tür). Modelin kuralların
+bulduğu bölgeyi değiştirmesine izin verilen ara denemede bölge doğruluğu düştü (`kafa` → boyun
+karışıklığı), bu yüzden model yalnızca boşluk doldurur. Kendi ölçümünüz için:
+
+```bash
+cd backend && VETMIND_LLM_PROVIDER=ollama .venv/bin/python scripts/classification_eval.py \
+  --set eval/classification_eval_set_tr.json --models qwen2.5:7b,qwen2.5:3b
+```
+
+Windows'ta ilk istek ekran kartı hazırlanırken 15–70 sn sürebilir; zaman aşımı olursa sınıflandırma o
+yükleme için kurallarla devam eder (`VETMIND_CLASSIFIER_LLM_TIMEOUT_S` ile süre artırılabilir).
+
 ### 4.5 Gerçek görüntü modeliyle çalıştırma (röntgen)
 
 Varsayılan kurulumda görüntü analizi **sahte (mock)** çalışır. Göğüs/toraks röntgenini gerçek bir yapay

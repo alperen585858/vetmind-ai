@@ -6,6 +6,7 @@ Scores ``classify_study`` against a synthetic gold set. Not clinical validation.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -13,6 +14,8 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.dicom.classifier import classify_study
+from app.dicom.llm_classifier import SIGNAL_NAME as LLM_SIGNAL_NAME
+from app.dicom.llm_classifier import MetadataLLMClassifier
 from app.evaluation.metrics import ClinicalClassificationMetrics, ConfusionMatrixStats
 from app.schemas.dicom import DicomInstanceMeta, DicomSeriesMeta, DicomStudyMeta
 from app.schemas.enums import AnatomicalRegion, Modality, Species
@@ -149,11 +152,18 @@ class RunResult:
     classifier: str
     summary: EvalSummary
     cases: list[CaseResult] = field(default_factory=list)
+    # Hybrid runs only: which LLM signal was added and how often it was consulted.
+    llm_model: str | None = None
+    llm_calls: int = 0
+    mean_ms: float = 0.0
 
     def to_json(self) -> dict[str, Any]:
         return {
             "label": self.label,
             "classifier": self.classifier,
+            "llm_model": self.llm_model,
+            "llm_calls": self.llm_calls,
+            "mean_ms": self.mean_ms,
             "summary": self.summary.to_json(),
             "cases": [c.to_json() for c in self.cases],
         }
@@ -260,7 +270,11 @@ def run_eval(
     eval_set: ClassificationEvalSet,
     *,
     label: str = "metadata_rules_v1",
+    llm: MetadataLLMClassifier | None = None,
 ) -> RunResult:
+    """Score rules only, or rules + LLM signal when ``llm`` is given (same gold set)."""
+    llm_calls = 0
+    elapsed_ms: list[float] = []
     cases: list[CaseResult] = []
     modality_true: list[str] = []
     modality_pred: list[str] = []
@@ -271,7 +285,11 @@ def run_eval(
 
     for case in eval_set.cases:
         study = build_study(case)
-        suggestion = classify_study(study)
+        started = time.perf_counter()
+        suggestion = classify_study(study, llm=llm)
+        elapsed_ms.append((time.perf_counter() - started) * 1000)
+        if any(sig.name == LLM_SIGNAL_NAME for sig in suggestion.signals):
+            llm_calls += 1
 
         pred_mod = suggestion.suggested_modality.value
         gold_mod = case.expected.modality.value
@@ -328,9 +346,12 @@ def run_eval(
     )
     return RunResult(
         label=label,
-        classifier="classify_study",
+        classifier="classify_study" if llm is None else "classify_study+llm",
         summary=summary,
         cases=cases,
+        llm_model=llm.model_label if llm is not None else None,
+        llm_calls=llm_calls,
+        mean_ms=round(sum(elapsed_ms) / len(elapsed_ms), 1) if elapsed_ms else 0.0,
     )
 
 
@@ -341,6 +362,11 @@ def render_markdown(run: RunResult, eval_set: ClassificationEvalSet) -> str:
         f"_Synthetic / not clinical validation._ {eval_set.note}".strip(),
         "",
         f"- Classifier: `{run.classifier}` (`{run.label}`)",
+        *(
+            [f"- LLM signal: `{run.llm_model}` · consulted on {run.llm_calls} case(s) · mean {run.mean_ms} ms/case"]
+            if run.llm_model
+            else []
+        ),
         f"- Cases: {run.summary.n_cases}",
         f"- Clinical validation: `{run.summary.clinical_validation}`",
         "",
