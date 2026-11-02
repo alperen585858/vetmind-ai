@@ -234,6 +234,9 @@ class CaseRecord(BaseModel):
     messages: list[CaseMessage] = Field(default_factory=list)
     # Expert AI assistant chat (ChatGPT-style Q&A over case context). Cap in service.
     ai_chat: list[AiChatTurn] = Field(default_factory=list)
+    # Subjects who removed this case from their own lists ("delete" for non-admins);
+    # the clinical record itself is kept (approved reports are medical records).
+    hidden_for: list[str] = Field(default_factory=list)
     report_available_at: Optional[datetime] = None
     report_delivered_at: Optional[datetime] = None
     report_viewed_at: Optional[datetime] = None

@@ -61,16 +61,18 @@ def test_vet_can_delete_case(tmp_path: Path) -> None:
     assert client.get(f"/api/v1/cases/{case_id}", headers=_hdr(vet)).status_code == 404
 
 
-def test_expert_can_delete_case(tmp_path: Path) -> None:
+def test_expert_delete_hides_case_from_own_list_only(tmp_path: Path) -> None:
     client = _client(tmp_path)
     vet = _token(client, "vet@demo.local")
     expert = _token(client, "expert@demo.local")
     case_id = _new_case(client, vet, "UzmanSil")
     assert client.delete(f"/api/v1/cases/{case_id}", headers=_hdr(expert)).status_code == 204
-    assert client.get(f"/api/v1/cases/{case_id}", headers=_hdr(vet)).status_code == 404
+    expert_ids = {r["case_id"] for r in client.get("/api/v1/cases", headers=_hdr(expert)).json()}
+    assert case_id not in expert_ids
+    assert client.get(f"/api/v1/cases/{case_id}", headers=_hdr(vet)).status_code == 200  # record kept
 
 
-def test_owner_can_delete_own_approved_report(tmp_path: Path) -> None:
+def test_owner_delete_hides_own_approved_report(tmp_path: Path) -> None:
     client = _client(tmp_path)
     container = client.app.state.container  # type: ignore[attr-defined]
     vet_token = _token(client, "vet@demo.local")
@@ -84,7 +86,10 @@ def test_owner_can_delete_own_approved_report(tmp_path: Path) -> None:
     container.repo.save_case(case)
 
     assert client.delete(f"/api/v1/cases/{case_id}", headers=_hdr(owner_token)).status_code == 204
-    assert container.repo.get_case(case_id) is None
+    # Approved report = medical record: kept, but gone from the owner's list.
+    assert container.repo.get_case(case_id) is not None
+    owner_ids = {r["case_id"] for r in client.get("/api/v1/cases", headers=_hdr(owner_token)).json()}
+    assert case_id not in owner_ids
 
 
 def test_owner_cannot_delete_unrelated_case(tmp_path: Path) -> None:

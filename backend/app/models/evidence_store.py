@@ -147,6 +147,17 @@ class EvidenceArtifactStore:
             report_version=version,
         )
 
+    def delete_case_artifacts(self, case_id: str) -> None:
+        """Working overlays and frozen report packages of a permanently deleted case."""
+        self.delete_working_case(case_id)
+        path = (self.root / "_report_evidence" / _safe(case_id)).resolve()
+        try:
+            path.relative_to(self.root)
+        except ValueError:
+            return
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+
     def delete_working_case(self, case_id: str) -> None:
         path = (self.root / "_evidence" / _safe(case_id)).resolve()
         try:

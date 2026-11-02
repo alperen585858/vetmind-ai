@@ -365,6 +365,8 @@ class CaseService:
                 and c.status != CaseLifecycleStatus.APPROVED
             ):
                 continue
+            if principal is not None and principal.subject.strip().lower() in c.hidden_for:
+                continue
             summaries.append(self._to_summary(c, principal=principal))
         return summaries
 
@@ -931,7 +933,25 @@ class CaseService:
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
 
+        if not self._may_hard_delete(case, principal):
+            # Everyone else removes it from their own list only; the record is kept.
+            subject = principal.subject.strip().lower()
+            with self._lock:
+                latest = self._repo.get_case(case_id) or case
+                if subject not in latest.hidden_for:
+                    latest.hidden_for = [*latest.hidden_for, subject]
+                    latest.updated_at = _now()
+                    self._repo.save_case(latest)
+            self._emit_audit("case.hide", principal=principal, resource=case_id)
+            return
+
         self._repo.delete_case(case_id)
+        store = self._evidence_store
+        if store is not None and hasattr(store, "delete_case_artifacts"):
+            try:
+                store.delete_case_artifacts(case_id)  # type: ignore[union-attr]
+            except Exception:  # noqa: BLE001 — leftover files must not block the delete
+                pass
         nsvc = self._notifications
         if nsvc is not None and hasattr(nsvc, "delete_for_cases"):
             try:
@@ -939,6 +959,18 @@ class CaseService:
             except Exception:
                 pass
         self._emit_audit("case.delete", principal=principal, resource=case_id)
+
+    @staticmethod
+    def _may_hard_delete(case: CaseRecord, principal: AuthPrincipal) -> bool:
+        """Permanent delete: admin always; the clinic (cases:write) only before approval."""
+        if principal.role == "admin" or (principal.can(CAP_ADMIN) and principal.via != "disabled"):
+            return True
+        approved = (
+            case.status == CaseLifecycleStatus.APPROVED
+            or (case.draft_report is not None and case.draft_report.immutable)
+            or any(v.immutable for v in case.report_versions)
+        )
+        return principal.can(CAP_CASE_WRITE) and principal.role != "owner" and not approved
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
         if getattr(case, "vet_verified", True) is False:
