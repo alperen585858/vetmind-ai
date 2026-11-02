@@ -1,20 +1,21 @@
 import type { FC } from 'react'
 import { Check, Circle, CircleX } from 'lucide-react'
+import { useLocale } from '../context/LocaleContext'
 
 const WORKFLOW_STEPS = [
   {
     id: 'dicom',
-    label: 'DICOM Yüklendi',
+    labelKey: 'cases.workflow.dicom',
     aliases: ['dicom', 'uploaded', 'dicom_uploaded', 'dicom-yuklendi', 'dicom_yüklendi'],
   },
   {
     id: 'ai',
-    label: 'AI İşliyor',
+    labelKey: 'cases.workflow.ai',
     aliases: ['ai', 'processing', 'ai_processing', 'ai-isliyor', 'ai_işliyor'],
   },
   {
     id: 'expert',
-    label: 'Uzman Onayı Bekleniyor',
+    labelKey: 'cases.workflow.expert',
     aliases: [
       'expert',
       'review',
@@ -24,7 +25,7 @@ const WORKFLOW_STEPS = [
       'uzman_onayı_bekleniyor',
     ],
   },
-  { id: 'report', label: 'Rapor Hazır', aliases: ['report', 'ready', 'report_ready', 'onaylandi', 'rapor_hazır'] },
+  { id: 'report', labelKey: 'cases.workflow.report', aliases: ['report', 'ready', 'report_ready', 'onaylandi', 'rapor_hazır'] },
 ] as const
 
 type WorkflowStatus = 'error' | 'reject' | 'rejected'
@@ -59,6 +60,7 @@ export const CaseWorkflowStepper: FC<CaseWorkflowStepperProps> = ({
   status,
   className = '',
 }) => {
+  const { t } = useLocale()
   const activeIndex = resolveStepIndex(currentStep)
   const hasError = status === 'error'
   const isRejected = status === 'reject' || status === 'rejected'
@@ -66,17 +68,17 @@ export const CaseWorkflowStepper: FC<CaseWorkflowStepperProps> = ({
 
   return (
     <section
-      aria-label="Vaka iş akışı"
+      aria-label={t('cases.workflow.aria')}
       className={`rounded-xl border border-slate-200 bg-white p-4 shadow-soft sm:p-5 ${className}`}
     >
-      <ol className="flex items-start" aria-label="İlerleme adımları">
+      <ol className="flex items-start" aria-label={t('cases.workflow.stepsAria')}>
         {WORKFLOW_STEPS.map((step, index) => {
           const isComplete = activeIndex !== null && index < activeIndex
           const isActive = activeIndex === index
           const isFailureStep = isActive && hasFailure
           const stepLabel = isFailureStep
-            ? `${step.label} — ${isRejected ? 'Reddedildi' : 'Hata'}`
-            : step.label
+            ? `${t(step.labelKey)} — ${isRejected ? t('cases.workflow.rejected') : t('cases.workflow.error')}`
+            : t(step.labelKey)
 
           return (
             <li

@@ -63,7 +63,6 @@ import {
 } from '../lib/reviewSla'
 import { CitedText } from '../components/CitedText'
 import { GroundingWarnings } from '../components/GroundingWarnings'
-import { LIKELIHOOD_TR } from '../lib/backend'
 
 const LIKELIHOOD_STYLE = {
   high: 'bg-teal-100 text-teal-800',
@@ -249,7 +248,7 @@ export default function CaseDetail() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">{t('cases.detail.patientCaseHeader')}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">{c.patient.name}</h1>
             <p className="mt-1 text-sm text-slate-300">
-              {c.patient.species} · {c.patient.breed} · {c.patient.age} yaş · {c.patient.weight} kg · {c.patient.sex}
+              {c.patient.species} · {c.patient.breed} · {t('cases.detail.ageWeight', { age: c.patient.age, weight: c.patient.weight })} · {c.patient.sex}
             </p>
             <p className="mt-1 text-sm text-slate-400">
               {[c.no, displayClinic(c.clinic) || null, c.module, fmtDate(c.createdAt, locale)].filter(Boolean).join(' · ')}
@@ -643,10 +642,10 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
     try {
       await appendCaseClinicalNote(caseKey, note.trim())
       setNote('')
-      pushToast({ tone: 'success', title: 'Klinik not eklendi' })
+      pushToast({ tone: 'success', title: t('cases.detail.toastNoteAdded') })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Not eklenemedi', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastNoteFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -661,10 +660,10 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
         to_role: isExpert ? 'vet' : 'owner',
       })
       setInfoBody('')
-      pushToast({ tone: 'info', title: 'Bilgi isteği açıldı' })
+      pushToast({ tone: 'info', title: t('cases.detail.toastInfoRequestOpened') })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'İstek açılamadı', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastRequestFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -683,10 +682,10 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
         clinicalHistory: c.clinical.history || c.clinical.complaint,
       })
       await attachCaseDocument(caseKey, up.ingest_id)
-      pushToast({ tone: 'success', title: 'Belge vakaya eklendi', body: 'Yeni vaka oluşturulmadı.' })
+      pushToast({ tone: 'success', title: t('cases.detail.toastDocAttached'), body: t('cases.detail.toastDocAttachedBody') })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: 'Belge eklenemedi', body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastDocFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setBusy(false)
     }
@@ -697,12 +696,12 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       <div className="space-y-6 xl:col-span-2">
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
-            <CardHeader title="Hasta" icon={<ClipboardList className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.patient')} icon={<ClipboardList className="h-5 w-5" />} />
             <dl className="divide-y divide-slate-50 px-5 py-2">
               <Row k="Ad" v={p.name} />
-              <Row k="Tür / Irk" v={`${p.species} · ${p.breed}`} />
-              <Row k="Cinsiyet" v={`${p.sex}, ${p.neutered ? 'kısırlaştırılmış' : 'kısırlaştırılmamış'}`} />
-              <Row k="Yaş / Kilo" v={`${p.age} yaş · ${p.weight} kg`} />
+              <Row k={t('cases.detail.rowSpeciesBreed')} v={`${p.species} · ${p.breed}`} />
+              <Row k={t('cases.detail.rowSex')} v={`${p.sex}, ${p.neutered ? t('cases.detail.neutered') : t('cases.detail.intact')}`} />
+              <Row k={t('cases.detail.rowAgeWeight')} v={t('cases.detail.ageWeight', { age: p.age, weight: p.weight })} />
               <Row
                 k="Sahip"
                 v={
@@ -716,18 +715,18 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
             </dl>
           </Card>
           <Card>
-            <CardHeader title="Klinik Bilgiler" icon={<Stethoscope className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.clinicalInfo')} icon={<Stethoscope className="h-5 w-5" />} />
             <dl className="divide-y divide-slate-50 px-5 py-2">
-              <Row k="Şikâyet" v={cleanClinicalHistory(c.clinical.complaint) || '—'} />
-              <Row k="Başlangıç" v={c.clinical.onset} />
+              <Row k={t('cases.detail.rowComplaint')} v={cleanClinicalHistory(c.clinical.complaint) || '—'} />
+              <Row k={t('cases.detail.rowOnset')} v={c.clinical.onset} />
               <Row k="Seyir" v={c.clinical.course} />
-              <Row k="Klinik geçmiş" v={cleanClinicalHistory(c.clinical.history) || '—'} />
-              <Row k="İlaçlar" v={c.clinical.medications || '—'} />
+              <Row k={t('cases.detail.rowHistory')} v={cleanClinicalHistory(c.clinical.history) || '—'} />
+              <Row k={t('cases.detail.rowMedications')} v={c.clinical.medications || '—'} />
             </dl>
             {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
               <div className="space-y-2 border-t border-slate-100 px-5 py-3">
                 <label className="block text-xs text-slate-600">
-                  Klinik not ekle (önceki öykü korunur)
+                  {t('cases.detail.addClinicalNote')}
                   <textarea
                     className="input mt-1 min-h-[64px] text-sm"
                     value={note}
@@ -752,20 +751,20 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
         </div>
         {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
           <Card>
-            <CardHeader title="Bilgi istekleri & belgeler" icon={<Info className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.infoRequestsDocs')} icon={<Info className="h-5 w-5" />} />
             <div className="space-y-3 px-5 pb-5">
               <label className="block text-xs text-slate-600">
-                {isExpert ? 'Veterinerden ek klinik bilgi iste' : 'Sahipten / radyologdan bilgi iste'}
+                {isExpert ? t('cases.detail.askVet') : t('cases.detail.askOwnerRadiologist')}
                 <input
                   className="input mt-1 text-sm"
                   value={infoBody}
                   onChange={(e) => setInfoBody(e.target.value)}
-                  placeholder="İstek metni"
+                  placeholder={t('cases.detail.requestPlaceholder')}
                 />
               </label>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" disabled={busy || !infoBody.trim()} onClick={() => void askInfo()}>
-                  İstek aç (OPEN)
+                  {t('cases.detail.openRequest')}
                 </Button>
                 <Button size="sm" variant="secondary" disabled={busy} onClick={() => docInputRef.current?.click()}>
                   Belge ekle (mevcut vaka)
@@ -788,12 +787,12 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                     <p className="font-medium text-navy-900">
                       {r.status} · → {r.to_role} · {r.body}
                     </p>
-                    {r.reply ? <p className="text-teal-800">Yanıt: {r.reply}</p> : null}
+                    {r.reply ? <p className="text-teal-800">{t('cases.detail.replyLabel')} {r.reply}</p> : null}
                     {r.status === 'OPEN' && (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
                         <input
                           className="input flex-1 text-sm"
-                          placeholder="Yanıt"
+                          placeholder={t('cases.detail.replyPlaceholder')}
                           value={replyDraft[r.request_id] || ''}
                           onChange={(e) => setReplyDraft((prev) => ({ ...prev, [r.request_id]: e.target.value }))}
                         />
@@ -803,17 +802,17 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                           onClick={() =>
                             void replyCaseInfoRequest(caseKey, r.request_id, replyDraft[r.request_id].trim())
                               .then(() => refresh())
-                              .then(() => pushToast({ tone: 'success', title: 'Yanıt kaydedildi' }))
+                              .then(() => pushToast({ tone: 'success', title: t('cases.detail.toastReplySaved') }))
                               .catch((e) =>
                                 pushToast({
                                   tone: 'error',
-                                  title: 'Yanıt başarısız',
+                                  title: t('cases.detail.toastReplyFailed'),
                                   body: e instanceof Error ? e.message : undefined,
                                 }),
                               )
                           }
                         >
-                          Yanıtla
+                          {t('cases.detail.reply')}
                         </Button>
                       </div>
                     )}
@@ -824,7 +823,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                         onClick={() =>
                           void closeCaseInfoRequest(caseKey, r.request_id)
                             .then(() => refresh())
-                            .then(() => pushToast({ tone: 'info', title: 'İstek kapatıldı' }))
+                            .then(() => pushToast({ tone: 'info', title: t('cases.detail.toastRequestClosed') }))
                         }
                       >
                         Kapat (CLOSED)
@@ -838,7 +837,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
         )}
         {c.petId && history.length > 0 && (
           <Card>
-            <CardHeader title="Pet görüntüleme geçmişi" icon={<History className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.petImagingHistory')} icon={<History className="h-5 w-5" />} />
             <ul className="divide-y divide-slate-50 px-5 pb-3 text-sm">
               {history.map((h, i) => (
                 <li key={`${h.kind}-${h.at}-${i}`} className="py-2">
@@ -849,7 +848,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                   </p>
                   {h.link_path ? (
                     <LocalizedLink className="text-xs text-teal-700 hover:underline" to={h.link_path}>
-                      Aç
+                      {t('cases.detail.open')}
                     </LocalizedLink>
                   ) : null}
                 </li>
@@ -858,15 +857,15 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
           </Card>
         )}
         <Card>
-          <CardHeader title="Görüntüleme & sınıflandırma" icon={<ImageIcon className="h-5 w-5" />} />
+          <CardHeader title={t('cases.detail.imagingClassification')} icon={<ImageIcon className="h-5 w-5" />} />
           <dl className="divide-y divide-slate-50 px-5 py-2">
-            <Row k="Modalite / Bölge" v={`${c.modality ?? '—'} · ${c.anatomicalRegion ?? '—'}`} />
+            <Row k={t('cases.detail.rowModalityRegion')} v={`${c.modality ?? '—'} · ${c.anatomicalRegion ?? '—'}`} />
             <Row
-              k="Sınıflandırma"
+              k={t('cases.detail.rowClassification')}
               v={
                 c.classificationConfirmed
-                  ? 'Onaylandı (vaka oluşturuldu)'
-                  : 'Onay bekleniyor / bilinmiyor'
+                  ? t('cases.detail.classificationConfirmed')
+                  : t('cases.detail.classificationPending')
               }
             />
             <Row
@@ -878,10 +877,10 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               }
             />
             <Row
-              k="Seri / görüntü"
+              k={t('cases.detail.rowSeriesImages')}
               v={
                 c.seriesCount != null || c.instanceCount != null
-                  ? `${c.seriesCount ?? '—'} seri · ${c.instanceCount ?? '—'} görüntü`
+                  ? t('cases.detail.seriesImages', { series: c.seriesCount ?? '—', images: c.instanceCount ?? '—' })
                   : '—'
               }
             />
@@ -899,7 +898,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                     AI taslak — AI sekmesi
                   </button>
                 ) : (
-                  'Henüz yok'
+                  t('cases.detail.notYet')
                 )
               }
             />
@@ -909,22 +908,22 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               to={`/vakalar/${c.id}?tab=goruntu`}
               className="text-sm font-medium text-teal-700 hover:underline"
             >
-              DICOM görüntüleyiciye git →
+              {t('cases.detail.goToViewer')}
             </LocalizedLink>
           </div>
         </Card>
         <Card>
-          <CardHeader title="Nörolojik Muayene Özeti" icon={<Brain className="h-5 w-5" />} action={loc && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">Olası lokalizasyon: {loc.region}</span>} />
+          <CardHeader title={t('cases.detail.neuroExam')} icon={<Brain className="h-5 w-5" />} action={loc && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">{t('cases.detail.likelyLocalization')} {loc.region}</span>} />
           <div className="grid gap-x-8 px-5 py-2 md:grid-cols-2">
             <dl className="divide-y divide-slate-50">
-              <Row k="Bilinç" v={n.consciousness} />
-              <Row k="Yürüyüş" v={`${n.gait}${n.limbs.length ? ` — ${n.limbs.join(', ')}` : ''}`} />
-              <Row k="Postüral (ön / arka)" v={`${n.posturalThoracic} / ${n.posturalPelvic}`} />
-              <Row k="Refleksler (tor. / pel.)" v={`${n.reflexThoracic} / ${n.reflexPelvic}`} />
+              <Row k={t('cases.detail.rowConsciousness')} v={n.consciousness} />
+              <Row k={t('cases.detail.rowGait')} v={`${n.gait}${n.limbs.length ? ` — ${n.limbs.join(', ')}` : ''}`} />
+              <Row k={t('cases.detail.rowPostural')} v={`${n.posturalThoracic} / ${n.posturalPelvic}`} />
+              <Row k={t('cases.detail.rowReflexes')} v={`${n.reflexThoracic} / ${n.reflexPelvic}`} />
             </dl>
             <dl className="divide-y divide-slate-50">
-              <Row k="Kraniyal sinirler" v={n.cranialNerves.join(', ') || 'Normal'} />
-              <Row k="Derin ağrı" v={n.deepPain === 'Değerlendirilmedi' ? <span className="font-medium text-amber-700">Değerlendirilmedi</span> : n.deepPain} />
+              <Row k={t('cases.detail.rowCranialNerves')} v={n.cranialNerves.join(', ') || 'Normal'} />
+              <Row k={t('cases.detail.rowDeepPain')} v={n.deepPain === 'Değerlendirilmedi' ? <span className="font-medium text-amber-700">{t('cases.detail.notAssessed')}</span> : n.deepPain} />
               <Row k="Spinal hiperestezi" v={n.hyperesthesia} />
             </dl>
           </div>
@@ -933,7 +932,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       <div className="space-y-6">
       <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
       <Card>
-        <CardHeader title="Durum Zaman Çizelgesi" />
+        <CardHeader title={t('cases.detail.statusTimeline')} />
         <ol className="relative px-5 py-4">
           {c.timeline.map((timelineItem, i) => {
             const last = i === c.timeline.length - 1
@@ -956,9 +955,10 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
 }
 
 function Documents({ c }: { c: VetCase }) {
+  const { t } = useLocale()
   const [sel, setSel] = useState(c.documents[0]?.id)
   const doc = c.documents.find((d) => d.id === sel)
-  if (!c.documents.length) return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title="Henüz belge yüklenmemiş" text="Vaka taslak durumunda." /></Card>
+  if (!c.documents.length) return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title={t('cases.detail.noDocuments')} text={t('cases.detail.caseIsDraft')} /></Card>
   return (
     <div className="grid gap-6 lg:grid-cols-12">
       <Card className="lg:col-span-3">
@@ -971,7 +971,7 @@ function Documents({ c }: { c: VetCase }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-navy-900">{d.name}</p>
                   <p className="text-xs text-slate-500">{d.type} · {d.pages} sf · {d.size}</p>
-                  <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600"><CheckCircle2 className="h-3 w-3" /> İşlendi</p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600"><CheckCircle2 className="h-3 w-3" /> {t('cases.detail.processed')}</p>
                 </div>
               </button>
             </li>
@@ -981,17 +981,17 @@ function Documents({ c }: { c: VetCase }) {
       {doc && (
         <>
           <Card className="lg:col-span-5">
-            <CardHeader title="Ham metin" subtitle={`${doc.name} — metne dönüştürülmüş içerik`} />
+            <CardHeader title={t('cases.detail.rawText')} subtitle={t('cases.detail.rawTextSub', { name: doc.name })} />
             <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap p-5 font-mono text-[12.5px] leading-relaxed text-navy-800">{doc.rawText}</pre>
           </Card>
           <Card className="lg:col-span-4">
-            <CardHeader title="Çıkarılmış yapılandırılmış veri" subtitle="Veri İşleme Katmanı çıktısı" />
+            <CardHeader title={t('cases.detail.extractedData')} subtitle={t('cases.detail.extractedDataSub')} />
             <ul className="space-y-3 p-4">
               {doc.extracted.map((e, i) => (
                 <li key={i} className="rounded-lg border border-slate-200 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{e.field}</p>
                   <p className="mt-0.5 text-sm font-medium text-navy-900">{e.value}</p>
-                  <p className="mt-2 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500">Kaynak cümle: {e.source}</p>
+                  <p className="mt-2 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500">{t('cases.detail.sourceSentence')} {e.source}</p>
                 </li>
               ))}
             </ul>
@@ -1003,6 +1003,7 @@ function Documents({ c }: { c: VetCase }) {
 }
 
 function Imaging({ c }: { c: VetCase }) {
+  const { t } = useLocale()
   const { pushToast } = useApp()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -1069,7 +1070,7 @@ function Imaging({ c }: { c: VetCase }) {
         const cached = await loadCachedCaseDicomFiles(caseKey)
         if (cancelled) return
         if (cached?.length) {
-          await paintFiles(cached, `Yüklenen çalışma · ${cached.length} dosya`)
+          await paintFiles(cached, t('cases.detail.uploadedStudy', { n: cached.length }))
           return
         }
 
@@ -1099,7 +1100,7 @@ function Imaging({ c }: { c: VetCase }) {
             explicitDemoKind === 'thorax_xr' ? 1 : 12,
           )
           if (cancelled) return
-          await paintFiles(demoFiles, `Örnek · ${explicitDemoKind.replace(/_/g, ' ')}`)
+          await paintFiles(demoFiles, t('cases.detail.sampleLabel', { kind: explicitDemoKind.replace(/_/g, ' ') }))
           return
         }
 
@@ -1115,7 +1116,7 @@ function Imaging({ c }: { c: VetCase }) {
             ? err.message
             : err instanceof Error
               ? err.message
-              : 'DICOM yüklenemedi'
+              : t('cases.detail.dicomLoadFailed')
         setError(message)
         setFiles([])
         setFrames([])
@@ -1130,7 +1131,7 @@ function Imaging({ c }: { c: VetCase }) {
 
   const applyLocalFiles = async (incoming: File[], label: string) => {
     if (!incoming.length) {
-      pushToast({ tone: 'warning', title: 'DICOM bulunamadı', body: 'Uygun .dcm dosyası seçilmedi.' })
+      pushToast({ tone: 'warning', title: t('cases.detail.dicomNotFound'), body: t('cases.detail.dicomNotFoundBody') })
       return
     }
     setBusy(true)
@@ -1138,9 +1139,9 @@ function Imaging({ c }: { c: VetCase }) {
     try {
       await paintFiles(incoming, label)
       void cacheCaseDicomFiles(caseKey, incoming.slice(0, MAX_VIEWER_FRAMES))
-      pushToast({ tone: 'success', title: `${Math.min(incoming.length, MAX_VIEWER_FRAMES)} görüntü yüklendi`, body: label })
+      pushToast({ tone: 'success', title: t('cases.detail.imagesLoaded', { n: Math.min(incoming.length, MAX_VIEWER_FRAMES) }), body: label })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Önizleme oluşturulamadı')
+      setError(err instanceof Error ? err.message : t('cases.detail.previewFailed'))
     } finally {
       setLoading(false)
       setBusy(false)
@@ -1154,14 +1155,14 @@ function Imaging({ c }: { c: VetCase }) {
     try {
       const kind = explicitDemoKind ?? fallbackDemoKind
       const demoFiles = await fetchDemoDicomFiles(kind, kind === 'thorax_xr' ? 1 : 12)
-      await paintFiles(demoFiles, `Örnek · ${kind.replace(/_/g, ' ')}`)
+      await paintFiles(demoFiles, t('cases.detail.sampleLabel', { kind: kind.replace(/_/g, ' ') }))
     } catch (err) {
       const message =
         err instanceof BackendUnavailableError
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Örnek yüklenemedi'
+            : t('cases.detail.sampleLoadFailed')
       setError(message)
     } finally {
       setLoading(false)
@@ -1178,8 +1179,8 @@ function Imaging({ c }: { c: VetCase }) {
       if (!quarantined.length) {
         pushToast({
           tone: 'warning',
-          title: 'Vaka DICOM bulunamadı',
-          body: 'Bu vakada quarantine kaydı yok. Kendi dosyalarınızı sürükleyin.',
+          title: t('cases.detail.caseDicomNotFound'),
+          body: t('cases.detail.caseDicomNotFoundBody'),
         })
         setFiles([])
         setFrames([])
@@ -1194,7 +1195,7 @@ function Imaging({ c }: { c: VetCase }) {
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Yükleme başarısız'
+            : t('cases.detail.uploadFailed')
       setError(message)
     } finally {
       setLoading(false)
@@ -1205,7 +1206,7 @@ function Imaging({ c }: { c: VetCase }) {
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4">
-        <span className="mr-1 text-sm font-medium text-navy-800">Seriler:</span>
+        <span className="mr-1 text-sm font-medium text-navy-800">{t('cases.detail.series')}</span>
         {seriesOptions.length > 0 ? (
           seriesOptions.map((s) => (
             <button
@@ -1223,7 +1224,7 @@ function Imaging({ c }: { c: VetCase }) {
             </button>
           ))
         ) : (
-          <span className="text-sm text-slate-500">{loading ? 'Yükleniyor…' : 'Seri yok'}</span>
+          <span className="text-sm text-slate-500">{loading ? t('cases.detail.loading') : t('cases.detail.noSeries')}</span>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-slate-500">{sourceLabel}{files.length ? ` · ${files.length} dosya` : ''}</span>
@@ -1245,15 +1246,15 @@ function Imaging({ c }: { c: VetCase }) {
             icon={<FolderOpen className="h-3.5 w-3.5" />}
             onClick={() => folderInputRef.current?.click()}
           >
-            Klasör
+            {t('cases.detail.folder')}
           </Button>
           {(c.fromBackend || caseKey.startsWith('case-')) && (
             <Button type="button" variant="ghost" size="sm" disabled={busy || loading} onClick={() => void reloadCaseStudy()}>
-              Vakadan yükle
+              {t('cases.detail.loadFromCase')}
             </Button>
           )}
           <Button type="button" variant="ghost" size="sm" disabled={busy || loading} onClick={() => void loadDemoOptional()}>
-            Örnek
+            {t('cases.detail.sample')}
           </Button>
         </div>
         <input
@@ -1263,7 +1264,7 @@ function Imaging({ c }: { c: VetCase }) {
           accept=".dcm,.dicom,application/dicom,*/*"
           className="hidden"
           onChange={(e) => {
-            void applyLocalFiles(collectFilesFromFileList(e.target.files), 'Yerel dosya')
+            void applyLocalFiles(collectFilesFromFileList(e.target.files), t('cases.detail.localFile'))
             e.target.value = ''
           }}
         />
@@ -1273,7 +1274,7 @@ function Imaging({ c }: { c: VetCase }) {
           multiple
           className="hidden"
           onChange={(e) => {
-            void applyLocalFiles(collectFilesFromFileList(e.target.files), 'Yerel klasör')
+            void applyLocalFiles(collectFilesFromFileList(e.target.files), t('cases.detail.localFolder'))
             e.target.value = ''
           }}
           {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
@@ -1293,12 +1294,12 @@ function Imaging({ c }: { c: VetCase }) {
             void (async () => {
               try {
                 const collected = await collectFilesFromDataTransfer(e.dataTransfer)
-                await applyLocalFiles(collected, 'Sürükle-bırak')
+                await applyLocalFiles(collected, t('cases.detail.dragDrop'))
               } catch (err) {
                 pushToast({
                   tone: 'error',
-                  title: 'Klasör okunamadı',
-                  body: err instanceof Error ? err.message : 'Dosyalar işlenemedi.',
+                  title: t('cases.detail.folderReadFailed'),
+                  body: err instanceof Error ? err.message : t('cases.detail.filesFailed'),
                 })
               }
             })()
@@ -1308,33 +1309,33 @@ function Imaging({ c }: { c: VetCase }) {
           {error && !frames.length ? (
             <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-6 text-center">
               <AlertCircle className="h-8 w-8 text-rose-500" />
-              <p className="mt-3 font-medium text-rose-900">Görüntü yüklenemedi</p>
+              <p className="mt-3 font-medium text-rose-900">{t('cases.detail.imageLoadFailed')}</p>
               <p className="mt-1 max-w-md text-sm text-rose-800">{error}</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button size="sm" variant="secondary" onClick={() => void reloadCaseStudy()}>
                   Vakadan dene
                 </Button>
                 <Button size="sm" variant="secondary" icon={<UploadCloud className="h-3.5 w-3.5" />} onClick={() => fileInputRef.current?.click()}>
-                  Dosya seç
+                  {t('cases.detail.chooseFile')}
                 </Button>
               </div>
             </div>
           ) : !loading && !busy && !frames.length ? (
             <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-[#E3EAF0] bg-[#F4F7FA] px-6 text-center">
               <UploadCloud className="h-10 w-10 text-[#0D827B]" />
-              <p className="mt-3 font-medium text-[#172B45]">Bu vakaya ait DICOM henüz görüntülenemiyor</p>
+              <p className="mt-3 font-medium text-[#172B45]">{t('cases.detail.dicomNotShownYet')}</p>
               <p className="mt-1 max-w-md text-sm text-slate-500">
-                Yüklediğiniz çalışma sunucudan getirilir. Bulunamazsa kendi DICOM klasörünüzü buraya sürükleyin.
+                {t('cases.detail.dicomNotShownBody')}
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button size="sm" variant="secondary" onClick={() => void reloadCaseStudy()}>
-                  Vakadan yükle
+                  {t('cases.detail.loadFromCase')}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                  Dosya seç
+                  {t('cases.detail.chooseFile')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void loadDemoOptional()}>
-                  Örnek yükle
+                  {t('cases.detail.loadSample')}
                 </Button>
               </div>
             </div>
@@ -1349,7 +1350,7 @@ function Imaging({ c }: { c: VetCase }) {
 
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-900 ring-1 ring-inset ring-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          Pencere/seviye, yakınlaştırma, pan, cine, mesafe/açı/ROI ve tam ekran araçları görüntü üzerinde kullanılabilir. Önce vakaya bağlı DICOM gösterilir; yoksa dosya sürükleyebilir veya örnek yükleyebilirsiniz.
+          {t('cases.detail.viewerHelp')}
         </p>
       </div>
     </Card>
@@ -1357,11 +1358,12 @@ function Imaging({ c }: { c: VetCase }) {
 }
 
 function ValidationBox({ v }: { v: ValidationItem }) {
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
   const meta = {
-    ok: { cls: 'border-emerald-200 bg-emerald-50 text-emerald-900', icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />, label: 'Kaynakla desteklendi' },
-    missing: { cls: 'border-amber-200 bg-amber-50 text-amber-900', icon: <AlertTriangle className="h-4 w-4 text-amber-600" />, label: 'Eksik bilgi' },
-    unsupported: { cls: 'border-rose-200 bg-rose-50 text-rose-900', icon: <XCircle className="h-4 w-4 text-rose-600" />, label: 'Kaynakla desteklenmeyen ifade' },
+    ok: { cls: 'border-emerald-200 bg-emerald-50 text-emerald-900', icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />, label: t('cases.detail.valOk') },
+    missing: { cls: 'border-amber-200 bg-amber-50 text-amber-900', icon: <AlertTriangle className="h-4 w-4 text-amber-600" />, label: t('cases.detail.valMissing') },
+    unsupported: { cls: 'border-rose-200 bg-rose-50 text-rose-900', icon: <XCircle className="h-4 w-4 text-rose-600" />, label: t('cases.detail.valUnsupported') },
   }[v.kind]
   return (
     <div className={`rounded-lg border ${meta.cls}`}>
@@ -1383,14 +1385,15 @@ function ValidationBox({ v }: { v: ValidationItem }) {
 }
 
 export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: boolean }) {
+  const { t, locale } = useLocale()
   const ai = c.ai
   if (!ai) {
     return (
       <Card>
         <EmptyState
           icon={c.status === 'taslak' ? <FileText className="h-6 w-6" /> : <Loader2 className="h-6 w-6 animate-spin" />}
-          title={c.status === 'taslak' ? 'Henüz AI değerlendirmesi yok' : 'AI analizi sürüyor'}
-          text={c.status === 'taslak' ? 'Vaka taslak durumunda; tetkikler yüklenip gönderildiğinde ön değerlendirme oluşturulacak.' : 'Ön değerlendirme hazır olduğunda burada görüntülenecek.'}
+          title={c.status === 'taslak' ? t('cases.detail.noAiYet') : t('cases.detail.aiRunning')}
+          text={c.status === 'taslak' ? t('cases.detail.noAiYetBody') : t('cases.detail.aiRunningBody')}
         />
       </Card>
     )
@@ -1399,10 +1402,10 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
     <div className="space-y-5">
       {c.backendFindings && (
         <Card>
-          <CardHeader title="Yapılandırılmış bulgular" icon={<Brain className="h-5 w-5" />} />
+          <CardHeader title={t('cases.detail.structuredFindings')} icon={<Brain className="h-5 w-5" />} />
           <div className="space-y-3 p-5 text-sm text-navy-800">
             {c.backendFindings.findings.length === 0 ? (
-              <p>Döndürülen bulgu yok.</p>
+              <p>{t('cases.detail.noFindingsReturned')}</p>
             ) : (
               <ul className="space-y-2">
                 {c.backendFindings.findings.map((f) => (
@@ -1418,7 +1421,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             )}
             {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
-                <p className="font-semibold">Potansiyel çatışmalar (auto-resolve yok)</p>
+                <p className="font-semibold">{t('cases.detail.potentialConflicts')}</p>
                 <ul className="mt-2 space-y-2">
                   {c.backendFindings.potential_conflicts!.map((pc) => (
                     <li key={pc.conflict_id} className="text-xs">
@@ -1441,7 +1444,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
       <div className={`grid gap-5 ${compact ? '' : 'xl:grid-cols-3'}`}>
         <div className={`space-y-5 ${compact ? '' : 'xl:col-span-2'}`}>
           <Card>
-            <CardHeader title="Vaka Özeti" subtitle={`${ai.model} · ${fmtDate(ai.generatedAt)}`} icon={<Brain className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.caseSummary')} subtitle={`${ai.model} · ${fmtDate(ai.generatedAt, locale)}`} icon={<Brain className="h-5 w-5" />} />
             <CitedText
               text={ai.summary}
               citationMap={c.backendDraft?.citation_map}
@@ -1450,7 +1453,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             />
           </Card>
           <Card>
-            <CardHeader title="Dikkat Edilmesi Gereken Bulgular" icon={<AlertCircle className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.findingsOfNote')} icon={<AlertCircle className="h-5 w-5" />} />
             <ul className="divide-y divide-slate-100">
               {ai.findings.map((f, i) => (
                 <li key={i} className="flex items-start gap-3 px-5 py-3">
@@ -1461,9 +1464,9 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             </ul>
           </Card>
           <Card>
-            <CardHeader title="Olası Ayırıcı Tanılar" subtitle="Olasılık düzeyi modelin göreli sıralamasıdır; klinik olasılık değildir." icon={<Stethoscope className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.differentials')} subtitle={t('cases.detail.differentialsSub')} icon={<Stethoscope className="h-5 w-5" />} />
             {!ai.differentials.length && (
-              <p className="px-5 py-4 text-sm text-slate-500">Model ayırıcı tanı listesi üretmedi (bulgu yok, analiz başarısız ya da şablon taslak).</p>
+              <p className="px-5 py-4 text-sm text-slate-500">{t('cases.detail.noDifferentials')}</p>
             )}
             <div className="divide-y divide-slate-100">
               {ai.differentials.map((d, i) => (
@@ -1483,7 +1486,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                           ) : null}
                         </div>
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${LIKELIHOOD_STYLE[d.likelihood]}`}>
-                          {LIKELIHOOD_TR[d.likelihood]} olasılık
+                          {t(`cases.detail.likelihood.${d.likelihood}`)}
                         </span>
                       </>
                     ) : (
@@ -1500,13 +1503,13 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   )}
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <div>
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Lehine bulgular</p>
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{t('cases.detail.supporting')}</p>
                       <ul className="space-y-1 text-sm text-navy-800">
                         {d.pro.length ? d.pro.map((x, j) => <li key={j} className="flex gap-2"><span className="text-emerald-500">+</span>{x}</li>) : <li className="text-slate-400">—</li>}
                       </ul>
                     </div>
                     <div>
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-700">Aleyhine bulgular</p>
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-700">{t('cases.detail.against')}</p>
                       <ul className="space-y-1 text-sm text-navy-800">
                         {d.con.length ? d.con.map((x, j) => <li key={j} className="flex gap-2"><span className="text-rose-500">−</span>{x}</li>) : <li className="text-slate-400">—</li>}
                       </ul>
@@ -1517,7 +1520,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             </div>
           </Card>
           <Card>
-            <CardHeader title="Önerilen Ek Tetkikler" icon={<ClipboardList className="h-5 w-5" />} />
+            <CardHeader title={t('cases.detail.recommendedTests')} icon={<ClipboardList className="h-5 w-5" />} />
             <ol className="list-decimal space-y-1.5 py-4 pl-10 pr-5 text-sm text-navy-800">
               {ai.recommendedTests.map((t, i) => <li key={i}>{t}</li>)}
             </ol>
@@ -1534,11 +1537,11 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             if (!validation.length) return null
             return (
               <Card>
-                <CardHeader title="Doğrulama Raporu" subtitle="Ayrıntı için kutulara tıklayın" icon={<CheckCircle2 className="h-5 w-5" />} />
+                <CardHeader title={t('cases.detail.validationReport')} subtitle={t('cases.detail.validationReportSub')} icon={<CheckCircle2 className="h-5 w-5" />} />
                 <div className="flex gap-2 px-5 pt-4 text-xs">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">{validation.filter((v) => v.kind === 'ok').length} doğrulandı</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{validation.filter((v) => v.kind === 'missing').length} eksik</span>
-                  <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{validation.filter((v) => v.kind === 'unsupported').length} kaynaksız</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">{t('cases.detail.validatedCount', { n: validation.filter((v) => v.kind === 'ok').length })}</span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{t('cases.detail.missingCount', { n: validation.filter((v) => v.kind === 'missing').length })}</span>
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{t('cases.detail.unsupportedCount', { n: validation.filter((v) => v.kind === 'unsupported').length })}</span>
                 </div>
                 <div className="space-y-2.5 p-5">
                   {validation.map((v, i) => (
@@ -1555,6 +1558,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
 }
 
 function SourcesView({ c }: { c: VetCase }) {
+  const { t } = useLocale()
   const ai = c.ai
   const sourceIds = ai
     ? Array.from(
@@ -1570,8 +1574,8 @@ function SourcesView({ c }: { c: VetCase }) {
   return (
     <Card>
       <CardHeader
-        title="Kaynaklar (RAG)"
-        subtitle={ragCitations?.length ? 'AI taslağında kullanılan kaynak pasajları' : 'Bu vaka için mevcut atıflar'}
+        title={t('cases.detail.sourcesRag')}
+        subtitle={ragCitations?.length ? t('cases.detail.sourcesUsed') : t('cases.detail.sourcesAvailable')}
         icon={<BookOpen className="h-5 w-5" />}
       />
       {ragCitations?.length ? (
@@ -1587,8 +1591,8 @@ function SourcesView({ c }: { c: VetCase }) {
         <div className="p-5">
           <EmptyState
             icon={<BookOpen className="h-6 w-6" />}
-            title="Kaynak atfı bulunamadı"
-            text="Bu vaka için görüntülenebilir RAG pasajı veya AI kaynak atfı bulunmuyor."
+            title={t('cases.detail.noCitations')}
+            text={t('cases.detail.noCitationsBody')}
           />
         </div>
       )}
@@ -1597,6 +1601,7 @@ function SourcesView({ c }: { c: VetCase }) {
 }
 
 function SourceList({ ids }: { ids: number[] }) {
+  const { t } = useLocale()
   const { kbSources, openSource } = useApp()
   const sources = ids
     .map((id) => ({ id, source: kbSources.find((item) => item.id === id) }))
@@ -1607,8 +1612,8 @@ function SourceList({ ids }: { ids: number[] }) {
       <div className="p-5">
         <EmptyState
           icon={<BookOpen className="h-6 w-6" />}
-          title="Kaynak kaydı bulunamadı"
-          text="AI atıfları mevcut, ancak bu oturumda eşleşen bilgi bankası kaydı bulunamadı."
+          title={t('cases.detail.noSourceRecord')}
+          text={t('cases.detail.noSourceRecordBody')}
         />
       </div>
     )
@@ -1634,12 +1639,13 @@ function SourceList({ ids }: { ids: number[] }) {
 }
 
 function ReportWorkspace({ c }: { c: VetCase }) {
+  const { t } = useLocale()
   const nav = useLocalizedNavigate()
   const draft = c.backendDraft
   const prov = draft
     ? `${draft.generation?.model_id ?? '—'} · v${draft.version ?? c.currentReportVersion ?? '—'}${draft.immutable ? ' · immutable' : ''}`
     : c.aiDraft
-      ? 'Yerel prototip taslak'
+      ? t('cases.detail.localPrototypeDraft')
       : null
 
   if (!draft && !c.aiDraft && !c.report) {
@@ -1647,8 +1653,8 @@ function ReportWorkspace({ c }: { c: VetCase }) {
       <Card>
         <EmptyState
           icon={<FileText className="h-6 w-6" />}
-          title="Rapor henüz yok"
-          text="Analiz tamamlanıp taslak oluşunca burada görünecek. Desteklenmeyen/başarısız vakalarda AI taslağı yoktur."
+          title={t('cases.detail.noReportYet')}
+          text={t('cases.detail.noReportYetBody')}
         />
       </Card>
     )
@@ -1659,14 +1665,14 @@ function ReportWorkspace({ c }: { c: VetCase }) {
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-navy-900">Rapor durumu</p>
+            <p className="text-sm font-semibold text-navy-900">{t('cases.detail.reportStatus')}</p>
             <p className="mt-1 text-xs text-slate-600">
               {draft?.status ?? c.status}
               {draft?.expert_review_status ? ` · review=${draft.expert_review_status}` : ''}
             </p>
             <p className="mt-1 font-mono text-xs text-slate-500">{prov}</p>
             {draft?.synthetic !== false && (
-              <p className="mt-2 text-xs font-semibold text-amber-800">AI taslak — klinik sertifikasyon değildir</p>
+              <p className="mt-2 text-xs font-semibold text-amber-800">{t('cases.detail.aiDraftNotCertified')}</p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1688,10 +1694,10 @@ function ReportWorkspace({ c }: { c: VetCase }) {
         <Card className="p-5">
           <dl className="space-y-4 text-sm">
             {[
-              ['Teknik', draft?.technique?.text ?? c.report?.klinikOzet ?? c.aiDraft?.klinikOzet],
-              ['Bulgular', draft?.findings?.text ?? c.report?.bulgular ?? c.aiDraft?.bulgular],
-              ['Değerlendirme', draft?.impression?.text ?? c.report?.degerlendirme ?? c.aiDraft?.degerlendirme],
-              ['Öneriler', draft?.recommendations?.text ?? c.report?.oneriler ?? c.aiDraft?.oneriler],
+              [t('cases.detail.secTechnique'), draft?.technique?.text ?? c.report?.klinikOzet ?? c.aiDraft?.klinikOzet],
+              [t('cases.detail.secFindings'), draft?.findings?.text ?? c.report?.bulgular ?? c.aiDraft?.bulgular],
+              [t('cases.detail.secImpression'), draft?.impression?.text ?? c.report?.degerlendirme ?? c.aiDraft?.degerlendirme],
+              [t('cases.detail.secRecommendations'), draft?.recommendations?.text ?? c.report?.oneriler ?? c.aiDraft?.oneriler],
             ].map(([label, text]) =>
               text ? (
                 <div key={String(label)}>
@@ -1710,6 +1716,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
 }
 
 function CaseHistoryPanel({ c }: { c: VetCase }) {
+  const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const versions = c.reportVersions ?? []
   const [activity, setActivity] = useState<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>([])
@@ -1726,10 +1733,10 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Rapor sürümleri" subtitle="Onaylı sürümler immutable — düzenlenemez" icon={<History className="h-5 w-5" />} />
+        <CardHeader title={t('cases.detail.reportVersions')} subtitle={t('cases.detail.reportVersionsSub')} icon={<History className="h-5 w-5" />} />
         {versions.length === 0 ? (
           <p className="px-5 py-4 text-sm text-slate-500">
-            {c.fromBackend ? 'Henüz sürüm kaydı yok (analiz sonrası oluşur).' : 'Yerel prototip — backend sürüm geçmişi yok.'}
+            {c.fromBackend ? t('cases.detail.noVersionsYet') : t('cases.detail.localPrototype')}
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -1741,12 +1748,12 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
                   <div className="text-sm">
                     <p className="font-semibold text-navy-900">
                       v{v.version}
-                      {v.is_current ? ' · güncel' : ''}
+                      {v.is_current ? ` · ${t('cases.detail.current')}` : ''}
                       {v.immutable ? ' · kilitli' : ''}
                     </p>
                     <p className="text-xs text-slate-500">
                       {v.status} · {v.expert_review_status}
-                      {v.reviewed_by ? ` · ${v.reviewed_by}` : ''} · {fmtDate(v.updated_at)}
+                      {v.reviewed_by ? ` · ${v.reviewed_by}` : ''} · {fmtDate(v.updated_at, locale)}
                     </p>
                     {v.revision_notes && <p className="mt-1 text-xs text-slate-600">{v.revision_notes}</p>}
                     <p className="mt-0.5 font-mono text-[11px] text-slate-400">
@@ -1759,7 +1766,7 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
                     disabled={v.status !== 'approved'}
                     onClick={() => nav(`/raporlar/${c.id}?version=${v.version}`)}
                   >
-                    {v.status === 'approved' ? 'Görüntüle / PDF' : 'Salt okunur'}
+                    {v.status === 'approved' ? t('cases.detail.viewPdf') : t('cases.detail.readOnly')}
                   </Button>
                 </li>
               ))}
@@ -1768,27 +1775,27 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
       </Card>
       {c.fromBackend ? <ReportVersionCompare caseId={c.id} versions={versions} /> : null}
       <Card>
-        <CardHeader title="İlerleme / teslimat" icon={<ClipboardList className="h-5 w-5" />} />
+        <CardHeader title={t('cases.detail.progressDelivery')} icon={<ClipboardList className="h-5 w-5" />} />
         <dl className="grid gap-2 px-5 py-3 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-xs text-slate-500">Rapor hazır</dt>
-            <dd className="font-medium text-navy-900">{c.reportAvailableAt ? fmtDate(c.reportAvailableAt) : '—'}</dd>
+            <dt className="text-xs text-slate-500">{t('cases.detail.reportReady')}</dt>
+            <dd className="font-medium text-navy-900">{c.reportAvailableAt ? fmtDate(c.reportAvailableAt, locale) : '—'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">İletildi</dt>
-            <dd className="font-medium text-navy-900">{c.reportDeliveredAt ? fmtDate(c.reportDeliveredAt) : '—'}</dd>
+            <dt className="text-xs text-slate-500">{t('cases.detail.delivered')}</dt>
+            <dd className="font-medium text-navy-900">{c.reportDeliveredAt ? fmtDate(c.reportDeliveredAt, locale) : '—'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Görüntülendi</dt>
-            <dd className="font-medium text-navy-900">{c.reportViewedAt ? fmtDate(c.reportViewedAt) : '—'}</dd>
+            <dt className="text-xs text-slate-500">{t('cases.detail.viewed')}</dt>
+            <dd className="font-medium text-navy-900">{c.reportViewedAt ? fmtDate(c.reportViewedAt, locale) : '—'}</dd>
           </div>
         </dl>
       </Card>
       <Card>
-        <CardHeader title="Vaka aktivite zaman çizelgesi" subtitle="Gerçek olaylar (sunucu)" icon={<History className="h-5 w-5" />} />
+        <CardHeader title={t('cases.detail.activityTimeline')} subtitle={t('cases.detail.activityTimelineSub')} icon={<History className="h-5 w-5" />} />
         <ul className="divide-y divide-slate-100 px-5 py-2 text-sm">
           {activity.length === 0 && c.timeline.length === 0 ? (
-            <li className="py-3 text-slate-500">Kayıt yok</li>
+            <li className="py-3 text-slate-500">{t('cases.detail.noEntries')}</li>
           ) : null}
           {activity.map((e) => (
             <li key={e.event_id} className="flex gap-3 py-2">
@@ -1796,7 +1803,7 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
               <div>
                 <p className="font-medium text-navy-900">{e.kind}</p>
                 <p className="text-xs text-slate-500">
-                  {fmtDate(e.at)} · {e.actor_subject}
+                  {fmtDate(e.at, locale)} · {e.actor_subject}
                   {e.detail ? ` · ${e.detail}` : ''}
                 </p>
               </div>
