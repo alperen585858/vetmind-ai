@@ -37,6 +37,10 @@ from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
 from app.services.payment_service import PaymentService
 from app.services.payment_store import build_payment_store
+from app.services.contact_service import ContactService
+from app.services.contact_store import build_contact_store
+from app.services.license_service import LicenseService
+from app.services.license_store import build_license_store
 from app.services.radiologist_payout_service import RadiologistPayoutService
 from app.services.radiologist_payout_store import build_radiologist_payout_store
 from app.services.workflow_service import WorkflowService
@@ -267,6 +271,14 @@ class AppContainer:
             cases_repo=self.repo,
         )
         self.cases.bind_radiologist_payouts(self.radiologist_payouts)
+        self.license_store = build_license_store(self.settings)
+        self.licenses = LicenseService(
+            self.license_store,
+            cases_repo=self.repo,
+            audit=self.audit,
+        )
+        self.contact_store = build_contact_store(self.settings)
+        self.contact = ContactService(self.contact_store, audit=self.audit)
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -278,6 +290,7 @@ class AppContainer:
         )
         self.payments.bind_workflow(self.workflow)
         self.radiologist_payouts.bind_workflow(self.workflow)
+        self.licenses.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
         self.messaging_store = build_messaging_store(self.settings)
         self.messaging = MessagingService(

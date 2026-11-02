@@ -89,15 +89,20 @@ class WorkflowService:
     def sync_auth_directory(self) -> dict[str, DemoUserRecord]:
         """Rebuild login directory from managed users + seed fallbacks."""
         directory: dict[str, DemoUserRecord] = {}
+        inactive_managed: set[str] = set()
         for u in self._store.list_users():
+            email = u.email.lower()
             if not u.active:
+                inactive_managed.add(email)
                 continue
-            pwd = u.password or (DEMO_USERS.get(u.email.lower()).password if u.email.lower() in DEMO_USERS else None)
+            pwd = u.password or (DEMO_USERS.get(email).password if email in DEMO_USERS else None)
             if not pwd:
                 continue
-            directory[u.email.lower()] = DemoUserRecord(pwd, u.role, u.clinic_id)
-        # Keep seed users that were never overridden
+            directory[email] = DemoUserRecord(pwd, u.role, u.clinic_id)
+        # Keep seed users that were never overridden (and not deactivated in managed store).
         for email, rec in DEMO_USERS.items():
+            if email in inactive_managed:
+                continue
             directory.setdefault(email, rec)
         self._auth_users.clear()
         self._auth_users.update(directory)
@@ -106,7 +111,7 @@ class WorkflowService:
     # --- Pets ---
 
     def create_pet(self, payload: PetCreate, *, principal: AuthPrincipal) -> PetRecord:
-        if principal.via == "jwt" and principal.role not in {"owner", "admin"}:
+        if principal.via == "jwt" and principal.role not in {"owner", "admin", "founder"}:
             raise HTTPException(status_code=403, detail="Only pet owners can create pet profiles.")
         owner = principal.subject if principal.via != "disabled" else "owner@demo.local"
         pet = PetRecord(
@@ -135,11 +140,11 @@ class WorkflowService:
                 out.append(p)
         if principal.via == "disabled":
             return rows
-        if principal.role in {"vet", "expert", "clinic_owner", "admin"} and self._tenant_isolation:
+        if principal.role in {"vet", "expert", "clinic_owner", "admin", "founder"} and self._tenant_isolation:
             return [
                 p
                 for p in rows
-                if principal.role == "admin"
+                if principal.role in {"admin", "founder"}
                 or (p.clinic_id and p.clinic_id == principal.clinic_id)
             ]
         if principal.role == "owner":
@@ -278,8 +283,8 @@ class WorkflowService:
             if principal.role == "owner":
                 if s.pet_owner_subject == principal.subject:
                     out.append(s)
-            elif principal.role in {"vet", "clinic_owner", "admin", "expert"}:
-                if not self._tenant_isolation or principal.role == "admin":
+            elif principal.role in {"vet", "clinic_owner", "admin", "founder", "expert"}:
+                if not self._tenant_isolation or principal.role in {"admin", "founder"}:
                     out.append(s)
                 elif s.clinic_id and s.clinic_id == principal.clinic_id:
                     out.append(s)
@@ -310,7 +315,7 @@ class WorkflowService:
             if principal.role == "owner":
                 if sub.pet_owner_subject != principal.subject:
                     raise HTTPException(status_code=404, detail="Submission not found.")
-            elif principal.role not in {"vet", "clinic_owner", "admin", "demo", "service"}:
+            elif principal.role not in {"vet", "clinic_owner", "admin", "founder", "demo", "service"}:
                 raise HTTPException(status_code=403, detail="Not allowed to delete submissions.")
         if sub.status == "linked" and sub.linked_case_id:
             raise HTTPException(
@@ -416,7 +421,7 @@ class WorkflowService:
         sub = self.get_submission(submission_id, principal=principal)
         if sub.status in {"verified", "linked", "rejected"}:
             raise HTTPException(status_code=409, detail="Submission is locked after vet decision.")
-        if principal.role not in {"owner", "vet", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"owner", "vet", "clinic_owner", "admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Not allowed to attach files.")
         existing_ids = {a.ingest_id for a in sub.attachments}
         if sub.dicom_ingest_id:
@@ -505,7 +510,7 @@ class WorkflowService:
     def close_info_request(
         self, submission_id: str, request_id: str, *, principal: AuthPrincipal
     ) -> ImagingSubmission:
-        if principal.role not in {"vet", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"vet", "clinic_owner", "admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Only veterinarians can close info requests.")
         sub = self.get_submission(submission_id, principal=principal)
         found = False
@@ -538,7 +543,7 @@ class WorkflowService:
     def vet_action(
         self, submission_id: str, payload: SubmissionVetAction, *, principal: AuthPrincipal
     ) -> ImagingSubmission | CaseRecord:
-        if principal.role not in {"vet", "admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"vet", "admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Only veterinarians can verify submissions.")
         sub = self.get_submission(submission_id, principal=principal)
         if sub.status not in {"pending_verification", "needs_info"}:
@@ -878,12 +883,12 @@ class WorkflowService:
         recipients: set[str] = set()
         if self._auth_users:
             for email, rec in self._auth_users.items():
-                if rec.role in {"vet", "clinic_owner", "admin"} and (
+                if rec.role in {"vet", "clinic_owner", "admin", "founder"} and (
                     not clinic_id or not rec.clinic_id or rec.clinic_id == clinic_id
                 ):
                     recipients.add(email)
         for u in self._store.list_users():
-            if u.active and u.role in {"vet", "clinic_owner", "admin"} and (
+            if u.active and u.role in {"vet", "clinic_owner", "admin", "founder"} and (
                 not clinic_id or not u.clinic_id or u.clinic_id == clinic_id
             ):
                 recipients.add(u.email)
@@ -904,7 +909,7 @@ class WorkflowService:
     # --- Admin users / clinic ---
 
     def list_users(self, *, principal: AuthPrincipal) -> list[ManagedUser]:
-        if principal.role not in {"admin", "clinic_owner", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"admin", "founder", "clinic_owner", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Not allowed.")
         users = self._store.list_users()
         if principal.role == "clinic_owner" and principal.via == "jwt":
@@ -913,8 +918,10 @@ class WorkflowService:
         return [u.model_copy(update={"password": None}) for u in users]
 
     def create_user(self, payload: ManagedUserCreate, *, principal: AuthPrincipal) -> ManagedUser:
-        if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
+        if payload.role == "founder" and principal.role not in {"founder", "demo", "service"} and principal.via != "disabled":
+            raise HTTPException(status_code=403, detail="Only founders can create founder accounts.")
         email = payload.email.strip().lower()
         if self._store.get_user(email) or email in DEMO_USERS:
             # Allow overwrite of seed via managed store
@@ -932,8 +939,10 @@ class WorkflowService:
         return user.model_copy(update={"password": None})
 
     def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUser:
-        if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
+        if payload.role == "founder" and principal.role not in {"founder", "demo", "service"} and principal.via != "disabled":
+            raise HTTPException(status_code=403, detail="Only founders can assign the founder role.")
         existing = self._store.get_user(email.lower())
         if existing is None and email.lower() in DEMO_USERS:
             rec = DEMO_USERS[email.lower()]
@@ -953,7 +962,7 @@ class WorkflowService:
         return user.model_copy(update={"password": None})
 
     def clinic_stats(self, *, principal: AuthPrincipal) -> ClinicStaffStats:
-        if principal.role not in {"clinic_owner", "vet", "admin", "demo", "service"} and principal.via != "disabled":
+        if principal.role not in {"clinic_owner", "vet", "admin", "founder", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Not allowed.")
         clinic = principal.clinic_id or "clinic-demo-a"
         cases = self._cases.list_cases(principal=principal)

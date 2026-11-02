@@ -73,6 +73,19 @@ def login(payload: LoginRequest, container: AppContainer = Depends(get_container
             detail="invalid_credentials",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+    if not container.licenses.is_clinic_login_allowed(entry.clinic_id, role=entry.role):
+        container.audit.record(
+            event_type="auth.login",
+            actor=email,
+            resource="/api/v1/auth/login",
+            outcome=AuditOutcome.DENIED,
+            detail="clinic_license_inactive",
+            clinic_id=entry.clinic_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clinic license is inactive. Contact VetMind founder support.",
+        )
     token = create_access_token(
         subject=email,
         role=entry.role,

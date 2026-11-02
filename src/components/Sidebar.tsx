@@ -20,9 +20,11 @@ import {
   Sparkles,
   UploadCloud,
   Wallet,
+  Building2,
+  Mail,
   X,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { Logo } from './Logo'
@@ -51,15 +53,47 @@ export function Sidebar({
   const nav = useLocalizedNavigate()
   const lp = useLocalePath()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
+  const [contactNew, setContactNew] = useState(0)
   const ic = 'h-[18px] w-[18px] shrink-0'
   const isOwner = role === 'owner'
+
+  useEffect(() => {
+    if (role !== 'founder') {
+      setContactNew(0)
+      return
+    }
+    let cancelled = false
+    void import('../lib/backend')
+      .then(({ contactInquiryNewCount }) => contactInquiryNewCount())
+      .then((r) => {
+        if (!cancelled) setContactNew(r.new_count)
+      })
+      .catch(() => {
+        if (!cancelled) setContactNew(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [role])
   const roleLabels: Record<NonNullable<typeof role>, string> = {
     vet: t('roles.vetShort'),
     expert: t('roles.expertShort'),
     owner: t('roles.ownerShort'),
     clinic_owner: t('roles.clinicShort'),
     admin: t('roles.adminShort'),
+    founder: t('roles.founderShort'),
   }
+
+  const adminMenu: NavItem[] = [
+    { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },
+    { to: '/mesajlar', label: t('nav.messagesSupport'), icon: <MessageSquare className={ic} /> },
+    { to: '/radyologlarim', label: t('nav.myRadiologists'), icon: <Wallet className={ic} /> },
+    { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className={ic} /> },
+    { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
+    { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
+    { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
+    { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Gauge className={ic} /> },
+  ]
 
   const menus: Record<Role, NavItem[]> = {
     vet: [
@@ -90,15 +124,16 @@ export function Sidebar({
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
       { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
     ],
-    admin: [
-      { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },
-      { to: '/mesajlar', label: t('nav.messagesSupport'), icon: <MessageSquare className={ic} /> },
-      { to: '/radyologlarim', label: t('nav.myRadiologists'), icon: <Wallet className={ic} /> },
-      { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className={ic} /> },
-      { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
-      { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
-      { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
-      { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Gauge className={ic} /> },
+    admin: adminMenu,
+    founder: [
+      { to: '/', label: t('nav.founderHome'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/lisanslar', label: t('nav.licenses'), icon: <Building2 className={ic} /> },
+      {
+        to: '/iletisim-talepleri',
+        label: t('nav.contactInquiries'),
+        icon: <Mail className={ic} />,
+        badge: contactNew || undefined,
+      },
     ],
   }
   const items = role ? menus[role] : []

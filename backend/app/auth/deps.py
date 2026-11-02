@@ -96,7 +96,25 @@ def require_roles(*roles: str):
     def _dep(principal: AuthPrincipal = Depends(require_auth)) -> AuthPrincipal:
         if principal.via == "disabled":
             return principal
-        if principal.role in {"admin", "service"} or principal.role in allowed:
+        if principal.role in {"admin", "founder", "service"} or principal.role in allowed:
+            return principal
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Role '{principal.role}' not in allowed roles: {sorted(allowed)}.",
+        )
+
+    return _dep
+
+
+def require_exact_roles(*roles: str):
+    """Like require_roles but without admin/founder/service bypass (founder-only APIs)."""
+
+    allowed = set(roles)
+
+    def _dep(principal: AuthPrincipal = Depends(require_auth)) -> AuthPrincipal:
+        if principal.via == "disabled":
+            return principal
+        if principal.role in allowed:
             return principal
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

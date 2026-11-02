@@ -50,7 +50,7 @@ def principal_is_global(principal: AuthPrincipal) -> bool:
         return True
     if principal.via == "api_key":
         return True
-    if principal.via == "jwt" and principal.role == "admin":
+    if principal.via == "jwt" and principal.role in {"admin", "founder"}:
         return True
     return False
 

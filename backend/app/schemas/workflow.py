@@ -19,7 +19,7 @@ SubmissionStatus = Literal[
     "linked",
 ]
 
-ManagedRole = Literal["vet", "expert", "owner", "clinic_owner", "admin"]
+ManagedRole = Literal["vet", "expert", "owner", "clinic_owner", "admin", "founder"]
 InfoRequestStatus = Literal["OPEN", "ANSWERED", "CLOSED"]
 
 

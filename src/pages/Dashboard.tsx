@@ -17,6 +17,7 @@ import {
 import {
   Activity,
   BookOpen,
+  Building2,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
@@ -32,8 +33,11 @@ import {
   Microscope,
   MoreHorizontal,
   PawPrint,
+  Mail,
+  Stethoscope,
   Timer,
   UploadCloud,
+  UserCog,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
@@ -46,7 +50,15 @@ import { SpeciesIcon } from '../components/CaseTable'
 import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
-import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
+import {
+  contactInquiryNewCount,
+  getClinicDashboard,
+  getClinicStats,
+  listClinicStaff,
+  listLicensedClinics,
+  listPets,
+  listSubmissions,
+} from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import {
   compareBySlaUrgency,
@@ -58,7 +70,15 @@ import {
   slaTone,
 } from '../lib/reviewSla'
 import { caseBelongsToOwner } from '../lib/caseMapper'
-import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
+import type {
+  BackendClinicStaffSummary,
+  BackendClinicStats,
+  BackendLicensedClinicSummary,
+  BackendPet,
+  BackendImagingSubmission,
+  ClinicDashboardStats,
+  VetCase,
+} from '../types'
 
 const PIE_COLORS = ['#0b807a', '#3e6895', '#94a3b8']
 
@@ -104,6 +124,7 @@ export default function Dashboard() {
   if (role === 'owner') return <OwnerDashboard />
   if (role === 'clinic_owner') return <ClinicOwnerDashboard />
   if (role === 'admin') return <AdminDashboard />
+  if (role === 'founder') return <FounderDashboard />
   return <VetDashboard />
 }
 
@@ -979,6 +1000,184 @@ function AdminDashboard() {
               </li>
             ))}
           </ul>
+        </Card>
+      </div>
+    </>
+  )
+}
+
+function FounderDashboard() {
+  const { t } = useLocale()
+  const nav = useLocalizedNavigate()
+  const [clinics, setClinics] = useState<BackendLicensedClinicSummary[]>([])
+  const [staff, setStaff] = useState<BackendClinicStaffSummary[]>([])
+  const [newContacts, setNewContacts] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    void Promise.all([listLicensedClinics(), listClinicStaff(), contactInquiryNewCount()])
+      .then(([c, s, n]) => {
+        setClinics(c)
+        setStaff(s)
+        setNewContacts(n.new_count)
+        setError(null)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : t('founder.loadFail')))
+      .finally(() => setLoading(false))
+  }, [t])
+
+  const activeClinics = clinics.filter((c) => c.status === 'active').length
+  const inactiveClinics = clinics.filter((c) => c.status === 'inactive').length
+  const vets = staff.filter((s) => s.role === 'vet' && s.active).length
+  const clinicAdmins = staff.filter((s) => s.role === 'clinic_owner' && s.active).length
+
+  return (
+    <>
+      <PageHeader
+        title={t('dashboard.founderTitle')}
+        subtitle={t('dashboard.founderSubtitle')}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => nav('/lisanslar')}>{t('nav.licenses')}</Button>
+            <Button variant="secondary" onClick={() => nav('/iletisim-talepleri')}>
+              {t('nav.contactInquiries')}
+              {newContacts > 0 ? ` (${newContacts})` : ''}
+            </Button>
+          </div>
+        }
+      />
+      <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950">
+        {t('dashboard.founderBanner')}
+      </div>
+      {error && (
+        <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          to="/lisanslar"
+          label={t('dashboard.founderActiveClinics')}
+          value={loading ? '…' : activeClinics}
+          icon={<Building2 className="h-5 w-5" />}
+          tone="teal"
+          hint={t('dashboard.founderActiveClinicsHint', { inactive: inactiveClinics })}
+        />
+        <StatCard
+          to="/lisanslar"
+          label={t('dashboard.founderVets')}
+          value={loading ? '…' : vets}
+          icon={<Stethoscope className="h-5 w-5" />}
+          tone="navy"
+          hint={t('dashboard.founderVetsHint')}
+        />
+        <StatCard
+          to="/lisanslar"
+          label={t('dashboard.founderClinicAdmins')}
+          value={loading ? '…' : clinicAdmins}
+          icon={<UserCog className="h-5 w-5" />}
+          tone="violet"
+          hint={t('dashboard.founderClinicAdminsHint')}
+        />
+        <StatCard
+          to="/lisanslar"
+          label={t('dashboard.founderTotalLicenses')}
+          value={loading ? '…' : clinics.length}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="amber"
+          hint={t('dashboard.founderTotalLicensesHint')}
+        />
+        <StatCard
+          to="/iletisim-talepleri"
+          label={t('dashboard.founderNewContacts')}
+          value={loading ? '…' : newContacts}
+          icon={<Mail className="h-5 w-5" />}
+          tone="sky"
+          hint={t('dashboard.founderNewContactsHint')}
+        />
+      </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader
+            title={t('dashboard.founderClinicsTitle')}
+            subtitle={t('dashboard.founderClinicsSub')}
+            action={
+              <LocalizedLink to="/lisanslar" className="text-sm font-medium text-teal-700 hover:underline">
+                {t('common.view')}
+              </LocalizedLink>
+            }
+          />
+          {loading ? (
+            <p className="px-5 pb-5 text-sm text-slate-500">{t('common.loading')}</p>
+          ) : clinics.length === 0 ? (
+            <div className="px-5 pb-5">
+              <EmptyState compact icon={<Building2 className="h-5 w-5" />} title={t('founder.noClinics')} />
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {clinics.slice(0, 6).map((c) => (
+                <li key={c.clinic_id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-navy-900">{c.name}</p>
+                    <p className="font-mono text-xs text-slate-500">
+                      {c.clinic_id} · {c.vet_count} {t('founder.roleVet').toLowerCase()} · {c.clinic_owner_count}{' '}
+                      {t('founder.roleClinicAdmin').toLowerCase()}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      c.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+                        : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
+                    }`}
+                  >
+                    {c.status === 'active' ? t('founder.statusActive') : t('founder.statusInactive')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <CardHeader
+            title={t('dashboard.founderStaffTitle')}
+            subtitle={t('dashboard.founderStaffSub')}
+            action={
+              <LocalizedLink to="/lisanslar" className="text-sm font-medium text-teal-700 hover:underline">
+                {t('common.view')}
+              </LocalizedLink>
+            }
+          />
+          {loading ? (
+            <p className="px-5 pb-5 text-sm text-slate-500">{t('common.loading')}</p>
+          ) : staff.length === 0 ? (
+            <div className="px-5 pb-5">
+              <EmptyState compact icon={<UserCog className="h-5 w-5" />} title={t('founder.noStaff')} />
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {staff.slice(0, 6).map((s) => (
+                <li key={s.email} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-navy-900">{s.display_name || s.email}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {s.role === 'vet' ? t('founder.roleVet') : t('founder.roleClinicAdmin')}
+                      {s.clinic_name ? ` · ${s.clinic_name}` : ''}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      s.active
+                        ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+                        : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
+                    }`}
+                  >
+                    {s.active ? t('founder.statusActive') : t('founder.statusInactive')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </>

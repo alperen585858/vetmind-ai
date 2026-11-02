@@ -56,6 +56,7 @@ export const USERS: Record<Role, User> = {
   owner: { name: 'Mehmet Yılmaz', title: 'Hayvan Sahibi', org: '', initials: 'MY' },
   clinic_owner: { name: 'Klinik Yöneticisi', title: 'Klinik Sahibi', org: '', initials: 'KY' },
   admin: { name: 'Admin', title: 'Sistem Yöneticisi', org: 'VetMind AI', initials: 'SY' },
+  founder: { name: 'Kurucu', title: 'Kurucu', org: 'VetMind AI', initials: 'KU' },
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -64,6 +65,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   owner: 'Hayvan Sahibi',
   clinic_owner: 'Klinik Sahibi',
   admin: 'Sistem Yöneticisi',
+  founder: 'Kurucu',
 }
 
 export const CLINIC = ''

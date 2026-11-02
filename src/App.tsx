@@ -33,6 +33,8 @@ import Submissions from './pages/Submissions'
 import Messages from './pages/Messages'
 import AdminUsers from './pages/AdminUsers'
 import AdminRadiologists from './pages/AdminRadiologists'
+import FounderLicenses from './pages/FounderLicenses'
+import FounderContactInquiries from './pages/FounderContactInquiries'
 import Settings from './pages/Settings'
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
@@ -124,6 +126,12 @@ export default function App() {
             )}
             {dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>)}
             {dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>)}
+            {dualRoutes('lisanslar', 'licenses', <Gate roles={['founder']}><FounderLicenses /></Gate>)}
+            {dualRoutes(
+              'iletisim-talepleri',
+              'contact-inquiries',
+              <Gate roles={['founder']}><FounderContactInquiries /></Gate>,
+            )}
             {dualRoutes(
               'raporlar',
               'reports',
@@ -145,7 +153,7 @@ export default function App() {
             {dualRoutes(
               'ayarlar',
               'settings',
-              <Gate roles={['vet', 'expert', 'owner', 'clinic_owner', 'admin']}><Settings /></Gate>,
+              <Gate roles={['vet', 'expert', 'owner', 'clinic_owner', 'admin', 'founder']}><Settings /></Gate>,
             )}
             <Route path="giris" element={<Navigate to="/" replace />} />
             <Route path="login" element={<Navigate to="/" replace />} />

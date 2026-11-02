@@ -1,4 +1,58 @@
-export type Role = 'vet' | 'expert' | 'owner' | 'clinic_owner' | 'admin'
+export type Role = 'vet' | 'expert' | 'owner' | 'clinic_owner' | 'admin' | 'founder'
+
+export type BackendLicenseStatus = 'active' | 'inactive' | 'pending'
+
+export interface BackendLicensedClinicSummary {
+  clinic_id: string
+  name: string
+  status: BackendLicenseStatus
+  created_at: string
+  updated_at: string
+  created_by?: string | null
+  staff_count: number
+  vet_count: number
+  clinic_owner_count: number
+  case_count: number
+  submission_count: number
+}
+
+export type BackendClinicStaffRole = 'vet' | 'clinic_owner'
+
+export interface BackendClinicStaffSummary {
+  email: string
+  display_name?: string | null
+  role: BackendClinicStaffRole
+  active: boolean
+  clinic_id?: string | null
+  clinic_name?: string | null
+  case_count: number
+}
+
+export interface BackendOwnerAccountSummary {
+  email: string
+  display_name?: string | null
+  active: boolean
+  clinic_id?: string | null
+  pet_count: number
+  submission_count: number
+  case_count: number
+}
+
+export type BackendContactTopic = 'license' | 'demo' | 'partnership' | 'other'
+export type BackendContactStatus = 'new' | 'read' | 'closed'
+
+export interface BackendContactInquiry {
+  inquiry_id: string
+  name: string
+  email: string
+  phone?: string | null
+  organization?: string | null
+  topic: BackendContactTopic
+  message: string
+  status: BackendContactStatus
+  created_at: string
+  updated_at: string
+}
 
 export interface BackendPet {
   pet_id: string

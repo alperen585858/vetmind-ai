@@ -40,7 +40,7 @@ export default function AdminUsers() {
         email,
         password,
         role,
-        clinic_id: role === 'admin' ? undefined : clinic,
+        clinic_id: role === 'admin' || role === 'founder' ? undefined : clinic,
         display_name: email.split('@')[0],
       })
       setEmail('')
@@ -86,7 +86,12 @@ export default function AdminUsers() {
             </label>
             <label className="label">
               {t('admin.clinicId')}
-              <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
+              <input
+                className="input mt-1"
+                value={clinic}
+                onChange={(e) => setClinic(e.target.value)}
+                disabled={role === 'admin' || role === 'founder'}
+              />
             </label>
             <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@')}>
               {saving ? t('admin.saving') : t('admin.create')}

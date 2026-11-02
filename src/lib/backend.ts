@@ -1464,6 +1464,121 @@ export async function updateRadiologistPayoutFee(feePerCase: number, applyToUnpa
   )
 }
 
+export async function listLicensedClinics() {
+  return request<import('../types').BackendLicensedClinicSummary[]>('/founder/licenses')
+}
+
+export async function createLicensedClinic(payload: {
+  name: string
+  clinic_id?: string
+  clinic_owner_email?: string
+  clinic_owner_password?: string
+}) {
+  return request<import('../types').BackendLicensedClinicSummary>('/founder/licenses', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateLicensedClinic(
+  clinicId: string,
+  payload: Partial<{ name: string; status: import('../types').BackendLicenseStatus }>,
+) {
+  return request<import('../types').BackendLicensedClinicSummary>(
+    `/founder/licenses/${encodeURIComponent(clinicId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function listClinicStaff(clinicId?: string) {
+  const q = clinicId ? `?clinic_id=${encodeURIComponent(clinicId)}` : ''
+  return request<import('../types').BackendClinicStaffSummary[]>(`/founder/licenses/staff${q}`)
+}
+
+export async function createClinicStaff(payload: {
+  email: string
+  password: string
+  role: import('../types').BackendClinicStaffRole
+  clinic_id: string
+  display_name?: string
+}) {
+  return request<import('../types').BackendClinicStaffSummary>('/founder/licenses/staff', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateClinicStaff(
+  email: string,
+  payload: Partial<{
+    active: boolean
+    clinic_id: string
+    role: import('../types').BackendClinicStaffRole
+    display_name: string
+    password: string
+  }>,
+) {
+  return request<import('../types').BackendClinicStaffSummary>(
+    `/founder/licenses/staff/${encodeURIComponent(email)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function listLicenseOwners() {
+  return request<import('../types').BackendOwnerAccountSummary[]>('/founder/licenses/owners')
+}
+
+export async function updateLicenseOwner(email: string, active: boolean) {
+  return request<import('../types').BackendOwnerAccountSummary>(
+    `/founder/licenses/owners/${encodeURIComponent(email)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    },
+  )
+}
+
+export async function submitPublicContact(payload: {
+  name: string
+  email: string
+  phone?: string
+  organization?: string
+  topic: import('../types').BackendContactTopic
+  message: string
+}) {
+  return request<{ inquiry_id: string; status: string; note: string }>('/public/contact', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function listContactInquiries() {
+  return request<import('../types').BackendContactInquiry[]>('/founder/contact-inquiries')
+}
+
+export async function contactInquiryNewCount() {
+  return request<{ new_count: number }>('/founder/contact-inquiries/new-count')
+}
+
+export async function updateContactInquiry(
+  inquiryId: string,
+  status: import('../types').BackendContactStatus,
+) {
+  return request<import('../types').BackendContactInquiry>(
+    `/founder/contact-inquiries/${encodeURIComponent(inquiryId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    },
+  )
+}
+
 // --- Phase 17 functional expansion ---
 
 export interface AppNotification {

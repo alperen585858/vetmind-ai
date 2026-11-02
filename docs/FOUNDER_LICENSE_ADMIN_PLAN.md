@@ -1,15 +1,16 @@
 # Kurucu Admin: Lisanslı Kurum + Sahip Yönetimi
 
-Plan durumu: **henüz uygulanmadı** (MVP tasarımı).
+Plan durumu: **MVP uygulandı** (`founder` rolü + `/api/v1/founder/licenses` + staff/clinic/owner UI).
 
 ## Özet
 
-Yeni `founder` (kurucu) rolü ile lisanslı kurum ve hayvan sahibi yönetimi: liste, detay sayıları, aktif/pasif, yeni kurum oluşturma. Mevcut `admin` operasyonel kalır; lisans API’leri founder’a kilitlenir.
+Yeni `founder` (kurucu) rolü ile **asıl amaç: veterinerler + klinik adminleri (clinic_owner) yönetimi**, yanında lisanslı kurum ve hayvan sahibi yönetimi. Mevcut `admin` operasyonel kalır; lisans/personel API’leri founder’a kilitlenir.
 
 ## Kararlar
 
 - **Rol:** Yeni üst rol **`founder`** (kurucu). Lisans / kurum / sahip yönetimi sadece founder’da. Mevcut **`admin`** KB, sistem, radyolog ödemesi, kullanıcı CRUD için kalır.
-- **Yetki modeli:** `founder` RBAC’de `*` (admin gibi her şey) + UI’da admin menüsü **ve** Lisanslar. Lisans API’si ayrıca `CAP_FOUNDER` / `require_roles({"founder"})` ile kilitli — normal `admin` lisans oluşturamaz/pasife alamaz.
+- **Yetki modeli:** `founder` RBAC’de `*` (API bypass için); **UI ayrı:** kurucu dashboard + Lisanslar menüsü. Sistem admin menüsü (modüller, KB, GPU, ücret…) founder’da yok. Lisans API’si `require_exact_roles("founder")` — normal `admin` lisans oluşturamaz.
+- **Dashboard ayrımı:** Kurucu = lisans/personel özeti. Sistem admin = platform operasyonu. Klinik admini (`clinic_owner`) = klinik panosu.
 - **Lisans = kurum kaydı:** `clinic_id` üstüne **LicensedClinic** entity (ad, durum, oluşturulma).
 - **Hayvan sahipleri:** `role === 'owner'` ayrı sekme; DICOM = mevcut submission akışı.
 - **MVP:** liste + detay metrikleri + aktif/pasif + yeni kurum. Kota / süre / faturalama yok.
@@ -59,6 +60,9 @@ Router `backend/app/api/licenses.py`, **sadece founder**, prefix `/api/v1/founde
 | POST | `/` | Yeni kurum (+ opsiyonel clinic_owner) |
 | GET | `/{clinic_id}` | Detay |
 | PATCH | `/{clinic_id}` | name / status |
+| GET | `/staff` | Veteriner + klinik admin listesi (`?clinic_id=`) |
+| POST | `/staff` | Vet / clinic_owner oluştur (zorunlu clinic_id) |
+| PATCH | `/staff/{email}` | active / clinic / rol / şifre |
 | GET | `/owners` | Owner hesapları + metrikler |
 | PATCH | `/owners/{email}` | active toggle |
 

@@ -1,18 +1,57 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { LocalizedLink } from '../components/LocalizedLink'
-import { Lock, Menu, UserRound, X } from 'lucide-react'
+import { CheckCircle2, Lock, Menu, UserRound, X } from 'lucide-react'
 import { useLocale } from '../context/LocaleContext'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
+import { submitPublicContact } from '../lib/backend'
+import type { BackendContactTopic } from '../types'
 
 export default function Landing() {
   const { t } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [contactName, setContactName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [contactOrg, setContactOrg] = useState('')
+  const [contactTopic, setContactTopic] = useState<BackendContactTopic>('license')
+  const [contactMessage, setContactMessage] = useState('')
+  const [contactBusy, setContactBusy] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
+  const [contactDone, setContactDone] = useState(false)
 
   const NAV = [
     { label: t('landing.navServices'), href: '#hizmetler' },
     { label: t('landing.navHow'), href: '#nasil' },
     { label: t('landing.navAbout'), href: '#hakkinda' },
+    { label: t('landing.navContact'), href: '#iletisim' },
   ]
+
+  const onContactSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setContactError(null)
+    setContactBusy(true)
+    try {
+      await submitPublicContact({
+        name: contactName.trim(),
+        email: contactEmail.trim(),
+        phone: contactPhone.trim() || undefined,
+        organization: contactOrg.trim() || undefined,
+        topic: contactTopic,
+        message: contactMessage.trim(),
+      })
+      setContactDone(true)
+      setContactName('')
+      setContactEmail('')
+      setContactPhone('')
+      setContactOrg('')
+      setContactTopic('license')
+      setContactMessage('')
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : t('landing.contactFail'))
+    } finally {
+      setContactBusy(false)
+    }
+  }
 
   const services = [
     { title: t('landing.svcDicomTitle'), text: t('landing.svcDicomBody') },
@@ -223,12 +262,129 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Contact us */}
+      <section id="iletisim" className="bg-gradient-to-b from-sky-50 to-white px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-2 lg:items-start">
+          <div>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-sky-600">
+              {t('landing.contactEyebrow')}
+            </p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl">
+              {t('landing.contactTitle')}
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-navy-600">{t('landing.contactBody')}</p>
+            <ul className="mt-6 space-y-2 text-sm text-navy-700">
+              <li>• {t('landing.contactBullet1')}</li>
+              <li>• {t('landing.contactBullet2')}</li>
+              <li>• {t('landing.contactBullet3')}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm ring-1 ring-sky-100/80">
+            {contactDone ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+                <p className="text-lg font-semibold text-navy-900">{t('landing.contactSuccessTitle')}</p>
+                <p className="max-w-sm text-sm text-navy-600">{t('landing.contactSuccessBody')}</p>
+                <button
+                  type="button"
+                  className="mt-2 text-sm font-semibold text-sky-600 hover:underline"
+                  onClick={() => setContactDone(false)}
+                >
+                  {t('landing.contactAnother')}
+                </button>
+              </div>
+            ) : (
+              <form className="space-y-3" onSubmit={(e) => void onContactSubmit(e)}>
+                <label className="block text-sm font-medium text-navy-800">
+                  {t('common.name')}
+                  <input
+                    required
+                    minLength={2}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                  />
+                </label>
+                <label className="block text-sm font-medium text-navy-800">
+                  {t('common.email')}
+                  <input
+                    required
+                    type="email"
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-navy-800">
+                    {t('common.phone')}
+                    <input
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-navy-800">
+                    {t('landing.contactOrg')}
+                    <input
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                      value={contactOrg}
+                      onChange={(e) => setContactOrg(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label className="block text-sm font-medium text-navy-800">
+                  {t('landing.contactTopic')}
+                  <select
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                    value={contactTopic}
+                    onChange={(e) => setContactTopic(e.target.value as BackendContactTopic)}
+                  >
+                    <option value="license">{t('landing.contactTopicLicense')}</option>
+                    <option value="demo">{t('landing.contactTopicDemo')}</option>
+                    <option value="partnership">{t('landing.contactTopicPartnership')}</option>
+                    <option value="other">{t('landing.contactTopicOther')}</option>
+                  </select>
+                </label>
+                <label className="block text-sm font-medium text-navy-800">
+                  {t('landing.contactMessage')}
+                  <textarea
+                    required
+                    minLength={10}
+                    rows={4}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none ring-sky-400 focus:ring-2"
+                    value={contactMessage}
+                    onChange={(e) => setContactMessage(e.target.value)}
+                  />
+                </label>
+                {contactError && (
+                  <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                    {contactError}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={contactBusy}
+                  className="inline-flex w-full items-center justify-center rounded-full bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:opacity-60"
+                >
+                  {contactBusy ? t('common.loading') : t('landing.contactSubmit')}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-sky-100 bg-navy-950 px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
           <p className="text-sm text-sky-200/80">
             {t('landing.footer', { year: new Date().getFullYear() })}
           </p>
           <div className="flex gap-4 text-sm text-sky-300/90">
+            <a href="#iletisim" className="hover:text-white">
+              {t('landing.navContact')}
+            </a>
             <LocalizedLink to="/giris" className="hover:text-white">
               {t('landing.login')}
             </LocalizedLink>

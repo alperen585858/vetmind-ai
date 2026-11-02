@@ -65,6 +65,14 @@ const SEED_ACCOUNTS: DemoAccount[] = [
     role: 'admin',
     createdAt: '2026-01-01T00:00:00.000Z',
   },
+  {
+    id: 'acc-founder',
+    email: 'founder@demo.local',
+    password: 'demo1234',
+    name: USERS.founder.name,
+    role: 'founder',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
 ]
 
 function readAccounts(): DemoAccount[] {
@@ -79,7 +87,18 @@ function readAccounts(): DemoAccount[] {
       localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(SEED_ACCOUNTS))
       return [...SEED_ACCOUNTS]
     }
-    return parsed
+    // Merge newly added seed demos (e.g. founder) without wiping local registers.
+    const byEmail = new Map(parsed.map((a) => [a.email.toLowerCase(), a]))
+    let changed = false
+    for (const seed of SEED_ACCOUNTS) {
+      if (!byEmail.has(seed.email.toLowerCase())) {
+        byEmail.set(seed.email.toLowerCase(), seed)
+        changed = true
+      }
+    }
+    const merged = [...byEmail.values()]
+    if (changed) writeAccounts(merged)
+    return merged
   } catch {
     return [...SEED_ACCOUNTS]
   }
@@ -186,7 +205,7 @@ export function login(email: string, password: string): DemoSession {
   return session
 }
 
-const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
+const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin', 'founder']
 
 /**
  * Session for an account that exists only in the backend directory (created by an

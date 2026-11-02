@@ -17,11 +17,17 @@ CAP_SUBMISSIONS = "submissions:write"
 CAP_CLINIC_MANAGE = "clinic:manage"
 CAP_USERS_ADMIN = "users:admin"
 CAP_MESSAGES = "messages:write"
+CAP_FOUNDER = "founder"
+
+# Roles that see all clinics (JWT) and share admin-level product ops.
+ADMIN_LIKE_ROLES = frozenset({"admin", "founder"})
 
 ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
     "demo": frozenset({"*"}),
     "service": frozenset({"*"}),
     "admin": frozenset({"*"}),
+    # Same product surface as admin; license APIs still require exact role=founder.
+    "founder": frozenset({"*"}),
     "vet": frozenset(
         {
             CAP_CASE_WRITE,

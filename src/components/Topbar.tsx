@@ -16,6 +16,7 @@ export const ROLE_BADGE: Record<Role, string> = {
   owner: 'bg-sky-50 text-sky-700 ring-sky-200',
   clinic_owner: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
   admin: 'bg-slate-100 text-slate-700 ring-slate-300',
+  founder: 'bg-amber-100 text-amber-900 ring-amber-300',
 }
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
