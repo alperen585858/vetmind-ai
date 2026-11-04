@@ -19,7 +19,8 @@ import type {
 const API_BASE = '/api/v1'
 
 export class BackendUnavailableError extends Error {
-  constructor(message = 'FastAPI backend is not reachable. Start it with: cd backend && uvicorn app.main:app --port 8000') {
+  // Shown to users; the developer hint (start the backend) lives in README §4.
+  constructor(message = 'Sunucuya ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.') {
     super(message)
     this.name = 'BackendUnavailableError'
   }

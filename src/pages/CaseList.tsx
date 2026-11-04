@@ -166,8 +166,8 @@ export default function CaseList() {
       setSyncError(null)
       pushToast({ tone: 'success', title: 'Vakalar güncellendi', body: `${r.count} vaka yüklendi.` })
     } else {
-      setSyncError(r.error ?? 'Backend kapalı olabilir.')
-      pushToast({ tone: 'error', title: 'Senkron başarısız', body: r.error ?? 'Backend kapalı olabilir.' })
+      setSyncError(r.error ?? 'Sunucuya ulaşılamıyor olabilir.')
+      pushToast({ tone: 'error', title: 'Eşitleme başarısız', body: r.error ?? 'Sunucuya ulaşılamıyor olabilir.' })
     }
   }
 

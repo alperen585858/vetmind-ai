@@ -38,3 +38,33 @@ export function displayFindingDescription(desc?: string | null): string {
     .replace(/\s*\(sentetik\)/gi, '')
     .trim()
 }
+
+type Translate = (key: string) => string
+
+const MODALITY_KEYS = new Set(['MR', 'CT', 'XR', 'OTHER'])
+const REGION_KEYS = new Set(['BRAIN', 'CERVICAL', 'THORAX', 'OTHER', 'UNKNOWN'])
+
+/** "CT" → "BT" / "CT" by locale; unknown DICOM codes (DX, CR…) are shown as-is. */
+export function modalityLabel(t: Translate, modality?: string | null): string {
+  if (!modality) return ''
+  return MODALITY_KEYS.has(modality) ? t(`modalityName.${modality}`) : modality
+}
+
+/** "BRAIN" → "Beyin" / "Brain" by locale. */
+export function regionLabel(t: Translate, region?: string | null): string {
+  if (!region) return ''
+  return REGION_KEYS.has(region) ? t(`regionName.${region}`) : region
+}
+
+const CONFIDENCE_KEYS = new Set(['high', 'medium', 'low', 'unknown'])
+
+/** "medium" → "orta güven" / "medium confidence". */
+export function confidenceLabel(t: Translate, confidence?: string | null): string {
+  if (!confidence) return ''
+  return CONFIDENCE_KEYS.has(confidence) ? t(`confidenceName.${confidence}`) : confidence
+}
+
+/** "CT · BRAIN" → "BT · Beyin". */
+export function studyLabel(t: Translate, modality?: string | null, region?: string | null, separator = ' · '): string {
+  return [modalityLabel(t, modality), regionLabel(t, region)].filter(Boolean).join(separator)
+}

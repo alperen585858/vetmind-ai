@@ -3,6 +3,7 @@ import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
+import { confidenceLabel, studyLabel } from '../lib/displayClean'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -318,7 +319,7 @@ export default function NewCase() {
       setDicomPreview(upload)
       applyClassificationDefaults(upload)
       if (upload.blocked) {
-        pushToast({ tone: 'error', title: 'DICOM ingest engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
+        pushToast({ tone: 'error', title: 'DICOM yüklemesi engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
       } else {
         pushToast({
           tone: 'success',
@@ -393,7 +394,7 @@ export default function NewCase() {
           applyClassificationDefaults(upload)
           if (upload.blocked) {
             setSubmitting(false)
-            pushToast({ tone: 'error', title: 'DICOM ingest engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
+            pushToast({ tone: 'error', title: 'DICOM yüklemesi engellendi', body: upload.block_reason ?? 'Doğrulama hatası' })
             return
           }
           ingestId = upload.ingest_id
@@ -431,7 +432,7 @@ export default function NewCase() {
         })
         if (upload.blocked) {
           setSubmitting(false)
-          pushToast({ tone: 'error', title: 'Doküman ingest engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
+          pushToast({ tone: 'error', title: 'Belge yüklemesi engellendi', body: upload.block_reason ?? 'Yükleme hatası' })
           return
         }
         result = await confirmDocumentAndAnalyze(upload.ingest_id, {
@@ -500,9 +501,9 @@ export default function NewCase() {
             summary: `Analiz başarısız: ${result.job.error_message ?? 'unknown error'}.`,
             findings: [],
             differentials: [],
-            recommendedTests: ['Backend günlüklerini kontrol edip yeniden deneyin. Uzman incelemesi zorunludur.'],
+            recommendedTests: ['Analizi daha sonra yeniden deneyin. Uzman incelemesi zorunludur.'],
             validation: [{ kind: 'unsupported', text: 'Analiz başarısız', detail: result.job.error_message ?? 'failed' }],
-            model: 'pipeline',
+            model: 'yapay zekâ',
             generatedAt: stamp,
           },
           draft: {
@@ -521,8 +522,8 @@ export default function NewCase() {
         pushToast({ tone: 'info', title: 'Analiz durduruldu' })
         return
       }
-      const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'Backend isteği başarısız.'
-      pushToast({ tone: 'error', title: 'FastAPI backend yanıt vermedi', body: message })
+      const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'İstek başarısız.'
+      pushToast({ tone: 'error', title: 'Sunucu yanıt vermedi', body: message })
       return
     }
     if (submitAbortRef.current === controller) submitAbortRef.current = null
@@ -550,17 +551,17 @@ export default function NewCase() {
                       clinical,
                       built.imaging,
                     ),
-                    size: `${dicomPreview.study.series.reduce((n, s) => n + s.instances.length, 0)} instance`,
+                    size: `${dicomPreview.study.series.reduce((n, s) => n + s.instances.length, 0)} görüntü`,
                     rawText:
-                      'DICOM metadata ingest. Pixel data klinik olarak yorumlanmamıştır.',
+                      'Yalnızca DICOM dosya bilgileri okundu; görüntü pikselleri klinik olarak yorumlanmadı.',
                     extracted: [
                       { field: 'StudyInstanceUID', value: dicomPreview.study.study_instance_uid, source: 'DICOM' },
                       {
-                        field: 'Classification',
+                        field: 'Sınıflandırma',
                         value: dicomPreview.classification
-                          ? `${dicomPreview.classification.suggested_modality} / ${dicomPreview.classification.suggested_anatomical_region} (${dicomPreview.classification.confidence})`
-                          : 'n/a',
-                        source: 'metadata classifier',
+                          ? `${studyLabel(t, dicomPreview.classification.suggested_modality, dicomPreview.classification.suggested_anatomical_region)} (${confidenceLabel(t, dicomPreview.classification.confidence)})`
+                          : '—',
+                        source: 'DICOM sınıflandırıcı',
                       },
                     ],
                   },
@@ -621,7 +622,7 @@ export default function NewCase() {
         timeline: [
           ...c.timeline,
           { date: done, label: 'Analiz tamamlandı', by: 'Sistem' },
-          { date: done, label: timelineLabel, by: 'pipeline' },
+          { date: done, label: timelineLabel, by: 'Sistem' },
         ],
       }))
       const tone = backendOutcome === 'failed' ? 'error' : backendOutcome === 'unsupported' ? 'warning' : 'success'
@@ -913,9 +914,11 @@ export default function NewCase() {
                     <p className="mt-1 text-xs opacity-80">ingest_id: {dicomPreview.ingest_id}</p>
                     {dicomPreview.classification && (
                       <p className="mt-2">
-                        Öneri: <strong>{dicomPreview.classification.suggested_modality}</strong> /{' '}
-                        <strong>{dicomPreview.classification.suggested_anatomical_region}</strong> · güven:{' '}
-                        {dicomPreview.classification.confidence}
+                        Öneri:{' '}
+                        <strong>
+                          {studyLabel(t, dicomPreview.classification.suggested_modality, dicomPreview.classification.suggested_anatomical_region)}
+                        </strong>{' '}
+                        · {confidenceLabel(t, dicomPreview.classification.confidence)}
                         {dicomPreview.classification.needs_confirmation ? ' · onay gerekli' : ''}
                       </p>
                     )}

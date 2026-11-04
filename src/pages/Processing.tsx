@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle,
@@ -239,36 +238,6 @@ export default function Processing() {
       <Card>
         <EmptyState icon={<FileText className="h-6 w-6" />} title={t('cases.processing.notFound')} />
       </Card>
-    )
-  }
-
-  if (!isBackend) {
-    return (
-      <>
-        <PageHeader
-          title={`${t('cases.processing.title')} — ${c.patient.name}`}
-          subtitle={t('cases.processing.localSubtitle', { no: c.no })}
-          breadcrumb={t('cases.processing.breadcrumb')}
-          actions={<StatusBadge status={c.status} />}
-        />
-        <CaseWorkflowStepper currentStep={2} />
-        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold tracking-wide">{t('cases.processing.localDemoTitle')}</p>
-          <p className="mt-1 text-xs opacity-90">{t('cases.processing.localDemoBody')}</p>
-        </div>
-        <Card>
-          <EmptyState
-            icon={<AlertCircle className="h-6 w-6" />}
-            title={t('cases.processing.localEmptyTitle')}
-            text={t('cases.processing.localEmptyText')}
-            action={
-              <LocalizedLink to={`/vakalar/${c.id}`} className="text-sm font-medium text-teal-700">
-                {t('cases.processing.backToDetail')}
-              </LocalizedLink>
-            }
-          />
-        </Card>
-      </>
     )
   }
 

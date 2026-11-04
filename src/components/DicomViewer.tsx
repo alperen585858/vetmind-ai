@@ -36,16 +36,18 @@ import {
   roiStats,
   type DicomFramePreview,
 } from '../lib/dicomPreview'
+import { useLocale } from '../context/LocaleContext'
+import { modalityLabel } from '../lib/displayClean'
 
 type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi'
 
 const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
-  { id: 'auto', label: 'Auto', wc: 0, ww: 0 },
-  { id: 'soft', label: 'Soft', wc: 40, ww: 400 },
-  { id: 'brain', label: 'Brain', wc: 40, ww: 80 },
-  { id: 'bone', label: 'Bone', wc: 300, ww: 1500 },
-  { id: 'lung', label: 'Lung', wc: -600, ww: 1500 },
-  { id: 'abdomen', label: 'Abd', wc: 40, ww: 350 },
+  { id: 'auto', label: 'Otomatik', wc: 0, ww: 0 },
+  { id: 'soft', label: 'Yumuşak', wc: 40, ww: 400 },
+  { id: 'brain', label: 'Beyin', wc: 40, ww: 80 },
+  { id: 'bone', label: 'Kemik', wc: 300, ww: 1500 },
+  { id: 'lung', label: 'Akciğer', wc: -600, ww: 1500 },
+  { id: 'abdomen', label: 'Batın', wc: 40, ww: 350 },
 ]
 
 function ToolButton({
@@ -111,6 +113,7 @@ export function DicomViewer({
   aiOverlayBbox?: { x_min: number; y_min: number; x_max: number; y_max: number } | null
   aiOverlayStyle?: 'ai' | 'vet'
 }) {
+  const { t } = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const compareCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -542,7 +545,7 @@ export function DicomViewer({
                 </span>
               )}
               <span className="max-w-[100px] truncate">
-                {s.modality ? `${s.modality} · ` : ''}
+                {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
                 {s.label}
               </span>
               <span className="text-slate-400">({s.frames.length})</span>
@@ -722,7 +725,7 @@ export function DicomViewer({
                 <option value="">Aynı seri (dilim)</option>
                 {seriesGroups.map((s) => (
                   <option key={s.key} value={s.key}>
-                    {s.modality ? `${s.modality} · ` : ''}
+                    {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
                     {s.label} ({s.frames.length})
                   </option>
                 ))}

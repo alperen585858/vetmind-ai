@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
+import { confidenceLabel, modalityLabel, studyLabel } from '../lib/displayClean'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -576,8 +577,8 @@ export default function DicomUpload() {
               clinical,
               built.imaging,
             ),
-            size: `${instanceCount} instance`,
-            rawText: 'DICOM metadata ingest only. Pixel data was not analyzed.',
+            size: `${instanceCount} görüntü`,
+            rawText: 'Yalnızca DICOM dosya bilgileri okundu; görüntü pikselleri analiz edilmedi.',
             extracted: [
               {
                 field: 'StudyInstanceUID',
@@ -585,11 +586,11 @@ export default function DicomUpload() {
                 source: 'DICOM',
               },
               {
-                field: 'Classification',
+                field: 'Sınıflandırma',
                 value: uploadSnap?.classification
-                  ? `${uploadSnap.classification.suggested_modality} / ${uploadSnap.classification.suggested_anatomical_region}`
+                  ? studyLabel(t, uploadSnap.classification.suggested_modality, uploadSnap.classification.suggested_anatomical_region)
                   : '—',
-                source: 'metadata classifier',
+                source: 'DICOM sınıflandırıcı',
               },
             ],
           },
@@ -609,7 +610,7 @@ export default function DicomUpload() {
           {
             date: stamp,
             label: `Analiz tamamlandı: ${result.outcome} · phase=${phaseFromPipelineOutcome(result.outcome)} (${result.job.case_id})`,
-            by: 'backend',
+            by: 'Sistem',
           },
         ],
         processingStartedAt: Date.now(),
@@ -648,7 +649,7 @@ export default function DicomUpload() {
         pushToast({
           tone: 'info',
           title: 'Analiz durduruldu',
-          body: 'İzleme ve backend iptal isteği uygulandı.',
+          body: 'Analiz durdurma isteği gönderildi.',
         })
         return
       }
@@ -768,9 +769,9 @@ export default function DicomUpload() {
         <section className="rounded-xl border border-teal-200 bg-teal-50/50 p-3.5 text-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">Sınıflandırma</p>
           <p className="mt-1 text-sm font-medium text-navy-900">
-            {preview.classification.suggested_modality} / {preview.classification.suggested_anatomical_region}
+            {studyLabel(t, preview.classification.suggested_modality, preview.classification.suggested_anatomical_region)}
             <span className="ml-1 text-xs font-normal text-slate-600">
-              · {preview.classification.confidence}
+              · {confidenceLabel(t, preview.classification.confidence)}
               {preview.classification.disagreement ? ' · disagreement' : ''}
             </span>
           </p>
@@ -838,8 +839,8 @@ export default function DicomUpload() {
             <span className="text-slate-500">Seçili analiz</span>
             <span className="max-w-[55%] truncate text-right font-semibold">
               {preview?.classification
-                ? `${preview.classification.suggested_modality} / ${preview.classification.suggested_anatomical_region}`
-                : studySummary.modality ?? 'Metadata sınıflandırma'}
+                ? studyLabel(t, preview.classification.suggested_modality, preview.classification.suggested_anatomical_region)
+                : studySummary.modality ? modalityLabel(t, studySummary.modality) : 'DICOM sınıflandırma'}
             </span>
           </li>
           <li className="flex items-center justify-between gap-2 py-2 last:pb-0">

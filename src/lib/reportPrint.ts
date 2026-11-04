@@ -83,8 +83,6 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
     banner = translate(locale, 'reports.provenance.real')
   } else if (sourceKind === 'mixed') {
     banner = translate(locale, 'reports.provenance.mixed')
-  } else if (!c.fromBackend) {
-    banner = translate(locale, 'reports.provenance.local')
   }
 
   const reviewStatus =
@@ -102,9 +100,7 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
   const versionLabel =
     version != null
       ? `v${version}${draft?.immutable ? translate(locale, 'reports.provenance.immutableSuffix') : ''}`
-      : c.fromBackend
-        ? translate(locale, 'common.dash')
-        : translate(locale, 'reports.provenance.localVersion')
+      : translate(locale, 'common.dash')
 
   return {
     banner,

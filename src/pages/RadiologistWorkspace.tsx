@@ -296,14 +296,9 @@ export default function RadiologistWorkspace() {
     if (!text || immutable) return false
     setSaving(true)
     try {
-      if (caseKey.startsWith('case-')) {
-        const draft = await saveBackendDraftReport(caseKey, text)
-        updateCase(caseRow.id, { report: text, aiDraft: text, backendDraft: draft })
-        if (!opts?.silent) pushToast({ tone: 'success', title: t('review.workspace.toastDraftSaved') })
-      } else {
-        updateCase(caseRow.id, { report: text, aiDraft: text })
-        if (!opts?.silent) pushToast({ tone: 'success', title: t('review.workspace.toastLocalDraftUpdated') })
-      }
+      const draft = await saveBackendDraftReport(caseKey, text)
+      updateCase(caseRow.id, { report: text, aiDraft: text, backendDraft: draft })
+      if (!opts?.silent) pushToast({ tone: 'success', title: t('review.workspace.toastDraftSaved') })
       return true
     } catch (err) {
       pushToast({
