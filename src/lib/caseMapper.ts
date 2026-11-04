@@ -193,7 +193,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     id: s.case_id,
     no: s.case_id.replace(/^case-/, 'VM-').toUpperCase(),
     patient,
-    clinical: emptyClinical(),
+    clinical: { ...emptyClinical(), complaint: s.complaint?.trim() || '' },
     neuro: { ...UNKNOWN_NEURO },
     documents: [],
     status,

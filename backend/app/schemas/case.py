@@ -264,6 +264,8 @@ class CaseSummary(BaseModel):
     species: Species
     breed: Optional[str] = None
     patient_age_years: Optional[float] = None
+    # Chief complaint for list cards (owner dashboard) without fetching the full record.
+    complaint: Optional[str] = None
     modality: Modality
     anatomical_region: AnatomicalRegion
     status: CaseLifecycleStatus

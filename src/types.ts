@@ -642,6 +642,7 @@ export interface BackendCaseSummary {
   species: BackendSpecies
   breed?: string | null
   patient_age_years?: number | null
+  complaint?: string | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
   status: string
