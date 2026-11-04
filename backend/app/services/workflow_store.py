@@ -17,6 +17,8 @@ class WorkflowStore(Protocol):
 
     def list_pets(self) -> list[PetRecord]: ...
 
+    def delete_pet(self, pet_id: str) -> bool: ...
+
     def save_submission(self, sub: ImagingSubmission) -> ImagingSubmission: ...
 
     def get_submission(self, submission_id: str) -> Optional[ImagingSubmission]: ...
@@ -49,6 +51,9 @@ class InMemoryWorkflowStore:
 
     def list_pets(self) -> list[PetRecord]:
         return sorted(self._pets.values(), key=lambda p: p.created_at, reverse=True)
+
+    def delete_pet(self, pet_id: str) -> bool:
+        return self._pets.pop(pet_id, None) is not None
 
     def save_submission(self, sub: ImagingSubmission) -> ImagingSubmission:
         self._subs[sub.submission_id] = sub
@@ -122,6 +127,11 @@ class SqliteWorkflowStore:
     def list_pets(self) -> list[PetRecord]:
         rows = self._conn.execute("SELECT payload FROM pets ORDER BY created_at DESC").fetchall()
         return [PetRecord.model_validate_json(r["payload"]) for r in rows]
+
+    def delete_pet(self, pet_id: str) -> bool:
+        cur = self._conn.execute("DELETE FROM pets WHERE pet_id=?", (pet_id,))
+        self._conn.commit()
+        return cur.rowcount > 0
 
     def save_submission(self, sub: ImagingSubmission) -> ImagingSubmission:
         self._conn.execute(
