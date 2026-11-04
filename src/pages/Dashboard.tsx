@@ -39,6 +39,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import type { TranslateFn } from '../i18n'
+import { studyLabel } from '../lib/displayClean'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -458,8 +459,7 @@ function VetDashboard() {
                       </td>
                       <td className="td">
                         <span className="rounded-md bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-700">
-                          {c.modality ?? '—'}
-                          {c.anatomicalRegion ? ` · ${c.anatomicalRegion}` : ''}
+                          {c.modality ? studyLabel(t, c.modality, c.anatomicalRegion) : '—'}
                         </span>
                       </td>
                       <td className="td text-xs text-slate-600">
@@ -762,21 +762,10 @@ function OwnerDashboard() {
     <>
       <PageHeader
         title={t('dashboard.helloNamed', { name: user?.name ?? '' })}
-        subtitle={t('dashboard.ownerSubtitle')}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => nav('/hayvanlar')} icon={<PawPrint className="h-4 w-4" />}>
-              {t('nav.pets')}
-            </Button>
-            <Button onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
-              {t('dashboard.ownerNewRequest')}
-            </Button>
-            {ready.length > 0 ? (
-              <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
-                {t('nav.myReports')}
-              </Button>
-            ) : null}
-          </div>
+          <Button onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
+            {t('dashboard.ownerNewRequest')}
+          </Button>
         }
       />
 
@@ -819,9 +808,11 @@ function OwnerDashboard() {
                   </span>
                   <StatusBadge status={visibleStatus} />
                 </div>
-                <p className="text-sm text-slate-600">
-                  <span className="font-medium text-navy-800">{t('dashboard.ownerComplaint')}</span> {c.clinical.complaint}
-                </p>
+                {c.clinical.complaint ? (
+                  <p className="text-sm text-slate-600">
+                    <span className="font-medium text-navy-800">{t('dashboard.ownerComplaint')}</span> {c.clinical.complaint}
+                  </p>
+                ) : null}
                 <p className="rounded-lg bg-slate-50 p-3 text-sm text-navy-800">{ownerStatusText(c.status, t)}</p>
                 <div className="mt-auto pt-1">
                   {c.status === 'onaylandi' ? (

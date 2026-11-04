@@ -21,6 +21,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Protocol
 
+from app.dicom.classifier import REGION_TR, SPECIES_TR
 from app.llm.interfaces import LLMConfigError
 from app.llm.privacy import redact_personal_data
 from app.schemas.dicom import ClassificationSignal, ClassificationSuggestion, DicomStudyMeta
@@ -69,7 +70,7 @@ Return:
   UNKNOWN (no reliable region clue).
 - species: canine, feline, other (another animal) or unknown.
 - region_confidence / species_confidence: high, medium or low.
-- evidence: one short English sentence naming the field(s) and words you relied on.
+- evidence: one short sentence in Turkish naming the field(s) and words you relied on.
 
 Rules:
 - Never guess. Sequence or protocol names alone (T1, T2, FLAIR, STIR, DWI, tse, tra, sag, ax) do not identify a region.
@@ -107,12 +108,14 @@ def parse_classification(payload: dict[str, Any]) -> LLMClassification:
     species_raw = str(payload.get("species", "")).lower()
     species = Species(species_raw) if species_raw in {s.value for s in Species} else None
     evidence = " ".join(str(payload.get("evidence") or "").split())[:200]
+    if evidence and evidence[-1] not in ".!?":
+        evidence += "."  # it is followed by our own sentence in the rationale
     return LLMClassification(
         region=region,
         region_confidence=_conf(payload.get("region_confidence")),
         species=species,
         species_confidence=_conf(payload.get("species_confidence")),
-        evidence=evidence or "no evidence given",
+        evidence=evidence or "gerekçe verilmedi",
     )
 
 
@@ -181,7 +184,7 @@ def _with_unavailable(s: ClassificationSuggestion, model_label: str, exc: Except
     signal = ClassificationSignal(
         name=SIGNAL_NAME,
         confidence=ClassificationConfidence.UNKNOWN,
-        note=f"{model_label}: unavailable ({type(exc).__name__})",
+        note=f"{model_label}: ulaşılamadı ({type(exc).__name__})",
         source_kind="real",
     )
     return s.model_copy(
@@ -189,7 +192,7 @@ def _with_unavailable(s: ClassificationSuggestion, model_label: str, exc: Except
             "signals": [*s.signals, signal],
             "rationale": [
                 *s.rationale,
-                f"LLM metadata classifier unavailable ({type(exc).__name__}); rule result kept.",
+                f"Yapay zekâ sınıflandırıcısına ulaşılamadı ({type(exc).__name__}); kural sonucu kullanıldı.",
             ],
         }
     )
@@ -220,14 +223,14 @@ def merge_llm_result(
             confidence = ClassificationConfidence.LOW
             status = ClassificationStatus.AMBIGUOUS
             rationale.append(
-                f"LLM disagrees with the rules (rules={region.value}, llm={r.region.value}): "
-                f"{r.evidence} Rule result kept; confirmation required."
+                f"Yapay zekâ kurallarla çelişiyor (kurallar: {REGION_TR[region]}, yapay zekâ: "
+                f"{REGION_TR[r.region]}). {r.evidence} Kural sonucu korundu; onay gerekli."
             )
         elif r.region == region:
-            rationale.append(f"LLM metadata classifier agrees with region {region.value}.")
+            rationale.append(f"Yapay zekâ da bölgeyi {REGION_TR[region]} olarak değerlendirdi.")
     elif not rules_found_nothing:
         rationale.append(
-            f"Rules found conflicting region evidence; LLM answer ({r.region.value}) not used for region."
+            f"Kurallar birden fazla bölge buldu; yapay zekânın cevabı ({REGION_TR[r.region]}) bölge için kullanılmadı."
         )
     elif r.region in _CONCRETE_REGIONS and r.region_confidence in confident:
         previous = region
@@ -239,22 +242,24 @@ def merge_llm_result(
         else:
             confidence = ClassificationConfidence.LOW
         rationale.append(
-            f"LLM metadata classifier suggested region {region.value} "
-            f"({r.region_confidence.value}; rules had {previous.value}): {r.evidence} "
-            "Capped at MEDIUM; confirmation required."
+            f"Yapay zekâ bölgeyi {REGION_TR[region]} olarak önerdi (kurallar: {REGION_TR[previous]}). "
+            f"{r.evidence} Güven orta düzeyde tutuldu; onay gerekli."
         )
     else:
-        rationale.append(f"LLM metadata classifier gave no usable region ({r.region.value}); rule result kept.")
+        rationale.append(
+            f"Yapay zekâ kullanılabilir bir bölge vermedi ({REGION_TR[r.region]}); kural sonucu korundu."
+        )
 
     if r.species is not None and r.species_confidence in confident:
         if species is None:
             species = r.species
             species_confidence = ClassificationConfidence.MEDIUM
-            rationale.append(f"LLM metadata classifier suggested species {species.value}: {r.evidence}")
+            rationale.append(f"Yapay zekâ türü {SPECIES_TR[species]} olarak önerdi. {r.evidence}")
         elif r.species != species:
             species_confidence = ClassificationConfidence.LOW
             rationale.append(
-                f"LLM species ({r.species.value}) disagrees with rules ({species.value}); rule species kept, LOW."
+                f"Yapay zekânın tür önerisi ({SPECIES_TR[r.species]}) kurallarla ({SPECIES_TR[species]}) "
+                "çelişiyor; kural sonucu korundu, güven düşük."
             )
 
     signal = ClassificationSignal(

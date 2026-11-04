@@ -108,3 +108,39 @@ def test_sqlite_delete_case_removes_jobs_and_ingestions(tmp_path: Path) -> None:
     assert repo.list_cases() == []
     assert repo.get_job(job_id) is None
     repo.close()
+
+
+def test_demo_owner_pets_are_linked_and_removed_with_the_demo_set(tmp_path: Path) -> None:
+    from app.schemas.workflow import PetRecord
+
+    c = _container(tmp_path)
+    real_pet = c.workflow_store.save_pet(PetRecord(owner_subject="owner@demo.local", name="Gerçek", species="canine"))
+    ids = seed_demo_cases(c)
+
+    demo_pets = {p.name: p for p in c.workflow_store.list_pets() if p.pet_id.startswith("pet-demo-")}
+    assert set(demo_pets) == {"Paşa", "Zeytin"}
+    assert all(p.owner_subject == "owner@demo.local" for p in demo_pets.values())
+    by_name = {c.repo.get_case(i).patient_name: c.repo.get_case(i) for i in ids}
+    assert by_name["Paşa"].pet_id == demo_pets["Paşa"].pet_id
+    assert by_name["Zeytin"].pet_id == demo_pets["Zeytin"].pet_id
+    assert by_name["Duman"].pet_id is None
+
+    remove_demo_cases(c)
+    assert [p.pet_id for p in c.workflow_store.list_pets()] == [real_pet.pet_id]
+
+
+def test_duplicate_notification_does_not_keep_the_database_locked(tmp_path: Path) -> None:
+    import sqlite3
+
+    from app.schemas.notifications import AppNotification
+    from app.services.notification_store import SqliteNotificationStore
+
+    path = tmp_path / "ntf.sqlite3"
+    store = SqliteNotificationStore(path)
+    n = AppNotification(recipient_subject="a@b", kind="radiologist_assigned", title="t", body="b", link_path="/", dedupe_key="k")
+    assert store.upsert(n) is not None
+    assert store.upsert(n.model_copy(update={"notification_id": "ntf-other"})) is None  # duplicate key
+    other = sqlite3.connect(path, timeout=0.5)
+    other.execute("DELETE FROM notifications")  # would raise "database is locked" before the fix
+    other.commit()
+    other.close()

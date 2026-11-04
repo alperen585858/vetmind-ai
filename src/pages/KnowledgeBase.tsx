@@ -108,7 +108,7 @@ export default function KnowledgeBase() {
       } catch (err) {
         setHits(localSearch(query, kbSources))
         if (!(err instanceof BackendUnavailableError)) {
-          pushToast({ tone: 'warning', title: 'Backend RAG yok', body: 'Yerel arama kullanıldı.' })
+          pushToast({ tone: 'warning', title: 'Sunucu araması kullanılamadı', body: 'Örnek kaynaklarda arandı.' })
         }
       } finally {
         setLoading(false)

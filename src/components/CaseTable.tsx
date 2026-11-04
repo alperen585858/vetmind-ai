@@ -15,6 +15,7 @@ import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
 import { useLocale } from '../context/LocaleContext'
 import type { TranslateFn } from '../i18n'
+import { studyLabel } from '../lib/displayClean'
 
 const SPECIES_EMOJI: Record<string, string> = { Kedi: '🐱', Köpek: '🐶' }
 
@@ -46,9 +47,9 @@ function studyCell(c: VetCase, t: TranslateFn): string {
   return t('common.dash')
 }
 
-function modalityLabel(c: VetCase, dash: string): string {
+function modalityLabel(c: VetCase, dash: string, t: TranslateFn): string {
   if (!c.modality) return dash
-  return c.anatomicalRegion ? `${c.modality}-${c.anatomicalRegion}` : c.modality
+  return studyLabel(t, c.modality, c.anatomicalRegion)
 }
 
 function AnalysisCell({ c }: { c: VetCase }) {
@@ -228,7 +229,7 @@ export function CaseTable({
                     MODALITY_CLS[c.modality ?? 'OTHER'] ?? MODALITY_CLS.OTHER
                   }`}
                 >
-                  {modalityLabel(c, dash)}
+                  {modalityLabel(c, dash, t)}
                 </span>
               </td>
               <td className="td" title={c.studyInstanceUid}>

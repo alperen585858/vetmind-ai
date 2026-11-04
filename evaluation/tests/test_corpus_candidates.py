@@ -117,7 +117,13 @@ def test_schema_roundtrip():
     assert TermCatalog.model_validate_json(catalog.model_dump_json()) == catalog
 
 
-@pytest.mark.parametrize("invalid", [b"", b"not json", b"[]", b"{}", b" " * (MAX_SOURCE_BYTES + 1)])
+# Explicit ids: pytest puts the test id in an env var, and the oversized payload as an id
+# exceeds Windows' 32767-character env var limit.
+@pytest.mark.parametrize(
+    "invalid",
+    [b"", b"not json", b"[]", b"{}", b" " * (MAX_SOURCE_BYTES + 1)],
+    ids=["empty", "not-json", "list", "empty-object", "oversized"],
+)
 def test_invalid_document_rejected(invalid):
     with pytest.raises(ValueError):
         extract_candidates(invalid)

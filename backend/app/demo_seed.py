@@ -25,6 +25,7 @@ from app.dicom.fixtures import (
 from app.schemas.case import CaseAssignmentUpdate, CasePriority, ReviewFeedback, StructuredClinicalHistory
 from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import ReviewAction, Species
+from app.schemas.workflow import PetRecord
 
 if TYPE_CHECKING:
     from app.container import AppContainer
@@ -36,6 +37,8 @@ DEMO_CLINIC_ID = "clinic-demo-a"
 DEMO_VET = "vet@demo.local"
 DEMO_EXPERT = "expert@demo.local"
 DEMO_OWNER = "owner@demo.local"
+# Demo pet profiles use this id prefix so --remove can find them (PetRecord has no flag).
+DEMO_PET_PREFIX = "pet-demo-"
 
 Stage = Literal["created", "analyzed", "assigned", "revision", "approved"]
 
@@ -61,6 +64,7 @@ class DemoPatient:
     history: StructuredClinicalHistory
     exam: str
     owned_by_demo_owner: bool = False
+    sex: Optional[str] = None
     review_comment: Optional[str] = None
     review_edits: dict[str, str] = field(default_factory=dict)
 
@@ -112,6 +116,7 @@ DEMO_PATIENTS: tuple[DemoPatient, ...] = (
         ),
         exam="Solunum sesleri bilateral hafif sertleşmiş; kardiyak üfürüm duyulmadı.",
         owned_by_demo_owner=True,
+        sex="Dişi",
         review_comment="Taslak uygun bulundu.",
     ),
     DemoPatient(
@@ -156,6 +161,7 @@ DEMO_PATIENTS: tuple[DemoPatient, ...] = (
         ),
         exam="Tetraparezi, servikal hiperestezi; pelvik reflekslerde artış. Derin ağrı değerlendirilmedi.",
         owned_by_demo_owner=True,
+        sex="Erkek",
     ),
     DemoPatient(
         patient_name="Karamel",
@@ -211,6 +217,30 @@ def demo_case_ids(container: AppContainer) -> list[str]:
     return [c.case_id for c in container.repo.list_cases() if c.demo_seed]
 
 
+def _demo_pet_id(name: str) -> str:
+    ascii_name = name.lower().translate(str.maketrans("çğıöşü", "cgiosu"))
+    return DEMO_PET_PREFIX + "".join(ch for ch in ascii_name if ch.isalnum())
+
+
+def _save_demo_pet(container: AppContainer, p: DemoPatient, now: datetime) -> PetRecord:
+    """Pet profile for the demo owner so the owner dashboard counts and links the case."""
+    created = now - timedelta(days=p.days_ago + 30)
+    pet = PetRecord(
+        pet_id=_demo_pet_id(p.patient_name),
+        owner_subject=DEMO_OWNER,
+        clinic_id=DEMO_CLINIC_ID,
+        name=p.patient_name,
+        species=p.species,
+        breed=p.breed,
+        age_years=p.age_years,
+        sex=p.sex,
+        medical_history=p.history.relevant_history,
+        created_at=created,
+        updated_at=created,
+    )
+    return container.workflow_store.save_pet(pet)
+
+
 def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
     repo = container.repo
     upload = container.dicom.upload(
@@ -238,6 +268,7 @@ def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
     case.clinic_id = DEMO_CLINIC_ID
     if p.owned_by_demo_owner:
         case.pet_owner_subject = DEMO_OWNER
+        case.pet_id = _save_demo_pet(container, p, now).pet_id
     repo.save_case(case)
     case_id = case.case_id
 
@@ -291,6 +322,9 @@ def remove_demo_cases(container: AppContainer) -> int:
         for thread in container.messaging_store.list_threads():
             if thread.related_case_id in ids:
                 container.messaging_store.delete_thread(thread.thread_id)
+    for pet in container.workflow_store.list_pets():
+        if pet.pet_id.startswith(DEMO_PET_PREFIX):
+            container.workflow_store.delete_pet(pet.pet_id)
     return len(doomed)
 
 

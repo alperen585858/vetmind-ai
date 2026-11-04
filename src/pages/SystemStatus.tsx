@@ -285,7 +285,7 @@ export default function SystemStatus() {
         <Card className="xl:col-span-2">
           <CardHeader
             title="GPU telemetri"
-            subtitle="DEMO FICTION · gerçek VRAM telemetrisi yok"
+            subtitle="Temsilî · gerçek ekran kartı ölçümü yok"
             icon={<Cpu className="h-5 w-5" />}
           />
           <div className="grid gap-4 p-5 sm:grid-cols-3">

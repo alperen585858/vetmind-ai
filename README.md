@@ -138,9 +138,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-`package.json` içindeki `backend:dev*` komutları macOS/Linux sözdizimi kullanır (`.venv/bin/...`); Windows'ta
-backend'i yukarıdaki gibi başlatın. Kod değiştiği halde backend eski gibi davranıyorsa otomatik yeniden
-yükleme takılmış olabilir: `Ctrl+C` ile durdurup yeniden başlatın.
+Kurulumdan sonra backend her işletim sisteminde repo kökünden `npm run backend:dev` ile de başlatılabilir
+(`scripts/backend.mjs`, `.venv`'deki Python'u bulur). Kod değiştiği halde backend eski gibi davranıyorsa
+otomatik yeniden yükleme takılmış olabilir: `Ctrl+C` ile durdurup yeniden başlatın.
 
 ### 4.2 Frontend (ayrı terminal, repo kökü)
 
@@ -206,7 +206,8 @@ npm install
 Uygulamayı **http://localhost:5173** adresinden kullanın. `http://127.0.0.1:8000` bir web sayfası değildir;
 tarayıcıda açınca `404 Not Found` görmeniz normaldir.
 
-**Windows (PowerShell):** `npm run backend:dev:ai` macOS/Linux sözdizimi kullanır. Windows'ta:
+**Windows:** `npm run backend:dev:ai` Windows'ta da çalışır. Ayarları değiştirmek isterseniz (ör. hakemi
+açmak) PowerShell'de elle:
 
 ```powershell
 cd backend
@@ -325,7 +326,7 @@ rapor qwen ile yazılır (birkaç dakika). Bulgular "gerçek model" (`source_kin
 **İsteğe bağlı — dosya sabitleme:** `export_xray_model.py` çıktısında bir `sha256:` değeri yazar.
 `VETMIND_LOCAL_TORCH_WEIGHTS_SHA256=<değer>` verirseniz, dosya değişirse sistem modeli yüklemeyi reddeder.
 
-**Windows (PowerShell):**
+**Windows:** `npm run backend:dev:vision` Windows'ta da çalışır. PowerShell'de elle başlatmak için:
 
 ```powershell
 cd backend

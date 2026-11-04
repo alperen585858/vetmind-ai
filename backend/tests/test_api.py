@@ -93,3 +93,13 @@ def test_review_without_draft_409(client: TestClient) -> None:
         json={"reviewer_id": "expert-demo", "action": "approve"},
     )
     assert res.status_code == 409
+
+
+def test_case_list_includes_chief_complaint(client: TestClient) -> None:
+    # The owner dashboard cards read the complaint from the list, not the full record.
+    with_complaint = make_payload(clinical_history_structured={"complaint": "Arka bacaklarda güçsüzlük"})
+    created = client.post("/api/v1/cases", json=with_complaint.model_dump(mode="json")).json()
+    without = client.post("/api/v1/cases", json=make_payload().model_dump(mode="json")).json()
+    rows = {row["case_id"]: row for row in client.get("/api/v1/cases").json()}
+    assert rows[created["case_id"]]["complaint"] == "Arka bacaklarda güçsüzlük"
+    assert rows[without["case_id"]]["complaint"] is None

@@ -230,10 +230,9 @@ class DicomService:
             status_value = "ambiguous"
             rationale = list(classification.rationale) + [
                 (
-                    f"Manual classification override: modality={modality.value}, "
-                    f"region={region.value} (suggestion was "
-                    f"{classification.suggested_modality.value}/"
-                    f"{classification.suggested_anatomical_region.value})."
+                    f"Sınıflandırma elle değiştirildi (manual override): modalite {modality.value}, "
+                    f"bölge {region.value} (öneri {classification.suggested_modality.value} / "
+                    f"{classification.suggested_anatomical_region.value} idi)."
                 )
             ]
 

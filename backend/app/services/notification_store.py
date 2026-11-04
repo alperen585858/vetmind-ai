@@ -127,6 +127,9 @@ class SqliteNotificationStore:
             self._conn.commit()
             return n
         except sqlite3.IntegrityError:
+            # Duplicate dedupe_key: end the implicit transaction, or this connection keeps
+            # the database write-locked for every other process (e.g. scripts/seed_demo.py).
+            self._conn.rollback()
             return None
 
     def list_for(self, recipient: str, *, unread_only: bool = False) -> list[AppNotification]:

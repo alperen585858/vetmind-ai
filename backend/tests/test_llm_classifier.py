@@ -100,7 +100,7 @@ def test_wording_outside_the_dictionary_is_filled_by_the_model() -> None:
     assert s.species_confidence == ClassificationConfidence.MEDIUM
     assert s.suggested_modality == Modality.MR  # modality always from the DICOM tag
     assert any(sig.name == SIGNAL_NAME and sig.anatomical_region == AnatomicalRegion.BRAIN for sig in s.signals)
-    assert any("LLM metadata classifier suggested region BRAIN" in r for r in s.rationale)
+    assert any("Yapay zekâ bölgeyi beyin olarak önerdi" in r for r in s.rationale)
 
 
 def test_model_cannot_override_high_confidence_rules() -> None:
@@ -126,7 +126,7 @@ def test_provider_failure_falls_back_to_rules() -> None:
     s = classify_study(_study("KAFA MR"), llm=llm)
     assert s.suggested_anatomical_region == rules_only.suggested_anatomical_region
     assert s.confidence == rules_only.confidence
-    assert any("unavailable (LLMTimeoutError)" in r for r in s.rationale)
+    assert any("ulaşılamadı (LLMTimeoutError)" in r for r in s.rationale)
     assert any(sig.name == SIGNAL_NAME and sig.confidence == ClassificationConfidence.UNKNOWN for sig in s.signals)
 
 
@@ -242,4 +242,4 @@ def test_model_cannot_pick_one_of_conflicting_rule_regions() -> None:
     llm, _ = _classifier(_answer("CERVICAL"))
     s = classify_study(_study("KAFA VE BOYUN MR"), llm=llm)
     assert s.suggested_anatomical_region == AnatomicalRegion.UNKNOWN
-    assert any("conflicting region evidence" in r for r in s.rationale)
+    assert any("birden fazla bölge buldu" in r for r in s.rationale)

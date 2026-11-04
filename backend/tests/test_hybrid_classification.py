@@ -52,4 +52,4 @@ def test_hybrid_disagreement_forces_low_and_confirm() -> None:
     assert suggestion.disagreement is True
     assert suggestion.confidence == ClassificationConfidence.LOW
     assert suggestion.needs_confirmation is True
-    assert any("Hybrid disagreement" in r for r in suggestion.rationale)
+    assert any("Sinyaller çelişiyor" in r for r in suggestion.rationale)

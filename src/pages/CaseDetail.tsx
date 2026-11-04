@@ -1644,9 +1644,7 @@ function ReportWorkspace({ c }: { c: VetCase }) {
   const draft = c.backendDraft
   const prov = draft
     ? `${draft.generation?.model_id ?? '—'} · v${draft.version ?? c.currentReportVersion ?? '—'}${draft.immutable ? ' · immutable' : ''}`
-    : c.aiDraft
-      ? t('cases.detail.localPrototypeDraft')
-      : null
+    : null
 
   if (!draft && !c.aiDraft && !c.report) {
     return (
@@ -1736,7 +1734,7 @@ function CaseHistoryPanel({ c }: { c: VetCase }) {
         <CardHeader title={t('cases.detail.reportVersions')} subtitle={t('cases.detail.reportVersionsSub')} icon={<History className="h-5 w-5" />} />
         {versions.length === 0 ? (
           <p className="px-5 py-4 text-sm text-slate-500">
-            {c.fromBackend ? t('cases.detail.noVersionsYet') : t('cases.detail.localPrototype')}
+            {t('cases.detail.noVersionsYet')}
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">

@@ -339,6 +339,7 @@ class CaseService:
             owner_subject=c.owner_subject,
             clinic_id=c.clinic_id,
             referring_clinic=c.referring_clinic,
+            complaint=c.clinical_history_structured.complaint if c.clinical_history_structured else None,
             unread_messages=self._unread_for(c, principal),
             report_available_at=getattr(c, "report_available_at", None),
             report_delivered_at=getattr(c, "report_delivered_at", None),

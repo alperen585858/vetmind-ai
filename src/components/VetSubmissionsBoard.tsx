@@ -6,6 +6,7 @@ import { EmptyState } from './EmptyState'
 import { fmtDate } from '../lib/format'
 import { useLocale } from '../context/LocaleContext'
 import type { TranslateFn } from '../i18n'
+import { modalityLabel, regionLabel, studyLabel } from '../lib/displayClean'
 import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord } from '../types'
 import type { DicomFramePreview } from '../lib/dicomPreview'
 
@@ -194,8 +195,8 @@ function DicomReviewPanel({
           </p>
           {detail.classification ? (
             <div className="space-y-2">
-              <Field label={t('submissions.board.modality')} value={detail.classification.suggested_modality} />
-              <Field label={t('submissions.board.region')} value={detail.classification.suggested_anatomical_region} />
+              <Field label={t('submissions.board.modality')} value={modalityLabel(t, detail.classification.suggested_modality)} />
+              <Field label={t('submissions.board.region')} value={regionLabel(t, detail.classification.suggested_anatomical_region)} />
               <Field
                 label={t('submissions.board.confidence')}
                 value={`${detail.classification.confidence}${
@@ -685,8 +686,7 @@ export function VetSubmissionsBoard({
                 <p className="mt-0.5 text-xs text-slate-400">{fmtDate(selected.created_at)}</p>
                 {detail?.classification ? (
                   <p className="mt-1 text-xs font-medium text-teal-800">
-                    {detail.classification.suggested_modality} ·{' '}
-                    {detail.classification.suggested_anatomical_region}
+                    {studyLabel(t, detail.classification.suggested_modality, detail.classification.suggested_anatomical_region)}
                   </p>
                 ) : null}
               </div>
@@ -792,7 +792,7 @@ export function VetSubmissionsBoard({
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">{t('submissions.board.dicomSummary')}</p>
                         <p className="mt-1 text-sm text-navy-900">
                           {detail?.classification
-                            ? `${detail.classification.suggested_modality} · ${detail.classification.suggested_anatomical_region}`
+                            ? studyLabel(t, detail.classification.suggested_modality, detail.classification.suggested_anatomical_region)
                             : detailLoading
                               ? t('submissions.board.loading')
                               : t('submissions.board.openFullReview')}

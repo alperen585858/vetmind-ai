@@ -74,6 +74,17 @@ _CANINE_TOKENS = ("CANINE", "CANIS", "DOG", "KOPEK")
 _FELINE_TOKENS = ("FELINE", "FELIS", "CAT", "KEDI")
 _TR_FOLD = str.maketrans("ÇĞİÖŞÜ", "CGIOSU")
 
+# Rationale and signal notes are shown on the upload / confirmation screens, so they are Turkish.
+REGION_TR = {
+    AnatomicalRegion.BRAIN: "beyin",
+    AnatomicalRegion.CERVICAL: "servikal",
+    AnatomicalRegion.THORAX: "toraks",
+    AnatomicalRegion.OTHER: "diğer",
+    AnatomicalRegion.UNKNOWN: "bilinmiyor",
+}
+MODALITY_TR = {Modality.MR: "MR", Modality.CT: "BT", Modality.XR: "röntgen", Modality.OTHER: "diğer"}
+SPECIES_TR = {Species.CANINE: "köpek", Species.FELINE: "kedi", Species.OTHER: "diğer"}
+
 
 def _normalize(text: str | None) -> str:
     """Upper-case, Turkish-folded text with instruction-like sentences removed.
@@ -139,16 +150,16 @@ def _suggest_species(text: str, rationale: list[str]) -> tuple[Species | None, C
     feline = _contains_any(text, _FELINE_TOKENS)
     if canine and feline:
         rationale.append(
-            f"Conflicting species tokens (canine={canine}, feline={feline}); species left unset."
+            f"Tür kelimeleri çelişiyor (köpek: {', '.join(canine)}; kedi: {', '.join(feline)}); tür boş bırakıldı."
         )
         return None, ClassificationConfidence.UNKNOWN
     if canine:
-        rationale.append(f"Species tokens suggesting canine: {', '.join(canine)}.")
+        rationale.append(f"Tür köpek olarak önerildi; ilgili kelimeler: {', '.join(canine)}.")
         return Species.CANINE, ClassificationConfidence.MEDIUM
     if feline:
-        rationale.append(f"Species tokens suggesting feline: {', '.join(feline)}.")
+        rationale.append(f"Tür kedi olarak önerildi; ilgili kelimeler: {', '.join(feline)}.")
         return Species.FELINE, ClassificationConfidence.MEDIUM
-    rationale.append("No reliable species tokens in DICOM metadata; species not invented.")
+    rationale.append("DICOM bilgilerinde güvenilir bir tür ifadesi yok; tür tahmin edilmedi.")
     return None, ClassificationConfidence.UNKNOWN
 
 
@@ -165,7 +176,7 @@ def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
         return ClassificationSignal(
             name="series_hint",
             confidence=ClassificationConfidence.UNKNOWN,
-            note="No SeriesDescription text for hint adapter.",
+            note="Seri açıklaması (SeriesDescription) yok.",
             source_kind="synthetic",
         )
 
@@ -193,25 +204,28 @@ def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
     if len(non_empty) == 1:
         h, region = non_empty[0]
         conf = ClassificationConfidence.MEDIUM
-        note_bits.append(f"series_hint region={region.value} tokens={h}")
+        note_bits.append(f"Seri açıklamasına göre bölge: {REGION_TR[region]} ({', '.join(h)})")
     elif len(non_empty) > 1:
         region = AnatomicalRegion.UNKNOWN
         conf = ClassificationConfidence.LOW
-        note_bits.append(f"series_hint ambiguous regions: {non_empty}")
+        note_bits.append(
+            "Seri açıklamasında birden fazla bölge var: "
+            + ", ".join(f"{REGION_TR[r]} ({', '.join(h)})" for h, r in non_empty)
+        )
     else:
-        note_bits.append("series_hint: no region protocol tokens.")
+        note_bits.append("Seri açıklamasında bölge belirten kelime yok")
 
     modality: Modality | None = None
     # Sequence tokens imply MR without claiming anatomical region.
     if _contains_any(series_text, ("MR", "MRI", "T1", "T2", "FLAIR", "DWI", "STIR")):
         modality = Modality.MR
-        note_bits.append("series_hint modality≈MR from protocol tokens")
+        note_bits.append("Sekans adlarına göre modalite: MR")
     elif _contains_any(series_text, ("CT", "CTA", "HRCT")):
         modality = Modality.CT
-        note_bits.append("series_hint modality≈CT from protocol tokens")
+        note_bits.append("Sekans adlarına göre modalite: BT")
     elif _contains_any(series_text, ("XR", "XRAY", "RADIOGRAPH", "CXR", "CR", "DX", "DR")):
         modality = Modality.XR
-        note_bits.append("series_hint modality≈XR/CR/DX from protocol tokens")
+        note_bits.append("Sekans adlarına göre modalite: röntgen")
 
     return ClassificationSignal(
         name="series_hint",
@@ -238,7 +252,7 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
     mixed_supported = False
     if not modalities:
         suggested_modality = Modality.OTHER
-        rationale.append("No Modality tag found on series; defaulting to OTHER.")
+        rationale.append("Serilerde Modality etiketi yok; modalite 'diğer' olarak işaretlendi.")
         modality_confidence = ClassificationConfidence.UNKNOWN
         modality_status = ClassificationStatus.MISSING_METADATA
     else:
@@ -249,22 +263,23 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
             mixed_supported = True
             suggested_modality = max(set(supported), key=supported.count)
             rationale.append(
-                f"Conflicting supported modalities in one study: "
-                f"{[m.value for m in unique_supported]}; dominant={suggested_modality.value}."
+                f"Aynı çalışmada birden fazla modalite var: "
+                f"{', '.join(MODALITY_TR[m] for m in unique_supported)}; "
+                f"en çok görülen: {MODALITY_TR[suggested_modality]}."
             )
             modality_confidence = ClassificationConfidence.LOW
             modality_status = ClassificationStatus.CONFLICTING
         elif supported:
             suggested_modality = unique_supported[0]
             rationale.append(
-                f"Modality derived from DICOM Modality tag(s): {suggested_modality.value}."
+                f"Modalite DICOM Modality etiketinden alındı: {MODALITY_TR[suggested_modality]}."
             )
             modality_confidence = ClassificationConfidence.HIGH
             modality_status = ClassificationStatus.READY
         else:
             suggested_modality = Modality.OTHER
             rationale.append(
-                f"Only unsupported modalities present: {[m.value for m in unsupported] or ['unknown']}."
+                "Yalnızca desteklenmeyen modaliteler var; otomatik analiz MR, BT ve röntgen içindir."
             )
             modality_confidence = ClassificationConfidence.LOW
             modality_status = ClassificationStatus.UNSUPPORTED
@@ -288,22 +303,22 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
             if any(t in strong for t in hits)
             else ClassificationConfidence.MEDIUM
         )
-        rationale.append(f"Anatomical region tokens suggesting {region.value}: {', '.join(hits)}.")
+        rationale.append(f"Bölge {REGION_TR[region]} olarak önerildi; ilgili kelimeler: {', '.join(hits)}.")
     elif len(non_empty) > 1:
         region = AnatomicalRegion.UNKNOWN
         region_confidence = ClassificationConfidence.LOW
-        detail = ", ".join(f"{r.value}={hits}" for hits, r, _ in non_empty)
-        rationale.append(f"Ambiguous region tokens ({detail}); requires confirmation.")
+        detail = "; ".join(f"{REGION_TR[r]}: {', '.join(hits)}" for hits, r, _ in non_empty)
+        rationale.append(f"Birden fazla bölgeyi gösteren kelimeler var ({detail}); onay gerekli.")
         region_status = ClassificationStatus.AMBIGUOUS
     elif text.strip():
         region = AnatomicalRegion.OTHER
         region_confidence = ClassificationConfidence.LOW
-        rationale.append("Descriptive tags present but no brain/cervical/thorax tokens matched.")
+        rationale.append("Açıklama var ama beyin, servikal veya toraks bölgesini gösteren kelime bulunamadı.")
         region_status = ClassificationStatus.UNSUPPORTED
     else:
         region = AnatomicalRegion.UNKNOWN
         region_confidence = ClassificationConfidence.UNKNOWN
-        rationale.append("No StudyDescription / SeriesDescription / BodyPartExamined text available.")
+        rationale.append("Çalışma, seri ve vücut bölgesi açıklamalarının hiçbiri dolu değil.")
         region_status = ClassificationStatus.MISSING_METADATA
 
     # XR studies default toward THORAX when region unknown but modality is clear —
@@ -317,7 +332,7 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
             region_confidence = ClassificationConfidence.LOW
             region_status = ClassificationStatus.AMBIGUOUS
             rationale.append(
-                "XR modality without strong region tokens; defaulting to THORAX (needs confirmation)."
+                "Röntgende bölgeyi gösteren kelime yok; varsayılan olarak toraks seçildi (onay gerekli)."
             )
 
     suggested_species, species_confidence = _suggest_species(text, rationale)
@@ -352,7 +367,7 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
         if region not in {AnatomicalRegion.UNKNOWN, AnatomicalRegion.OTHER}
         else None,
         confidence=confidence,
-        note="DICOM Modality / StudyDescription / BodyPartExamined token rules.",
+        note="DICOM Modality etiketi ve açıklama alanlarındaki anahtar kelimeler.",
         source_kind="synthetic",
     )
     hint_signal = _series_hint_signal(study)
@@ -364,14 +379,14 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
             # Hint asserts a region while metadata rules are ambiguous/missing.
             disagreement = True
             rationale.append(
-                f"Hybrid disagreement: metadata_rules region={region.value} "
-                f"vs series_hint region={hint_signal.anatomical_region.value}."
+                f"Sinyaller çelişiyor: kurallar bölge için {REGION_TR[region]}, "
+                f"seri açıklaması {REGION_TR[hint_signal.anatomical_region]} diyor."
             )
         elif hint_signal.anatomical_region != region:
             disagreement = True
             rationale.append(
-                f"Hybrid disagreement: metadata_rules region={region.value} "
-                f"vs series_hint region={hint_signal.anatomical_region.value}."
+                f"Sinyaller çelişiyor: kurallar bölge için {REGION_TR[region]}, "
+                f"seri açıklaması {REGION_TR[hint_signal.anatomical_region]} diyor."
             )
     if (
         hint_signal.modality is not None
@@ -380,15 +395,15 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
     ):
         disagreement = True
         rationale.append(
-            f"Hybrid disagreement: metadata_rules modality={suggested_modality.value} "
-            f"vs series_hint modality={hint_signal.modality.value}."
+            f"Sinyaller çelişiyor: modalite etiketi {MODALITY_TR[suggested_modality]}, "
+            f"sekans adları {MODALITY_TR[hint_signal.modality]} diyor."
         )
 
     if disagreement:
         confidence = ClassificationConfidence.LOW
         if status == ClassificationStatus.READY:
             status = ClassificationStatus.AMBIGUOUS
-        rationale.append("Disagreement → LOW confidence; human confirmation required.")
+        rationale.append("Çelişki nedeniyle güven düşük; onay gerekli.")
 
     needs_confirmation = (
         status
