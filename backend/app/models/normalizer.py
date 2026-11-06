@@ -270,6 +270,15 @@ def normalize_outputs(
         source_id = "fusion-normalizer"
         version = "0.2.0"
 
+    # Preserve coverage / adapter metadata (previously dropped — UI could not show scope).
+    merged_meta: dict[str, str] = {}
+    coverage = None
+    for out in outputs:
+        if out.processing_metadata:
+            merged_meta.update(out.processing_metadata)
+        if out.analysis_coverage is not None:
+            coverage = out.analysis_coverage
+
     return StructuredFindings(
         schema_version=primary.schema_version if primary.schema_version else "1.2.0",
         case_id=primary.case_id,
@@ -289,4 +298,6 @@ def normalize_outputs(
         contributing_model_ids=unique_models,
         contributing_source_kinds=unique_kinds,
         potential_conflicts=conflicts,
+        processing_metadata=merged_meta,
+        analysis_coverage=coverage,
     )

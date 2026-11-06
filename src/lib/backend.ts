@@ -1013,6 +1013,15 @@ export type BackendAnalysisJob = {
   stage_label?: string | null
   vision_adapter_index?: number | null
   vision_adapter_total?: number | null
+  /** VLM multi-batch progress (visual frames only — not metadata inventory). */
+  vision_batch_index?: number | null
+  vision_batch_total?: number | null
+  vision_frames_detected?: number | null
+  vision_frames_analyzed?: number | null
+  vision_series_total?: number | null
+  vision_series_done?: number | null
+  vision_analysis_scope?: string | null
+  vision_detail?: string | null
 }
 
 export async function getAnalysisJob(jobId: string, signal?: AbortSignal): Promise<BackendAnalysisJob> {

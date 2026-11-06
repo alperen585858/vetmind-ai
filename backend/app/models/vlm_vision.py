@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 from pydicom import dcmread
@@ -34,6 +34,9 @@ from app.imaging.display_png import (
 from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
+from app.models.study_inventory import InventoryFrame, build_study_inventory
+from app.models.vlm_batch_planner import plan_visual_analysis
+from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
@@ -43,6 +46,7 @@ from app.models.vlm_grounding import (
     resolve_source_frame,
     study_inventory_metadata,
 )
+from app.schemas.analysis_coverage import AnalysisCoverage, SeriesCoverage
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
@@ -50,6 +54,32 @@ from app.storage.quarantine import QuarantineStore
 
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
 _VLM_MAX_EDGE = 1024
+
+
+def _dedupe_findings(findings: list[Finding]) -> list[Finding]:
+    """Merge duplicate code+location across batches; keep evidence refs."""
+    by_key: dict[tuple[str, str], Finding] = {}
+    order: list[tuple[str, str]] = []
+    for f in findings:
+        key = (f.finding_code.strip().upper(), (f.anatomical_location or "").strip().lower())
+        if key not in by_key:
+            by_key[key] = f
+            order.append(key)
+            continue
+        prev = by_key[key]
+        refs = list(prev.evidence_references) + [
+            r for r in f.evidence_references if r.evidence_id not in {x.evidence_id for x in prev.evidence_references}
+        ]
+        # Prefer more specific / longer description; keep stronger status ranking lightly.
+        desc = prev.description if len(prev.description) >= len(f.description) else f.description
+        by_key[key] = prev.model_copy(
+            update={
+                "description": desc,
+                "evidence_references": refs[:8],
+                "uncertainty_note": prev.uncertainty_note or f.uncertainty_note,
+            }
+        )
+    return [by_key[k] for k in order]
 
 _SYSTEM_PROMPT = """Sen veteriner teleradyoloji için yardımcı bir görüntü analiz asistanısın.
 Klinik tanı koymazsın; uzman radyolog incelemesi zorunludur. Genel amaçlı bir VLM'sin —
@@ -172,7 +202,10 @@ class OpenAiCompatibleVlmVisionModel:
         timeout_s: float = 120.0,
         version: str = "0.1.0-vlm",
         max_images: int = 6,
+        max_total_frames: int | None = None,
+        include_localizers: bool = False,
         language: str = "tr",
+        cache_root: Path | str | None = None,
     ) -> None:
         self.model_id = model_id
         self.version = version
@@ -182,25 +215,349 @@ class OpenAiCompatibleVlmVisionModel:
         self._quarantine = quarantine
         self._timeout_s = float(timeout_s)
         self._max_images = max(1, min(int(max_images), 12))
+        # Total visual budget across batches (default = at least one full batch).
+        total = int(max_total_frames) if max_total_frames is not None else max(self._max_images, 64)
+        self._max_total_frames = max(self._max_images, min(total, 1000))
+        self._include_localizers = bool(include_localizers)
         self._language = (language or "tr").strip().lower() or "tr"
         self._last_inventory: dict[str, str] = {}
+        # Optional: orchestrator sets this to stream batch progress onto AnalysisJob.
+        self.progress_callback: Callable[[dict[str, Any]], None] | None = None
+        cache_path = Path(cache_root) if cache_root else (Path(quarantine.root) / "_vlm_batch_cache")
+        self._batch_cache = VlmBatchResultCache(cache_path)
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
+        """Stage A inventory → Stage B batched visual analysis → Stage C merge."""
         require_model_input(case)
-        sent = self._collect_images(case)
-        if not sent:
+        inventory = build_study_inventory(case, self._quarantine)
+        self._last_inventory = study_inventory_metadata(
+            candidate_count=len({f.quarantine_rel for f in inventory.frames}),
+            localizer_candidates=sum(1 for f in inventory.frames if f.is_localizer),
+            non_localizer_candidates=sum(1 for f in inventory.frames if not f.is_localizer),
+            dicom_instance_count=len(inventory.dicom_files),
+        )
+        if not inventory.frames:
             raise ImagingAdapterError(
                 "VLM Vision: no decodable image frames in quarantine for this case."
+                + (
+                    f" Skipped: {len(inventory.skipped)} undecodable/unsupported path(s)."
+                    if inventory.skipped
+                    else ""
+                )
             )
-        parsed = self._call_vlm(case, sent, insist=False)
-        mapped = self._map_response(case, parsed, sent=sent)
-        if mapped.findings:
-            return mapped
-        parsed = self._call_vlm(case, sent, insist=True)
-        mapped = self._map_response(case, parsed, sent=sent)
-        if mapped.findings:
-            return mapped
-        return self._synthesize_observations(case, mapped, sent=sent, parsed=parsed)
+
+        plan = plan_visual_analysis(
+            inventory,
+            max_total_frames=self._max_total_frames,
+            per_batch_images=self._max_images,
+            include_localizers=self._include_localizers,
+        )
+        if not plan.batches:
+            raise ImagingAdapterError(
+                "VLM Vision: inventory found frames but visual plan is empty."
+            )
+
+        coverage = plan.coverage
+        all_findings: list[Finding] = []
+        all_warnings: list[str] = []
+        analyzed_keys: set[tuple] = set()
+        series_analyzed_counts: dict[str, int] = {}
+        batch_ok = 0
+        batch_fail = 0
+        cache_hits = 0
+        last_mapped: StructuredFindings | None = None
+        last_parsed: dict[str, Any] = {}
+        all_sent: list[SentFrame] = []
+
+        def _emit_progress(*, batch_i: int, analyzed_n: int) -> None:
+            cb = self.progress_callback
+            if cb is None:
+                return
+            series_done = sum(1 for n in series_analyzed_counts.values() if n > 0)
+            target = (
+                coverage.frames_detected
+                if coverage.include_localizers
+                else coverage.frames_detected_non_localizer
+            )
+            scope = "partial" if analyzed_n < target else ("full" if analyzed_n > 0 else "none")
+            detail = (
+                f"Görüntü analizi · parti {batch_i + 1}/{len(plan.batches)} · "
+                f"{analyzed_n}/{target} kare görsel · seri {series_done}/{coverage.series_total}"
+            )
+            try:
+                cb(
+                    {
+                        "vision_batch_index": batch_i,
+                        "vision_batch_total": len(plan.batches),
+                        "vision_frames_detected": target,
+                        "vision_frames_analyzed": analyzed_n,
+                        "vision_series_total": coverage.series_total,
+                        "vision_series_done": series_done,
+                        "vision_analysis_scope": scope,
+                        "vision_detail": detail,
+                    }
+                )
+            except Exception:
+                return
+
+        _emit_progress(batch_i=0, analyzed_n=0)
+
+        for batch_i, batch_frames in enumerate(plan.batches):
+            sent = self._decode_inventory_batch(batch_frames)
+            if not sent:
+                batch_fail += 1
+                all_warnings.append(f"Batch {batch_i + 1}/{len(plan.batches)}: decode produced 0 PNGs.")
+                _emit_progress(batch_i=batch_i, analyzed_n=len(analyzed_keys))
+                continue
+
+            frame_keys = [
+                f"{s.sop_instance_uid or s.quarantine_rel}#f{s.frame_index}" for s in sent
+            ]
+            cache_key = batch_cache_key(
+                case_id=case.case_id,
+                chat_model_id=self._chat_model_id,
+                frame_keys=frame_keys,
+            )
+            cached = self._batch_cache.get(cache_key)
+            try:
+                if cached is not None:
+                    parsed = cached
+                    cache_hits += 1
+                else:
+                    parsed = self._call_vlm(
+                        case, sent, insist=False, batch_index=batch_i, batch_total=len(plan.batches)
+                    )
+                    self._batch_cache.put(cache_key, parsed)
+                mapped = self._map_response(case, parsed, sent=sent, batch_index=batch_i)
+                if not mapped.findings:
+                    parsed = self._call_vlm(
+                        case, sent, insist=True, batch_index=batch_i, batch_total=len(plan.batches)
+                    )
+                    self._batch_cache.put(cache_key, parsed)
+                    mapped = self._map_response(case, parsed, sent=sent, batch_index=batch_i)
+                last_parsed = parsed
+                last_mapped = mapped
+                batch_ok += 1
+            except ImagingAdapterError as exc:
+                batch_fail += 1
+                all_warnings.append(f"Batch {batch_i + 1}/{len(plan.batches)} failed: {exc}")
+                # One retry for transient failures
+                try:
+                    time.sleep(1.0)
+                    parsed = self._call_vlm(
+                        case, sent, insist=False, batch_index=batch_i, batch_total=len(plan.batches)
+                    )
+                    self._batch_cache.put(cache_key, parsed)
+                    mapped = self._map_response(case, parsed, sent=sent, batch_index=batch_i)
+                    last_parsed = parsed
+                    last_mapped = mapped
+                    batch_ok += 1
+                    all_warnings.append(f"Batch {batch_i + 1} succeeded on retry.")
+                except ImagingAdapterError as exc2:
+                    all_warnings.append(f"Batch {batch_i + 1} retry failed: {exc2}")
+                    _emit_progress(batch_i=batch_i, analyzed_n=len(analyzed_keys))
+                    continue
+
+            all_findings.extend(mapped.findings)
+            all_warnings.extend(mapped.warnings)
+            all_sent.extend(sent)
+            for fr in sent:
+                analyzed_keys.add(
+                    (
+                        fr.quarantine_rel or fr.sop_instance_uid or "",
+                        fr.frame_index,
+                        fr.sop_instance_uid or "",
+                    )
+                )
+                sk = fr.series_instance_uid or ""
+                series_analyzed_counts[sk] = series_analyzed_counts.get(sk, 0) + 1
+            _emit_progress(batch_i=batch_i, analyzed_n=len(analyzed_keys))
+
+        synthesized_empty = False
+        if not all_findings and last_mapped is not None and all_sent:
+            synth = self._synthesize_observations(
+                case, last_mapped, sent=all_sent[: self._max_images], parsed=last_parsed
+            )
+            all_findings = list(synth.findings)
+            all_warnings.extend(synth.warnings)
+            synthesized_empty = True
+
+        if not all_findings and batch_ok == 0:
+            raise ImagingAdapterError(
+                "; ".join(all_warnings) or "VLM Vision: all batches failed."
+            )
+
+        merged_findings = _dedupe_findings(all_findings)
+
+        # Update series visually-analyzed counts
+        new_series: list[SeriesCoverage] = []
+        for sc in coverage.series:
+            n = 0
+            if sc.series_instance_uid:
+                n = series_analyzed_counts.get(sc.series_instance_uid, 0)
+            new_series.append(
+                sc.model_copy(
+                    update={
+                        "frames_visually_analyzed": n,
+                        "analyzed": n > 0,
+                    }
+                )
+            )
+        coverage = coverage.model_copy(
+            update={
+                "frames_visually_analyzed": len(analyzed_keys) if analyzed_keys else len(all_sent),
+                "batches_succeeded": batch_ok,
+                "batches_failed": batch_fail,
+                "series": new_series,
+            }
+        ).finalize()
+
+        if coverage.analysis_scope == "partial":
+            all_warnings.append(
+                f"KISMİ görsel analiz: {coverage.frames_visually_analyzed}/"
+                f"{coverage.frames_detected_non_localizer if not coverage.include_localizers else coverage.frames_detected} "
+                f"kare VLM'e gönderildi (bütçe={coverage.total_frame_budget}). "
+                "Tam analiz iddiası yoktur."
+            )
+        elif coverage.analysis_scope == "full":
+            all_warnings.append(
+                f"Kapsam: tespit edilen hedef karelerin tamamı görsel olarak gönderildi "
+                f"({coverage.frames_visually_analyzed})."
+            )
+        if inventory.skipped:
+            all_warnings.append(
+                f"{len(inventory.skipped)} dosya görüntü olarak çözülemedi "
+                f"(metadata envanterinde skipped_files)."
+            )
+
+        # Drop false single-slice claims when multi-frame visual analysis actually ran.
+        # Per-batch VLM text often describes "this PNG" as a single slice even though
+        # the study inventory sent many frames across batches.
+        if coverage.frames_visually_analyzed > 1:
+            _single_re = re.compile(
+                r"tek\s+bir\s+kesit|single\s+slice|only\s+one\s+(slice|image|frame)",
+                re.IGNORECASE,
+            )
+            all_warnings = [w for w in all_warnings if not _single_re.search(w or "")]
+            cleaned: list[Finding] = []
+            for f in merged_findings:
+                desc = f.description or ""
+                if _single_re.search(desc):
+                    cleaned.append(
+                        f.model_copy(
+                            update={
+                                "description": _single_re.sub(
+                                    f"{coverage.frames_visually_analyzed} kesitlik seri örneği",
+                                    desc,
+                                )
+                            }
+                        )
+                    )
+                else:
+                    cleaned.append(f)
+            merged_findings = cleaned
+
+        meta = {
+            "adapter": "openai_compatible_vlm",
+            "chat_model_id": self._chat_model_id,
+            "timeout_s": str(self._timeout_s),
+            **self._last_inventory,
+            **catalog_metadata(all_sent[:48]),
+            **coverage.to_metadata(),
+        }
+        if synthesized_empty:
+            meta["empty_findings_synthesized"] = "true"
+        if cache_hits:
+            meta["vlm_batch_cache_hits"] = str(cache_hits)
+        status = ModelExecutionStatus.SUCCESS
+        if batch_fail and batch_ok:
+            status = ModelExecutionStatus.PARTIAL
+        elif coverage.analysis_scope == "partial":
+            status = ModelExecutionStatus.PARTIAL
+        elif not merged_findings:
+            status = ModelExecutionStatus.PARTIAL
+
+        return StructuredFindings(
+            case_id=case.case_id,
+            study=StudyInfo(
+                study_id=case.case_id,
+                dicom_available=case.dicom_study is not None,
+                metadata_only=False,
+            ),
+            species=case.species,
+            modality=case.modality,
+            anatomical_region=case.anatomical_region,
+            source_model_id=self.model_id,
+            source_model_version=self.version,
+            source_kind=SourceKind.REAL,
+            execution_status=status,
+            findings=merged_findings,
+            warnings=list(dict.fromkeys(all_warnings)),
+            review_required=True,
+            no_findings_returned=len(merged_findings) == 0,
+            absences_not_confirmed=True,
+            contributing_model_ids=[self.model_id],
+            contributing_source_kinds=[SourceKind.REAL],
+            processing_metadata=meta,
+            analysis_coverage=coverage,
+        )
+
+    def _decode_inventory_batch(self, frames: list[InventoryFrame]) -> list[SentFrame]:
+        sent: list[SentFrame] = []
+        # Cache file bytes within a batch to avoid re-reading multi-frame SOPs.
+        file_cache: dict[str, bytes] = {}
+        for i, inv in enumerate(frames):
+            data = file_cache.get(inv.quarantine_rel)
+            if data is None:
+                try:
+                    _name, data = self._quarantine.read_file(inv.quarantine_rel)
+                except Exception:
+                    continue
+                file_cache[inv.quarantine_rel] = data
+            if inv.is_raster:
+                img = maybe_image_bytes(inv.filename, data, max_edge=_VLM_MAX_EDGE)
+                if img is None:
+                    continue
+                size = _png_size(img)
+                sent.append(
+                    SentFrame(
+                        index=i + 1,
+                        png=img,
+                        sop_instance_uid=inv.sop_instance_uid,
+                        series_instance_uid=inv.series_instance_uid,
+                        instance_number=inv.instance_number,
+                        frame_index=inv.frame_index,
+                        series_description=inv.series_description,
+                        is_localizer=inv.is_localizer,
+                        width=size[0] if size else None,
+                        height=size[1] if size else None,
+                        quarantine_rel=inv.quarantine_rel,
+                        series_number=inv.series_number,
+                    )
+                )
+                continue
+            result = dicom_bytes_to_png(
+                data, frame_index=inv.frame_index, max_edge=_VLM_MAX_EDGE, as_rgb=True
+            )
+            if result is None:
+                continue
+            sent.append(
+                SentFrame(
+                    index=i + 1,
+                    png=result.png_bytes,
+                    sop_instance_uid=inv.sop_instance_uid,
+                    series_instance_uid=inv.series_instance_uid,
+                    instance_number=inv.instance_number,
+                    frame_index=result.frame_index,
+                    series_description=inv.series_description,
+                    is_localizer=inv.is_localizer,
+                    width=result.width,
+                    height=result.height,
+                    quarantine_rel=inv.quarantine_rel,
+                    series_number=inv.series_number,
+                )
+            )
+        return sent
 
     def _call_vlm(
         self,
@@ -208,11 +565,19 @@ class OpenAiCompatibleVlmVisionModel:
         sent: list[SentFrame],
         *,
         insist: bool,
+        batch_index: int = 0,
+        batch_total: int = 1,
     ) -> dict[str, Any]:
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
-                "text": self._user_text(case, sent=sent, insist=insist),
+                "text": self._user_text(
+                    case,
+                    sent=sent,
+                    insist=insist,
+                    batch_index=batch_index,
+                    batch_total=batch_total,
+                ),
             }
         ]
         for fr in sent:
@@ -287,7 +652,15 @@ class OpenAiCompatibleVlmVisionModel:
             )
         return _extract_json_object(str(text))
 
-    def _user_text(self, case: CaseRecord, *, sent: list[SentFrame], insist: bool = False) -> str:
+    def _user_text(
+        self,
+        case: CaseRecord,
+        *,
+        sent: list[SentFrame],
+        insist: bool = False,
+        batch_index: int = 0,
+        batch_total: int = 1,
+    ) -> str:
         history = (case.clinical_history or "").strip()
         lang = "Turkish" if self._language.startswith("tr") else "English"
         insist_line = (
@@ -299,11 +672,15 @@ class OpenAiCompatibleVlmVisionModel:
         )
         inv = self._last_inventory
         inventory_line = (
-            f"Study inventory: dicom_instances={inv.get('study_dicom_instances') or 'n/a'}; "
-            f"vlm_candidates={inv.get('vlm_candidate_files') or 'n/a'} "
+            f"Study inventory: dicom_files={inv.get('study_dicom_instances') or 'n/a'}; "
+            f"frame_candidates={inv.get('vlm_candidate_files') or 'n/a'} "
             f"(non-localizer={inv.get('vlm_non_localizer_candidates') or '?'}, "
             f"localizer={inv.get('vlm_localizer_candidates') or '?'}); "
-            f"attached_now={len(sent)} (cap={self._max_images}).\n"
+            f"visual_budget_total={self._max_total_frames}; "
+            f"batch={batch_index + 1}/{batch_total}; attached_in_this_batch={len(sent)} "
+            f"(per_batch_cap={self._max_images}).\n"
+            "This batch is only part of the study unless batch_total=1. "
+            "Do not claim you reviewed frames that are not in THIS IMAGE CATALOG.\n"
         )
         return (
             f"Species: {case.species.value}\n"
@@ -599,6 +976,7 @@ class OpenAiCompatibleVlmVisionModel:
         parsed: dict[str, Any],
         *,
         sent: list[SentFrame],
+        batch_index: int = 0,
     ) -> StructuredFindings:
         image_count = len(sent)
         warnings = [str(w) for w in (parsed.get("warnings") or []) if str(w).strip()]
@@ -630,7 +1008,7 @@ class OpenAiCompatibleVlmVisionModel:
                 frame=frame,
                 modality=str(case.modality.value if hasattr(case.modality, "value") else case.modality),
             )
-            fid = str(item.get("finding_id") or f"{case.case_id}-vlm-{i + 1}")
+            fid = str(item.get("finding_id") or f"{case.case_id}-vlm-b{batch_index + 1}-{i + 1}")
             code = str(item.get("finding_code") or "VLM-FINDING").strip() or "VLM-FINDING"
             desc = str(item.get("description") or "").strip()
             if not desc:
@@ -724,6 +1102,8 @@ def build_optional_vlm_vision(
     timeout_s: float = 120.0,
     version: str = "0.1.0-vlm",
     max_images: int = 6,
+    max_total_frames: int | None = None,
+    include_localizers: bool = False,
     language: str = "tr",
 ) -> ImagingModel | None:
     """Build VLM adapter when enabled. Reuses LLM credentials by default."""
@@ -763,6 +1143,8 @@ def build_optional_vlm_vision(
         timeout_s=timeout_s,
         version=version,
         max_images=max_images,
+        max_total_frames=max_total_frames,
+        include_localizers=include_localizers,
         language=language,
     )
 

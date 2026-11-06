@@ -300,7 +300,12 @@ def get_case(
     return case_for_principal(service.get_case(case_id, principal=principal), principal)
 
 
-@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{case_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
+)
 def delete_case(
     case_id: str,
     service: CaseService = Depends(get_case_service),

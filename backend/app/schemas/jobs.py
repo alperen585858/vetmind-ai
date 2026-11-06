@@ -34,6 +34,15 @@ class AnalysisJob(BaseModel):
     stage_label: Optional[str] = None
     vision_adapter_index: Optional[int] = None
     vision_adapter_total: Optional[int] = None
+    # VLM multi-batch progress (honest visual counts — not metadata-only).
+    vision_batch_index: Optional[int] = None
+    vision_batch_total: Optional[int] = None
+    vision_frames_detected: Optional[int] = None
+    vision_frames_analyzed: Optional[int] = None
+    vision_series_total: Optional[int] = None
+    vision_series_done: Optional[int] = None
+    vision_analysis_scope: Optional[str] = None
+    vision_detail: Optional[str] = None
 
 
 class PipelineResult(BaseModel):

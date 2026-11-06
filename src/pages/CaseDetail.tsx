@@ -1427,16 +1427,46 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                 ))}
               </ul>
             )}
-            {c.backendFindings.processing_metadata?.images_sent && (
-              <p className="mt-3 text-xs text-slate-600">
-                VLM görüntü: {c.backendFindings.processing_metadata.images_sent} kare gönderildi
-                {c.backendFindings.processing_metadata.study_dicom_instances
-                  ? ` · çalışmada ${c.backendFindings.processing_metadata.study_dicom_instances} DICOM instance`
-                  : ''}
-                {c.backendFindings.processing_metadata.vlm_max_images_cap
-                  ? ` · üst sınır ${c.backendFindings.processing_metadata.vlm_max_images_cap}`
-                  : ''}
-              </p>
+            {(c.backendFindings.analysis_coverage || c.backendFindings.processing_metadata?.frames_detected) && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <p className="font-semibold text-navy-900">Analiz kapsamı</p>
+                {(() => {
+                  const cov = c.backendFindings!.analysis_coverage
+                  const meta = c.backendFindings!.processing_metadata
+                  const scope = cov?.analysis_scope ?? meta?.analysis_scope ?? '—'
+                  const detected = cov?.frames_detected ?? Number(meta?.frames_detected || 0)
+                  const visual = cov?.frames_visually_analyzed ?? Number(meta?.frames_visually_analyzed || meta?.images_sent || 0)
+                  const files = cov?.dicom_files_total ?? Number(meta?.dicom_files_total || meta?.study_dicom_instances || 0)
+                  const series = cov?.series_total ?? Number(meta?.series_total || 0)
+                  const seriesOk = cov?.series_analyzed ?? Number(meta?.series_analyzed || 0)
+                  const skipped = cov?.frames_skipped ?? Number(meta?.frames_skipped || 0)
+                  const undec = cov?.dicom_files_undecodable ?? Number(meta?.dicom_files_undecodable || 0)
+                  const complete = cov?.analysis_complete ?? meta?.analysis_complete === 'true'
+                  return (
+                    <>
+                      <p className="mt-1">
+                        Kapsam: <span className="font-mono font-semibold">{scope}</span>
+                        {complete ? ' (hedef kareler tamam)' : ' (tam analiz değil)'}
+                      </p>
+                      <p className="mt-1">
+                        DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} kare ·
+                        görsel analiz {visual} · atlanan {skipped}
+                        {undec ? ` · çözülemeyen dosya ${undec}` : ''}
+                      </p>
+                      {(cov?.series?.length || 0) > 0 && (
+                        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-[11px]">
+                          {cov!.series!.map((s, i) => (
+                            <li key={s.series_instance_uid || i}>
+                              {(s.series_description || s.series_instance_uid || 'seri').slice(0, 48)}
+                              {s.is_localizer ? ' [loc]' : ''}: {s.frames_visually_analyzed}/{s.frames_detected} görsel
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
             )}
             {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">

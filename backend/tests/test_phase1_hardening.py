@@ -187,6 +187,9 @@ def test_duplicate_dicom_instances() -> None:
     assert result.study is not None
     assert result.study.instance_count == 1
     assert any(i.code == DicomValidationCode.DUPLICATE_SOP for i in result.issues)
+    # Exact byte duplicate stays dropped; message still mentions kept/dropped.
+    dup = next(i for i in result.issues if i.code == DicomValidationCode.DUPLICATE_SOP)
+    assert "dropped" in dup.message.lower()
 
 
 def test_corrupted_input_blocked() -> None:

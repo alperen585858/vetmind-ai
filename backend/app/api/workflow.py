@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
@@ -150,7 +150,12 @@ def update_submission(
     return service.update_submission(submission_id, payload, principal=principal)
 
 
-@router.delete("/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/submissions/{submission_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
+)
 def delete_submission(
     submission_id: str,
     principal: AuthPrincipal = Depends(require_capability(CAP_SUBMISSIONS)),

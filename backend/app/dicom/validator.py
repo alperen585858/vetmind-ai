@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from app.dicom.parser import ParsedInstance
 from app.schemas.dicom import (
@@ -12,6 +12,45 @@ from app.schemas.dicom import (
     DicomValidationIssue,
 )
 from app.schemas.enums import DicomValidationCode, DicomValidationSeverity, Modality
+
+
+def _slice_fingerprint(item: ParsedInstance) -> tuple:
+    """Identity used to tell true duplicates from colliding-SOP distinct slices.
+
+    Some PACS/export tools stamp the same SOPInstanceUID on every frame of a
+    series while InstanceNumber / ImagePositionPatient / pixels still differ.
+    Those must be kept for multi-slice analysis.
+
+    Filename is only a last-resort discriminator when spatial tags are absent —
+    otherwise a renamed byte-identical copy would be treated as a new slice.
+    """
+    if item.instance_number is not None or item.image_position_patient is not None:
+        return (
+            item.instance_number,
+            item.image_position_patient,
+            item.rows,
+            item.columns,
+        )
+    return (
+        None,
+        None,
+        item.rows,
+        item.columns,
+        item.filename,
+    )
+
+
+def _is_distinct_colliding_slice(prior: ParsedInstance, item: ParsedInstance) -> bool:
+    """True when SOP collides but the file is clearly another frame/slice."""
+    return _slice_fingerprint(prior) != _slice_fingerprint(item)
+
+
+def _mint_disambiguated_sop(original: str, item: ParsedInstance, index: int) -> str:
+    """Mint a unique study-tree SOP while preserving DICOM UID character set."""
+    inst = item.instance_number if item.instance_number is not None else index + 1
+    # Digits-only suffix from filename keeps UID legal if InstanceNumber collides.
+    digits = "".join(ch for ch in (item.filename or "") if ch.isdigit())[-8:] or str(index + 1)
+    return f"{original}.{inst}.{digits}"
 
 
 @dataclass
@@ -154,24 +193,55 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
             issues=issues,
         )
 
-    seen_sops: dict[str, str] = {}
+    # Soft-dedupe true duplicates; keep distinct slices that share a broken SOP UID.
+    first_by_sop: dict[str, ParsedInstance] = {}
+    seen_effective: set[str] = set()
     deduped: list[ParsedInstance] = []
-    for item in complete:
+    for index, item in enumerate(complete):
         assert item.sop_instance_uid is not None
-        prior = seen_sops.get(item.sop_instance_uid)
-        if prior is not None:
-            # Soft-dedupe: keep first instance, warn (not hard-fail) so upload can continue.
+        original_sop = item.sop_instance_uid
+        prior = first_by_sop.get(original_sop)
+        if prior is None:
+            first_by_sop[original_sop] = item
+            seen_effective.add(original_sop)
+            deduped.append(item)
+            continue
+
+        if _is_distinct_colliding_slice(prior, item):
+            minted = _mint_disambiguated_sop(original_sop, item, index)
+            # Extremely defensive: ensure uniqueness if mint collides.
+            suffix = 2
+            while minted in seen_effective:
+                minted = f"{_mint_disambiguated_sop(original_sop, item, index)}.{suffix}"
+                suffix += 1
             issues.append(
                 _warning(
                     DicomValidationCode.DUPLICATE_SOP,
-                    f"Duplicate SOPInstanceUID dropped (kept '{prior}').",
+                    (
+                        "Duplicate SOPInstanceUID on a distinct slice; kept "
+                        f"'{item.filename}' with disambiguated UID "
+                        f"(original {original_sop})."
+                    ),
                     filename=item.filename,
-                    sop=item.sop_instance_uid,
+                    sop=original_sop,
                 )
             )
+            extras = dict(item.extras or {})
+            extras["original_sop_instance_uid"] = original_sop
+            fixed = replace(item, sop_instance_uid=minted, extras=extras)
+            seen_effective.add(minted)
+            deduped.append(fixed)
             continue
-        seen_sops[item.sop_instance_uid] = item.filename
-        deduped.append(item)
+
+        # True duplicate (same SOP + same slice fingerprint): keep first only.
+        issues.append(
+            _warning(
+                DicomValidationCode.DUPLICATE_SOP,
+                f"Duplicate SOPInstanceUID dropped (kept '{prior.filename}').",
+                filename=item.filename,
+                sop=original_sop,
+            )
+        )
 
     if not deduped:
         return ValidationResult(

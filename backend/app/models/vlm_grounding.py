@@ -74,6 +74,7 @@ class SentFrame:
     width: int | None = None
     height: int | None = None
     quarantine_rel: str | None = None
+    series_number: int | None = None
 
 
 def mr_sequence_known(series_description: str | None) -> bool:
@@ -89,8 +90,9 @@ def format_image_catalog(frames: Sequence[SentFrame]) -> str:
     for fr in frames:
         seq = (fr.series_description or "").strip() or "(series description unknown)"
         seq_flag = "sequence_known=yes" if mr_sequence_known(fr.series_description) else "sequence_known=no"
+        sn = f"#{fr.series_number}" if fr.series_number is not None else "—"
         lines.append(
-            f"IMG-{fr.index}: series={seq!r} | series_uid={fr.series_instance_uid or '—'} | "
+            f"IMG-{fr.index}: series_number={sn} series={seq!r} | series_uid={fr.series_instance_uid or '—'} | "
             f"sop={fr.sop_instance_uid or '—'} | instance_number={fr.instance_number if fr.instance_number is not None else '—'} | "
             f"frame_index={fr.frame_index} | localizer={'yes' if fr.is_localizer else 'no'} | {seq_flag}"
         )
@@ -108,6 +110,7 @@ def catalog_metadata(frames: Sequence[SentFrame]) -> dict[str, str]:
                 "instance_number": fr.instance_number,
                 "frame_index": fr.frame_index,
                 "series_description": fr.series_description,
+                "series_number": fr.series_number,
                 "localizer": fr.is_localizer,
                 "sequence_known": mr_sequence_known(fr.series_description),
                 "w": fr.width,
@@ -221,9 +224,15 @@ def evidence_for_frame(
     bbox = _parse_bbox_norm(item.get("bbox_norm") or item.get("bbox"), width=frame.width, height=frame.height)
     desc_bits = [
         f"IMG-{frame.index}",
-        f"seri={frame.series_description or '—'}",
-        f"SOP={frame.sop_instance_uid or '—'}",
     ]
+    if frame.series_number is not None:
+        desc_bits.append(f"seri_no=#{frame.series_number}")
+    desc_bits.extend(
+        [
+            f"seri={frame.series_description or '—'}",
+            f"SOP={frame.sop_instance_uid or '—'}",
+        ]
+    )
     if frame.instance_number is not None:
         desc_bits.append(f"instance=#{frame.instance_number}")
     desc_bits.append(f"frame_index={frame.frame_index}")
@@ -235,7 +244,11 @@ def evidence_for_frame(
         evidence_id=f"{finding_id}-ev-1",
         description="; ".join(desc_bits),
         evidence_type="overlay",
-        series_hint=frame.series_description,
+        series_hint=(
+            f"#{frame.series_number} {frame.series_description}".strip()
+            if frame.series_number is not None
+            else frame.series_description
+        ),
         series_instance_uid=frame.series_instance_uid,
         sop_instance_uid=frame.sop_instance_uid,
         frame_index=frame.frame_index,

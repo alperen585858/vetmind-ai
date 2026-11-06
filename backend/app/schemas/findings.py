@@ -4,6 +4,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.analysis_coverage import AnalysisCoverage
 from app.schemas.enums import (
     AnatomicalRegion,
     FindingStatus,
@@ -201,3 +202,5 @@ class StructuredFindings(BaseModel):
     potential_conflicts: list[PotentialConflict] = Field(default_factory=list)
     # Opaque processing metadata from adapters (timeouts, prep contract ids). Never PHI.
     processing_metadata: dict[str, str] = Field(default_factory=dict)
+    # Honest visual-analysis coverage (inventory vs pixels actually sent to a VLM).
+    analysis_coverage: Optional[AnalysisCoverage] = None

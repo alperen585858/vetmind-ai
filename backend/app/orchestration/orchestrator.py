@@ -120,6 +120,14 @@ class AIOrchestrator:
             *,
             vision_adapter_index: int | None = None,
             vision_adapter_total: int | None = None,
+            vision_batch_index: int | None = None,
+            vision_batch_total: int | None = None,
+            vision_frames_detected: int | None = None,
+            vision_frames_analyzed: int | None = None,
+            vision_series_total: int | None = None,
+            vision_series_done: int | None = None,
+            vision_analysis_scope: str | None = None,
+            vision_detail: str | None = None,
             done: bool = False,
         ) -> None:
             apply_pipeline_progress(
@@ -127,6 +135,14 @@ class AIOrchestrator:
                 stage,
                 vision_adapter_index=vision_adapter_index,
                 vision_adapter_total=vision_adapter_total,
+                vision_batch_index=vision_batch_index,
+                vision_batch_total=vision_batch_total,
+                vision_frames_detected=vision_frames_detected,
+                vision_frames_analyzed=vision_frames_analyzed,
+                vision_series_total=vision_series_total,
+                vision_series_done=vision_series_done,
+                vision_analysis_scope=vision_analysis_scope,
+                vision_detail=vision_detail,
                 done=done,
             )
             if on_progress is None:
@@ -249,6 +265,30 @@ class AIOrchestrator:
                 if adapter is None:
                     failures.append(f"Unknown model id '{model_id}'.")
                     continue
+                # Stream VLM batch coverage onto the job without changing ImagingModel Protocol.
+                if hasattr(adapter, "progress_callback"):
+                    adapter_idx = idx
+                    adapter_tot = max(vision_total, 1)
+
+                    def _vlm_progress(payload: dict, *, _ai: int = adapter_idx, _at: int = adapter_tot) -> None:
+                        _checkpoint(
+                            "vision_adapters",
+                            vision_adapter_index=_ai,
+                            vision_adapter_total=_at,
+                            vision_batch_index=payload.get("vision_batch_index"),
+                            vision_batch_total=payload.get("vision_batch_total"),
+                            vision_frames_detected=payload.get("vision_frames_detected"),
+                            vision_frames_analyzed=payload.get("vision_frames_analyzed"),
+                            vision_series_total=payload.get("vision_series_total"),
+                            vision_series_done=payload.get("vision_series_done"),
+                            vision_analysis_scope=payload.get("vision_analysis_scope"),
+                            vision_detail=payload.get("vision_detail"),
+                        )
+
+                    try:
+                        adapter.progress_callback = _vlm_progress  # type: ignore[attr-defined]
+                    except Exception:  # noqa: BLE001
+                        pass
                 try:
                     outputs.append(adapter.analyze(case))
                 except ImagingAdapterError as exc:
@@ -260,6 +300,12 @@ class AIOrchestrator:
                         job.status = JobStatus.TIMED_OUT
                 except Exception as exc:  # noqa: BLE001 — convert unexpected adapter crashes
                     failures.append(f"Adapter {model_id} raised {type(exc).__name__}.")
+                finally:
+                    if hasattr(adapter, "progress_callback"):
+                        try:
+                            adapter.progress_callback = None  # type: ignore[attr-defined]
+                        except Exception:  # noqa: BLE001
+                            pass
 
             if not outputs:
                 if job.status != JobStatus.TIMED_OUT:

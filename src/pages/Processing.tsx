@@ -389,6 +389,24 @@ export default function Processing() {
                   {job?.progress_pct != null ? ` · ${Math.max(0, Math.min(100, job.progress_pct))}%` : ''}
                 </dd>
               </div>
+              {(job?.vision_frames_detected != null || job?.vision_batch_total != null) && (
+                <div className="grid grid-cols-5 gap-2 py-2">
+                  <dt className="col-span-2 text-slate-500">Görsel kapsam</dt>
+                  <dd className="col-span-3 text-xs">
+                    {job.vision_detail || (
+                      <>
+                        parti {(job.vision_batch_index ?? 0) + 1}/{job.vision_batch_total ?? '—'}
+                        {' · '}
+                        {job.vision_frames_analyzed ?? 0}/{job.vision_frames_detected ?? '—'} kare
+                        {job.vision_series_total != null
+                          ? ` · seri ${job.vision_series_done ?? 0}/${job.vision_series_total}`
+                          : ''}
+                        {job.vision_analysis_scope ? ` · ${job.vision_analysis_scope}` : ''}
+                      </>
+                    )}
+                  </dd>
+                </div>
+              )}
             </dl>
           </Card>
 

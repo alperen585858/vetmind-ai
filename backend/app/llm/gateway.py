@@ -69,6 +69,7 @@ def build_generation_input(
     lang = (language or "tr").strip().lower() or "tr"
     if lang not in {"tr", "en"}:
         lang = "tr"
+    cov = findings.analysis_coverage
     return LLMGenerationInput(
         case_id=case.case_id,
         species=case.species,
@@ -99,6 +100,11 @@ def build_generation_input(
         execution_status=findings.execution_status,
         no_findings_returned=findings.no_findings_returned,
         document_context_file_count=doc_count,
+        analysis_scope=(cov.analysis_scope if cov is not None else None),
+        frames_detected=(cov.frames_detected if cov is not None else None),
+        frames_visually_analyzed=(cov.frames_visually_analyzed if cov is not None else None),
+        series_total=(cov.series_total if cov is not None else None),
+        dicom_files_total=(cov.dicom_files_total if cov is not None else None),
         rag_passages=list(rag_passages or []),
         rag_is_clinical_validation=False,
         language=lang,

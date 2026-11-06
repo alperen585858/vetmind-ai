@@ -401,6 +401,40 @@ export interface BackendFinding {
   uncertainty_note?: string | null
 }
 
+export interface BackendSeriesCoverage {
+  series_instance_uid?: string | null
+  series_description?: string | null
+  is_localizer?: boolean
+  frames_detected: number
+  frames_planned: number
+  frames_visually_analyzed: number
+  analyzed?: boolean
+}
+
+/** Honest visual-analysis scope — never treat metadata inventory as pixel analysis. */
+export interface BackendAnalysisCoverage {
+  dicom_files_total: number
+  dicom_files_undecodable: number
+  series_total: number
+  series_analyzed: number
+  frames_detected: number
+  frames_detected_non_localizer: number
+  frames_planned: number
+  frames_visually_analyzed: number
+  frames_skipped: number
+  batches_total: number
+  batches_succeeded: number
+  batches_failed: number
+  per_batch_image_cap: number
+  total_frame_budget: number
+  include_localizers: boolean
+  analysis_scope: 'full' | 'partial' | 'none'
+  analysis_complete: boolean
+  note?: string
+  series?: BackendSeriesCoverage[]
+  skipped_files?: { path: string; reason: string }[]
+}
+
 export interface BackendFindings {
   schema_version: string
   case_id: string
@@ -415,6 +449,7 @@ export interface BackendFindings {
   contributing_model_ids?: string[]
   contributing_source_kinds?: string[]
   processing_metadata?: Record<string, string>
+  analysis_coverage?: BackendAnalysisCoverage | null
   potential_conflicts?: {
     conflict_id: string
     finding_ids: string[]

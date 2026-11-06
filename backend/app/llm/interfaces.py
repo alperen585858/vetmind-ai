@@ -92,6 +92,12 @@ class LLMGenerationInput(BaseModel):
     execution_status: ModelExecutionStatus
     no_findings_returned: bool = False
     document_context_file_count: int = 0
+    # Honest visual-analysis coverage (from StructuredFindings.analysis_coverage).
+    analysis_scope: Optional[str] = None  # full | partial | none
+    frames_detected: Optional[int] = None
+    frames_visually_analyzed: Optional[int] = None
+    series_total: Optional[int] = None
+    dicom_files_total: Optional[int] = None
     rag_passages: list[RagPassage] = Field(default_factory=list)
     rag_is_clinical_validation: bool = False
     # UI / UserSettings language (tr|en); providers fall back to env default when unset by caller.

@@ -231,6 +231,28 @@ def collect_report_image_pngs(
                 bucket = loc if is_loc else non_loc
                 bucket.append((label, rel))
 
+    # If the study tree was truncated (e.g. historical colliding-SOP drop), also
+    # sample from the linked quarantine ingest so the PDF still shows volume context.
+    seen_rels = {rel for _label, rel in non_loc + loc}
+    ingest_id = getattr(case, "dicom_ingest_id", None)
+    if ingest_id and hasattr(quarantine, "list_files"):
+        try:
+            refs = quarantine.list_files(str(ingest_id))
+        except Exception:
+            refs = []
+        for ref in refs:
+            rel = getattr(ref, "relative_path", None) or ""
+            if not rel or rel in seen_rels:
+                continue
+            name = getattr(ref, "original_filename", None) or Path(rel).name
+            lower = name.lower()
+            if lower.endswith((".json", ".txt", ".xml")):
+                continue
+            is_loc = is_localizer_label(None, name)
+            bucket = loc if is_loc else non_loc
+            bucket.append((name, rel))
+            seen_rels.add(rel)
+
     primary = non_loc or loc
     out: list[tuple[str, bytes]] = []
     for label, rel in _sample_items(primary, max_images):
@@ -375,6 +397,46 @@ def build_approved_report_pdf(
     )
     story.append(table)
     story.append(Spacer(1, 4))
+
+    coverage = getattr(getattr(case, "structured_findings", None), "analysis_coverage", None)
+    if coverage is not None:
+        scope = getattr(coverage, "analysis_scope", None) or "—"
+        complete = bool(getattr(coverage, "analysis_complete", False))
+        scope_tr = {
+            "full": "TAM",
+            "partial": "KISMİ",
+            "none": "YOK",
+        }.get(str(scope), str(scope).upper())
+        cov_lines = [
+            f"Kapsam: {scope_tr}"
+            + (" (hedef kareler tamam)" if complete else " (tam analiz değil)"),
+            (
+                f"DICOM dosya {getattr(coverage, 'dicom_files_total', 0)} · "
+                f"seri {getattr(coverage, 'series_analyzed', 0)}/"
+                f"{getattr(coverage, 'series_total', 0)} · "
+                f"tespit {getattr(coverage, 'frames_detected', 0)} kare · "
+                f"görsel analiz {getattr(coverage, 'frames_visually_analyzed', 0)} · "
+                f"atlanan {getattr(coverage, 'frames_skipped', 0)}"
+            ),
+        ]
+        undec = int(getattr(coverage, "dicom_files_undecodable", 0) or 0)
+        if undec:
+            cov_lines.append(f"Çözülemeyen / desteklenmeyen dosya: {undec}")
+        skipped_files = list(getattr(coverage, "skipped_files", None) or [])
+        if skipped_files:
+            sample = "; ".join(
+                f"{getattr(s, 'path', s)} ({getattr(s, 'reason', '')})"
+                for s in skipped_files[:5]
+            )
+            cov_lines.append(f"Atlanan dosyalar: {sample}")
+        story.append(Paragraph("Analiz kapsamı", h2))
+        story.append(
+            Paragraph(
+                "<br/>".join(_esc(line) for line in cov_lines),
+                body,
+            )
+        )
+        story.append(Spacer(1, 4))
 
     images = collect_report_image_pngs(case, quarantine)
     if images:

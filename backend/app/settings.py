@@ -45,7 +45,9 @@ class Settings:
     vlm_model_id: str = "vlm-vision-v1"
     vlm_chat_model_id: str | None = None  # default = llm_model_id
     vlm_timeout_s: float = 180.0
-    vlm_max_images: int = 6
+    vlm_max_images: int = 6  # per VLM API batch
+    vlm_max_total_frames: int = 128  # total frames across all batches (honest budget; raise for full studies)
+    vlm_include_localizers: bool = False
     vlm_priority: int = 1
     # Optional local PyTorch Vision (weights + entrypoint required for loaded state).
     local_torch_model_id: str | None = None
@@ -270,6 +272,11 @@ def load_settings() -> Settings:
     except ValueError:
         vlm_max_images = 6
     try:
+        vlm_max_total_frames = int(os.getenv("VETMIND_VLM_MAX_TOTAL_FRAMES", "128"))
+    except ValueError:
+        vlm_max_total_frames = 128
+    vlm_include_localizers = _env_bool("VETMIND_VLM_INCLUDE_LOCALIZERS", False)
+    try:
         vlm_priority = int(os.getenv("VETMIND_VLM_PRIORITY", "1"))
     except ValueError:
         vlm_priority = 1
@@ -441,6 +448,8 @@ def load_settings() -> Settings:
         vlm_chat_model_id=vlm_chat_model_id,
         vlm_timeout_s=max(5.0, vlm_timeout_s),
         vlm_max_images=max(1, min(vlm_max_images, 12)),
+        vlm_max_total_frames=max(1, min(vlm_max_total_frames, 1000)),
+        vlm_include_localizers=vlm_include_localizers,
         vlm_priority=max(0, vlm_priority),
         local_torch_model_id=local_torch_model_id,
         local_torch_weights_path=local_torch_weights_path,

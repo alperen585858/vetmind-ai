@@ -80,6 +80,60 @@ def test_duplicate_sop_reported() -> None:
     assert len(sops) == len(set(sops)) == 1
 
 
+def test_colliding_sop_distinct_slices_kept() -> None:
+    """Non-conformant exports may reuse one SOP UID across a volume — keep all frames."""
+    from io import BytesIO
+
+    from pydicom.dataset import Dataset, FileDataset
+    from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    shared_sop = generate_uid()
+
+    def _slice(inst_no: int, z: float, name: str) -> tuple[str, bytes]:
+        file_meta = Dataset()
+        file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.4"
+        file_meta.MediaStorageSOPInstanceUID = shared_sop
+        file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+        ds = FileDataset(name, {}, file_meta=file_meta, preamble=b"\x00" * 128)
+        ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
+        ds.SOPInstanceUID = shared_sop
+        ds.StudyInstanceUID = study_uid
+        ds.SeriesInstanceUID = series_uid
+        ds.Modality = "MR"
+        ds.SeriesDescription = "BRAIN T2"
+        ds.InstanceNumber = inst_no
+        ds.Rows = 8
+        ds.Columns = 8
+        ds.ImagePositionPatient = [0.0, 0.0, float(z)]
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.BitsAllocated = 8
+        ds.BitsStored = 8
+        ds.HighBit = 7
+        ds.PixelRepresentation = 0
+        ds.PixelData = bytes((inst_no * 7 + i) % 256 for i in range(64))
+        buf = BytesIO()
+        ds.save_as(buf, write_like_original=False)
+        return name, buf.getvalue()
+
+    files = [_slice(i + 1, -10.0 + i * 2.0, f"vol_{i:03d}.dcm") for i in range(5)]
+    # Plus one true byte-identical duplicate of the first frame.
+    files.append(("vol_000_dup.dcm", files[0][1]))
+    result = ingest_dicom_files(files)
+    assert result.blocked is False
+    assert result.study is not None
+    assert result.study.instance_count == 5
+    dups = [i for i in result.issues if i.code == DicomValidationCode.DUPLICATE_SOP]
+    # 4 distinct collisions kept + 1 true duplicate dropped
+    assert len(dups) == 5
+    assert any("dropped" in i.message.lower() for i in dups)
+    assert any("disambiguated" in i.message.lower() for i in dups)
+    sops = [i.sop_instance_uid for s in result.study.series for i in s.instances]
+    assert len(sops) == len(set(sops)) == 5
+
+
 def test_classifier_unknown_without_tokens() -> None:
     result = ingest_dicom_files(brain_mri_study_files(1))
     assert result.study is not None

@@ -146,6 +146,8 @@ def test_vlm_deprioritizes_localizer_series(tmp_path: Path, monkeypatch: pytest.
         api_key="k",
         quarantine=store,
         max_images=1,
+        max_total_frames=1,
+        include_localizers=False,
     )
     captured: dict = {}
 
@@ -249,6 +251,7 @@ def test_vlm_multiframe_samples_multiple_indices(tmp_path: Path, monkeypatch: py
         api_key="k",
         quarantine=store,
         max_images=3,
+        max_total_frames=3,
     )
     n_images = {"n": 0}
 

@@ -118,6 +118,8 @@ class AppContainer:
                 chat_model_id=self.settings.vlm_chat_model_id,
                 timeout_s=self.settings.vlm_timeout_s,
                 max_images=self.settings.vlm_max_images,
+                max_total_frames=self.settings.vlm_max_total_frames,
+                include_localizers=self.settings.vlm_include_localizers,
                 language=self.settings.llm_report_language,
             )
             if vlm is None:
