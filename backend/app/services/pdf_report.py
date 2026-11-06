@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import struct
-import zlib
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from pydicom import dcmread
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
@@ -20,6 +18,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     Image,
+    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -27,14 +26,18 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.dicom.classifier import REGION_TR, SPECIES_TR
+from app.imaging.display_png import dicom_bytes_to_png, evenly_sample, is_localizer_label
 from app.models.evidence_store import normalize_ref
 from app.schemas.case import CaseRecord
+from app.schemas.enums import AnatomicalRegion, Species
 from app.schemas.report import DraftReport, ReportVersionSnapshot
 
 _FONT_REGISTERED = False
 _FONT_NAME = "Helvetica"
 _MAX_REPORT_IMAGES = 4
 _IMAGE_MAX_EDGE_PX = 512
+_CITATION_ALIAS_RE = re.compile(r"\b([FS]\d+)\b")
 
 
 def _resolve_font() -> str:
@@ -68,25 +71,6 @@ def _esc(text: str) -> str:
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
-    )
-
-
-def _png_gray(arr_u8: np.ndarray) -> bytes:
-    """Encode a 2D uint8 array as a grayscale PNG (no Pillow dependency)."""
-    height, width = arr_u8.shape
-    raw = b"".join(b"\x00" + arr_u8[y].tobytes() for y in range(height))
-
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
-    return b"".join(
-        [
-            b"\x89PNG\r\n\x1a\n",
-            chunk(b"IHDR", ihdr),
-            chunk(b"IDAT", zlib.compress(raw, 9)),
-            chunk(b"IEND", b""),
-        ]
     )
 
 
@@ -139,60 +123,84 @@ def _image_flowable(data: bytes, max_edge_mm: float = 78) -> Image | None:
     return img
 
 
-def _window_to_u8(pixels: np.ndarray) -> np.ndarray:
-    flat = np.asarray(pixels, dtype=np.float64)
-    while flat.ndim > 2:
-        flat = flat[flat.shape[0] // 2]
-    if flat.ndim != 2:
-        raise ValueError("Expected 2D image")
-    lo, hi = np.percentile(flat, [1, 99])
-    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
-        lo, hi = float(np.min(flat)), float(np.max(flat))
-    if hi <= lo:
-        return np.zeros_like(flat, dtype=np.uint8)
-    scaled = np.clip((flat - lo) / (hi - lo), 0, 1)
-    return (scaled * 255.0).astype(np.uint8)
-
-
-def _resize_max_edge(arr: np.ndarray, max_edge: int = _IMAGE_MAX_EDGE_PX) -> np.ndarray:
-    h, w = arr.shape
-    edge = max(h, w)
-    if edge <= max_edge:
-        return arr
-    scale = max_edge / float(edge)
-    nh, nw = max(1, int(round(h * scale))), max(1, int(round(w * scale)))
-    ys = (np.linspace(0, h - 1, nh)).astype(np.int32)
-    xs = (np.linspace(0, w - 1, nw)).astype(np.int32)
-    return arr[ys][:, xs]
-
-
-def _dicom_bytes_to_png(data: bytes) -> bytes | None:
-    try:
-        ds = dcmread(BytesIO(data), force=True)
-        if not hasattr(ds, "PixelData") and not hasattr(ds, "FloatPixelData"):
-            return None
-        raw = np.asarray(ds.pixel_array)
-        u8 = _window_to_u8(raw)
-        photo = str(getattr(ds, "PhotometricInterpretation", "MONOCHROME2") or "MONOCHROME2")
-        if photo.upper() == "MONOCHROME1":
-            u8 = 255 - u8
-        u8 = _resize_max_edge(u8)
-        return _png_gray(u8)
-    except Exception:
-        return None
-
-
 def _sample_items[T](items: list[T], limit: int = _MAX_REPORT_IMAGES) -> list[T]:
-    if len(items) <= limit:
-        return items
-    if limit == 1:
-        return [items[len(items) // 2]]
-    idxs = [int(round(i * (len(items) - 1) / (limit - 1))) for i in range(limit)]
-    return [items[i] for i in idxs]
+    return evenly_sample(items, limit)
 
 
 def _is_raster_bytes(data: bytes) -> bool:
     return data[:8] == b"\x89PNG\r\n\x1a\n" or data[:2] == b"\xff\xd8"
+
+
+def _species_label(case: CaseRecord) -> str:
+    raw = case.species
+    try:
+        sp = raw if isinstance(raw, Species) else Species(str(raw).strip().lower())
+        return SPECIES_TR.get(sp, str(getattr(raw, "value", raw)))
+    except Exception:
+        return str(getattr(raw, "value", raw))
+
+
+def _region_label(case: CaseRecord) -> str:
+    raw = case.anatomical_region
+    try:
+        reg = raw if isinstance(raw, AnatomicalRegion) else AnatomicalRegion(str(raw).strip().lower())
+        return REGION_TR.get(reg, str(getattr(raw, "value", raw)))
+    except Exception:
+        return str(getattr(raw, "value", raw))
+
+
+def _patient_line(case: CaseRecord) -> str:
+    breed = (case.breed or "").strip()
+    if breed:
+        return f"{case.patient_name} · {breed}"
+    return case.patient_name or "—"
+
+
+def _is_demo_approver(reviewed_by: str | None, *, clinically_validated: bool) -> bool:
+    if clinically_validated:
+        return False
+    name = (reviewed_by or "").strip().lower()
+    if not name:
+        return True
+    return any(tok in name for tok in ("demo", "seed", "test", "mock", "local"))
+
+
+def _approver_display(reviewed_by: str | None, *, clinically_validated: bool) -> str:
+    name = (reviewed_by or "").strip() or "—"
+    if _is_demo_approver(reviewed_by, clinically_validated=clinically_validated):
+        return f"{name} (demo / klinik onay değil)"
+    return name
+
+
+def _citation_legend_lines(content: DraftReport | Any) -> list[str]:
+    """Human-readable legend for F#/S# markers printed in the PDF body."""
+    citation_map = getattr(content, "citation_map", None) or {}
+    if not citation_map:
+        return []
+    sections = [
+        getattr(getattr(content, "technique", None), "text", "") or "",
+        getattr(getattr(content, "findings", None), "text", "") or "",
+        getattr(getattr(content, "impression", None), "text", "") or "",
+        getattr(getattr(content, "recommendations", None), "text", "") or "",
+    ]
+    used = list(dict.fromkeys(_CITATION_ALIAS_RE.findall("\n".join(sections))))
+    if not used:
+        used = sorted(citation_map.keys(), key=lambda a: (a[0], int(a[1:] or 0)))
+    rag = {p.source_id: p for p in (getattr(content, "rag_citations", None) or [])}
+    lines: list[str] = []
+    for alias in used:
+        ref = citation_map.get(alias)
+        if not ref:
+            continue
+        if alias.startswith("F"):
+            lines.append(f"{alias} → görüntüleme bulgusu ({ref})")
+        else:
+            src = rag.get(ref)
+            if src is not None:
+                lines.append(f"{alias} → {src.title} — {src.section}")
+            else:
+                lines.append(f"{alias} → kaynak ({ref})")
+    return lines
 
 
 def collect_report_image_pngs(
@@ -205,10 +213,12 @@ def collect_report_image_pngs(
     if quarantine is None:
         return []
 
-    dicom_candidates: list[tuple[str, str]] = []
+    non_loc: list[tuple[str, str]] = []
+    loc: list[tuple[str, str]] = []
     if case.dicom_study is not None:
         for series_i, series in enumerate(case.dicom_study.series or []):
             series_label = series.series_description or f"Seri {series.series_number or series_i + 1}"
+            is_loc = is_localizer_label(series_label)
             for inst in series.instances or []:
                 rel = inst.quarantine_relative_path
                 if not rel:
@@ -218,17 +228,19 @@ def collect_report_image_pngs(
                 label = series_label
                 if inst.instance_number is not None:
                     label = f"{series_label} · #{inst.instance_number}"
-                dicom_candidates.append((label, rel))
+                bucket = loc if is_loc else non_loc
+                bucket.append((label, rel))
 
+    primary = non_loc or loc
     out: list[tuple[str, bytes]] = []
-    for label, rel in _sample_items(dicom_candidates, max_images):
+    for label, rel in _sample_items(primary, max_images):
         try:
             _name, data = quarantine.read_file(rel)
         except Exception:
             continue
-        png = _dicom_bytes_to_png(data)
-        if png:
-            out.append((label, png))
+        result = dicom_bytes_to_png(data, max_edge=_IMAGE_MAX_EDGE_PX, as_rgb=False)
+        if result:
+            out.append((label, result.png_bytes))
 
     if out:
         return out
@@ -296,8 +308,8 @@ def build_approved_report_pdf(
         fontName=font,
         fontSize=11,
         textColor=colors.HexColor("#0f766e"),
-        spaceBefore=12,
-        spaceAfter=4,
+        spaceBefore=6,
+        spaceAfter=3,
     )
     body = ParagraphStyle("B", parent=styles["Normal"], fontName=font, fontSize=10, leading=14, alignment=TA_LEFT)
     caption = ParagraphStyle("Cap", parent=styles["Normal"], fontName=font, fontSize=8, alignment=TA_CENTER, textColor=colors.HexColor("#64748b"))
@@ -319,24 +331,41 @@ def build_approved_report_pdf(
         Paragraph(_esc(referring), clinic),
     ]
 
-    species = str(case.species.value if hasattr(case.species, "value") else case.species)
-    info = [
-        ["Hasta", f"{case.patient_name}" + (f" · {case.breed}" if case.breed else "")],
-        ["Tür", species],
-        ["Modalite / Bölge", f"{case.modality.value} · {case.anatomical_region.value}"],
+    clinically_validated = bool(getattr(content, "clinically_validated", False))
+    approver = _approver_display(reviewed_by, clinically_validated=clinically_validated)
+    meta_label = ParagraphStyle(
+        "MetaLabel",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=9,
+        textColor=colors.HexColor("#64748b"),
+        leading=12,
+    )
+    meta_value = ParagraphStyle(
+        "MetaValue",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=9,
+        textColor=colors.HexColor("#0f172a"),
+        leading=12,
+    )
+    info_rows = [
+        ["Hasta", _patient_line(case)],
+        ["Tür", _species_label(case)],
+        ["Modalite / Bölge", f"{case.modality.value} · {_region_label(case)}"],
         ["Rapor No", report_no],
         ["Vaka No", case.case_id.replace("case-", "VM-").upper()],
-        ["Onaylayan", reviewed_by or "—"],
+        ["Onaylayan", approver],
         ["Onay tarihi", approved_at.strftime("%d.%m.%Y %H:%M") if approved_at else "—"],
+    ]
+    info = [
+        [Paragraph(_esc(label), meta_label), Paragraph(_esc(value), meta_value)]
+        for label, value in info_rows
     ]
     table = Table(info, colWidths=[38 * mm, 132 * mm])
     table.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (0, 0), (-1, -1), font),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#64748b")),
-                ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#0f172a")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ("TOPPADDING", (0, 0), (-1, -1), 2),
@@ -345,14 +374,14 @@ def build_approved_report_pdf(
         )
     )
     story.append(table)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 4))
 
     images = collect_report_image_pngs(case, quarantine)
     if images:
         story.append(Paragraph("Görüntüler", h2))
         flowables: list[tuple[Image, Paragraph]] = []
         for label, png in images:
-            img = _image_flowable(png)
+            img = _image_flowable(png, max_edge_mm=64)
             if img is None:
                 continue
             flowables.append((img, Paragraph(_esc(label), caption)))
@@ -366,10 +395,10 @@ def build_approved_report_pdf(
                     )
                 )
             else:
-                story.append(chunk[0][0])
-                story.append(Spacer(1, 2))
-                story.append(chunk[0][1])
-            story.append(Spacer(1, 6))
+                story.append(
+                    KeepTogether([chunk[0][0], Spacer(1, 2), chunk[0][1]])
+                )
+            story.append(Spacer(1, 3))
 
     sections = [
         ("Teknik", content.technique.text),
@@ -378,18 +407,38 @@ def build_approved_report_pdf(
         ("Öneriler", content.recommendations.text),
     ]
     for label, text in sections:
-        story.append(Paragraph(label, h2))
-        story.append(Paragraph(_esc(text).replace("\n", "<br/>") or "—", body))
+        body_para = Paragraph(_esc(text).replace("\n", "<br/>") or "—", body)
+        # Keep heading with body only when short — long KeepTogether causes large page gaps.
+        if len(text or "") < 700:
+            story.append(KeepTogether([Paragraph(label, h2), body_para]))
+        else:
+            story.append(Paragraph(label, h2))
+            story.append(body_para)
+
+    legend = _citation_legend_lines(content)
+    if legend:
+        story.append(Paragraph("Atıf açıklaması (F# / S#)", h2))
+        story.append(
+            Paragraph(
+                _esc(
+                    "Rapor metnindeki [F#] görüntüleme bulgularına, [S#] literatür pasajlarına "
+                    "atıftır. Bunlar kesin tanı değildir."
+                ),
+                caption,
+            )
+        )
+        story.append(Paragraph("<br/>".join(_esc(line) for line in legend), body))
 
     # Immutable AI / vet evidence figures (only those frozen into the report package).
     figures = list(getattr(content, "evidence_figures", None) or [])
     if figures:
-        story.append(Paragraph("AI-Supported Imaging Evidence", h2))
+        story.append(Paragraph("Görüntü kanıtı (AI önerisi)", h2))
         story.append(
             Paragraph(
                 _esc(
-                    "Veterinary radiologist-selected localization overlays. "
-                    "Supportive evidence only — not a final diagnosis."
+                    "Uzman radyoloğun seçtiği yerelleştirme katmanları. "
+                    "Destekleyici kanıttır; kesin tanı değildir. "
+                    "AI işaretleri radyolog onayına kadar şüpheli kabul edilir."
                 ),
                 caption,
             )
@@ -398,6 +447,7 @@ def build_approved_report_pdf(
         if root is None and quarantine is not None:
             root = quarantine.root
         for fig in figures[:8]:
+            fig_bits: list = []
             png: bytes | None = None
             if root is not None and fig.overlay_ref:
                 try:
@@ -415,20 +465,23 @@ def build_approved_report_pdf(
             if tampered:
                 # The frozen figure no longer matches what the radiologist approved.
                 png = None
-                story.append(Paragraph(_esc("Kanıt görseli bütünlük kontrolünden geçmedi; gösterilmiyor."), caption))
+                fig_bits.append(
+                    Paragraph(_esc("Kanıt görseli bütünlük kontrolünden geçmedi; gösterilmiyor."), caption)
+                )
             if png:
                 img = _image_flowable(png)
                 if img is not None:
-                    story.append(img)
-            story.append(Paragraph(_esc(fig.caption or fig.evidence_id), caption))
-            story.append(Paragraph(_esc(fig.disclaimer), caption))
-            story.append(Spacer(1, 4))
+                    fig_bits.append(img)
+            fig_bits.append(Paragraph(_esc(fig.caption or fig.evidence_id), caption))
+            fig_bits.append(Paragraph(_esc(fig.disclaimer), caption))
+            fig_bits.append(Spacer(1, 4))
+            story.append(KeepTogether(fig_bits))
 
-    story.append(Spacer(1, 16))
+    story.append(Spacer(1, 8))
     sign = Table(
         [
             [
-                Paragraph(f"<b>Onaylayan uzman</b><br/>{_esc(reviewed_by or '—')}", body),
+                Paragraph(f"<b>Onaylayan uzman</b><br/>{_esc(approver)}", body),
                 Paragraph(
                     f"<b>Onay tarihi</b><br/>{_esc(approved_at.strftime('%d.%m.%Y %H:%M') if approved_at else '—')}",
                     ParagraphStyle("Right", parent=body, alignment=TA_RIGHT),
@@ -457,7 +510,7 @@ def build_approved_report_pdf(
         textColor=colors.HexColor("#64748b"),
         spaceBefore=2,
     )
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 6))
     story.append(
         Paragraph(
             "VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle",

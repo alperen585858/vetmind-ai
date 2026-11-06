@@ -62,6 +62,9 @@ class LLMFindingRef(BaseModel):
     anatomical_location: str
     finding_status: FindingStatus
     source_model: str
+    # Radiologist-verifiable locus from EvidenceReference (series/SOP/instance/frame/bbox).
+    evidence_locus: Optional[str] = None
+    uncertainty_note: Optional[str] = None
 
 
 class LLMGenerationInput(BaseModel):

@@ -100,8 +100,8 @@ class ReportEvidenceFigure(BaseModel):
     overlay_content_sha256: str = ""
     caption: str = ""
     disclaimer: str = (
-        "AI-suspected region (veterinary brain imaging). Supportive evidence only — "
-        "veterinary radiologist review required. Not a final diagnosis."
+        "AI-suspected highlight (pending radiologist review). Supportive evidence only — "
+        "not radiologist-confirmed and not a final diagnosis."
     )
     sop_instance_uid: Optional[str] = None
     frame_index: Optional[int] = None

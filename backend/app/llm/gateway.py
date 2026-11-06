@@ -86,6 +86,10 @@ def build_generation_input(
                 anatomical_location=f.anatomical_location,
                 finding_status=f.finding_status,
                 source_model=f.source_model,
+                evidence_locus=(
+                    (f.evidence_references[0].description if f.evidence_references else None)
+                ),
+                uncertainty_note=f.uncertainty_note,
             )
             for f in findings.findings
         ],

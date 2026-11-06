@@ -3,6 +3,9 @@
 Sends real DICOM/document image bytes to a chat-completions endpoint that accepts
 ``image_url`` parts. Not a trained veterinary model — outputs are decision-support
 only and may be wrong. Failures raise ImagingAdapterError (no silent mock fallback).
+
+Each finding is grounded to an IMG-# catalog entry (series / SOP / instance / frame,
+optional bbox) so a radiologist can verify the claim on the same pixels.
 """
 
 from __future__ import annotations
@@ -11,30 +14,46 @@ import base64
 import json
 import re
 import time
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import httpx
-import numpy as np
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
 from app.http_policy import vision_http_policy
-from app.imaging.evidence_renderer import _png_rgb, _to_display_rgb
+from app.imaging.display_png import (
+    dicom_bytes_to_png,
+    evenly_sample,
+    is_localizer_label,
+    maybe_image_bytes,
+    select_frame_indices,
+)
 from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
+from app.models.vlm_grounding import (
+    SentFrame,
+    catalog_metadata,
+    evidence_for_frame,
+    format_image_catalog,
+    harden_finding_fields,
+    resolve_source_frame,
+    study_inventory_metadata,
+)
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
 from app.storage.quarantine import QuarantineStore
 
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
+_VLM_MAX_EDGE = 1024
 
 _SYSTEM_PROMPT = """Sen veteriner teleradyoloji için yardımcı bir görüntü analiz asistanısın.
-Klinik tanı koymazsın; uzman radyolog incelemesi zorunludur. Yanlış olabilirsin — yine de
-görüntüye bakarak somut gözlem üretmek zorundasın.
+Klinik tanı koymazsın; uzman radyolog incelemesi zorunludur. Genel amaçlı bir VLM'sin —
+veteriner radyolojide klinik olarak doğrulanmış değilsin.
 
 Yalnızca JSON döndür. Şema:
 {
@@ -43,23 +62,39 @@ Yalnızca JSON döndür. Şema:
   "findings": [
     {
       "finding_code": "SHORT_CODE",
-      "description": "görüntüde ne gördüğün (Türkçe, somut)",
+      "description": "Türkçe, somut, yalnızca piksellerde görünen",
       "anatomical_location": "kısa konum",
       "finding_status": "suspected" | "possible" | "uncertain" | "not_assessed",
       "uncertainty_note": "neden emin değilsin",
-      "model_confidence": 0.0
+      "model_confidence": 0.0,
+      "source_image_index": 1,
+      "bbox_norm": [0.0, 0.0, 1.0, 1.0]
     }
   ]
 }
 
 ZORUNLU kurallar:
-1) findings dizisi ASLA boş olamaz. En az 2 madde yaz.
-2) İlk madde teknik/görüntü kalitesi olsun (lokalizer mi, kesit sayısı, hareket, SNR, bölge görünürlüğü).
-3) Sonraki maddeler görünen anatomi ve olası/şüpheli değişiklikler olsun (hiperintensite, kitle şüphesi,
-   ventrikül asimetri, ödem izlenimi vb. — emin değilsen finding_status=uncertain/possible kullan).
-4) "Normal" veya "patoloji yok" deme. Hastalık yokluğunu kanıtlama.
-5) Kesin tanı / staging / tedavi kararı yazma. Uydurma DICOM UID yazma.
-6) Hiç lezyon göremesen bile gördüğün yapıları tarif et; boş findings[] yasaktır."""
+1) Her bulguda source_image_index ZORUNLU (IMAGE CATALOG'daki IMG-n numarası).
+2) İlk madde teknik/görüntü kalitesi (IMAGE-QUALITY). Teknik sınırları patoloji sanma.
+3) Yalnızca o IMG'de görünen anatomiyi yaz. Desteklenmeyen lezyon/kitle/kanama/ödem/tanı UYDURMA.
+4) Emin değilsen finding_status=uncertain ve uncertainty_note yaz; uydurma iddia yazma.
+5) MR: IMAGE CATALOG'da sequence_known=no ise hiper/hipointensiteyi patoloji gibi yorumlama —
+   yalnızca görünür yapıyı tarif et veya belirsiz sinyal notu düş.
+6) bbox_norm isteğe bağlı; odak bölge varsa 0–1 normalize [x_min,y_min,x_max,y_max] ver.
+7) "Normal" / "patoloji yok" deme. Kesin tanı yazma. Uydurma DICOM UID yazma.
+8) İngilizce sistem etiketleri / execution_status / pipeline jargonunu description'a yazma.
+9) Görüntü yetersizse teknik maddede söyle; boş findings[] yasak, uydurma lezyon da yasak."""
+
+
+@dataclass(frozen=True)
+class _ImageCandidate:
+    rel: str
+    filename: str
+    series_description: str | None
+    sop_instance_uid: str | None
+    series_instance_uid: str | None
+    instance_number: int | None
+    is_localizer: bool
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -86,52 +121,6 @@ def _extract_json_object(text: str) -> dict[str, Any]:
     raise ImagingAdapterError("VLM response was not valid JSON.")
 
 
-def _slice_to_png(arr: np.ndarray) -> bytes:
-    if arr.ndim == 3:
-        # multi-frame or RGB — take middle / first channel plane
-        if arr.shape[0] in (1, 3) and arr.shape[0] < min(arr.shape[1], arr.shape[2]):
-            plane = arr[0] if arr.shape[0] == 1 else arr.mean(axis=0)
-        else:
-            plane = arr[arr.shape[0] // 2]
-    elif arr.ndim == 2:
-        plane = arr
-    else:
-        plane = np.asarray(arr).reshape(arr.shape[-2], arr.shape[-1])
-    return _png_rgb(_to_display_rgb(np.asarray(plane)))
-
-
-def _dicom_bytes_to_png(data: bytes) -> bytes | None:
-    try:
-        ds = dcmread(BytesIO(data), force=True)
-    except (InvalidDicomError, Exception):
-        return None
-    if not hasattr(ds, "PixelData") and not hasattr(ds, "FloatPixelData"):
-        return None
-    try:
-        arr = np.asarray(ds.pixel_array)
-    except Exception:
-        return None
-    try:
-        return _slice_to_png(arr)
-    except Exception:
-        return None
-
-
-def _maybe_image_bytes(name: str, data: bytes) -> bytes | None:
-    lower = name.lower()
-    if lower.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
-        return data
-    if lower.endswith((".dcm", ".dicom")) or data[:132].find(b"DICM") >= 0:
-        return _dicom_bytes_to_png(data)
-    # Try DICOM anyway (many uploads have no extension).
-    png = _dicom_bytes_to_png(data)
-    if png is not None:
-        return png
-    if data[:8] == b"\x89PNG\r\n\x1a\n" or data[:2] == b"\xff\xd8":
-        return data
-    return None
-
-
 def _mime_for(data: bytes) -> str:
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return "image/png"
@@ -140,6 +129,33 @@ def _mime_for(data: bytes) -> str:
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp"
     return "image/png"
+
+
+def _dicom_frame_count(data: bytes) -> int:
+    try:
+        ds = dcmread(BytesIO(data), force=True, stop_before_pixels=True)
+    except (InvalidDicomError, Exception):
+        return 1
+    n = int(getattr(ds, "NumberOfFrames", 1) or 1)
+    return max(1, n)
+
+
+def _looks_like_dicom(name: str, data: bytes) -> bool:
+    lower = (name or "").lower()
+    if lower.endswith((".dcm", ".dicom")):
+        return True
+    return data[:132].find(b"DICM") >= 0
+
+
+def _png_size(data: bytes) -> tuple[int, int] | None:
+    if data[:8] != b"\x89PNG\r\n\x1a\n" or len(data) < 24:
+        return None
+    import struct
+
+    w, h = struct.unpack(">II", data[16:24])
+    if w <= 0 or h <= 0:
+        return None
+    return int(w), int(h)
 
 
 class OpenAiCompatibleVlmVisionModel:
@@ -167,42 +183,43 @@ class OpenAiCompatibleVlmVisionModel:
         self._timeout_s = float(timeout_s)
         self._max_images = max(1, min(int(max_images), 12))
         self._language = (language or "tr").strip().lower() or "tr"
+        self._last_inventory: dict[str, str] = {}
 
     def analyze(self, case: CaseRecord) -> StructuredFindings:
         require_model_input(case)
-        images = self._collect_images(case)
-        if not images:
+        sent = self._collect_images(case)
+        if not sent:
             raise ImagingAdapterError(
                 "VLM Vision: no decodable image frames in quarantine for this case."
             )
-
-        parsed = self._call_vlm(case, images, insist=False)
-        mapped = self._map_response(case, parsed, image_count=len(images))
+        parsed = self._call_vlm(case, sent, insist=False)
+        mapped = self._map_response(case, parsed, sent=sent)
         if mapped.findings:
             return mapped
-        # Empty findings are useless for the report LLM — insist once, then synthesize observations.
-        parsed = self._call_vlm(case, images, insist=True)
-        mapped = self._map_response(case, parsed, image_count=len(images))
+        parsed = self._call_vlm(case, sent, insist=True)
+        mapped = self._map_response(case, parsed, sent=sent)
         if mapped.findings:
             return mapped
-        return self._synthesize_observations(case, mapped, image_count=len(images), parsed=parsed)
+        return self._synthesize_observations(case, mapped, sent=sent, parsed=parsed)
 
     def _call_vlm(
         self,
         case: CaseRecord,
-        images: list[bytes],
+        sent: list[SentFrame],
         *,
         insist: bool,
     ) -> dict[str, Any]:
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
-                "text": self._user_text(case, image_count=len(images), insist=insist),
+                "text": self._user_text(case, sent=sent, insist=insist),
             }
         ]
-        for png_or_img in images:
-            b64 = base64.b64encode(png_or_img).decode("ascii")
-            mime = _mime_for(png_or_img)
+        for fr in sent:
+            b64 = base64.b64encode(fr.png).decode("ascii")
+            mime = _mime_for(fr.png)
+            # Tiny text label before each image so the model can bind IMG-n.
+            content.append({"type": "text", "text": f"[IMG-{fr.index}]"})
             content.append(
                 {
                     "type": "image_url",
@@ -216,7 +233,7 @@ class OpenAiCompatibleVlmVisionModel:
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": content},
             ],
-            "temperature": 0.35,
+            "temperature": 0.15,
             "response_format": {"type": "json_object"},
         }
         headers = {"Content-Type": "application/json"}
@@ -270,97 +287,269 @@ class OpenAiCompatibleVlmVisionModel:
             )
         return _extract_json_object(str(text))
 
-    def _user_text(self, case: CaseRecord, *, image_count: int, insist: bool = False) -> str:
+    def _user_text(self, case: CaseRecord, *, sent: list[SentFrame], insist: bool = False) -> str:
         history = (case.clinical_history or "").strip()
         lang = "Turkish" if self._language.startswith("tr") else "English"
         insist_line = (
             "\nPREVIOUS REPLY WAS INVALID because findings=[] was empty. "
-            "You MUST return at least two concrete observation objects now."
+            "Return technical notes + visible anatomy only, each with source_image_index. "
+            "Do NOT invent lesions."
             if insist
             else ""
+        )
+        inv = self._last_inventory
+        inventory_line = (
+            f"Study inventory: dicom_instances={inv.get('study_dicom_instances') or 'n/a'}; "
+            f"vlm_candidates={inv.get('vlm_candidate_files') or 'n/a'} "
+            f"(non-localizer={inv.get('vlm_non_localizer_candidates') or '?'}, "
+            f"localizer={inv.get('vlm_localizer_candidates') or '?'}); "
+            f"attached_now={len(sent)} (cap={self._max_images}).\n"
         )
         return (
             f"Species: {case.species.value}\n"
             f"Modality: {case.modality.value}\n"
             f"Anatomical region: {case.anatomical_region.value}\n"
             f"Clinical history: {history or '(none)'}\n"
-            f"Attached images: {image_count}\n"
+            f"{inventory_line}"
+            f"{format_image_catalog(sent)}\n"
             f"Write finding descriptions in {lang}.\n"
-            "Look at the attached pixels. Produce at least:\n"
-            "1) IMAGE-QUALITY / technique observation\n"
-            "2) One or more anatomy / possible abnormality observations\n"
-            "Even if uncertain, describe what you see. findings[] must not be empty."
+            "Every finding MUST set source_image_index to an IMG-n above.\n"
+            "1) IMAGE-QUALITY on a real IMG\n"
+            "2) Visible anatomy / only pixel-supported changes\n"
+            "No unsupported lesions. No pathology from unknown MR sequence signal."
             f"{insist_line}"
         )
 
-    def _collect_images(self, case: CaseRecord) -> list[bytes]:
-        collected: list[bytes] = []
-        seen: set[str] = set()
+    def _gather_candidates(self, case: CaseRecord) -> list[_ImageCandidate]:
+        by_rel: dict[str, _ImageCandidate] = {}
 
-        def _add(rel: str | None, filename_hint: str = "") -> None:
-            if not rel or rel in seen or len(collected) >= self._max_images:
+        def _put(
+            rel: str | None,
+            *,
+            filename: str = "",
+            series_description: str | None = None,
+            sop: str | None = None,
+            series_uid: str | None = None,
+            instance_number: int | None = None,
+        ) -> None:
+            if not rel or rel in by_rel:
                 return
-            try:
-                name, data = self._quarantine.read_file(rel)
-            except Exception:
-                return
-            img = _maybe_image_bytes(filename_hint or name, data)
-            if img is None:
-                return
-            seen.add(rel)
-            collected.append(img)
+            is_loc = is_localizer_label(series_description, filename)
+            by_rel[rel] = _ImageCandidate(
+                rel=rel,
+                filename=filename,
+                series_description=series_description,
+                sop_instance_uid=sop,
+                series_instance_uid=series_uid,
+                instance_number=instance_number,
+                is_localizer=is_loc,
+            )
 
         model_input = case.model_input
         if model_input is not None:
-            frames = []
             for series in model_input.series:
+                desc = series.series_description
                 for fr in series.frames:
                     if fr.quarantine_relative_path:
-                        frames.append(fr)
-            if frames:
-                # Evenly sample up to max_images.
-                n = len(frames)
-                if n <= self._max_images:
-                    chosen = frames
-                else:
-                    idxs = [
-                        int(round(i * (n - 1) / (self._max_images - 1)))
-                        for i in range(self._max_images)
-                    ]
-                    chosen = [frames[i] for i in dict.fromkeys(idxs)]
-                for fr in chosen:
-                    _add(fr.quarantine_relative_path, fr.filename or "")
+                        _put(
+                            fr.quarantine_relative_path,
+                            filename=fr.filename or "",
+                            series_description=desc,
+                            sop=fr.sop_instance_uid,
+                            series_uid=fr.series_instance_uid or series.series_instance_uid,
+                            instance_number=fr.instance_number,
+                        )
 
         if case.dicom_study is not None:
             for ser in case.dicom_study.series:
+                desc = ser.series_description
                 for inst in ser.instances:
-                    _add(inst.quarantine_relative_path, inst.filename or "")
+                    _put(
+                        inst.quarantine_relative_path,
+                        filename=inst.filename or "",
+                        series_description=desc,
+                        sop=getattr(inst, "sop_instance_uid", None),
+                        series_uid=getattr(ser, "series_instance_uid", None),
+                        instance_number=getattr(inst, "instance_number", None),
+                    )
 
         if case.document_context is not None:
             for doc in case.document_context.documents:
-                _add(doc.quarantine_relative_path, Path(doc.quarantine_relative_path).name)
+                _put(
+                    doc.quarantine_relative_path,
+                    filename=Path(doc.quarantine_relative_path).name,
+                )
 
-        return collected
+        return list(by_rel.values())
+
+    def _prioritize_candidates(self, candidates: list[_ImageCandidate]) -> list[_ImageCandidate]:
+        non_loc = [c for c in candidates if not c.is_localizer]
+        loc = [c for c in candidates if c.is_localizer]
+        primary = non_loc or loc
+        return evenly_sample(primary, self._max_images)
+
+    def _expand_candidate(self, cand: _ImageCandidate, remaining: int) -> list[dict[str, Any]]:
+        """Return partial frame dicts (png + dicom locus); indices assigned later."""
+        if remaining <= 0:
+            return []
+        try:
+            name, data = self._quarantine.read_file(cand.rel)
+        except Exception:
+            return []
+        filename = cand.filename or name
+        base = {
+            "sop_instance_uid": cand.sop_instance_uid,
+            "series_instance_uid": cand.series_instance_uid,
+            "instance_number": cand.instance_number,
+            "series_description": cand.series_description,
+            "is_localizer": cand.is_localizer,
+            "quarantine_rel": cand.rel,
+        }
+
+        if _looks_like_dicom(filename, data) or (
+            data[:8] != b"\x89PNG\r\n\x1a\n" and data[:2] != b"\xff\xd8"
+        ):
+            n_frames = _dicom_frame_count(data)
+            frame_budget = min(remaining, 3 if n_frames > 1 else 1)
+            indices = select_frame_indices(n_frames, max_frames=frame_budget)
+            out: list[dict[str, Any]] = []
+            for idx in indices:
+                if len(out) >= remaining:
+                    break
+                result = dicom_bytes_to_png(data, frame_index=idx, max_edge=_VLM_MAX_EDGE, as_rgb=True)
+                if result is None:
+                    continue
+                out.append(
+                    {
+                        **base,
+                        "png": result.png_bytes,
+                        "frame_index": result.frame_index,
+                        "width": result.width,
+                        "height": result.height,
+                    }
+                )
+            if out:
+                return out
+
+        img = maybe_image_bytes(filename, data, max_edge=_VLM_MAX_EDGE)
+        if img is None:
+            return []
+        size = _png_size(img)
+        return [
+            {
+                **base,
+                "png": img,
+                "frame_index": 0,
+                "width": size[0] if size else None,
+                "height": size[1] if size else None,
+            }
+        ]
+
+    def _collect_images(self, case: CaseRecord) -> list[SentFrame]:
+        candidates = self._gather_candidates(case)
+        dicom_n = None
+        if case.dicom_study is not None:
+            dicom_n = sum(len(s.instances or []) for s in (case.dicom_study.series or []))
+        self._last_inventory = study_inventory_metadata(
+            candidate_count=len(candidates),
+            localizer_candidates=sum(1 for c in candidates if c.is_localizer),
+            non_localizer_candidates=sum(1 for c in candidates if not c.is_localizer),
+            dicom_instance_count=dicom_n,
+        )
+        ordered = self._prioritize_candidates(candidates)
+        partials: list[dict[str, Any]] = []
+        for cand in ordered:
+            remaining = self._max_images - len(partials)
+            if remaining <= 0:
+                break
+            partials.extend(self._expand_candidate(cand, remaining))
+        if len(partials) < self._max_images:
+            locs = [c for c in candidates if c.is_localizer]
+            for cand in evenly_sample(locs, self._max_images):
+                remaining = self._max_images - len(partials)
+                if remaining <= 0:
+                    break
+                if any(
+                    p.get("sop_instance_uid") and p.get("sop_instance_uid") == cand.sop_instance_uid
+                    for p in partials
+                ):
+                    continue
+                partials.extend(self._expand_candidate(cand, remaining))
+        partials = partials[: self._max_images]
+        return [
+            SentFrame(
+                index=i + 1,
+                png=p["png"],
+                sop_instance_uid=p.get("sop_instance_uid"),
+                series_instance_uid=p.get("series_instance_uid"),
+                instance_number=p.get("instance_number"),
+                frame_index=int(p.get("frame_index") or 0),
+                series_description=p.get("series_description"),
+                is_localizer=bool(p.get("is_localizer")),
+                width=p.get("width"),
+                height=p.get("height"),
+                quarantine_rel=p.get("quarantine_rel"),
+            )
+            for i, p in enumerate(partials)
+        ]
+
+    def _processing_meta(self, sent: list[SentFrame]) -> dict[str, str]:
+        return {
+            "adapter": "openai_compatible_vlm",
+            "chat_model_id": self._chat_model_id,
+            "timeout_s": str(self._timeout_s),
+            "vlm_max_images_cap": str(self._max_images),
+            **self._last_inventory,
+            **catalog_metadata(sent),
+        }
+
+    def _evidence_list_for_synth(self, case: CaseRecord, sent: list[SentFrame]) -> list[EvidenceReference]:
+        refs: list[EvidenceReference] = []
+        for fr in sent[:4]:
+            refs.append(
+                evidence_for_frame(
+                    finding_id=f"{case.case_id}-vlm-obs",
+                    frame=fr,
+                    item={"source_image_index": fr.index},
+                    image_count=len(sent),
+                )
+            )
+        return refs or [
+            EvidenceReference(
+                evidence_id=f"{case.case_id}-vlm-obs-ev",
+                description=f"VLM inspected {len(sent)} image(s).",
+            )
+        ]
 
     def _synthesize_observations(
         self,
         case: CaseRecord,
         base: StructuredFindings,
         *,
-        image_count: int,
+        sent: list[SentFrame],
         parsed: dict[str, Any],
     ) -> StructuredFindings:
-        """Last resort when the cloud VLM returns findings=[]. Still real pixels were inspected."""
+        """Last resort when the cloud VLM returns findings=[]. Technical notes only."""
+        image_count = len(sent)
         warnings = list(base.warnings)
         warnings.append(
-            "VLM boş findings[] döndürdü; görüntüye dayalı gözlem maddeleri yerelde üretildi "
+            "VLM boş findings[] döndürdü; yalnızca teknik/görünürlük notları yerelde üretildi "
             "(lezyon envanteri değil)."
         )
         model_warnings = [str(w).strip() for w in (parsed.get("warnings") or []) if str(w).strip()]
         quality_note = model_warnings[0] if model_warnings else (
-            f"{case.modality.value} / {case.anatomical_region.value} için {image_count} kare incelendi; "
-            "kesit sayısı veya kalite sınırlı olabilir."
+            f"{case.modality.value} / {case.anatomical_region.value} için {image_count} kare "
+            "gönderildi; model yapılandırılmış bulgu üretmedi. Teknik kalite veya örnekleme "
+            "sınırlı olabilir."
         )
+        loc_n = sum(1 for s in sent if s.is_localizer)
+        anatomy_note = (
+            f"Gönderilen {image_count} karede ({loc_n} lokalizer) {case.anatomical_region.value} "
+            f"bölgesi görsel olarak incelendi; VLM yapılandırılmış anatomi/lezyon maddesi yazmadı. "
+            "Bu, patoloji yokluğu veya varlığı anlamına gelmez — tüm serilerin uzman radyolog "
+            "tarafından incelenmesi gerekir."
+        )
+        ev = self._evidence_list_for_synth(case, sent)
         findings = [
             Finding(
                 finding_id=f"{case.case_id}-vlm-obs-quality",
@@ -371,12 +560,7 @@ class OpenAiCompatibleVlmVisionModel:
                 source_model=self.model_id,
                 source_model_version=self.version,
                 requires_review=True,
-                evidence_references=[
-                    EvidenceReference(
-                        evidence_id=f"{case.case_id}-vlm-obs-quality-ev",
-                        description=f"VLM inspected {image_count} image(s).",
-                    )
-                ],
+                evidence_references=ev[:1] or ev,
                 uncertainty_note="Teknik gözlem; klinik lezyon değerlendirmesi değildir.",
                 synthetic=False,
                 model_confidence=None,
@@ -384,31 +568,21 @@ class OpenAiCompatibleVlmVisionModel:
             Finding(
                 finding_id=f"{case.case_id}-vlm-obs-region",
                 finding_code="REGION-APPEARANCE",
-                description=(
-                    f"Gönderilen {case.modality.value} görüntülerde {case.anatomical_region.value} "
-                    f"bölgesi değerlendirilmeye çalışıldı ({image_count} kare). "
-                    "Model yapılandırılmış lezyon maddesi üretmedi; belirgin bir kitle/ödem/kanama "
-                    "ifadesi çıkaramadı. Bu, patoloji yokluğu kanıtı değildir — tüm serilerin "
-                    "uzman radyolog tarafından incelenmesi gerekir."
-                ),
+                description=anatomy_note,
                 anatomical_location=case.anatomical_region.value,
                 finding_status=FindingStatus.UNCERTAIN,
                 source_model=self.model_id,
                 source_model_version=self.version,
                 requires_review=True,
-                evidence_references=[
-                    EvidenceReference(
-                        evidence_id=f"{case.case_id}-vlm-obs-region-ev",
-                        description=f"VLM inspected {image_count} image(s).",
-                    )
-                ],
-                uncertainty_note="Boş VLM yanıtından türetilmiş gözlem; kesin bulgu değildir.",
+                evidence_references=ev,
+                uncertainty_note="Boş VLM yanıtından türetilmiş teknik görünürlük notu; lezyon iddiası değildir.",
                 synthetic=False,
                 model_confidence=None,
             ),
         ]
         meta = dict(base.processing_metadata)
         meta["empty_findings_synthesized"] = "true"
+        meta.update(self._processing_meta(sent))
         return base.model_copy(
             update={
                 "findings": findings,
@@ -424,11 +598,13 @@ class OpenAiCompatibleVlmVisionModel:
         case: CaseRecord,
         parsed: dict[str, Any],
         *,
-        image_count: int,
+        sent: list[SentFrame],
     ) -> StructuredFindings:
+        image_count = len(sent)
         warnings = [str(w) for w in (parsed.get("warnings") or []) if str(w).strip()]
         warnings.append(
-            "VLM çıktısı eğitilmemiş genel modelden gelir; klinik doğrulama yoktur."
+            "VLM çıktısı eğitilmemiş genel modelden gelir; klinik doğrulama yoktur. "
+            "Her bulgunun IMG/SOP/kesit bağını radyolog doğrulamalıdır."
         )
         status_raw = str(parsed.get("execution_status") or "partial").strip().lower()
         try:
@@ -444,14 +620,23 @@ class OpenAiCompatibleVlmVisionModel:
             raise ImagingAdapterError("VLM findings must be a list.")
 
         findings: list[Finding] = []
+        ungrounded = 0
         for i, item in enumerate(raw_findings):
             if not isinstance(item, dict):
                 continue
+            frame = resolve_source_frame(item, sent)
+            item = harden_finding_fields(
+                item,
+                frame=frame,
+                modality=str(case.modality.value if hasattr(case.modality, "value") else case.modality),
+            )
             fid = str(item.get("finding_id") or f"{case.case_id}-vlm-{i + 1}")
             code = str(item.get("finding_code") or "VLM-FINDING").strip() or "VLM-FINDING"
             desc = str(item.get("description") or "").strip()
             if not desc:
                 continue
+            if frame is None:
+                ungrounded += 1
             loc = str(
                 item.get("anatomical_location") or case.anatomical_region.value
             ).strip()
@@ -478,10 +663,11 @@ class OpenAiCompatibleVlmVisionModel:
                     source_model_version=self.version,
                     requires_review=True,
                     evidence_references=[
-                        EvidenceReference(
-                            evidence_id=f"{fid}-ev-1",
-                            description=f"VLM inspected {image_count} image(s) from quarantine.",
-                            note="Pixel frames were sent to the multimodal model for this finding set.",
+                        evidence_for_frame(
+                            finding_id=fid,
+                            frame=frame,
+                            item=item,
+                            image_count=image_count,
                         )
                     ],
                     uncertainty_note=str(
@@ -493,6 +679,13 @@ class OpenAiCompatibleVlmVisionModel:
                 )
             )
 
+        if ungrounded:
+            warnings.append(
+                f"{ungrounded} bulgu geçerli source_image_index olmadan geldi; belirsiz / doğrulanamaz işaretlendi."
+            )
+
+        meta = self._processing_meta(sent)
+        meta["findings_ungrounded_count"] = str(ungrounded)
         return StructuredFindings(
             case_id=case.case_id,
             study=StudyInfo(
@@ -514,12 +707,7 @@ class OpenAiCompatibleVlmVisionModel:
             absences_not_confirmed=True,
             contributing_model_ids=[self.model_id],
             contributing_source_kinds=[SourceKind.REAL],
-            processing_metadata={
-                "adapter": "openai_compatible_vlm",
-                "chat_model_id": self._chat_model_id,
-                "images_sent": str(image_count),
-                "timeout_s": str(self._timeout_s),
-            },
+            processing_metadata=meta,
         )
 
 
@@ -577,3 +765,7 @@ def build_optional_vlm_vision(
         max_images=max_images,
         language=language,
     )
+
+
+# Re-export for tests that may patch/import legacy helpers.
+_maybe_image_bytes = maybe_image_bytes

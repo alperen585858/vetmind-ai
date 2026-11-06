@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMGenerationInput, LLMMalformedResponseError, LLMRequest
 from app.llm.prompts import CitationAliases
+from app.models.vlm_grounding import sanitize_report_prose
 from app.schemas.enums import ModelExecutionStatus, ReportStatus
 from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
 
@@ -119,6 +120,21 @@ NO_FINDINGS_TEXT = {
     "This does not mean the study is normal; the full study must be reviewed by a radiologist.",
 }
 
+# Softened filler when the model left a section blank but structured findings exist —
+# used only as a last resort after auto_findings_text for the findings section.
+HAS_FINDINGS_EMPTY_SECTION = {
+    "tr": {
+        "technique": "Teknik ayrıntılar model tarafından yazılmadı; görüntü modeli bulguları mevcut — uzman incelemesi gerekir.",
+        "impression": "Model yorum bölümünü yazmadı. Aşağıdaki yapılandırılmış bulgulara dayanarak uzman radyolog değerlendirmesi gerekir.",
+        "recommendations": "Yapılandırılmış bulgular mevcut; ek kesit/test ihtiyacı ve kesin yorum uzman radyolog tarafından belirlenmelidir.",
+    },
+    "en": {
+        "technique": "The model did not write technique details; structured imaging findings are available — radiologist review is required.",
+        "impression": "The model left impression blank. Structured findings exist and require veterinary radiologist interpretation.",
+        "recommendations": "Structured findings are available; further sequences/tests and final interpretation must be set by a radiologist.",
+    },
+}
+
 # When the model leaves "findings" blank but structured findings exist, the section is
 # rebuilt from them (a restatement with [F#] citations, not new claims). The first line
 # marks it so grounding can tell the reviewer the model did not write it.
@@ -139,7 +155,8 @@ def auto_findings_text(gen: LLMGenerationInput, aliases: CitationAliases, langua
     for alias, finding_id in aliases.findings.items():
         f = by_id[finding_id]
         status = _STATUS_LABEL[lang].get(f.finding_status.value, f.finding_status.value)
-        lines.append(f"- {f.anatomical_location}: {f.description} ({status}) [{alias}]")
+        locus = f" — {f.evidence_locus}" if f.evidence_locus else ""
+        lines.append(f"- {f.anatomical_location}: {f.description} ({status}){locus} [{alias}]")
     return "\n".join(lines)
 
 
@@ -286,7 +303,13 @@ def build_draft_report(
             text = auto_findings_text(gen, aliases, language)
         if not text and key == "findings" and no_findings:
             text = NO_FINDINGS_TEXT.get(language, NO_FINDINGS_TEXT["en"]).format(status=gen.execution_status.value)
+        # Soften canned EMPTY_SECTION_TEXT when structured findings exist: avoid
+        # "no automated findings" style copy leaking into technique/impression/recommendations.
+        if not text and gen.findings and not no_findings and key != "findings":
+            soft = HAS_FINDINGS_EMPTY_SECTION.get(language, HAS_FINDINGS_EMPTY_SECTION["en"])
+            text = soft.get(key, "")
         text = text or fallback[key]
+        text = sanitize_report_prose(text)
         cited = [aliases.findings[a] for a in extract_markers(text) if a in aliases.findings]
         return ReportSection(text=text, cited_finding_ids=cited)
 

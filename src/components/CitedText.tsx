@@ -1,5 +1,5 @@
 import { splitCitations } from '../lib/grounding'
-import type { BackendRagCitation } from '../types'
+import type { BackendFinding, BackendRagCitation } from '../types'
 
 export function ragAnchorId(sourceId: string) {
   return `rag-${sourceId}`
@@ -13,16 +13,31 @@ function focusSource(sourceId: string) {
   window.setTimeout(() => el.classList.remove('ring-2', 'ring-teal-400', 'bg-teal-50/60'), 1600)
 }
 
+function findingTooltip(
+  findingId: string,
+  findings: BackendFinding[] | undefined,
+): string {
+  const f = findings?.find((x) => x.finding_id === findingId)
+  if (!f) return `Görüntüleme bulgusu: ${findingId}`
+  const loc = f.anatomical_location ? `${f.anatomical_location}: ` : ''
+  const status = f.finding_status ? ` (${f.finding_status})` : ''
+  const desc = (f.description || '').trim()
+  return desc ? `${loc}${desc}${status}` : `Görüntüleme bulgusu: ${findingId}`
+}
+
 /** Report text with [F1] / [S2] markers rendered as chips; source chips jump to the passage. */
 export function CitedText({
   text,
   citationMap,
   sources,
+  findings,
   className = '',
 }: {
   text: string
   citationMap?: Record<string, string>
   sources?: BackendRagCitation[]
+  /** Structured findings used for F# hover tooltips (description + location). */
+  findings?: BackendFinding[]
   className?: string
 }) {
   if (!citationMap || Object.keys(citationMap).length === 0) {
@@ -60,7 +75,11 @@ export function CitedText({
                 )
               }
               return (
-                <span key={alias} title={`Görüntüleme bulgusu: ${ref}`} className="rounded bg-violet-100 px-1 text-[11px] font-semibold text-violet-800">
+                <span
+                  key={alias}
+                  title={findingTooltip(ref, findings)}
+                  className="rounded bg-violet-100 px-1 text-[11px] font-semibold text-violet-800"
+                >
                   {alias}
                 </span>
               )

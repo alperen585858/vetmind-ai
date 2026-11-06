@@ -1415,9 +1415,28 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                     <p className="mt-1 text-xs text-slate-500">
                       {[displayFindingDescription(f.anatomical_location), f.finding_status].filter(Boolean).join(' · ')}
                     </p>
+                    {(f.evidence_references?.length ?? 0) > 0 && (
+                      <p className="mt-1 font-mono text-[11px] text-violet-800">
+                        Kanıt: {f.evidence_references!.map((e) => e.description).filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    {f.uncertainty_note ? (
+                      <p className="mt-1 text-[11px] text-amber-800">Belirsizlik: {f.uncertainty_note}</p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
+            )}
+            {c.backendFindings.processing_metadata?.images_sent && (
+              <p className="mt-3 text-xs text-slate-600">
+                VLM görüntü: {c.backendFindings.processing_metadata.images_sent} kare gönderildi
+                {c.backendFindings.processing_metadata.study_dicom_instances
+                  ? ` · çalışmada ${c.backendFindings.processing_metadata.study_dicom_instances} DICOM instance`
+                  : ''}
+                {c.backendFindings.processing_metadata.vlm_max_images_cap
+                  ? ` · üst sınır ${c.backendFindings.processing_metadata.vlm_max_images_cap}`
+                  : ''}
+              </p>
             )}
             {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
@@ -1449,6 +1468,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
               text={ai.summary}
               citationMap={c.backendDraft?.citation_map}
               sources={c.backendDraft?.rag_citations}
+              findings={c.backendFindings?.findings}
               className="p-5 text-[15px] leading-relaxed text-navy-800"
             />
           </Card>
@@ -1481,6 +1501,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                               text={`[${d.aliases.join(', ')}]`}
                               citationMap={c.backendDraft?.citation_map}
                               sources={c.backendDraft?.rag_citations}
+                              findings={c.backendFindings?.findings}
                               className="inline text-sm font-normal"
                             />
                           ) : null}
@@ -1701,7 +1722,13 @@ function ReportWorkspace({ c }: { c: VetCase }) {
                 <div key={String(label)}>
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{label}</dt>
                   <dd className="mt-1">
-                    <CitedText text={String(text)} citationMap={draft?.citation_map} sources={draft?.rag_citations} className="text-navy-900" />
+                    <CitedText
+                      text={String(text)}
+                      citationMap={draft?.citation_map}
+                      sources={draft?.rag_citations}
+                      findings={c.backendFindings?.findings}
+                      className="text-navy-900"
+                    />
                   </dd>
                 </div>
               ) : null,

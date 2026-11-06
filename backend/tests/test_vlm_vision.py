@@ -151,6 +151,7 @@ def test_vlm_maps_response_and_reads_dicom(tmp_path: Path, monkeypatch: pytest.M
                         "finding_status": "suspected",
                         "uncertainty_note": "demo",
                         "model_confidence": 0.4,
+                        "source_image_index": 1,
                     }
                 ],
             }
@@ -286,3 +287,9 @@ def test_vlm_synthesizes_observations_when_model_returns_empty(
     assert "IMAGE-QUALITY" in codes
     assert "REGION-APPEARANCE" in codes
     assert out.processing_metadata.get("empty_findings_synthesized") == "true"
+    # Technical-only synthesis: no invented lesion inventory language.
+    joined = " ".join(f.description.lower() for f in out.findings)
+    assert "kitle" not in joined
+    assert "kanama" not in joined
+    assert "ödem" not in joined and "odem" not in joined
+    assert "patoloji yokluğu" in joined or "patoloji yoklugu" in joined.replace("ğ", "g")
