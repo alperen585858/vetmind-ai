@@ -130,6 +130,18 @@ def test_single_class_positive_results_have_no_negative_metrics():
     assert result.rates["matthews_correlation_coefficient"].status == "undefined"
 
 
+@pytest.mark.parametrize("tp,fp,fn,expected", [(0, 11, 11, 0.0), (12, 0, 0, 1.0)])
+def test_wilson_interval_contains_endpoint_estimates(tp, fp, fn, expected):
+    result = assess_count_summary(scope(), counts(tp=tp, fp=fp, fn=fn))
+    for name in ("sensitivity", "precision"):
+        rate = result.rates[name]
+        assert rate.value == expected
+        if expected == 0.0:
+            assert rate.confidence_lower == 0.0 < rate.confidence_upper < 1.0
+        else:
+            assert 0.0 < rate.confidence_lower < rate.confidence_upper == 1.0
+
+
 def test_single_class_negative_results_have_no_positive_metrics():
     result = assess_count_summary(scope(), counts(0,0,0,5))
     assert result.rates["specificity"].value == 1

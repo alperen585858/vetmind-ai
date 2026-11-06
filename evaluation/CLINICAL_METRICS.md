@@ -40,7 +40,8 @@ and an aggregate-only command-line interface.
 - **Matched localization**: if measuring IoU, reference and prediction boxes
   must refer to the same image/frame and native pixel coordinate space, with
   an expert-confirmed correspondence. Incorrect coordinates or missing frame
-  references block measurement.
+  references block measurement. Repeated pair IDs or identical reference and
+  prediction boxes on the same frame also block measurement.
 
 `expert_verified` and `review_record_id` are claims supplied by the source
 system. The toolkit **cannot verify that a radiologist actually signed off**.
@@ -50,12 +51,15 @@ metric arithmetic is `ready`, the result sets `clinical_validation` to
 
 ### Existing manifest compatibility
 
-Use `check_manifest_alignment(manifest, scope)` when a VetMind
-`EvaluationManifest` accompanies the evaluation. It checks model identity,
-dataset version, declared review status and task. A metadata match is
-**not proof** that the review really happened. The CLI currently validates
-only the submitted metric input; manifest alignment is a separate integration
-step for the case-management workflow.
+Every CLI metric run requires a VetMind `EvaluationManifest` JSON file.
+The CLI checks the evaluation ID, model and dataset identities and versions,
+declared review status, and supported task before computing metrics.
+Localization requires a detection manifest. Observations and counts accept
+classification or detection manifests for binary opportunities.
+A metadata match records agreement between the supplied files. Independent
+review verification remains part of the clinical data workflow. The current
+manifest has no target code or analysis-unit field, so those come from the
+metric input's scope.
 
 ### Metric definitions and edge cases
 
@@ -89,7 +93,7 @@ By default the CLI returns `not_evaluated`. It does not generate sample cases or
 reference images. After real, reviewed inputs are available, it supports:
 
 ```powershell
-.\backend\.venv\Scripts\python.exe benchmarks/evaluate_clinical_metrics.py --kind observations --input <approved-input.json> --output artifacts/metrics_summary.json
+.\backend\.venv\Scripts\python.exe benchmarks/evaluate_clinical_metrics.py --kind observations --input approved-input.json --manifest evaluation-manifest.json --output artifacts/metrics_summary.json
 ```
 
 Other `--kind` values are `counts` (externally audited confusion counts) and

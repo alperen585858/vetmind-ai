@@ -40,6 +40,11 @@ def _defined(name: str, *, numerator: int | None, denominator: int | None,
         reason = undefined_reason or ("missing_verified_negatives" if denominator is None else "zero_denominator")
         return Rate(name=name, status="undefined", reason=reason,
                     numerator=numerator, denominator=denominator)
+    if confidence is not None:
+        lower, upper = confidence
+        # The exact Wilson endpoint equals the observed proportion at 0 and 1.
+        # Correct floating-point drift from the shared calculator at those endpoints.
+        confidence = (0.0 if value == 0.0 else lower, 1.0 if value == 1.0 else upper)
     return Rate(
         name=name, status="ready", value=value, numerator=numerator,
         denominator=denominator,
