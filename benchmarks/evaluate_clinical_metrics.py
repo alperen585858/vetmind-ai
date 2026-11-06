@@ -16,9 +16,16 @@ from evaluation.clinical_metrics.contracts import (
     ClassificationInput, CountEvaluationInput, LocalizationInput,
 )
 from evaluation.clinical_metrics.localization import assess_localization
+from evaluation.clinical_metrics.manifest_gate import check_manifest_alignment
+from evaluation.contracts import EvaluationManifest
 from evaluation.reports.export import export_json
 
 MAX_INPUT_BYTES = 8 * 1024 * 1024
+INPUT_CONTRACTS = {
+    "observations": ClassificationInput,
+    "counts": CountEvaluationInput,
+    "localization": LocalizationInput,
+}
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -42,27 +49,31 @@ def _readiness() -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline expert-reference metric evaluation")
-    parser.add_argument("--kind", choices=("readiness", "observations", "counts", "localization"), default="readiness")
+    parser.add_argument("--kind", choices=("readiness", *INPUT_CONTRACTS), default="readiness")
     parser.add_argument("--input", type=Path, help="Local JSON contract; not required for readiness")
+    parser.add_argument("--manifest", type=Path, help="EvaluationManifest JSON; required with metric input")
     parser.add_argument("--output", type=Path, help="Aggregate JSON output (never contains unit IDs)")
     args = parser.parse_args(argv)
     try:
         if args.kind == "readiness":
-            if args.input is not None:
-                raise ValueError("readiness_does_not_accept_input")
+            if args.input is not None or args.manifest is not None:
+                raise ValueError("readiness_does_not_accept_input_or_manifest")
             result = _readiness()
         else:
-            if args.input is None:
-                raise ValueError("input_required")
-            raw = _load(args.input)
-            if args.kind == "observations":
-                data = ClassificationInput.model_validate(raw)
+            if args.input is None or args.manifest is None:
+                raise ValueError("input_and_manifest_required")
+            data = INPUT_CONTRACTS[args.kind].model_validate(_load(args.input))
+            manifest = EvaluationManifest.model_validate(_load(args.manifest))
+            if check_manifest_alignment(manifest, data.scope).status != "aligned":
+                raise ValueError("manifest_scope_mismatch")
+            if isinstance(data, LocalizationInput) and manifest.task != "detection":
+                raise ValueError("localization_requires_detection_manifest")
+
+            if isinstance(data, ClassificationInput):
                 report = assess_binary_observations(data.scope, data.observations)
-            elif args.kind == "counts":
-                data = CountEvaluationInput.model_validate(raw)
+            elif isinstance(data, CountEvaluationInput):
                 report = assess_count_summary(data.scope, data.counts)
             else:
-                data = LocalizationInput.model_validate(raw)
                 report = assess_localization(data.scope, data.pairs, iou_threshold=data.iou_threshold)
             result = report.model_dump(mode="json")
         if args.output is not None:

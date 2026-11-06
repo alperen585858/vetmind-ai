@@ -42,7 +42,8 @@ def assess_localization(
     if not pairs:
         blockers.append("no_verified_localization_pairs")
     identifiers = [p.pair_id for p in pairs]
-    if len(identifiers) != len(set(identifiers)):
+    box_pairs = {(p.reference, p.prediction) for p in pairs}
+    if len(identifiers) != len(set(identifiers)) or len(pairs) != len(box_pairs):
         blockers.append("duplicate_localization_pair")
     if any(not p.expert_confirmed_pairing for p in pairs):
         blockers.append("pairing_not_expert_confirmed")

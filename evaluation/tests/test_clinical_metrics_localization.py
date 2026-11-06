@@ -101,6 +101,21 @@ def test_duplicate_pair_blocks():
     assert "duplicate_localization_pair" in r.blockers
 
 
+def test_duplicate_boxes_on_same_frame_block_even_with_distinct_pair_ids():
+    r = assess_localization(scope(), [pair(1), pair(2)])
+    assert r.assessment_status == "not_evaluated"
+    assert "duplicate_localization_pair" in r.blockers
+    assert r.pair_count == 0
+    assert r.mean_iou is None
+
+
+def test_same_box_coordinates_on_different_frames_remain_distinct():
+    other_frame = box(token="frame2")
+    r = assess_localization(scope(), [pair(1), pair(2, ref=other_frame, pred=other_frame)])
+    assert r.assessment_status == "ready"
+    assert r.pair_count == 2
+
+
 def test_wrong_analysis_unit_blocks():
     case_scope=scope().model_copy(update={"unit_of_analysis":"case"})
     r=assess_localization(case_scope,[pair()])
