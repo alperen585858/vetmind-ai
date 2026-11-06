@@ -11,11 +11,18 @@ from app.models.http_vision import build_optional_http_vision
 from app.models.local_torch import LocalTorchConfig, LocalTorchVisionAdapter, build_optional_local_torch
 from app.models.mock_vision import default_model_registry
 from app.models.registry import ModelRegistry
+from app.models.vlm_vision import build_optional_vlm_vision
 from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.retriever import LexicalRagRetriever
 from app.rag.vector_store import JsonVectorStore
-from app.routing.capabilities import default_capabilities
+from app.routing.capabilities import (
+    AVAILABILITY_CONFIGURED,
+    INPUT_METADATA_ONLY,
+    TASK_STRUCTURED_FINDINGS,
+    ModelCapability,
+    default_capabilities,
+)
 from app.routing.execution_policy import ModelExecutionPolicy, parse_vision_execution_mode
 from app.routing.model_router import ModelRouter
 from app.routing.registry_validation import validate_registry_capabilities
@@ -23,6 +30,7 @@ from app.routing.local_config import local_capability_from_settings, validate_lo
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
 from app.feedback.store import FeedbackStore
+from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
@@ -95,6 +103,59 @@ class AppContainer:
 
         capabilities = list(default_capabilities())
         self.models = default_model_registry()
+
+        # Multimodal VLM (Gemini etc.): REAL adapter that looks at uploaded pixels.
+        # exclusive_real execution drops overlapping mocks when this matches.
+        if self.settings.vlm_enabled:
+            vlm = build_optional_vlm_vision(
+                enabled=True,
+                quarantine=self.quarantine,
+                llm_provider=self.settings.llm_provider,
+                llm_endpoint=self.settings.llm_endpoint,
+                llm_api_key=self.settings.llm_api_key,
+                llm_model_id=self.settings.llm_model_id,
+                model_id=self.settings.vlm_model_id,
+                chat_model_id=self.settings.vlm_chat_model_id,
+                timeout_s=self.settings.vlm_timeout_s,
+                max_images=self.settings.vlm_max_images,
+                language=self.settings.llm_report_language,
+            )
+            if vlm is None:
+                raise RuntimeError("VETMIND_VLM_ENABLED=1 but VLM adapter was not built.")
+            self.models[vlm.model_id] = vlm
+            capabilities.insert(
+                0,
+                ModelCapability(
+                    model_id=vlm.model_id,
+                    modalities=frozenset(
+                        {Modality.MR, Modality.CT, Modality.XR, Modality.OTHER}
+                    ),
+                    regions=frozenset(
+                        {
+                            AnatomicalRegion.BRAIN,
+                            AnatomicalRegion.CERVICAL,
+                            AnatomicalRegion.THORAX,
+                            AnatomicalRegion.OTHER,
+                            AnatomicalRegion.UNKNOWN,
+                        }
+                    ),
+                    species=None,
+                    priority=int(self.settings.vlm_priority),
+                    enabled=True,
+                    description="OpenAI-compatible multimodal VLM (reads study images)",
+                    source_kind=SourceKind.REAL,
+                    allows_pixel_analysis=True,
+                    model_version=getattr(vlm, "version", "0.1.0-vlm"),
+                    timeout_s=float(self.settings.vlm_timeout_s),
+                    resource_hint="remote",
+                    task_capabilities=frozenset({TASK_STRUCTURED_FINDINGS}),
+                    # Route on metadata; adapter loads quarantine pixels itself.
+                    input_requirements=frozenset({INPUT_METADATA_ONLY}),
+                    availability=AVAILABILITY_CONFIGURED,
+                    adapter_kind="vlm",
+                ),
+            )
+
         remote_cap = remote_capability_from_settings(self.settings)
         if remote_cap is not None:
             remote = build_optional_http_vision(

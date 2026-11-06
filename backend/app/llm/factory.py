@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.llm.chat_providers import (
+    GEMINI_DEFAULT_BASE_URL,
     OLLAMA_DEFAULT_BASE_URL,
     OPENAI_DEFAULT_BASE_URL,
     AnthropicProvider,
@@ -19,9 +20,19 @@ _DEFAULT_PROVIDER_ID = "http-llm"
 _DEFAULT_MODEL_ID = "generic-http-llm"
 _DEFAULT_MODEL_VERSION = "0.1.0"
 
-OPENAI_KINDS = {"openai", "openai-compatible", "vllm", "openrouter", "groq", "lmstudio"}
+OPENAI_KINDS = {
+    "openai",
+    "openai-compatible",
+    "vllm",
+    "openrouter",
+    "groq",
+    "lmstudio",
+    "gemini",
+    "google",
+}
 OLLAMA_KINDS = {"ollama"}
 ANTHROPIC_KINDS = {"anthropic", "claude"}
+GEMINI_KINDS = {"gemini", "google"}
 
 
 def _build_chat_provider(kind: str, settings: Settings) -> LLMProvider:
@@ -63,12 +74,30 @@ def _build_chat_provider(kind: str, settings: Settings) -> LLMProvider:
         )
     if kind in OLLAMA_KINDS:
         base_url = endpoint or OLLAMA_DEFAULT_BASE_URL
+    elif kind in GEMINI_KINDS:
+        if not settings.llm_api_key:
+            raise LLMConfigError(
+                "llm_provider=gemini requires VETMIND_LLM_API_KEY (Google AI Studio)."
+            )
+        base_url = endpoint or GEMINI_DEFAULT_BASE_URL
     else:
         base_url = endpoint or OPENAI_DEFAULT_BASE_URL
         if base_url == OPENAI_DEFAULT_BASE_URL and not settings.llm_api_key:
             raise LLMConfigError("OpenAI API requires VETMIND_LLM_API_KEY.")
+    fallbacks = tuple(settings.llm_fallback_model_ids or ())
+    if kind in GEMINI_KINDS and not fallbacks:
+        # Capacity: Google recommends lite / 3.8 for new traffic when 3.5-flash is busy.
+        fallbacks = (
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+        )
     return OpenAICompatibleProvider(
-        **common, model_id=model_id, base_url=base_url, json_mode=settings.llm_json_mode
+        **common,
+        model_id=model_id,
+        base_url=base_url,
+        json_mode=settings.llm_json_mode,
+        fallback_model_ids=fallbacks,
     )
 
 
@@ -112,5 +141,5 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
         )
     raise LLMConfigError(
         f"Unknown llm_provider={settings.llm_provider!r}. "
-        "Allowed: mock, stub, http, openai, ollama, anthropic."
+        "Allowed: mock, stub, http, openai, ollama, anthropic, gemini."
     )

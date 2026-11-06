@@ -11,6 +11,7 @@ No network I/O at construction; POSTs are never retried (see ``app.http_policy``
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import httpx
@@ -63,6 +64,7 @@ from app.schemas.enums import ModelExecutionStatus
 
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
+GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 ANTHROPIC_DEFAULT_BASE_URL = "https://api.anthropic.com/v1"
 ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5-5"
 ANTHROPIC_API_VERSION = "2023-06-01"
@@ -105,6 +107,7 @@ class _ChatProviderBase:
         prompt_version: str = PROMPT_VERSION,
         verify: bool = False,
         verifier_model_id: str | None = None,
+        fallback_model_ids: tuple[str, ...] | list[str] | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if prompt_version not in PROMPT_VERSIONS:
@@ -124,6 +127,13 @@ class _ChatProviderBase:
         self._verifier_model = (verifier_model_id or "").strip() or model_id
         self._schema = report_json_schema(wants_differentials(prompt_version))
         self._transport = transport
+        # Alternate model ids tried after primary is overloaded (503/429).
+        seen: list[str] = []
+        for mid in (model_id, *(fallback_model_ids or ())):
+            text = str(mid or "").strip()
+            if text and text not in seen:
+                seen.append(text)
+        self._model_candidates = tuple(seen)
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         gen = request.generation
@@ -290,16 +300,41 @@ class _ChatProviderBase:
         """Return (payload for the parser, raw text kept for audit)."""
         raise NotImplementedError
 
+    def _retry_sleep(self, seconds: float) -> None:
+        # Injected mock transports are unit tests — do not burn wall time on backoff.
+        if self._transport is not None:
+            return
+        time.sleep(seconds)
+
     def _post(self, url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        """POST with short retries on transient overload (429/503), then typed errors."""
         policy = llm_http_policy(self._timeout_s)
         timeout = httpx.Timeout(policy.timeout_s, connect=min(5.0, policy.timeout_s))
-        try:
-            with httpx.Client(timeout=timeout, transport=self._transport) as client:
-                res = client.post(url, json=payload, headers=headers)
-        except httpx.TimeoutException as exc:
-            raise LLMTimeoutError(f"LLM provider timed out after {policy.timeout_s}s.") from exc
-        except httpx.HTTPError as exc:
-            raise LLMUnavailableError(f"LLM provider unavailable: {type(exc).__name__}") from exc
+        res: httpx.Response | None = None
+        last_http: Exception | None = None
+        attempts = 3 if self._transport is None else 1
+        for attempt in range(attempts):
+            try:
+                with httpx.Client(timeout=timeout, transport=self._transport) as client:
+                    res = client.post(url, json=payload, headers=headers)
+            except httpx.TimeoutException as exc:
+                raise LLMTimeoutError(f"LLM provider timed out after {policy.timeout_s}s.") from exc
+            except httpx.HTTPError as exc:
+                last_http = exc
+                if attempt >= attempts - 1:
+                    raise LLMUnavailableError(
+                        f"LLM provider unavailable: {type(exc).__name__}"
+                    ) from exc
+                self._retry_sleep(1.5 * (attempt + 1))
+                continue
+
+            if res.status_code in (429, 503) and attempt < attempts - 1:
+                self._retry_sleep(2.0 * (attempt + 1))
+                continue
+            break
+
+        if res is None:
+            raise LLMUnavailableError(f"LLM provider unavailable: {last_http}")
 
         if res.status_code in (401, 403):
             raise LLMConfigError(
@@ -307,7 +342,9 @@ class _ChatProviderBase:
                 "Check VETMIND_LLM_API_KEY."
             )
         if res.status_code == 429:
-            raise LLMUnavailableError(f"LLM provider rate limit reached (HTTP 429){_error_detail(res)}.")
+            raise LLMUnavailableError(
+                f"LLM provider rate limit reached (HTTP 429){_error_detail(res)}."
+            )
         if res.status_code >= 500:
             raise LLMUnavailableError(f"LLM provider returned HTTP {res.status_code}.")
         if res.status_code >= 400:
@@ -365,7 +402,28 @@ class OpenAICompatibleProvider(_ChatProviderBase):
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
-        body = self._post(f"{self._base_url}/chat/completions", payload, headers)
+
+        # Prefer an explicit model override (verifier), else walk the fallback chain on 503/429.
+        candidates = (
+            (model,)
+            if model
+            else (self._model_candidates or (self.model_id,))
+        )
+        last_unavailable: LLMUnavailableError | None = None
+        body: dict[str, Any] | None = None
+        for mid in candidates:
+            payload["model"] = mid
+            try:
+                body = self._post(f"{self._base_url}/chat/completions", payload, headers)
+                break
+            except LLMUnavailableError as exc:
+                last_unavailable = exc
+                # Capacity / rate-limit: try the next Gemini variant. Auth/config errors raise elsewhere.
+                if "HTTP 503" not in str(exc) and "HTTP 429" not in str(exc):
+                    raise
+                continue
+        if body is None:
+            raise last_unavailable or LLMUnavailableError("LLM provider unavailable.")
 
         try:
             choice = body["choices"][0]

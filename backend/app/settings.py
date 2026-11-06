@@ -40,6 +40,13 @@ class Settings:
     vision_transmit_pixels: bool = False
     # Build-level opt-in for pixel decode / bridge (default deny; synthetic probes exempt).
     pixel_analysis_opt_in: bool = False
+    # Multimodal VLM Vision (Gemini/OpenAI-compatible): send study images to chat model.
+    vlm_enabled: bool = False
+    vlm_model_id: str = "vlm-vision-v1"
+    vlm_chat_model_id: str | None = None  # default = llm_model_id
+    vlm_timeout_s: float = 180.0
+    vlm_max_images: int = 6
+    vlm_priority: int = 1
     # Optional local PyTorch Vision (weights + entrypoint required for loaded state).
     local_torch_model_id: str | None = None
     local_torch_weights_path: str | None = None
@@ -69,6 +76,8 @@ class Settings:
     llm_endpoint: str | None = None
     llm_provider_id: str = "http-llm"
     llm_model_id: str = "generic-http-llm"
+    # Comma-separated alternates tried after primary hits 503/429 (Gemini capacity).
+    llm_fallback_model_ids: tuple[str, ...] = ()
     llm_model_version: str = "0.1.0"
     llm_api_key: str | None = None
     llm_timeout_s: float = 30.0
@@ -166,7 +175,19 @@ def _env_optional_int(name: str) -> int | None:
         return None
 
 
+def _load_dotenv_files() -> None:
+    """Load backend/.env into os.environ when present (does not override existing vars)."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    env_path = _backend_root() / ".env"
+    if env_path.is_file():
+        load_dotenv(env_path, override=False)
+
+
 def load_settings() -> Settings:
+    _load_dotenv_files()
     backend = os.getenv("VETMIND_STORAGE", "sqlite").strip().lower()
     if backend not in {"memory", "sqlite", "postgres"}:
         backend = "sqlite"
@@ -237,6 +258,22 @@ def load_settings() -> Settings:
     vision_transmit_pixels = _env_bool("VETMIND_VISION_TRANSMIT_PIXELS", False)
     pixel_analysis_opt_in = _env_bool("VETMIND_PIXEL_ANALYSIS_OPT_IN", False)
 
+    vlm_enabled = _env_bool("VETMIND_VLM_ENABLED", False)
+    vlm_model_id = os.getenv("VETMIND_VLM_ADAPTER_ID", "vlm-vision-v1").strip() or "vlm-vision-v1"
+    vlm_chat_model_id = (os.getenv("VETMIND_VLM_MODEL_ID") or "").strip() or None
+    try:
+        vlm_timeout_s = float(os.getenv("VETMIND_VLM_TIMEOUT_S", "180"))
+    except ValueError:
+        vlm_timeout_s = 180.0
+    try:
+        vlm_max_images = int(os.getenv("VETMIND_VLM_MAX_IMAGES", "6"))
+    except ValueError:
+        vlm_max_images = 6
+    try:
+        vlm_priority = int(os.getenv("VETMIND_VLM_PRIORITY", "1"))
+    except ValueError:
+        vlm_priority = 1
+
     local_torch_model_id = os.getenv("VETMIND_LOCAL_TORCH_MODEL_ID") or None
     local_torch_weights_path = os.getenv("VETMIND_LOCAL_TORCH_WEIGHTS_PATH") or None
     local_torch_weights_sha256 = (os.getenv("VETMIND_LOCAL_TORCH_WEIGHTS_SHA256") or "").strip().lower() or None
@@ -283,6 +320,7 @@ def load_settings() -> Settings:
     llm_endpoint = os.getenv("VETMIND_LLM_ENDPOINT") or None
     llm_provider_id = os.getenv("VETMIND_LLM_PROVIDER_ID", "http-llm").strip() or "http-llm"
     llm_model_id = os.getenv("VETMIND_LLM_MODEL_ID", "generic-http-llm").strip() or "generic-http-llm"
+    llm_fallback_model_ids = _csv_tuple("VETMIND_LLM_FALLBACK_MODELS")
     llm_model_version = os.getenv("VETMIND_LLM_MODEL_VERSION", "0.1.0").strip() or "0.1.0"
     llm_api_key = os.getenv("VETMIND_LLM_API_KEY") or None
     try:
@@ -398,6 +436,12 @@ def load_settings() -> Settings:
         vision_max_tensor_bytes=vision_max_tensor_bytes,
         vision_transmit_pixels=vision_transmit_pixels,
         pixel_analysis_opt_in=pixel_analysis_opt_in,
+        vlm_enabled=vlm_enabled,
+        vlm_model_id=vlm_model_id,
+        vlm_chat_model_id=vlm_chat_model_id,
+        vlm_timeout_s=max(5.0, vlm_timeout_s),
+        vlm_max_images=max(1, min(vlm_max_images, 12)),
+        vlm_priority=max(0, vlm_priority),
         local_torch_model_id=local_torch_model_id,
         local_torch_weights_path=local_torch_weights_path,
         local_torch_weights_sha256=local_torch_weights_sha256,
@@ -419,6 +463,7 @@ def load_settings() -> Settings:
         llm_endpoint=llm_endpoint,
         llm_provider_id=llm_provider_id,
         llm_model_id=llm_model_id,
+        llm_fallback_model_ids=llm_fallback_model_ids,
         llm_model_version=llm_model_version,
         llm_api_key=llm_api_key,
         llm_timeout_s=llm_timeout_s,

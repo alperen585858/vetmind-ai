@@ -633,18 +633,36 @@ export async function analyzeCaseAsyncAndWait(
         status === 'timed_out'
       if (terminal) {
         throwIfAborted(signal, job.job_id)
+        // Findings/report are often absent on failed jobs — never let those 404s mask the job error.
         const [findings, report, caseRecord] = await Promise.all([
           request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal }).catch(() => null),
           request<BackendDraftReport | null>(`/cases/${caseId}/report`, { signal }).catch(() => null),
-          getBackendCase(caseId, signal),
+          (async () => {
+            let lastErr: unknown
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                return await getBackendCase(caseId, signal)
+              } catch (err) {
+                lastErr = err
+                await sleep(150 * (attempt + 1), signal)
+              }
+            }
+            // Job already finished; prefer surfacing the pipeline error over a transient case GET miss.
+            if (status === 'failed' || status === 'cancelled' || status === 'timed_out') {
+              return null
+            }
+            throw lastErr instanceof Error ? lastErr : new Error('Case not found.')
+          })(),
         ])
+        if (status === 'failed' || status === 'cancelled' || status === 'timed_out') {
+          const detail =
+            (polled.error_message && String(polled.error_message).trim()) ||
+            `Async analyze ended with status=${status}.`
+          throw new Error(detail)
+        }
         const outcome =
           (polled.outcome as BackendPipelineResult['outcome'] | null) ??
-          (status === 'failed' || status === 'cancelled' || status === 'timed_out'
-            ? 'failed'
-            : caseRecord.status === 'manual_review'
-              ? 'unsupported'
-              : 'success')
+          (caseRecord?.status === 'manual_review' ? 'unsupported' : 'success')
         return {
           outcome,
           job: {

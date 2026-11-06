@@ -89,11 +89,12 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 sqlite_path = str(c.settings.sqlite_path)
             quarantine_root = str(c.settings.quarantine_root)
         vision_remote = bool(c.settings.vision_endpoint)
+        vlm_enabled = bool(c.settings.vlm_enabled)
         llm_kind = (c.settings.llm_provider or "mock").strip().lower()
         llm_remote = llm_kind not in {"mock", "stub"}
-        if vision_remote and llm_remote:
+        if (vision_remote or vlm_enabled) and llm_remote:
             pipeline_mode = "configured"
-        elif vision_remote or llm_remote:
+        elif vision_remote or vlm_enabled or llm_remote:
             pipeline_mode = "partial_remote"
         else:
             pipeline_mode = "mock"
@@ -111,6 +112,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "tenant_isolation": c.auth.tenant_isolation,
             "encryption_at_rest": c.encryption.mode,
             "vision_endpoint": vision_remote,
+            "vlm_enabled": vlm_enabled,
             "vision_execution_policy": c.settings.vision_execution_policy,
             "llm_provider": c.settings.llm_provider,
             "note": "Not a clinical system. Optional Postgres/auth/remote Vision/RQ via env.",
