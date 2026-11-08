@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { BadgeCheck, Maximize2, Minimize2, RotateCcw, X } from 'lucide-react'
 import { Logo } from './Logo'
+import { useLocale } from '../context/LocaleContext'
+import { modalityLabel, regionLabel } from '../lib/displayClean'
 import { ReportEvidenceFigures } from './ReportEvidenceFigures'
 import { SECTION_LABELS } from '../data/mock'
 import type { DicomFramePreview } from '../lib/dicomPreview'
@@ -71,6 +73,7 @@ export function ReportDocumentEditor({
 }) {
   const deskRef = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const { t } = useLocale()
   const p = caseData.patient
   const reviewStatus =
     caseData.status === 'onaylandi'
@@ -79,7 +82,7 @@ export function ReportDocumentEditor({
         ? 'Reddedildi'
         : caseData.status === 'revizyon'
           ? 'Revizyon istendi'
-          : caseData.backendDraft?.status || caseData.status
+          : t(`status.${caseData.status}`)
 
   useEffect(() => {
     const onFs = () => {
@@ -175,7 +178,7 @@ export function ReportDocumentEditor({
               <p className="text-lg font-semibold text-navy-900">Veteriner Radyoloji Değerlendirme Raporu</p>
               <p className="text-slate-500">
                 Rapor No:{' '}
-                <span className="font-mono font-medium text-navy-800">{caseData.reportNo ?? '—'}</span>
+                <span className="font-mono font-medium text-navy-800">{caseData.reportNo ?? '— (onay sonrası)'}</span>
               </p>
               <p className="text-slate-500">
                 Vaka No: <span className="font-mono">{caseData.no}</span>
@@ -226,11 +229,11 @@ export function ReportDocumentEditor({
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-slate-500">Modalite</dt>
-                  <dd className="text-navy-900">{caseData.modality ?? '—'}</dd>
+                  <dd className="text-navy-900">{modalityLabel(t, caseData.modality) || '—'}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-slate-500">Bölge</dt>
-                  <dd className="text-navy-900">{caseData.anatomicalRegion ?? '—'}</dd>
+                  <dd className="text-navy-900">{regionLabel(t, caseData.anatomicalRegion) || '—'}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-slate-500">Başvuru</dt>

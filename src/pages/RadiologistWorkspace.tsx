@@ -1084,7 +1084,11 @@ export default function RadiologistWorkspace() {
               )
             }
           >
-            {modal === 'approve' ? t('review.workspace.confirmApprove') : t('common.send')}
+            {modal === 'approve'
+              ? t('review.workspace.confirmApprove')
+              : modal === 'revizyon'
+                ? t('review.workspace.saveRevisionManual')
+                : t('review.workspace.confirmReject')}
           </Button>
         </div>
       </Modal>

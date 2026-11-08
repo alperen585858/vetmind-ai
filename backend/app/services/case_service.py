@@ -1585,8 +1585,10 @@ class CaseService:
             event = "review.reject" if feedback.action == ReviewAction.REJECT else "review.revision"
             self._emit_audit(event, principal=principal, resource=case_id)
             if feedback.action == ReviewAction.REQUEST_REVISION:
-                for recipient in {saved.owner_subject, saved.pet_owner_subject, "vet@demo.local"}:
-                    if not recipient or recipient == feedback.reviewer_id:
+                # Revision is radiologist <-> referring vet workflow; pet owners only see approved
+                # reports (owner-submitted cases have owner_subject == pet_owner_subject).
+                for recipient in {saved.owner_subject, "vet@demo.local"}:
+                    if not recipient or recipient == feedback.reviewer_id or recipient == saved.pet_owner_subject:
                         continue
                     self._notify(
                         recipient_subject=recipient,

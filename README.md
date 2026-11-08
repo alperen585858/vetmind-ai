@@ -1114,12 +1114,13 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 | 1 | **Referans raporlu test seti** — VRM uzmanlarının yazdığı gerçek (anonim) vakalar + referans rapor | GREEN tarzı klinik hata sayımı ve tezin "klinik doğruluk" sonucu için şart | Buğra + VRM |
 | 2 | **GREEN tarzı referanslı değerlendirme** — üretilen rapor ↔ uzman raporu: uydurma / atlanan bulgu, yanlış konum, yanlış ciddiyet | Atıf kontrolünün ötesinde gerçek kalite ölçümü | Alperen |
 | 3 | **Hakem doğruluğunu ölçmek** — hakem kararlarını uzman kararlarıyla karşılaştırmak; TurkMedNLI alt kümesiyle hakem model seçimi | Hakeme ne kadar güvenebileceğimizi bilmek | Alperen |
-| 4 | **RAG alaka filtresi** — beyin lezyonuna ırk kafatası pasajı gelmesi gibi alakasız sonuçlar modeli yanıltıyor ("Brakisefalik" uydurma tanısı) | Hakem bunu "alakasız kaynak" diye yakalıyor ama kaynağında çözülmeli | Nehir |
+| 4 | ✅ **RAG alaka filtresi** — bölge/tür filtresi, skor eşiği, toraks kaynakları (bkz. §8.4). Kalan: bge-m3 gibi gerçek embedding | Hakem bunu "alakasız kaynak" diye yakalıyor ama kaynağında çözülmeli | Nehir |
 | 5 | **Türkçe veteriner terim sözlüğü** — İngilizce terimlerin (%3–9) Türkçe karşılıkları | Rapor dili tutarlılığı | Alperen + Buğra |
 | 6 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
 | 7 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
 | 8 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
 | 9 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
+| 10 | **Revizyondan öğrenen AI** — radyoloğun revizyon gerekçesine göre (a) taslak o anda düzeltilsin ("Yapay zekâ ile yeniden yaz" bunun ilk hâli), (b) düzeltme kalıcı bir "ders" olarak kaydedilsin (ör. "ağrılı servikal vakada FKE'yi öne çıkarma") ve benzer vakalarda (bölge/tür/bulgu eşleşmesiyle) prompta eklensin ki aynı hata tekrarlanmasın. Uzun vadede #6 (LoRA) ile birleşir | Aynı hatayı her vakada elle düzeltmek zorunda kalınmasın | Nehir |
 
 **Olası sonraki adımlar (platform):**
 
