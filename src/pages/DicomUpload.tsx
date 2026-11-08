@@ -23,13 +23,9 @@ import { Button } from '../components/Button'
 import { DicomViewer } from '../components/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from '../components/SeriesExplorer'
 import { CLINIC } from '../data/mock'
-import { buildAssessment, makeDocument } from '../data/templates'
-import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
 import {
   BackendUnavailableError,
-  PollingCancelledError,
-  confirmDicomAndEnqueueAnalyze,
   fetchDemoDicomFiles,
   uploadDicomDemo,
   uploadDicomFiles,
@@ -47,12 +43,12 @@ import {
 } from '../lib/dicomFolder'
 import {
   PHASE_LABELS,
-  canStartDemoAnalysis,
   classificationConfirmationLabel,
   deriveSelectionPhase,
   validatePatientForm,
 } from '../lib/dicomWorkflow'
-import { cacheCaseDicomFiles } from '../lib/dicomCaseCache'
+import { setAnalyzeHandoff } from '../lib/analyzeHandoff'
+import { estimateAnalysisDurationMs } from '../lib/analysisProgress'
 import type {
   BackendAnatomicalRegion,
   BackendModality,
@@ -61,7 +57,6 @@ import type {
   DicomUploadResponse,
   NeuroExam,
   Patient,
-  Priority,
   VetCase,
 } from '../types'
 
@@ -93,7 +88,7 @@ const DEMO_SETS: {
 
 export default function DicomUpload() {
   const { addCase, pushToast, user } = useApp()
-  const { t, locale } = useLocale()
+  const { t } = useLocale()
   const nav = useLocalizedNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -203,20 +198,25 @@ export default function DicomUpload() {
     setActiveSeriesKey(null)
   }, [])
 
-  const cancelInFlight = useCallback(() => {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setBusy(false)
-    setValidating(false)
-    setUploading(false)
-    setUploadProgress(null)
-    submitLockRef.current = false
-    pushToast({
-      tone: 'info',
-      title: t('dicom.cancelledTitle'),
-      body: t('dicom.cancelledBody'),
-    })
-  }, [pushToast, t])
+  const cancelInFlight = useCallback(
+    (opts?: { silent?: boolean }) => {
+      abortRef.current?.abort()
+      abortRef.current = null
+      setBusy(false)
+      setValidating(false)
+      setUploading(false)
+      setUploadProgress(null)
+      submitLockRef.current = false
+      if (!opts?.silent) {
+        pushToast({
+          tone: 'info',
+          title: t('dicom.cancelledTitle'),
+          body: t('dicom.cancelledBody'),
+        })
+      }
+    },
+    [pushToast, t],
+  )
 
   const mergeIncoming = async (incoming: File[], sourceLabel: string) => {
     if (!incoming.length) {
@@ -427,7 +427,7 @@ export default function DicomUpload() {
     setBusy(false)
   }
 
-  const submit = async () => {
+  const submit = () => {
     if (submitLockRef.current) {
       pushToast({ tone: 'warning', title: t('dicom.duplicateBlocked'), body: t('dicom.duplicateBody') })
       return
@@ -441,216 +441,91 @@ export default function DicomUpload() {
       })
       return
     }
-    const gate = canStartDemoAnalysis({
-      phase: workspacePhase,
-      consent,
-      previewBlocked: Boolean(preview?.blocked),
-      hasIngestOrDemo: Boolean((preview && !preview.blocked) || files.length || pendingDemo),
-    })
-    if (!gate.ok) {
+    if (!preview?.ingest_id && files.length === 0 && !pendingDemo) {
       pushToast({
         tone: 'warning',
-        title: 'Analiz başlatılamaz',
-        body: gate.reason ?? 'Önkoşullar sağlanmadı',
+        title: 'DICOM gerekli',
+        body: 'Dosya sürükleyin veya örnek veri setini kullanın.',
       })
       return
     }
-    submitLockRef.current = true
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    setBusy(true)
-    setUploading(true)
-    setUploadProgress('Analiz hazırlanıyor…')
-    try {
-      let ingestId = preview && !preview.blocked ? preview.ingest_id : undefined
-      let uploadSnap = preview
-      if (!ingestId) {
-        if (files.length === 0 && !pendingDemo) {
-          pushToast({
-            tone: 'warning',
-            title: 'DICOM gerekli',
-            body: 'Dosya sürükleyin veya örnek veri setini kullanın.',
-          })
-          return
-        }
-        setUploadProgress('Metadata yükleniyor…')
-        const upload = pendingDemo
-          ? await uploadDicomDemo({
-              kind: pendingDemo,
-              patientName,
-              species,
-              breed,
-              clinicalHistory: history,
-              signal: controller.signal,
-            })
-          : await uploadDicomFiles({
-              files,
-              patientName,
-              species,
-              breed,
-              clinicalHistory: history,
-              signal: controller.signal,
-            })
-        uploadSnap = upload
-        setPreview(upload)
-        applyDefaults(upload)
-        if (upload.blocked) {
-          pushToast({ tone: 'error', title: t('dicom.uploadBlocked'), body: upload.block_reason ?? t('dicom.validationError') })
-          return
-        }
-        ingestId = upload.ingest_id
-      }
-
-      setUploadProgress('Sınıflandırma onayı…')
-      const { case: caseRecord, job } = await confirmDicomAndEnqueueAnalyze({
-        ingestId,
-        acceptSuggestion,
-        modality: acceptSuggestion ? undefined : overrideModality,
-        anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
-        patientName,
-        clinicalHistory: history,
-        imagingSourcePermissionVerified: consent,
-        imagingAnalysisConsentVerified: consent,
-        signal: controller.signal,
-      })
-
-      const parsedAge = ageYears.trim() === '' ? 0 : Number(ageYears)
-      const patient: Patient = {
-        name: patientName,
-        species,
-        breed,
-        sex: 'Erkek',
-        neutered: true,
-        age: Number.isFinite(parsedAge) ? parsedAge : 0,
-        weight: 0,
-        ownerName: 'Sahip',
-        ownerPhone: '',
-      }
-      const clinical: ClinicalInfo = {
-        complaint: history.split('\n')[0] || 'DICOM inceleme',
-        onset: 'Akut',
-        course: 'Progresif',
-        history,
-        medications: '',
-      }
-      const neuro = EMPTY_NEURO
-      const stamp = nowStamp()
-      const loc = localize(neuro, clinical, locale)
-      const built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
-
-      const id = caseRecord.case_id
-      const no = id.replace(/^case-/, 'VM-').toUpperCase()
-      const priority: Priority = 'Normal'
-      const instanceCount =
-        uploadSnap?.study?.series.reduce((n, s) => n + s.instances.length, 0) ??
-        caseRecord.dicom_study?.series?.reduce((n, s) => n + (s.instances?.length ?? 0), 0) ??
-        files.length
-      // Rough ETA for Processing progress (VLM batches + LLM draft); refined live by job %.
-      const vlmBatches = Math.max(1, Math.ceil(instanceCount / 8))
-      const estimatedMs = 12_000 + vlmBatches * 7_000 + 50_000
-
-      const newCase: VetCase = {
-        id,
-        no,
-        patient,
-        clinical,
-        neuro,
-        documents: [
-          {
-            ...makeDocument(
-              `${id}-dicom`,
-              `DICOM study ${uploadSnap?.study?.study_instance_uid ?? 'pending'}`,
-              'MR Raporu',
-              patient,
-              clinical,
-              built.imaging,
-            ),
-            size: `${instanceCount} görüntü`,
-            rawText: 'Yalnızca DICOM dosya bilgileri okundu; görüntü pikselleri analiz edilmedi.',
-            extracted: [
-              {
-                field: 'StudyInstanceUID',
-                value: uploadSnap?.study?.study_instance_uid ?? '—',
-                source: 'DICOM',
-              },
-              {
-                field: 'Sınıflandırma',
-                value: uploadSnap?.classification
-                  ? studyLabel(t, uploadSnap.classification.suggested_modality, uploadSnap.classification.suggested_anatomical_region)
-                  : '—',
-                source: 'DICOM sınıflandırıcı',
-              },
-            ],
-          },
-        ],
-        status: 'ai_analizi',
-        module: 'Nöroloji',
-        priority,
-        createdAt: today(),
-        clinic: CLINIC,
-        vetName: user?.name ?? 'Dr. Elif Kaya',
-        ai: built.ai,
-        aiDraft: built.draft,
-        report: { ...built.draft },
-        corrections: [],
-        timeline: [
-          { date: stamp, label: 'Giriş sonrası DICOM metadata yüklendi', by: user?.name ?? 'vet' },
-          {
-            date: stamp,
-            label: `Analiz kuyruğa alındı (${job.job_id})`,
-            by: 'Sistem',
-          },
-        ],
-        processingStartedAt: Date.now(),
-        processingMs: estimatedMs,
-        backendCaseId: id,
-        backendJobId: job.job_id,
-        fromBackend: true,
-        dicomDemoKind: pendingDemo ?? undefined,
-        modality: caseRecord.modality,
-        anatomicalRegion: caseRecord.anatomical_region,
-        studyInstanceUid: caseRecord.dicom_study?.study_instance_uid,
-        instanceCount,
-      }
-
-      addCase(newCase)
-      // Persist uploaded bytes for case-detail viewer (prefer real study over synthetic fixtures).
-      if (files.length > 0) {
-        void cacheCaseDicomFiles(id, files.slice(0, MAX_VIEWER_FRAMES))
-      }
+    if (preview?.blocked) {
       pushToast({
-        tone: 'info',
-        title: 'Analiz başladı',
-        body: `${patientName} · ilerleme ekranına yönlendirildiniz`,
+        tone: 'warning',
+        title: t('dicom.uploadBlocked'),
+        body: preview.block_reason ?? t('dicom.validationError'),
       })
-
-      // Leave the upload page immediately — do not wait for analysis to finish.
-      nav(`/vakalar/${id}/isleme`)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
-      if (err instanceof PollingCancelledError) {
-        pushToast({
-          tone: 'info',
-          title: 'Analiz durduruldu',
-          body: 'Analiz durdurma isteği gönderildi.',
-        })
-        return
-      }
-      const message =
-        err instanceof BackendUnavailableError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'İşlem başarısız'
-      pushToast({ tone: 'error', title: 'Analiz başlatılamadı', body: message })
-    } finally {
-      submitLockRef.current = false
-      if (abortRef.current) abortRef.current = null
-      setBusy(false)
-      setUploading(false)
-      setUploadProgress(null)
+      return
     }
+
+    // Never stay on this page in "Processing…" — abort local upload/preview and leave now.
+    cancelInFlight({ silent: true })
+    submitLockRef.current = true
+
+    const pendingId = `pending-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
+    const parsedAge = ageYears.trim() === '' ? 0 : Number(ageYears)
+    const patient: Patient = {
+      name: patientName,
+      species,
+      breed,
+      sex: 'Erkek',
+      neutered: true,
+      age: Number.isFinite(parsedAge) ? parsedAge : 0,
+      weight: 0,
+      ownerName: 'Sahip',
+      ownerPhone: '',
+    }
+    const clinical: ClinicalInfo = {
+      complaint: history.split('\n')[0] || 'DICOM inceleme',
+      onset: 'Akut',
+      course: 'Progresif',
+      history,
+      medications: '',
+    }
+    const instanceCount =
+      (preview?.study?.series.reduce((n, s) => n + s.instances.length, 0) ?? files.length) || 1
+    const stamp = nowStamp()
+    const pendingCase: VetCase = {
+      id: pendingId,
+      no: pendingId.replace(/^pending-/, 'VM-').toUpperCase(),
+      patient,
+      clinical,
+      neuro: EMPTY_NEURO,
+      documents: [],
+      status: 'ai_analizi',
+      module: 'Nöroloji',
+      priority: 'Normal',
+      createdAt: today(),
+      clinic: CLINIC,
+      vetName: user?.name ?? 'Dr. Elif Kaya',
+      corrections: [],
+      timeline: [{ date: stamp, label: 'Analiz hazırlanıyor', by: user?.name ?? 'vet' }],
+      processingStartedAt: Date.now(),
+      processingMs: estimateAnalysisDurationMs(instanceCount),
+      dicomDemoKind: pendingDemo ?? undefined,
+      instanceCount,
+    }
+
+    setAnalyzeHandoff({
+      pendingId,
+      files: files.slice(),
+      pendingDemo,
+      // If a metadata preview was still uploading, ignore partial preview and re-upload on Processing.
+      ingestId: preview && !preview.blocked ? preview.ingest_id : undefined,
+      uploadSnap: preview && !preview.blocked ? preview : null,
+      patientName,
+      species,
+      breed,
+      ageYears,
+      history,
+      consent,
+      acceptSuggestion,
+      overrideModality,
+      overrideRegion,
+      vetName: user?.name ?? 'Dr. Elif Kaya',
+    })
+    addCase(pendingCase)
+    nav(`/vakalar/${pendingId}/isleme`, { replace: true })
   }
 
   const clinicalPanel = (
@@ -854,14 +729,17 @@ export default function DicomUpload() {
         <Button
           size="lg"
           className="w-full shadow-md shadow-teal-700/15"
-          disabled={busy || validating || Boolean(preview?.blocked) || !hasStudy || !consent}
-          onClick={() => void submit()}
+          disabled={validating || Boolean(preview?.blocked) || !hasStudy || !consent}
+          onClick={() => submit()}
           icon={<Sparkles className="h-4 w-4" />}
         >
-          {busy ? t('dicom.processing') : t('dicom.sendToAnalysis')}
+          {t('dicom.sendToAnalysis')}
         </Button>
         {(busy || uploading) && (
-          <Button variant="secondary" className="w-full" onClick={cancelInFlight}>
+          <p className="text-center text-xs text-slate-500">{uploadProgress ?? t('dicom.processing')}</p>
+        )}
+        {(busy || uploading) && (
+          <Button variant="secondary" className="w-full" onClick={() => cancelInFlight()}>
             Analizi / yüklemeyi durdur
           </Button>
         )}
@@ -955,7 +833,7 @@ export default function DicomUpload() {
           </p>
           <button
             type="button"
-            onClick={cancelInFlight}
+            onClick={() => cancelInFlight()}
             className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-rose-200 hover:text-rose-700"
           >
             <XCircle className="h-3.5 w-3.5" />

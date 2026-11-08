@@ -720,7 +720,13 @@
       "security2": "Kaynak atıfları klinik doğrulama değildir.",
       "security3": "Provider hataları sessizce yok sayılmaz.",
       "studyMetadata": "Çalışma metadatası",
-      "models": "Modeller"
+      "models": "Modeller",
+      "loadingTitle": "Yükleniyor",
+      "sentToAi": "AI'ya atıldı",
+      "progressOf100": "{pct}% / 100%",
+      "preparingUpload": "Görüntüler yükleniyor…",
+      "preparingQueue": "Analiz kuyruğa alınıyor…",
+      "handoffFailed": "Analiz başlatılamadı"
     },
     "workflow": {
       "dicom": "DICOM Yüklendi",

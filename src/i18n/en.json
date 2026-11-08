@@ -720,7 +720,13 @@
       "security2": "Source citations are not clinical validation.",
       "security3": "Provider errors are not silently ignored.",
       "studyMetadata": "Study metadata",
-      "models": "Models"
+      "models": "Models",
+      "loadingTitle": "Loading",
+      "sentToAi": "Sent to AI",
+      "progressOf100": "{pct}% / 100%",
+      "preparingUpload": "Uploading images…",
+      "preparingQueue": "Queuing analysis…",
+      "handoffFailed": "Could not start analysis"
     },
     "workflow": {
       "dicom": "DICOM uploaded",
