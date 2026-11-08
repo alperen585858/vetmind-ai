@@ -26,7 +26,7 @@ describe('reviewSla', () => {
   it('formats remaining label', () => {
     const now = Date.parse('2026-10-29T12:00:00.000Z')
     expect(formatSlaRemaining('2026-10-29T14:30:00.000Z', now)).toContain('kaldı')
-    expect(formatSlaRemaining('2026-10-29T10:00:00.000Z', now)).toContain('gecikme')
+    expect(formatSlaRemaining('2026-10-29T10:00:00.000Z', now)).toBe('Süresi geçmiş')
     expect(remainingMs(undefined)).toBeNull()
   })
 

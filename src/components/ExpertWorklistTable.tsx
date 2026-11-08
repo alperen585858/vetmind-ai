@@ -130,25 +130,55 @@ export function ExpertWorklistTable({
             const attention = isSlaAttention(c.reviewDueAt)
             const displayTone = attention && (tone === 'ok' || tone === 'none') ? 'warn' : tone
             const open = expanded === c.id
+            const workspaceHref = `/vakalar/${c.id}/calisma`
+            const openCase = () => nav(workspaceHref)
             return (
               <tr
                 key={c.id}
-                className={`border-l-4 bg-white transition duration-150 hover:bg-teal-50/30 ${accentClass(displayTone)}`}
+                role="link"
+                tabIndex={0}
+                aria-label={`${c.patient.name} — ${t('dashboard.expertOpen')}`}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement
+                  if (target.closest('button, a, input, [data-stop-row-nav]')) return
+                  openCase()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return
+                  const target = e.target as HTMLElement
+                  if (target.closest('button, a, input, [data-stop-row-nav]')) return
+                  e.preventDefault()
+                  openCase()
+                }}
+                className={`cursor-pointer border-l-4 bg-white transition duration-150 hover:bg-teal-50/40 focus-visible:bg-teal-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${accentClass(displayTone)}`}
               >
                 <td className={`${cell} align-middle`}>
-                  <p className="font-semibold text-[color:var(--vm-text,#172b4d)]">{c.patient.name}</p>
+                  <button
+                    type="button"
+                    className="text-left font-semibold text-[color:var(--vm-text,#172b4d)] transition hover:text-teal-700 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openCase()
+                    }}
+                  >
+                    {c.patient.name}
+                  </button>
                   <p className="text-[11px] text-slate-500">{c.patient.species}</p>
                   <button
                     type="button"
+                    data-stop-row-nav
                     className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-medium text-slate-400 transition hover:text-teal-700"
                     aria-expanded={open}
-                    onClick={() => setExpanded(open ? null : c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpanded(open ? null : c.id)
+                    }}
                   >
                     {t('common.details')}
                     <ChevronDown className={`h-3 w-3 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
                   </button>
                   {open ? (
-                    <div className="mt-1.5 space-y-0.5 text-[11px] text-slate-500">
+                    <div data-stop-row-nav className="mt-1.5 space-y-0.5 text-[11px] text-slate-500" onClick={(e) => e.stopPropagation()}>
                       <p className="font-mono">{c.no}</p>
                       <p>
                         {c.patient.breed}
@@ -181,9 +211,9 @@ export function ExpertWorklistTable({
                 <td className={`${cell} align-middle`}>
                   <StatusBadge status={c.status} />
                 </td>
-                <td className={`${cell} align-middle`}>
+                <td className={`${cell} align-middle`} data-stop-row-nav onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Button size="sm" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+                    <Button size="sm" onClick={openCase}>
                       {t('dashboard.expertOpen')}
                     </Button>
                     {showClaim && onClaim ? (

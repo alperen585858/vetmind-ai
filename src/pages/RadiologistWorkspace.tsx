@@ -724,7 +724,15 @@ export default function RadiologistWorkspace() {
             }}
           />
 
-          <ReportDocumentEditor caseData={c} value={text} onChange={setText} disabled={immutable} />
+          <ReportDocumentEditor
+            caseData={c}
+            value={text}
+            onChange={setText}
+            disabled={immutable}
+            aiDraft={c.aiDraft ?? null}
+            findings={c.backendFindings}
+            frames={frames}
+          />
 
           <Card className="p-4">
             <div className="flex flex-wrap gap-2">

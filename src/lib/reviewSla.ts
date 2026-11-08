@@ -52,12 +52,11 @@ export function compareBySlaUrgency(
 export function formatSlaRemaining(reviewDueAt: string | null | undefined, now = Date.now()): string {
   const rem = remainingMs(reviewDueAt, now)
   if (rem == null) return '—'
-  const overdue = rem <= 0
-  const abs = Math.abs(rem)
-  const h = Math.floor(abs / 3_600_000)
-  const m = Math.floor((abs % 3_600_000) / 60_000)
+  if (rem <= 0) return 'Süresi geçmiş'
+  const h = Math.floor(rem / 3_600_000)
+  const m = Math.floor((rem % 3_600_000) / 60_000)
   const label = h > 0 ? `${h} sa ${m} dk` : `${Math.max(1, m)} dk`
-  return overdue ? `${label} gecikme` : `${label} kaldı`
+  return `${label} kaldı`
 }
 
 export function slaRowClass(tone: SlaTone): string {

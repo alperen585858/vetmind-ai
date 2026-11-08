@@ -1635,6 +1635,31 @@ export async function downloadApprovedReportPdf(caseId: string, version?: number
   return res.blob()
 }
 
+/** Working-store overlay PNG for an evidence id (auth required). Caller must revokeObjectURL. */
+export async function fetchEvidenceOverlayObjectUrl(caseId: string, evidenceId: string): Promise<string> {
+  const headers = new Headers()
+  const token = getBackendAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const session = loadSession()
+  if (session?.role && session?.email) {
+    headers.set('X-VetMind-Demo-Role', session.role)
+    headers.set('X-VetMind-Demo-Subject', session.email)
+  }
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}`, {
+      headers,
+    })
+  } catch {
+    throw new BackendUnavailableError()
+  }
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? 'Evidence overlay not found' : `Evidence overlay failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
 export async function listCaseActivity(caseId: string) {
   return request<Array<{ event_id: string; kind: string; actor_subject: string; at: string; detail?: string | null }>>(
     `/cases/${caseId}/activity`,

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { BadgeCheck, FileText, Maximize2, Minimize2, X } from 'lucide-react'
+import { BadgeCheck, Maximize2, Minimize2, RotateCcw, X } from 'lucide-react'
 import { Logo } from './Logo'
-import { REPORT_TEMPLATES, type ReportTemplateId } from '../data/reportTemplates'
+import { ReportEvidenceFigures } from './ReportEvidenceFigures'
 import { SECTION_LABELS } from '../data/mock'
+import type { DicomFramePreview } from '../lib/dicomPreview'
 import { fmtDate } from '../lib/format'
-import type { ReportSections, SectionKey, VetCase } from '../types'
+import type { BackendFindings, ReportSections, SectionKey, VetCase } from '../types'
 
 /** Sections shown on the live A4 page — matches approved PDF body (+ optional ayırıcı). */
 const DOC_KEYS: SectionKey[] = [
@@ -53,14 +54,19 @@ export function ReportDocumentEditor({
   value,
   onChange,
   disabled = false,
-  onApplyTemplate,
+  aiDraft,
+  findings,
+  frames,
   className = '',
 }: {
   caseData: VetCase
   value: ReportSections
   onChange: (next: ReportSections) => void
   disabled?: boolean
-  onApplyTemplate?: (id: ReportTemplateId) => void
+  /** Sole report source for restore — real AI/backend draft, never fake skeletons. */
+  aiDraft?: ReportSections | null
+  findings?: BackendFindings | null
+  frames?: DicomFramePreview[]
   className?: string
 }) {
   const deskRef = useRef<HTMLDivElement>(null)
@@ -108,31 +114,18 @@ export function ReportDocumentEditor({
           </span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-slate-600">
-            <FileText className="h-3.5 w-3.5" />
-            Şablon
-            <select
-              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+          {aiDraft ? (
+            <button
+              type="button"
               disabled={disabled}
-              defaultValue=""
-              onChange={(e) => {
-                const id = e.target.value as ReportTemplateId
-                if (!id) return
-                const tpl = REPORT_TEMPLATES.find((t) => t.id === id)
-                if (!tpl) return
-                onChange({ ...tpl.sections })
-                onApplyTemplate?.(id)
-                e.target.value = ''
-              }}
+              onClick={() => onChange({ ...aiDraft })}
+              className="inline-flex items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800 shadow-sm transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Raporu AI / backend taslağına geri yükle"
             >
-              <option value="">Şablon uygula…</option>
-              {REPORT_TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              AI taslağına dön
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void toggleFullscreen()}
@@ -278,6 +271,12 @@ export function ReportDocumentEditor({
               </div>
             ))}
           </section>
+
+          <ReportEvidenceFigures
+            caseId={caseData.backendCaseId || caseData.id}
+            findings={findings ?? caseData.backendFindings}
+            frames={frames}
+          />
 
           <footer className="mt-auto border-t border-slate-200 bg-slate-50/70 px-8 py-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
