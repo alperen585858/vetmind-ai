@@ -102,6 +102,7 @@ def build_generation_input(
         document_context_file_count=doc_count,
         analysis_scope=(cov.analysis_scope if cov is not None else None),
         frames_detected=(cov.frames_detected if cov is not None else None),
+        frames_decoded=(cov.frames_decoded if cov is not None else None),
         frames_visually_analyzed=(cov.frames_visually_analyzed if cov is not None else None),
         series_total=(cov.series_total if cov is not None else None),
         dicom_files_total=(cov.dicom_files_total if cov is not None else None),

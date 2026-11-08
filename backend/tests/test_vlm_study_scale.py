@@ -329,9 +329,11 @@ def test_analyze_coverage_partial_metadata(tmp_path: Path, monkeypatch: pytest.M
     out = adapter.analyze(case)
     assert out.analysis_coverage is not None
     assert out.analysis_coverage.frames_detected == 12
+    assert out.analysis_coverage.frames_decoded == 4
     assert out.analysis_coverage.frames_visually_analyzed == 4
     assert out.analysis_coverage.analysis_scope == "partial"
     assert out.analysis_coverage.analysis_complete is False
+    assert out.processing_metadata.get("frames_decoded") == "4"
     assert out.processing_metadata.get("analysis_scope") == "partial"
     assert "KISMİ" in " ".join(out.warnings) or "partial" in out.processing_metadata.get("analysis_scope", "")
 

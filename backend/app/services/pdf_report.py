@@ -400,28 +400,18 @@ def build_approved_report_pdf(
 
     coverage = getattr(getattr(case, "structured_findings", None), "analysis_coverage", None)
     if coverage is not None:
-        scope = getattr(coverage, "analysis_scope", None) or "—"
-        complete = bool(getattr(coverage, "analysis_complete", False))
-        scope_tr = {
-            "full": "TAM",
-            "partial": "KISMİ",
-            "none": "YOK",
-        }.get(str(scope), str(scope).upper())
-        cov_lines = [
-            f"Kapsam: {scope_tr}"
-            + (" (hedef kareler tamam)" if complete else " (tam analiz değil)"),
-            (
-                f"DICOM dosya {getattr(coverage, 'dicom_files_total', 0)} · "
-                f"seri {getattr(coverage, 'series_analyzed', 0)}/"
-                f"{getattr(coverage, 'series_total', 0)} · "
-                f"tespit {getattr(coverage, 'frames_detected', 0)} kare · "
-                f"görsel analiz {getattr(coverage, 'frames_visually_analyzed', 0)} · "
-                f"atlanan {getattr(coverage, 'frames_skipped', 0)}"
-            ),
-        ]
-        undec = int(getattr(coverage, "dicom_files_undecodable", 0) or 0)
-        if undec:
-            cov_lines.append(f"Çözülemeyen / desteklenmeyen dosya: {undec}")
+        if hasattr(coverage, "finalize"):
+            coverage = coverage.finalize()
+        if hasattr(coverage, "summary_lines_tr"):
+            cov_lines = list(coverage.summary_lines_tr())
+        else:
+            cov_lines = [
+                (
+                    f"tespit {getattr(coverage, 'frames_detected', 0)} · "
+                    f"decode {getattr(coverage, 'frames_decoded', 0)} · "
+                    f"görsel analiz {getattr(coverage, 'frames_visually_analyzed', 0)}"
+                )
+            ]
         skipped_files = list(getattr(coverage, "skipped_files", None) or [])
         if skipped_files:
             sample = "; ".join(

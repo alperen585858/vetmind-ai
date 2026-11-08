@@ -47,6 +47,7 @@ import {
   saveBackendDraftReport,
   regenerateBackendReport,
   resendCaseToAI,
+  addManualCaseEvidence,
   reviewCaseEvidence,
   submitBackendReview,
   type PetHistoryEntry,
@@ -54,6 +55,10 @@ import {
 import { buildDicomPreviews, type DicomFramePreview } from '../lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
 import { cleanClinicalHistory, displayClinic } from '../lib/displayClean'
+import {
+  collectOverlayInputsFromFindings,
+  eligibleOverlaysForFrame,
+} from '../lib/overlayEligibility'
 import {
   formatSlaRemaining,
   slaBadgeClass,
@@ -65,7 +70,7 @@ import type { BackendCaseSummary, ReportSections } from '../types'
 export default function RadiologistWorkspace() {
   const { id = '' } = useParams()
   const nav = useLocalizedNavigate()
-  const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase } = useApp()
+  const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase, role } = useApp()
   const { t } = useLocale()
   const reasonCodeOptions = useMemo(
     () => [
@@ -96,7 +101,22 @@ export default function RadiologistWorkspace() {
   const [resendingAi, setResendingAi] = useState(false)
   const [evidenceFocus, setEvidenceFocus] = useState<EvidenceFocus | null>(null)
   const [focusRequestId, setFocusRequestId] = useState(0)
+  const [overlaysVisible, setOverlaysVisible] = useState(true)
+  const [activeViewerFrame, setActiveViewerFrame] = useState<DicomFramePreview | null>(null)
   const resendAbortRef = useRef<AbortController | null>(null)
+
+  const viewerOverlays = useMemo(() => {
+    const findings = c?.backendFindings?.findings
+    if (!findings?.length) return []
+    const inputs = collectOverlayInputsFromFindings(findings)
+    return eligibleOverlaysForFrame(inputs, {
+      activeSopUid: activeViewerFrame?.sopInstanceUid || evidenceFocus?.sop || null,
+      // Single-instance SOP → frame 0; multi-frame files keep evidence frame_index via focus.
+      activeFrameIndex: evidenceFocus?.frameIndex ?? 0,
+      selectedEvidenceId: evidenceFocus?.evidenceId ?? null,
+      overlaysVisible,
+    })
+  }, [c?.backendFindings?.findings, activeViewerFrame, evidenceFocus, overlaysVisible])
 
   useEffect(() => {
     if (!id.startsWith('case-')) {
@@ -291,6 +311,10 @@ export default function RadiologistWorkspace() {
   const caseRow = c
   const caseKey = caseRow.backendCaseId || caseRow.id
   const immutable = Boolean(caseRow.backendDraft?.immutable) || caseRow.status === 'onaylandi'
+  const validationFailed =
+    caseRow.backendDraft?.status === 'validation_failed' ||
+    String(caseRow.backendDraft?.status || '').toLowerCase() === 'validation_failed'
+  const approveBlocked = immutable || validationFailed
 
   async function onSaveDraft(opts?: { silent?: boolean }) {
     if (!text || immutable) return false
@@ -577,14 +601,75 @@ export default function RadiologistWorkspace() {
                 {error}
               </p>
             )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-pressed={overlaysVisible}
+                onClick={() => setOverlaysVisible((v) => !v)}
+              >
+                {overlaysVisible ? 'Overlay: açık' : 'Overlay: kapalı'}
+              </Button>
+              <span className="text-[11px] text-slate-500">
+                {overlaysVisible
+                  ? `${viewerOverlays.length} doğrulanmış kutu`
+                  : 'İşaretlemeler gizli'}
+              </span>
+            </div>
             <DicomViewer
               frames={frames}
               loading={loadingFrames}
               className="min-h-[420px] xl:min-h-[560px]"
               focusSopUid={evidenceFocus?.sop}
               focusRequestId={focusRequestId}
-              aiOverlayBbox={evidenceFocus?.bbox ?? null}
-              aiOverlayStyle={evidenceFocus?.origin === 'vet_manual' ? 'vet' : 'ai'}
+              overlays={viewerOverlays}
+              onActiveFrameChange={(fr) => setActiveViewerFrame(fr)}
+              annotateEnabled={Boolean(c.backendCaseId && !immutable && c.backendFindings?.findings?.length)}
+              selectedEvidenceId={evidenceFocus?.evidenceId ?? null}
+              onAnnotateCommit={async (payload) => {
+                if (!c.backendCaseId) throw new Error('Backend case missing')
+                const findings = c.backendFindings?.findings || []
+                const nativeBbox = {
+                  ...payload.bbox,
+                  coordinate_space: 'pixel_2d_native' as const,
+                  transform_chain: [] as { name: string; params: Record<string, number> }[],
+                }
+                if (payload.mode === 'edit' && payload.evidenceId) {
+                  const sf = await reviewCaseEvidence(c.backendCaseId, payload.evidenceId, {
+                    action: 'edit',
+                    bbox: nativeBbox,
+                    vet_note: 'Radiologist bbox edit',
+                  })
+                  updateCase(c.id, { backendFindings: sf })
+                  const neu = sf.findings
+                    .flatMap((f) => f.evidence_references || [])
+                    .find((e) => e.supersedes_evidence_id === payload.evidenceId)
+                  if (neu) {
+                    setEvidenceFocus({
+                      evidenceId: neu.evidence_id,
+                      sop: neu.sop_instance_uid,
+                      frameIndex: neu.frame_index,
+                      bbox: neu.bbox,
+                      origin: neu.origin,
+                      reviewStatus: neu.review_status,
+                    })
+                  }
+                  return
+                }
+                const findingId =
+                  findings.find((f) =>
+                    f.evidence_references?.some((e) => e.evidence_id === evidenceFocus?.evidenceId),
+                  )?.finding_id || findings[0]?.finding_id
+                if (!findingId) throw new Error('No finding to attach bbox')
+                const sf = await addManualCaseEvidence(c.backendCaseId, {
+                  finding_id: findingId,
+                  bbox: nativeBbox,
+                  sop_instance_uid: payload.sopInstanceUid || activeViewerFrame?.sopInstanceUid || undefined,
+                  frame_index: payload.frameIndex ?? evidenceFocus?.frameIndex ?? 0,
+                  description: 'Radiologist manual mark',
+                })
+                updateCase(c.id, { backendFindings: sf })
+              }}
             />
             <p className="text-[11px] text-slate-500">
               {t('review.workspace.shortcutsHelp')}
@@ -600,6 +685,8 @@ export default function RadiologistWorkspace() {
                 .toString()
                 .toLowerCase()
             }
+            selectedEvidenceId={evidenceFocus?.evidenceId ?? null}
+            canVerify={role === 'expert' || role === 'admin'}
             onFocusEvidence={(focus) => {
               setEvidenceFocus(focus)
               setFocusRequestId((n) => n + 1)
@@ -617,6 +704,16 @@ export default function RadiologistWorkspace() {
                   setError(err instanceof Error ? err.message : 'Evidence review failed')
                 })
             }}
+            onVerifyEvidence={(evidenceId, action) => {
+              if (!c.backendCaseId) return
+              void reviewCaseEvidence(c.backendCaseId, evidenceId, { action })
+                .then((sf) => {
+                  updateCase(c.id, { backendFindings: sf })
+                })
+                .catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : 'Verification failed')
+                })
+            }}
           />
 
           <ReportDocumentEditor caseData={c} value={text} onChange={setText} disabled={immutable} />
@@ -626,8 +723,13 @@ export default function RadiologistWorkspace() {
               <Button
                 size="sm"
                 icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                disabled={immutable}
+                disabled={approveBlocked}
                 onClick={() => setModal('approve')}
+                title={
+                  validationFailed
+                    ? 'Taslak validation_failed — onay kapalı; alıntıları düzeltin.'
+                    : undefined
+                }
               >
                 {t('review.approve')}
               </Button>
@@ -668,6 +770,11 @@ export default function RadiologistWorkspace() {
                 </Button>
               )}
             </div>
+            {validationFailed && (
+              <p className="mt-2 text-xs text-amber-800">
+                validation_failed: yapısal doğrulama geçmeden onaylanamaz (409).
+              </p>
+            )}
             {immutable && (
               <p className="mt-2 text-xs text-emerald-800">
                 {t('review.workspace.immutableHint')}

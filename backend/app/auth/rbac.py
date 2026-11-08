@@ -7,6 +7,8 @@ CAP_CASE_WRITE = "cases:write"
 CAP_CASE_READ = "cases:read"
 CAP_ANALYZE = "analyze"
 CAP_REVIEW = "review"
+# Accept/reject for the report ≠ expert verification for training export (P1.8).
+CAP_TRAINING_VERIFY = "training:verify"
 CAP_DICOM = "dicom"
 CAP_DOCUMENTS = "documents"
 CAP_RAG_SEARCH = "rag:search"
@@ -39,6 +41,7 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_CASE_READ,
             CAP_ANALYZE,
             CAP_REVIEW,
+            CAP_TRAINING_VERIFY,
             CAP_RAG_SEARCH,
             CAP_DICOM,  # read/confirm path during review demos
             CAP_MESSAGES,

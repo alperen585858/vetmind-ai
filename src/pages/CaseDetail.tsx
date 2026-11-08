@@ -1435,6 +1435,8 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   const meta = c.backendFindings!.processing_metadata
                   const scope = cov?.analysis_scope ?? meta?.analysis_scope ?? '—'
                   const detected = cov?.frames_detected ?? Number(meta?.frames_detected || 0)
+                  const decoded =
+                    cov?.frames_decoded ?? Number(meta?.frames_decoded || 0)
                   const visual = cov?.frames_visually_analyzed ?? Number(meta?.frames_visually_analyzed || meta?.images_sent || 0)
                   const files = cov?.dicom_files_total ?? Number(meta?.dicom_files_total || meta?.study_dicom_instances || 0)
                   const series = cov?.series_total ?? Number(meta?.series_total || 0)
@@ -1442,23 +1444,34 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   const skipped = cov?.frames_skipped ?? Number(meta?.frames_skipped || 0)
                   const undec = cov?.dicom_files_undecodable ?? Number(meta?.dicom_files_undecodable || 0)
                   const complete = cov?.analysis_complete ?? meta?.analysis_complete === 'true'
+                  const metadataOnly =
+                    detected > 0 && visual <= 0
+                      ? true
+                      : meta?.metadata_only === 'true'
                   return (
                     <>
                       <p className="mt-1">
                         Kapsam: <span className="font-mono font-semibold">{scope}</span>
-                        {complete ? ' (hedef kareler tamam)' : ' (tam analiz değil)'}
+                        {complete ? ' (hedef kareler görsel tamam)' : ' (tam görsel analiz değil)'}
                       </p>
                       <p className="mt-1">
-                        DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} kare ·
-                        görsel analiz {visual} · atlanan {skipped}
+                        DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} ·
+                        decode {decoded} · görsel analiz {visual} · atlanan {skipped}
                         {undec ? ` · çözülemeyen dosya ${undec}` : ''}
                       </p>
+                      {metadataOnly && (
+                        <p className="mt-1 text-amber-800">
+                          Yalnızca metadata/envanter — görsel analiz yapılmadı.
+                        </p>
+                      )}
                       {(cov?.series?.length || 0) > 0 && (
                         <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-[11px]">
                           {cov!.series!.map((s, i) => (
                             <li key={s.series_instance_uid || i}>
                               {(s.series_description || s.series_instance_uid || 'seri').slice(0, 48)}
-                              {s.is_localizer ? ' [loc]' : ''}: {s.frames_visually_analyzed}/{s.frames_detected} görsel
+                              {s.is_localizer ? ' [loc]' : ''}: tespit {s.frames_detected}
+                              {' · '}decode {s.frames_decoded ?? 0}
+                              {' · '}görsel {s.frames_visually_analyzed}
                             </li>
                           ))}
                         </ul>

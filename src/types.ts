@@ -379,6 +379,10 @@ export interface BackendEvidenceReference {
   review_status?: 'pending' | 'accepted' | 'rejected' | 'edited'
   include_in_report?: boolean
   reviewed_by?: string | null
+  expert_verification_status?: 'unverified' | 'verified' | 'rejected'
+  expert_verified_by?: string | null
+  expert_verified_at?: string | null
+  annotation_version?: string
   vet_note?: string | null
   supersedes_evidence_id?: string | null
   note?: string
@@ -407,6 +411,7 @@ export interface BackendSeriesCoverage {
   is_localizer?: boolean
   frames_detected: number
   frames_planned: number
+  frames_decoded?: number
   frames_visually_analyzed: number
   analyzed?: boolean
 }
@@ -420,6 +425,8 @@ export interface BackendAnalysisCoverage {
   frames_detected: number
   frames_detected_non_localizer: number
   frames_planned: number
+  frames_decode_attempted?: number
+  frames_decoded?: number
   frames_visually_analyzed: number
   frames_skipped: number
   batches_total: number

@@ -21,6 +21,7 @@ import {
   Minimize2,
   Move,
   Pause,
+  PenLine,
   Play,
   RotateCcw,
   RotateCw,
@@ -38,8 +39,27 @@ import {
 } from '../lib/dicomPreview'
 import { useLocale } from '../context/LocaleContext'
 import { modalityLabel } from '../lib/displayClean'
+import {
+  applyHandleDrag,
+  assertAnnotateViewAllowed,
+  bboxValidForSave,
+  clampBBoxToImage,
+  clientToNativePixel,
+  hitTestBBox,
+  normalizeBBox,
+  type HitHandle,
+  type NativeBBox,
+} from '../lib/viewerCoords'
 
-type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi'
+type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi' | 'annotate'
+
+export type AnnotateCommitPayload = {
+  mode: 'create' | 'edit'
+  bbox: NativeBBox
+  evidenceId?: string
+  sopInstanceUid?: string | null
+  frameIndex?: number | null
+}
 
 const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
   { id: 'auto', label: 'Otomatik', wc: 0, ww: 0 },
@@ -102,6 +122,11 @@ export function DicomViewer({
   focusRequestId = 0,
   aiOverlayBbox,
   aiOverlayStyle = 'ai',
+  aiOverlayLabel,
+  overlays,
+  annotateEnabled = false,
+  selectedEvidenceId = null,
+  onAnnotateCommit,
 }: {
   frames: DicomFramePreview[]
   loading?: boolean
@@ -109,9 +134,22 @@ export function DicomViewer({
   onActiveFrameChange?: (frame: DicomFramePreview, index: number) => void
   focusSopUid?: string | null
   focusRequestId?: number
-  /** Native pixel-space bbox for AI / vet localization overlay. */
+  /** @deprecated Prefer `overlays` — kept for single-bbox callers. */
   aiOverlayBbox?: { x_min: number; y_min: number; x_max: number; y_max: number } | null
   aiOverlayStyle?: 'ai' | 'vet'
+  aiOverlayLabel?: string | null
+  /** P1.6 — multiple verified native bboxes for the active frame. */
+  overlays?: {
+    evidenceId: string
+    label: string
+    bbox: { x_min: number; y_min: number; x_max: number; y_max: number }
+    style: 'ai' | 'vet'
+    selected?: boolean
+  }[]
+  /** P1.7 — allow draw / move / resize bbox tool. */
+  annotateEnabled?: boolean
+  selectedEvidenceId?: string | null
+  onAnnotateCommit?: (payload: AnnotateCommitPayload) => void | Promise<void>
 }) {
   const { t } = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -163,6 +201,20 @@ export function DicomViewer({
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
   const measureStartRef = useRef<{ x: number; y: number } | null>(null)
   const roiStartRef = useRef<{ x: number; y: number } | null>(null)
+  const [draftAnnotate, setDraftAnnotate] = useState<null | {
+    mode: 'create' | 'edit'
+    evidenceId?: string
+    box: NativeBBox
+  }>(null)
+  const [annotateBusy, setAnnotateBusy] = useState(false)
+  const [annotateError, setAnnotateError] = useState<string | null>(null)
+  const annotateDragRef = useRef<null | {
+    kind: 'draw' | 'edit'
+    handle?: HitHandle
+    startNative: { x: number; y: number }
+    startBox?: NativeBBox
+    evidenceId?: string
+  }>(null)
 
   useEffect(() => {
     if (seriesGroups.length && (!seriesKey || !seriesGroups.some((s) => s.key === seriesKey))) {
@@ -219,27 +271,44 @@ export function DicomViewer({
     const canvas = canvasRef.current
     if (!canvas || !frame) return
     renderFrameToCanvas(canvas, frame, { windowCenter: wc, windowWidth: ww, invert })
-    if (aiOverlayBbox) {
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        const color = aiOverlayStyle === 'vet' ? '#1d4ed8' : '#dc2626'
-        ctx.save()
-        ctx.strokeStyle = color
-        ctx.lineWidth = 2
-        if (aiOverlayStyle === 'ai') ctx.setLineDash([6, 4])
-        const x = aiOverlayBbox.x_min
-        const y = aiOverlayBbox.y_min
-        const w = Math.max(1, aiOverlayBbox.x_max - aiOverlayBbox.x_min)
-        const h = Math.max(1, aiOverlayBbox.y_max - aiOverlayBbox.y_min)
-        ctx.strokeRect(x, y, w, h)
-        ctx.setLineDash([])
-        ctx.fillStyle = color
-        ctx.font = '12px sans-serif'
-        ctx.fillText(aiOverlayStyle === 'vet' ? 'Vet' : 'AI', x + 2, Math.max(12, y - 4))
-        ctx.restore()
-      }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const drawList =
+      overlays && overlays.length > 0
+        ? overlays
+        : aiOverlayBbox
+          ? [
+              {
+                evidenceId: 'legacy',
+                label: aiOverlayLabel?.trim() || (aiOverlayStyle === 'vet' ? 'Vet' : 'AI'),
+                bbox: aiOverlayBbox,
+                style: aiOverlayStyle,
+                selected: true,
+              },
+            ]
+          : []
+
+    for (const item of drawList) {
+      const color = item.style === 'vet' ? '#1d4ed8' : '#dc2626'
+      const selected = Boolean(item.selected)
+      ctx.save()
+      ctx.strokeStyle = color
+      ctx.lineWidth = selected ? 3 : 2
+      if (!selected || item.style === 'ai') ctx.setLineDash(selected ? [] : [6, 4])
+      else ctx.setLineDash([])
+      const x = item.bbox.x_min
+      const y = item.bbox.y_min
+      const w = Math.max(1, item.bbox.x_max - item.bbox.x_min)
+      const h = Math.max(1, item.bbox.y_max - item.bbox.y_min)
+      ctx.strokeRect(x, y, w, h)
+      ctx.setLineDash([])
+      ctx.fillStyle = color
+      ctx.font = selected ? 'bold 12px sans-serif' : '12px sans-serif'
+      ctx.fillText(item.label, x + 2, Math.max(12, y - 4))
+      ctx.restore()
     }
-  }, [frame, wc, ww, invert, aiOverlayBbox, aiOverlayStyle])
+  }, [frame, wc, ww, invert, aiOverlayBbox, aiOverlayStyle, aiOverlayLabel, overlays])
 
   useEffect(() => {
     paint()
@@ -298,15 +367,82 @@ export function DicomViewer({
 
   const canvasLocalPoint = (e: PointerEvent) => {
     const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
+    const vp = viewportRef.current
+    if (!canvas || !frame?.cols || !frame.rows) return { x: 0, y: 0 }
+    // Prefer explicit inverse when annotate / non-zero view transform; else AABB map.
+    try {
+      assertAnnotateViewAllowed({
+        panX: pan.x,
+        panY: pan.y,
+        zoom,
+        rotationDeg: rotation,
+        flipH,
+        flipV,
+      })
+      if (vp && (tool === 'annotate' || rotation !== 0 || flipH || flipV || zoom !== 1 || pan.x || pan.y)) {
+        const vpRect = vp.getBoundingClientRect()
+        return clientToNativePixel(e.clientX, e.clientY, {
+          originClientX: vpRect.left + vpRect.width / 2,
+          originClientY: vpRect.top + vpRect.height / 2,
+          contentWidth: canvas.offsetWidth || frame.cols,
+          contentHeight: canvas.offsetHeight || frame.rows,
+          cols: frame.cols,
+          rows: frame.rows,
+          panX: pan.x,
+          panY: pan.y,
+          zoom,
+          rotationDeg: rotation,
+          flipH,
+          flipV,
+        })
+      }
+    } catch {
+      /* fall through */
+    }
     const rect = canvas.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * (frame?.cols ?? 1)
-    const y = ((e.clientY - rect.top) / Math.max(1, rect.height)) * (frame?.rows ?? 1)
+    const x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * frame.cols
+    const y = ((e.clientY - rect.top) / Math.max(1, rect.height)) * frame.rows
     return { x, y }
   }
 
   const onPointerDown = (e: PointerEvent) => {
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    if (tool === 'annotate' && annotateEnabled && frame?.cols && frame.rows) {
+      setAnnotateError(null)
+      try {
+        assertAnnotateViewAllowed({
+          panX: pan.x,
+          panY: pan.y,
+          zoom,
+          rotationDeg: rotation,
+          flipH,
+          flipV,
+        })
+      } catch (err) {
+        setAnnotateError(err instanceof Error ? err.message : 'Annotate view not allowed')
+        return
+      }
+      const pt = canvasLocalPoint(e)
+      const selected = overlays?.find((o) => o.evidenceId === selectedEvidenceId)
+      const handle = selected ? hitTestBBox(pt.x, pt.y, selected.bbox, Math.max(6, (frame.cols || 512) / 64)) : null
+      if (selected && handle) {
+        annotateDragRef.current = {
+          kind: 'edit',
+          handle,
+          startNative: pt,
+          startBox: { ...selected.bbox },
+          evidenceId: selected.evidenceId,
+        }
+        setDraftAnnotate({ mode: 'edit', evidenceId: selected.evidenceId, box: { ...selected.bbox } })
+        return
+      }
+      annotateDragRef.current = { kind: 'draw', startNative: pt }
+      setDraftAnnotate({
+        mode: 'create',
+        box: { x_min: pt.x, y_min: pt.y, x_max: pt.x, y_max: pt.y },
+      })
+      return
+    }
     if (tool === 'measure') {
       const pt = canvasLocalPoint(e)
       measureStartRef.current = pt
@@ -337,6 +473,24 @@ export function DicomViewer({
   }
 
   const onPointerMove = (e: PointerEvent) => {
+    if (tool === 'annotate' && annotateDragRef.current && frame?.cols && frame.rows) {
+      const pt = canvasLocalPoint(e)
+      const drag = annotateDragRef.current
+      if (drag.kind === 'draw') {
+        const box = clampBBoxToImage(normalizeBBox(drag.startNative, pt), frame.cols, frame.rows)
+        setDraftAnnotate({ mode: 'create', box })
+      } else if (drag.kind === 'edit' && drag.startBox && drag.handle) {
+        const dx = pt.x - drag.startNative.x
+        const dy = pt.y - drag.startNative.y
+        const box = clampBBoxToImage(
+          applyHandleDrag(drag.startBox, drag.handle, dx, dy),
+          frame.cols,
+          frame.rows,
+        )
+        setDraftAnnotate({ mode: 'edit', evidenceId: drag.evidenceId, box })
+      }
+      return
+    }
     if (tool === 'measure' && measureStartRef.current) {
       const pt = canvasLocalPoint(e)
       setMeasurePts({
@@ -377,6 +531,10 @@ export function DicomViewer({
   }
 
   const onPointerUp = () => {
+    if (tool === 'annotate') {
+      annotateDragRef.current = null
+      return
+    }
     if (tool === 'measure' && measurePts && frame) {
       const dx = measurePts.x1 - measurePts.x0
       const dy = measurePts.y1 - measurePts.y0
@@ -406,6 +564,30 @@ export function DicomViewer({
     measureStartRef.current = null
     roiStartRef.current = null
     dragRef.current = null
+  }
+
+  const commitAnnotate = async () => {
+    if (!draftAnnotate || !frame?.cols || !frame.rows || !onAnnotateCommit) return
+    if (!bboxValidForSave(draftAnnotate.box, frame.cols, frame.rows)) {
+      setAnnotateError('Kutu çok küçük veya görüntü dışında.')
+      return
+    }
+    setAnnotateBusy(true)
+    setAnnotateError(null)
+    try {
+      await onAnnotateCommit({
+        mode: draftAnnotate.mode,
+        bbox: draftAnnotate.box,
+        evidenceId: draftAnnotate.evidenceId,
+        sopInstanceUid: frame.sopInstanceUid,
+        frameIndex: 0,
+      })
+      setDraftAnnotate(null)
+    } catch (err) {
+      setAnnotateError(err instanceof Error ? err.message : 'Kayıt başarısız')
+    } finally {
+      setAnnotateBusy(false)
+    }
   }
 
   const resetView = () => {
@@ -456,6 +638,7 @@ export function DicomViewer({
     else if (e.key === 'm' || e.key === 'M') setTool('measure')
     else if (e.key === 'a' || e.key === 'A') setTool('angle')
     else if (e.key === 'o' || e.key === 'O') setTool('roi')
+    else if ((e.key === 'b' || e.key === 'B') && annotateEnabled) setTool('annotate')
     else if (e.key === 'f' || e.key === 'F') {
       e.preventDefault()
       void toggleFullscreen()
@@ -576,6 +759,15 @@ export function DicomViewer({
         <ToolButton active={tool === 'roi'} title="ROI (O)" onClick={() => setTool('roi')}>
           <Square className="h-3.5 w-3.5" /> ROI
         </ToolButton>
+        {annotateEnabled ? (
+          <ToolButton
+            active={tool === 'annotate'}
+            title="Anotasyon kutusu (B)"
+            onClick={() => setTool('annotate')}
+          >
+            <PenLine className="h-3.5 w-3.5" /> BBox
+          </ToolButton>
+        ) : null}
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
         <ToolButton active={invert} title="Invert (I)" onClick={() => setInvert((v) => !v)}>
           Invert
@@ -707,6 +899,18 @@ export function DicomViewer({
                   strokeWidth={Math.max(1, frame.cols / 400)}
                 />
               )}
+              {draftAnnotate && (
+                <rect
+                  x={draftAnnotate.box.x_min}
+                  y={draftAnnotate.box.y_min}
+                  width={Math.max(1, draftAnnotate.box.x_max - draftAnnotate.box.x_min)}
+                  height={Math.max(1, draftAnnotate.box.y_max - draftAnnotate.box.y_min)}
+                  fill="rgba(29,78,216,0.15)"
+                  stroke="#1d4ed8"
+                  strokeWidth={Math.max(2, frame.cols / 300)}
+                  strokeDasharray={draftAnnotate.mode === 'create' ? '8 4' : undefined}
+                />
+              )}
             </svg>
           )}
         </div>
@@ -771,6 +975,37 @@ export function DicomViewer({
           <p>{tool.toUpperCase()}</p>
           <p className="text-slate-500">Scroll dilim · Ctrl+scroll zoom · Space cine</p>
         </div>
+        {(draftAnnotate || annotateError) && annotateEnabled ? (
+          <div className="absolute bottom-3 right-3 z-10 flex max-w-[min(100%,280px)] flex-col gap-1 rounded-md border border-white/15 bg-[#0b1727]/95 p-2 text-[11px] text-slate-100 shadow-lg">
+            {annotateError ? <p className="text-amber-300">{annotateError}</p> : null}
+            {draftAnnotate ? (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-slate-400">
+                  {draftAnnotate.mode === 'edit' ? 'Kutu düzenle' : 'Yeni kutu'} · native px
+                </span>
+                <button
+                  type="button"
+                  className="rounded bg-[#0D827B] px-2 py-0.5 text-white disabled:opacity-50"
+                  disabled={annotateBusy}
+                  onClick={() => void commitAnnotate()}
+                >
+                  {annotateBusy ? '…' : 'Kaydet'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-white/10 px-2 py-0.5 text-slate-200"
+                  disabled={annotateBusy}
+                  onClick={() => {
+                    setDraftAnnotate(null)
+                    setAnnotateError(null)
+                  }}
+                >
+                  İptal
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] truncate font-mono text-[10px] text-slate-400">
           {frame.relativePath || frame.fileName}
         </div>

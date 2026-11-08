@@ -262,6 +262,9 @@ class OpenAiCompatibleVlmVisionModel:
         all_warnings: list[str] = []
         analyzed_keys: set[tuple] = set()
         series_analyzed_counts: dict[str, int] = {}
+        series_decoded_counts: dict[str, int] = {}
+        decode_attempted = 0
+        decode_ok = 0
         batch_ok = 0
         batch_fail = 0
         cache_hits = 0
@@ -280,9 +283,12 @@ class OpenAiCompatibleVlmVisionModel:
                 else coverage.frames_detected_non_localizer
             )
             scope = "partial" if analyzed_n < target else ("full" if analyzed_n > 0 else "none")
+            if analyzed_n <= 0:
+                scope = "none"
             detail = (
                 f"Görüntü analizi · parti {batch_i + 1}/{len(plan.batches)} · "
-                f"{analyzed_n}/{target} kare görsel · seri {series_done}/{coverage.series_total}"
+                f"tespit {target} · decode {decode_ok} · görsel {analyzed_n} · "
+                f"seri {series_done}/{coverage.series_total}"
             )
             try:
                 cb(
@@ -290,6 +296,7 @@ class OpenAiCompatibleVlmVisionModel:
                         "vision_batch_index": batch_i,
                         "vision_batch_total": len(plan.batches),
                         "vision_frames_detected": target,
+                        "vision_frames_decoded": decode_ok,
                         "vision_frames_analyzed": analyzed_n,
                         "vision_series_total": coverage.series_total,
                         "vision_series_done": series_done,
@@ -303,7 +310,12 @@ class OpenAiCompatibleVlmVisionModel:
         _emit_progress(batch_i=0, analyzed_n=0)
 
         for batch_i, batch_frames in enumerate(plan.batches):
+            decode_attempted += len(batch_frames)
             sent = self._decode_inventory_batch(batch_frames)
+            decode_ok += len(sent)
+            for fr in sent:
+                sk = fr.series_instance_uid or ""
+                series_decoded_counts[sk] = series_decoded_counts.get(sk, 0) + 1
             if not sent:
                 batch_fail += 1
                 all_warnings.append(f"Batch {batch_i + 1}/{len(plan.batches)}: decode produced 0 PNGs.")
@@ -389,40 +401,50 @@ class OpenAiCompatibleVlmVisionModel:
 
         merged_findings = _dedupe_findings(all_findings)
 
-        # Update series visually-analyzed counts
+        # Update series decode + visually-analyzed counts (kept distinct).
         new_series: list[SeriesCoverage] = []
         for sc in coverage.series:
-            n = 0
-            if sc.series_instance_uid:
-                n = series_analyzed_counts.get(sc.series_instance_uid, 0)
+            uid = sc.series_instance_uid or ""
+            n_vis = series_analyzed_counts.get(uid, 0) if uid else 0
+            n_dec = series_decoded_counts.get(uid, 0) if uid else 0
             new_series.append(
                 sc.model_copy(
                     update={
-                        "frames_visually_analyzed": n,
-                        "analyzed": n > 0,
+                        "frames_decoded": n_dec,
+                        "frames_visually_analyzed": n_vis,
+                        "analyzed": n_vis > 0,
                     }
                 )
             )
+        visual_n = len(analyzed_keys) if analyzed_keys else len(all_sent)
         coverage = coverage.model_copy(
             update={
-                "frames_visually_analyzed": len(analyzed_keys) if analyzed_keys else len(all_sent),
+                "frames_decode_attempted": decode_attempted,
+                "frames_decoded": decode_ok,
+                "frames_visually_analyzed": visual_n,
                 "batches_succeeded": batch_ok,
                 "batches_failed": batch_fail,
                 "series": new_series,
             }
         ).finalize()
 
-        if coverage.analysis_scope == "partial":
+        if coverage.is_metadata_only:
+            all_warnings.append(
+                "Kapsam: yalnızca metadata/envanter; görsel analiz yapılmadı "
+                f"(tespit={coverage.frames_detected}, decode={coverage.frames_decoded}, görsel=0)."
+            )
+        elif coverage.analysis_scope == "partial":
             all_warnings.append(
                 f"KISMİ görsel analiz: {coverage.frames_visually_analyzed}/"
-                f"{coverage.frames_detected_non_localizer if not coverage.include_localizers else coverage.frames_detected} "
-                f"kare VLM'e gönderildi (bütçe={coverage.total_frame_budget}). "
+                f"{coverage.inventory_target} "
+                f"kare VLM'e gönderildi (tespit={coverage.frames_detected}, "
+                f"decode={coverage.frames_decoded}, bütçe={coverage.total_frame_budget}). "
                 "Tam analiz iddiası yoktur."
             )
         elif coverage.analysis_scope == "full":
             all_warnings.append(
                 f"Kapsam: tespit edilen hedef karelerin tamamı görsel olarak gönderildi "
-                f"({coverage.frames_visually_analyzed})."
+                f"(görsel={coverage.frames_visually_analyzed}, decode={coverage.frames_decoded})."
             )
         if inventory.skipped:
             all_warnings.append(
@@ -553,6 +575,8 @@ class OpenAiCompatibleVlmVisionModel:
                     is_localizer=inv.is_localizer,
                     width=result.width,
                     height=result.height,
+                    native_width=result.native_width,
+                    native_height=result.native_height,
                     quarantine_rel=inv.quarantine_rel,
                     series_number=inv.series_number,
                 )

@@ -91,6 +91,7 @@ def apply_pipeline_progress(
     vision_batch_index: Optional[int] = None,
     vision_batch_total: Optional[int] = None,
     vision_frames_detected: Optional[int] = None,
+    vision_frames_decoded: Optional[int] = None,
     vision_frames_analyzed: Optional[int] = None,
     vision_series_total: Optional[int] = None,
     vision_series_done: Optional[int] = None,
@@ -151,6 +152,8 @@ def apply_pipeline_progress(
         job.vision_batch_total = vision_batch_total
     if vision_frames_detected is not None:
         job.vision_frames_detected = vision_frames_detected
+    if vision_frames_decoded is not None:
+        job.vision_frames_decoded = vision_frames_decoded
     if vision_frames_analyzed is not None:
         job.vision_frames_analyzed = vision_frames_analyzed
     if vision_series_total is not None:

@@ -24,14 +24,13 @@ import { SkeletonRows } from '../components/Skeleton'
 import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
 import {
   BackendUnavailableError,
-  PollingCancelledError,
-  analyzeCaseAsyncAndWait,
+  enqueueAnalyzeCase,
   getAnalysisJob,
   getBackendCase,
   requestCancelAnalysisJob,
   type BackendAnalysisJob,
 } from '../lib/backend'
-import type { BackendPipelineResult } from '../types'
+import { displayAnalysisProgress, estimateAnalysisDurationMs } from '../lib/analysisProgress'
 import type { TranslateFn } from '../i18n'
 
 function analysisModeBanner(
@@ -94,7 +93,8 @@ export default function Processing() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const retryAbortRef = useRef<AbortController | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  const startedAtRef = useRef<number | null>(null)
 
   const caseId = c?.backendCaseId || c?.id || id
 
@@ -110,7 +110,15 @@ export default function Processing() {
       const record = await getBackendCase(caseId)
       await hydrateBackendCase(caseId)
       if (record.latest_job_id) {
-        setJob(await getAnalysisJob(record.latest_job_id))
+        const next = await getAnalysisJob(record.latest_job_id)
+        setJob(next)
+        if (isInFlightStatus(next.status) && startedAtRef.current == null) {
+          startedAtRef.current = c?.processingStartedAt ?? Date.now()
+        }
+        if (next.status === 'completed' || next.status === 'failed' || next.status === 'cancelled' || next.status === 'timed_out') {
+          // Keep ETA clock for failed bars; reset start on next retry.
+          if (next.status === 'completed') startedAtRef.current = startedAtRef.current ?? Date.now()
+        }
       } else {
         setJob(null)
       }
@@ -119,11 +127,12 @@ export default function Processing() {
     } finally {
       refreshing.current = false
     }
-  }, [caseId, hydrateBackendCase, isBackend, t])
+  }, [caseId, hydrateBackendCase, isBackend, t, c?.processingStartedAt])
 
   useEffect(() => {
+    startedAtRef.current = c?.processingStartedAt ?? startedAtRef.current
     void refresh()
-  }, [refresh])
+  }, [refresh, c?.processingStartedAt])
 
   const jobStatus = job?.status ?? (c?.backendOutcome ? 'completed' : 'unknown')
   const inFlight = isInFlightStatus(job?.status) || retrying
@@ -132,9 +141,25 @@ export default function Processing() {
     if (!inFlight || !isBackend || !caseId.startsWith('case-')) return
     const timer = window.setInterval(() => {
       void refresh()
-    }, 1500)
+    }, 1200)
     return () => window.clearInterval(timer)
   }, [inFlight, isBackend, caseId, refresh])
+
+  // Smooth ETA progress between job polls.
+  useEffect(() => {
+    if (!inFlight) return
+    const timer = window.setInterval(() => setNowTick(Date.now()), 250)
+    return () => window.clearInterval(timer)
+  }, [inFlight])
+
+  const progressPct = displayAnalysisProgress({
+    backendPct: job?.progress_pct,
+    startedAtMs: startedAtRef.current ?? c?.processingStartedAt ?? null,
+    estimatedMs: c?.processingMs ?? estimateAnalysisDurationMs(c?.instanceCount),
+    instanceCount: c?.instanceCount,
+    status: job?.status ?? (retrying ? 'running' : undefined),
+    nowMs: nowTick,
+  })
 
   const mode = analysisModeBanner(job?.analysis_mode, c?.backendFindings?.source_kind, t)
 
@@ -155,7 +180,6 @@ export default function Processing() {
     setStopping(true)
     setLoadError(null)
     try {
-      retryAbortRef.current?.abort()
       const updated = await requestCancelAnalysisJob(jobId)
       setJob(updated)
       pushToast({
@@ -176,49 +200,27 @@ export default function Processing() {
 
   const onRetry = async () => {
     if (!c || !caseId.startsWith('case-')) return
-    retryAbortRef.current?.abort()
-    const controller = new AbortController()
-    retryAbortRef.current = controller
     setRetrying(true)
     setLoadError(null)
     try {
-      const result: BackendPipelineResult = await analyzeCaseAsyncAndWait(caseId, {
-        signal: controller.signal,
-        cancelBackendOnAbort: true,
-        onJobEnqueued: (jobId) => {
-          updateCase(c.id, { backendJobId: jobId, status: 'ai_analizi' })
-        },
-      })
-      setJob(await getAnalysisJob(result.job.job_id))
+      const eta = estimateAnalysisDurationMs(c.instanceCount)
+      startedAtRef.current = Date.now()
       updateCase(c.id, {
-        backendOutcome: result.outcome,
-        backendJobId: result.job.job_id,
-        backendFindings: result.findings ?? undefined,
-        backendDraft: result.report ?? undefined,
-        status:
-          result.outcome === 'failed'
-            ? 'analiz_basarisiz'
-            : result.outcome === 'unsupported'
-              ? 'manuel_inceleme'
-              : 'uzman_incelemesinde',
+        status: 'ai_analizi',
+        processingStartedAt: startedAtRef.current,
+        processingMs: eta,
+        backendOutcome: undefined,
       })
+      const enqueued = await enqueueAnalyzeCase(caseId)
+      setJob(enqueued)
+      updateCase(c.id, { backendJobId: enqueued.job_id, status: 'ai_analizi' })
       pushToast({
-        tone: result.outcome === 'failed' ? 'error' : 'success',
+        tone: 'info',
         title: t('cases.processing.toastRefreshed'),
-        body: `outcome=${result.outcome}`,
+        body: t('cases.processing.inFlightHint'),
       })
-      await hydrateBackendCase(caseId)
+      await refresh()
     } catch (err) {
-      if (err instanceof PollingCancelledError) {
-        pushToast({
-          tone: 'info',
-          title: t('cases.processing.toastStopped'),
-          body: t('cases.processing.toastStoppedBody'),
-        })
-        await hydrateBackendCase(caseId)
-        await refresh()
-        return
-      }
       const message =
         err instanceof BackendUnavailableError
           ? err.message
@@ -228,7 +230,6 @@ export default function Processing() {
       setLoadError(message)
       pushToast({ tone: 'error', title: t('cases.processing.retryFailed'), body: message })
     } finally {
-      if (retryAbortRef.current === controller) retryAbortRef.current = null
       setRetrying(false)
     }
   }
@@ -302,7 +303,7 @@ export default function Processing() {
                         ? t('cases.processing.inFlightHint')
                         : t('cases.processing.idleHint')}
                   </p>
-                  {(inFlight || (job?.progress_pct != null && job.progress_pct > 0)) && (
+                  {(inFlight || progressPct > 0 || jobStatus === 'completed') && (
                     <div className="mt-3">
                       <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                         <span className="font-medium text-navy-800">
@@ -312,24 +313,25 @@ export default function Processing() {
                           job.vision_adapter_total > 0
                             ? ` · model ${(job.vision_adapter_index ?? 0) + 1}/${job.vision_adapter_total}`
                             : ''}
+                          {job?.vision_frames_detected != null
+                            ? ` · tespit ${job.vision_frames_detected} · decode ${job.vision_frames_decoded ?? '—'} · görsel ${job.vision_frames_analyzed ?? 0}`
+                            : ''}
                         </span>
                         <span className="font-mono font-semibold tabular-nums text-teal-800">
-                          {Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%
+                          {Math.round(progressPct)}%
                         </span>
                       </div>
                       <div
-                        className="h-2 overflow-hidden rounded-full bg-slate-100"
+                        className="h-2.5 overflow-hidden rounded-full bg-slate-100"
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={Math.max(0, Math.min(100, job?.progress_pct ?? 0))}
+                        aria-valuenow={Math.round(progressPct)}
                         aria-label={t('cases.processing.progressAria')}
                       >
                         <div
                           className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, job?.progress_pct ?? (jobStatus === 'completed' ? 100 : 0)))}%`,
-                          }}
+                          style={{ width: `${progressPct}%` }}
                         />
                       </div>
                     </div>
@@ -386,7 +388,7 @@ export default function Processing() {
                 <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
                 <dd className="col-span-3 text-xs">
                   {stageLabel(job) || t('common.dash')}
-                  {job?.progress_pct != null ? ` · ${Math.max(0, Math.min(100, job.progress_pct))}%` : ''}
+                  {` · ${Math.round(progressPct)}%`}
                 </dd>
               </div>
               {(job?.vision_frames_detected != null || job?.vision_batch_total != null) && (
@@ -397,7 +399,9 @@ export default function Processing() {
                       <>
                         parti {(job.vision_batch_index ?? 0) + 1}/{job.vision_batch_total ?? '—'}
                         {' · '}
-                        {job.vision_frames_analyzed ?? 0}/{job.vision_frames_detected ?? '—'} kare
+                        tespit {job.vision_frames_detected ?? '—'}
+                        {' · '}decode {job.vision_frames_decoded ?? '—'}
+                        {' · '}görsel {job.vision_frames_analyzed ?? 0}
                         {job.vision_series_total != null
                           ? ` · seri ${job.vision_series_done ?? 0}/${job.vision_series_total}`
                           : ''}

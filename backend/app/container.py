@@ -75,6 +75,7 @@ class AppContainer:
         self.quarantine = QuarantineStore(
             self.settings.quarantine_root,
             max_file_bytes=25 * 1024 * 1024,
+            scrub_identity=bool(getattr(self.settings, "dicom_identity_scrub", False)),
         )
         self.audit = AuditLogger(self.settings.audit_log_path)
         self.feedback = FeedbackStore(self.settings.feedback_log_path)

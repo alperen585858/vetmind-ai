@@ -1366,8 +1366,16 @@ class CaseService:
         vet_note: str | None = None,
         bbox: object | None = None,
     ) -> StructuredFindings:
+        from app.auth.rbac import CAP_TRAINING_VERIFY
         from app.schemas.findings import BoundingBoxEvidence
         from app.services.evidence_review import review_evidence
+
+        if action in {"verify", "unverify"} and principal.via != "disabled":
+            if not principal.can(CAP_TRAINING_VERIFY):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Expert verification requires training:verify capability.",
+                )
 
         with self._lock:
             case = self.get_case(case_id, principal=principal)
@@ -1382,6 +1390,12 @@ class CaseService:
                 bbox=bbox if isinstance(bbox, BoundingBoxEvidence) else None,
             )
             sf = self._render_missing_overlays(case, sf)
+            append_activity(
+                case,
+                kind=f"evidence_{action}",
+                actor_subject=principal.subject,
+                detail=evidence_id,
+            )
             case.updated_at = _now()
             self._repo.save_case(case)
         self._emit_audit(f"evidence.review.{action}", principal=principal, resource=f"{case_id}/{evidence_id}")
@@ -1418,6 +1432,12 @@ class CaseService:
                 include_in_report=include_in_report,
             )
             sf = self._render_missing_overlays(case, sf)
+            append_activity(
+                case,
+                kind="evidence_manual_add",
+                actor_subject=principal.subject,
+                detail=finding_id,
+            )
             case.updated_at = _now()
             self._repo.save_case(case)
         self._emit_audit("evidence.manual_add", principal=principal, resource=f"{case_id}/{finding_id}")

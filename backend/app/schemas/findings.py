@@ -19,6 +19,8 @@ FINDINGS_SCHEMA_VERSION = "1.3.0"
 Laterality = Literal["LEFT", "RIGHT", "MIDLINE", "UNKNOWN"]
 EvidenceOrigin = Literal["ai_proposed", "vet_manual"]
 EvidenceReviewStatus = Literal["pending", "accepted", "rejected", "edited"]
+# Accepting an annotation for the report ≠ expert verification for training export.
+ExpertVerificationStatus = Literal["unverified", "verified", "rejected"]
 EvidenceType = Literal["bbox", "segmentation_mask", "heatmap", "overlay"]
 CoordinateSpace = Literal["pixel_2d_native", "model_input", "patient", "pixel_2d"]
 
@@ -103,6 +105,12 @@ class EvidenceReference(BaseModel):
     include_in_report: bool = False
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
+    # Separate from review_status / acceptance — training export gates on this.
+    expert_verification_status: ExpertVerificationStatus = "unverified"
+    expert_verified_by: Optional[str] = None
+    expert_verified_at: Optional[datetime] = None
+    annotation_version: str = "1"
+    image_source: Optional[str] = None  # quarantine rel / SOP display source
     vet_note: Optional[str] = None
     supersedes_evidence_id: Optional[str] = None
     note: str = EVIDENCE_DISCLAIMER

@@ -303,6 +303,8 @@ def validate_parsed_instances(parsed: list[ParsedInstance]) -> ValidationResult:
 
 
 def _build_study(instances: list[ParsedInstance]) -> DicomStudyMeta:
+    from app.imaging.pixel_ops import slice_sort_key
+
     first = instances[0]
     series_map: dict[str, DicomSeriesMeta] = {}
     for item in instances:
@@ -336,6 +338,25 @@ def _build_study(instances: list[ParsedInstance]) -> DicomStudyMeta:
             )
         )
 
+    ordered_series: list[DicomSeriesMeta] = []
+    for series in series_map.values():
+        sorted_instances = sorted(
+            series.instances,
+            key=lambda inst: slice_sort_key(
+                image_position_patient=inst.image_position_patient,
+                instance_number=inst.instance_number,
+                sop_instance_uid=inst.sop_instance_uid,
+            ),
+        )
+        ordered_series.append(series.model_copy(update={"instances": sorted_instances}))
+    ordered_series.sort(
+        key=lambda s: (
+            s.series_number is None,
+            s.series_number if s.series_number is not None else 0,
+            s.series_instance_uid,
+        )
+    )
+
     return DicomStudyMeta(
         study_instance_uid=first.study_instance_uid or "unknown",
         study_description=first.study_description,
@@ -343,5 +364,5 @@ def _build_study(instances: list[ParsedInstance]) -> DicomStudyMeta:
         study_date=first.study_date,
         patient_id_synthetic=first.patient_id,
         patient_name_from_dicom=first.patient_name,
-        series=list(series_map.values()),
+        series=ordered_series,
     )

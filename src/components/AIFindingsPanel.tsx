@@ -11,6 +11,8 @@ export type EvidenceFocus = {
   overlayRef?: string | null
   origin?: string
   reviewStatus?: string
+  /** Finding label for on-canvas F# overlay (only with verified bbox). */
+  label?: string | null
 }
 
 /** Read-only AI findings + evidence review controls for the radiologist workspace. */
@@ -19,6 +21,9 @@ export function AIFindingsPanel({
   analysisMode,
   onFocusEvidence,
   onReviewEvidence,
+  onVerifyEvidence,
+  selectedEvidenceId,
+  canVerify = false,
 }: {
   findings?: BackendFindings | null
   analysisMode?: string | null
@@ -28,6 +33,10 @@ export function AIFindingsPanel({
     action: 'accept' | 'reject' | 'set_include',
     includeInReport?: boolean,
   ) => void
+  /** P1.8 — training export verification (independent of accept). */
+  onVerifyEvidence?: (evidenceId: string, action: 'verify' | 'unverify') => void
+  selectedEvidenceId?: string | null
+  canVerify?: boolean
 }) {
   const { t } = useLocale()
   const items = findings?.findings ?? []
@@ -61,10 +70,13 @@ export function AIFindingsPanel({
         <p className="mt-3 text-xs text-slate-500">{t('ai.findingsEmpty')}</p>
       ) : (
         <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto text-xs">
-          {items.map((f) => (
+          {items.map((f, findingIndex) => (
             <li key={f.finding_id} className="rounded-lg bg-white p-2 ring-1 ring-slate-100">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-navy-900">{displayFindingCode(f.finding_code)}</p>
+                <p className="font-medium text-navy-900">
+                  <span className="mr-1 font-mono text-[10px] text-teal-800">F{findingIndex + 1}</span>
+                  {displayFindingCode(f.finding_code)}
+                </p>
                 {typeof f.model_confidence === 'number' ? (
                   <span className="shrink-0 text-[10px] tabular-nums text-slate-500">
                     conf {(f.model_confidence * 100).toFixed(0)}%
@@ -90,8 +102,12 @@ export function AIFindingsPanel({
                           : status === 'rejected'
                             ? 'AI·rej'
                             : 'AI·pending'
+                    const selected = selectedEvidenceId === ev.evidence_id
                     return (
-                      <li key={ev.evidence_id} className="rounded bg-slate-50 p-1.5">
+                      <li
+                        key={ev.evidence_id}
+                        className={`rounded p-1.5 ${selected ? 'bg-teal-50 ring-1 ring-teal-300' : 'bg-slate-50'}`}
+                      >
                         <button
                           type="button"
                           className="w-full text-left text-[10px] text-teal-800 underline-offset-2 hover:underline"
@@ -104,6 +120,7 @@ export function AIFindingsPanel({
                               overlayRef: ev.overlay_ref,
                               origin,
                               reviewStatus: status,
+                              label: `F${findingIndex + 1}`,
                             })
                           }
                         >
@@ -147,6 +164,36 @@ export function AIFindingsPanel({
                                 }
                               >
                                 {ev.include_in_report ? 'Exclude PDF' : 'Include PDF'}
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
+                        {canVerify && onVerifyEvidence && ev.bbox ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-1 border-t border-dashed border-slate-200 pt-1">
+                            <span className="text-[9px] uppercase tracking-wide text-slate-400">
+                              Eğitim verify ≠ Accept
+                            </span>
+                            {(ev.expert_verification_status || 'unverified') === 'verified' ? (
+                              <>
+                                <span className="rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-800">
+                                  Verified
+                                  {ev.expert_verified_by ? ` · ${ev.expert_verified_by}` : ''}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="rounded bg-white px-1.5 py-0.5 text-[10px] ring-1 ring-slate-300"
+                                  onClick={() => onVerifyEvidence(ev.evidence_id, 'unverify')}
+                                >
+                                  Unverify
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="rounded bg-indigo-700 px-1.5 py-0.5 text-[10px] text-white"
+                                onClick={() => onVerifyEvidence(ev.evidence_id, 'verify')}
+                              >
+                                Verify (export)
                               </button>
                             )}
                           </div>

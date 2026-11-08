@@ -101,6 +101,7 @@ class Settings:
     tenant_isolation: bool = False
     allow_insecure_demo: bool = False
     malware_scan_required: bool = False
+    dicom_identity_scrub: bool = False
     encryption_at_rest: str = "none"
     retention_dicom_days: int | None = None
     retention_temp_hours: int = 24
@@ -375,6 +376,10 @@ def load_settings() -> Settings:
         "VETMIND_MALWARE_SCAN_REQUIRED",
         default=(deployment_mode == "protected"),
     )
+    dicom_identity_scrub = _env_bool(
+        "VETMIND_DICOM_IDENTITY_SCRUB",
+        default=(deployment_mode == "protected"),
+    )
     encryption_at_rest = os.getenv("VETMIND_ENCRYPTION_AT_REST", "none").strip().lower() or "none"
 
     retention_dicom_days = _env_optional_int("VETMIND_RETENTION_DICOM_DAYS")
@@ -493,6 +498,7 @@ def load_settings() -> Settings:
         tenant_isolation=tenant_isolation,
         allow_insecure_demo=allow_insecure_demo,
         malware_scan_required=malware_scan_required,
+        dicom_identity_scrub=dicom_identity_scrub,
         encryption_at_rest=encryption_at_rest,
         retention_dicom_days=retention_dicom_days,
         retention_temp_hours=max(1, retention_temp_hours),
@@ -537,3 +543,17 @@ def validate_security_settings(settings: Settings) -> None:
             "Use 'none' until a real BlobEncryptor + KMS is wired. "
             "Refusing to start with a false encryption claim."
         )
+    if settings.deployment_mode == "protected":
+        if not settings.malware_scan_required:
+            raise RuntimeError(
+                "Protected deployment requires VETMIND_MALWARE_SCAN_REQUIRED=1 "
+                "(fail-closed scanner). Clinical PHI is not allowed without it."
+            )
+        if not settings.dicom_identity_scrub:
+            raise RuntimeError(
+                "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
+            )
+        if enc in {"none", "off", "disabled", ""}:
+            # Honesty lock: protected may run for software readiness tests, but
+            # must not claim clinical-data-OK without encryption.
+            pass  # encryption remains unimplemented — see readiness docs

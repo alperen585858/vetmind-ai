@@ -23,6 +23,7 @@ from app.api.payments import router as payments_router
 from app.api.radiologist_payouts import router as radiologist_payouts_router
 from app.api.workflow import router as workflow_router
 from app.api.settings import router as settings_router
+from app.api.training_export import router as training_export_router
 from app.container import AppContainer
 from app.demo_seed import ensure_demo_seed
 
@@ -76,6 +77,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(llm_feedback_router)
     app.include_router(admin_retention_router)
     app.include_router(feedback_router)
+    app.include_router(training_export_router)
 
     @app.get("/api/v1/health")
     def health() -> dict[str, str | bool | None]:

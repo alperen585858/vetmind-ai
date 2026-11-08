@@ -165,9 +165,12 @@ def parse_pixel_spacing(raw: str | None) -> tuple[float, float] | None:
 
 
 def parse_image_position(raw: str | None) -> tuple[float, float, float] | None:
+    """Parse IPP from DICOM multi-value, backslash, comma, or list-string forms."""
     if raw is None or not str(raw).strip():
         return None
-    parts = [p.strip() for p in str(raw).replace("/", "\\").split("\\") if p.strip()]
+    text = str(raw).strip().strip("[]()")
+    text = text.replace("/", "\\").replace(",", "\\")
+    parts = [p.strip() for p in text.split("\\") if p.strip()]
     if len(parts) < 3:
         return None
     try:

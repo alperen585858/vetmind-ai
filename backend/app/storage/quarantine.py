@@ -45,10 +45,17 @@ def validate_ingest_id(ingest_id: str) -> str:
 
 
 class QuarantineStore:
-    def __init__(self, root: Path, *, max_file_bytes: int | None = None) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        max_file_bytes: int | None = None,
+        scrub_identity: bool = False,
+    ) -> None:
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.max_file_bytes = max_file_bytes
+        self.scrub_identity = scrub_identity
 
     def ingest_dir(self, ingest_id: str) -> Path:
         safe = validate_ingest_id(ingest_id)
@@ -68,15 +75,24 @@ class QuarantineStore:
         content_kinds: list[str] | None = None,
         owner_subject: str | None = None,
         clinic_id: str | None = None,
+        scrub_identity: bool | None = None,
     ) -> list[QuarantineFileRef]:
         """Write bytes to quarantine and return stable refs. Empty list is a no-op."""
         if not files:
             return []
         directory = self.ingest_dir(ingest_id)
         refs: list[QuarantineFileRef] = []
+        do_scrub = self.scrub_identity if scrub_identity is None else scrub_identity
         for index, (filename, data) in enumerate(files):
             if self.max_file_bytes is not None and len(data) > self.max_file_bytes:
                 raise ValueError(f"File exceeds quarantine max_file_bytes ({self.max_file_bytes}).")
+            kind_hint = "unknown"
+            if content_kinds is not None and index < len(content_kinds):
+                kind_hint = content_kinds[index]
+            if do_scrub and (kind_hint == "dicom" or filename.lower().endswith((".dcm", ".dicom"))):
+                from app.dicom.anonymize import scrub_dicom_bytes
+
+                data = scrub_dicom_bytes(data)
             stored = _safe_filename(filename, index)
             target = directory / stored
             target.write_bytes(data)

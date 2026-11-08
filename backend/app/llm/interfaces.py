@@ -95,6 +95,7 @@ class LLMGenerationInput(BaseModel):
     # Honest visual-analysis coverage (from StructuredFindings.analysis_coverage).
     analysis_scope: Optional[str] = None  # full | partial | none
     frames_detected: Optional[int] = None
+    frames_decoded: Optional[int] = None
     frames_visually_analyzed: Optional[int] = None
     series_total: Optional[int] = None
     dicom_files_total: Optional[int] = None

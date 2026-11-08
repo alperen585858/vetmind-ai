@@ -277,7 +277,8 @@ def normalize_outputs(
         if out.processing_metadata:
             merged_meta.update(out.processing_metadata)
         if out.analysis_coverage is not None:
-            coverage = out.analysis_coverage
+            # Re-finalize so inventory/decode alone cannot claim visual completion.
+            coverage = out.analysis_coverage.finalize()
 
     return StructuredFindings(
         schema_version=primary.schema_version if primary.schema_version else "1.2.0",

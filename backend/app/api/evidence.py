@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1/cases", tags=["evidence"])
 class EvidenceReviewBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["accept", "reject", "set_include", "edit"]
+    action: Literal["accept", "reject", "set_include", "edit", "verify", "unverify"]
     include_in_report: Optional[bool] = None
     vet_note: Optional[str] = Field(default=None, max_length=2000)
     bbox: Optional[BoundingBoxEvidence] = None

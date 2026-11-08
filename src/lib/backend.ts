@@ -809,7 +809,35 @@ export async function confirmDicomClassification(input: {
   })
 }
 
-/** Confirm DICOM classification, then run async mock analyze (poll until done). */
+/** Enqueue background analyze and return immediately (no polling). */
+export async function enqueueAnalyzeCase(
+  caseId: string,
+  opts?: { signal?: AbortSignal },
+): Promise<BackendAnalysisJob> {
+  return request<BackendAnalysisJob>(`/cases/${caseId}/analyze/async`, {
+    method: 'POST',
+    signal: opts?.signal,
+  })
+}
+
+/** Confirm DICOM classification, then enqueue analyze without waiting for completion. */
+export async function confirmDicomAndEnqueueAnalyze(input: {
+  ingestId: string
+  acceptSuggestion: boolean
+  modality?: BackendModality
+  anatomicalRegion?: BackendAnatomicalRegion
+  patientName?: string
+  clinicalHistory?: string
+  imagingSourcePermissionVerified?: boolean
+  imagingAnalysisConsentVerified?: boolean
+  signal?: AbortSignal
+}): Promise<{ case: BackendCaseRecord; job: BackendAnalysisJob }> {
+  const caseRecord = await confirmDicomClassification(input)
+  const job = await enqueueAnalyzeCase(caseRecord.case_id, { signal: input.signal })
+  return { case: caseRecord, job }
+}
+
+/** Confirm DICOM classification, then run async analyze (poll until done). */
 export async function confirmDicomAndAnalyze(input: {
   ingestId: string
   acceptSuggestion: boolean
@@ -1017,6 +1045,7 @@ export type BackendAnalysisJob = {
   vision_batch_index?: number | null
   vision_batch_total?: number | null
   vision_frames_detected?: number | null
+  vision_frames_decoded?: number | null
   vision_frames_analyzed?: number | null
   vision_series_total?: number | null
   vision_series_done?: number | null
@@ -1612,7 +1641,7 @@ export async function reviewCaseEvidence(
   caseId: string,
   evidenceId: string,
   body: {
-    action: 'accept' | 'reject' | 'set_include' | 'edit'
+    action: 'accept' | 'reject' | 'set_include' | 'edit' | 'verify' | 'unverify'
     include_in_report?: boolean
     vet_note?: string
     bbox?: {

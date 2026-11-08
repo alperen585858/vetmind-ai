@@ -6,7 +6,12 @@ from copy import deepcopy
 from typing import Protocol
 
 from app.schemas.case import CaseRecord
-from app.schemas.dicom import DicomIngestionRecord, DicomSeriesMeta, DicomStudyMeta
+from app.schemas.dicom import (
+    DicomIngestionRecord,
+    DicomInstanceMeta,
+    DicomSeriesMeta,
+    DicomStudyMeta,
+)
 from app.schemas.workflow import AttachmentRef
 
 
@@ -25,13 +30,37 @@ def _tag_instances(study: DicomStudyMeta, ingest_id: str) -> DicomStudyMeta:
     return study.model_copy(update={"series": series_out})
 
 
+def _slice_fingerprint(inst: DicomInstanceMeta) -> tuple:
+    """True-duplicate identity (mirrors validator soft-dedupe)."""
+    if inst.instance_number is not None or inst.image_position_patient is not None:
+        return (
+            inst.instance_number,
+            inst.image_position_patient,
+            inst.rows,
+            inst.columns,
+        )
+    return (
+        None,
+        None,
+        inst.rows,
+        inst.columns,
+        inst.filename,
+    )
+
+
+def _mint_disambiguated_sop(original: str, inst: DicomInstanceMeta, index: int) -> str:
+    inst_no = inst.instance_number if inst.instance_number is not None else index + 1
+    digits = "".join(ch for ch in (inst.filename or "") if ch.isdigit())[-8:] or str(index + 1)
+    return f"{original}.{inst_no}.{digits}"
+
+
 def merge_study_into(
     base: DicomStudyMeta | None,
     extra: DicomStudyMeta,
     *,
     ingest_id: str,
 ) -> DicomStudyMeta:
-    """Union series/instances; dedupe by series_instance_uid + sop_instance_uid."""
+    """Union series/instances; soft-dedupe SOP while keeping distinct colliding slices."""
     tagged = _tag_instances(extra, ingest_id)
     if base is None:
         return tagged
@@ -43,12 +72,37 @@ def merge_study_into(
         if existing is None:
             by_series[ser.series_instance_uid] = ser
             continue
-        seen_sop = {i.sop_instance_uid for i in existing.instances}
+        first_by_sop: dict[str, DicomInstanceMeta] = {
+            i.sop_instance_uid: i for i in existing.instances
+        }
+        seen_effective = {i.sop_instance_uid for i in existing.instances}
         merged_inst = list(existing.instances)
-        for inst in ser.instances:
-            if inst.sop_instance_uid not in seen_sop:
+        for index, inst in enumerate(ser.instances):
+            sop = inst.sop_instance_uid
+            prior = first_by_sop.get(sop)
+            if prior is None and sop not in seen_effective:
                 merged_inst.append(inst)
-                seen_sop.add(inst.sop_instance_uid)
+                first_by_sop[sop] = inst
+                seen_effective.add(sop)
+                continue
+            if prior is None:
+                # Effective UID collision with a previously minted id — treat as new only
+                # when fingerprint differs from any kept instance sharing this SOP string.
+                prior = next(
+                    (i for i in merged_inst if i.sop_instance_uid == sop),
+                    merged_inst[0],
+                )
+            if _slice_fingerprint(prior) != _slice_fingerprint(inst):
+                minted = _mint_disambiguated_sop(sop, inst, index)
+                suffix = 2
+                while minted in seen_effective:
+                    minted = f"{_mint_disambiguated_sop(sop, inst, index)}.{suffix}"
+                    suffix += 1
+                fixed = inst.model_copy(update={"sop_instance_uid": minted})
+                merged_inst.append(fixed)
+                seen_effective.add(minted)
+                continue
+            # True duplicate (same SOP + same slice fingerprint): keep first only.
         by_series[ser.series_instance_uid] = existing.model_copy(update={"instances": merged_inst})
     study_uid = base.study_instance_uid or tagged.study_instance_uid
     return base.model_copy(

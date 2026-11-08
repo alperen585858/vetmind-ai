@@ -26,6 +26,8 @@ class DisplayPngResult:
     height: int
     frame_index: int
     photometric: str
+    native_width: int | None = None
+    native_height: int | None = None
 
 
 def _png_gray(arr_u8: np.ndarray) -> bytes:
@@ -190,6 +192,7 @@ def dicom_bytes_to_png(
     try:
         plane, used_idx = plane_from_array(arr, frame_index)
         if plane.ndim == 3 and plane.shape[2] == 3:
+            native_h, native_w = int(plane.shape[0]), int(plane.shape[1])
             # RGB: light percentile per channel then optional resize.
             u8 = np.zeros_like(plane, dtype=np.uint8)
             for c in range(3):
@@ -200,6 +203,7 @@ def dicom_bytes_to_png(
             png = _png_rgb(u8) if as_rgb else _png_gray(u8.mean(axis=2).astype(np.uint8))
             h, w = u8.shape[:2]
         else:
+            native_h, native_w = int(plane.shape[0]), int(plane.shape[1])
             u8 = window_to_u8(plane)
             if photo.upper() == "MONOCHROME1":
                 u8 = 255 - u8
@@ -217,6 +221,8 @@ def dicom_bytes_to_png(
         height=h,
         frame_index=used_idx,
         photometric=photo,
+        native_width=native_w,
+        native_height=native_h,
     )
 
 

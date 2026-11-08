@@ -306,3 +306,80 @@ def missing_uid_partial_files() -> list[tuple[str, bytes]]:
     buf = BytesIO()
     ds.save_as(buf, enforce_file_format=True)
     return [good, ("missing_series_uid.dcm", buf.getvalue())]
+
+
+def unordered_ipp_stack_files(instance_count: int = 5) -> list[tuple[str, bytes]]:
+    """Single series with InstanceNumber / IPP deliberately out of upload order."""
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    orientation = "1\\0\\0\\0\\1\\0"
+    # Upload order: high Z first, InstanceNumber descending — tree must re-sort.
+    order = list(range(instance_count, 0, -1))
+    files: list[tuple[str, bytes]] = []
+    for inst_no in order:
+        z = float(inst_no - 1) * 2.5
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=series_uid,
+            modality="MR",
+            study_description="SYNTHETIC UNORDERED STACK",
+            series_description="SYNTHETIC AXIAL T2",
+            body_part="BRAIN",
+            instance_number=inst_no,
+            image_position_patient=f"0\\0\\{z}",
+            image_orientation_patient=orientation,
+            slice_thickness="2.5",
+            pixel_spacing="0.5\\0.5",
+        )
+        files.append((f"unordered_{inst_no:03d}.dcm", data))
+    return files
+
+
+def multiframe_mr_file(*, frames: int = 4) -> tuple[str, bytes]:
+    """One Enhanced-style multi-frame MR file (NumberOfFrames > 1)."""
+    from pydicom import dcmread
+
+    raw = build_synthetic_instance(
+        modality="MR",
+        study_description="SYNTHETIC MULTIFRAME MR",
+        series_description="SYNTHETIC MF T2",
+        body_part="BRAIN",
+        instance_number=1,
+    )
+    ds = dcmread(BytesIO(raw))
+    ds.NumberOfFrames = frames
+    rows = int(ds.Rows)
+    cols = int(ds.Columns)
+    # Expand PixelData to frames * rows * cols * 2 bytes (16-bit).
+    frame = bytes(ds.PixelData)
+    ds.PixelData = frame * frames
+    buf = BytesIO()
+    ds.save_as(buf, enforce_file_format=True)
+    return ("multiframe_mr.dcm", buf.getvalue())
+
+
+def colliding_sop_volume_files(instance_count: int = 10) -> list[tuple[str, bytes]]:
+    """Volume where every slice shares one SOPInstanceUID (non-conformant export)."""
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    shared_sop = generate_uid()
+    orientation = "1\\0\\0\\0\\1\\0"
+    files: list[tuple[str, bytes]] = []
+    for i in range(1, instance_count + 1):
+        z = float(i - 1) * 2.0
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=series_uid,
+            sop_uid=shared_sop,
+            modality="MR",
+            study_description="SYNTHETIC COLLIDING SOP VOLUME",
+            series_description="SYNTHETIC AXIAL T2",
+            body_part="BRAIN",
+            instance_number=i,
+            image_position_patient=f"0\\0\\{z}",
+            image_orientation_patient=orientation,
+            slice_thickness="2.0",
+            pixel_spacing="0.5\\0.5",
+        )
+        files.append((f"collide_{i:03d}.dcm", data))
+    return files

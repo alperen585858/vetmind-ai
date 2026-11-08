@@ -84,6 +84,29 @@ def test_protected_mode_requires_auth(tmp_path: Path) -> None:
         validate_security_settings(settings)
 
 
+def test_protected_mode_requires_malware_and_scrub(tmp_path: Path) -> None:
+    settings = _settings(
+        tmp_path,
+        auth_enabled=True,
+        deployment_mode="protected",
+        jwt_secret="x" * 32,
+        malware_scan_required=False,
+        dicom_identity_scrub=True,
+    )
+    with pytest.raises(RuntimeError, match="MALWARE_SCAN_REQUIRED"):
+        validate_security_settings(settings)
+    settings2 = _settings(
+        tmp_path,
+        auth_enabled=True,
+        deployment_mode="protected",
+        jwt_secret="x" * 32,
+        malware_scan_required=True,
+        dicom_identity_scrub=False,
+    )
+    with pytest.raises(RuntimeError, match="DICOM_IDENTITY_SCRUB"):
+        validate_security_settings(settings2)
+
+
 def test_cross_tenant_case_access_denied(tmp_path: Path) -> None:
     client = _client(tmp_path)
     vet_a = _token(client, "vet@demo.local")

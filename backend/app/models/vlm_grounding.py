@@ -73,6 +73,8 @@ class SentFrame:
     is_localizer: bool
     width: int | None = None
     height: int | None = None
+    native_width: int | None = None
+    native_height: int | None = None
     quarantine_rel: str | None = None
     series_number: int | None = None
 
@@ -144,7 +146,18 @@ def study_inventory_metadata(
     }
 
 
-def _parse_bbox_norm(raw: Any, *, width: int | None, height: int | None) -> BoundingBoxEvidence | None:
+def _parse_bbox_norm(
+    raw: Any,
+    *,
+    width: int | None,
+    height: int | None,
+    native_width: int | None = None,
+    native_height: int | None = None,
+) -> BoundingBoxEvidence | None:
+    """Parse VLM bbox in PNG space and map to verified native DICOM pixels.
+
+    Returns None when transform cannot be verified — callers must not overlay.
+    """
     if raw is None or width is None or height is None or width <= 0 or height <= 0:
         return None
     vals: list[float]
@@ -169,16 +182,24 @@ def _parse_bbox_norm(raw: Any, *, width: int | None, height: int | None) -> Boun
     # Ignore tiny / empty boxes.
     if (x1 - x0) < 2 or (y1 - y0) < 2:
         return None
-    try:
-        return BoundingBoxEvidence(
-            x_min=x0,
-            y_min=y0,
-            x_max=x1,
-            y_max=y1,
-            coordinate_space="pixel_2d_native",
-        )
-    except Exception:
+    from app.imaging.vlm_display_transform import native_bbox_from_vlm_png, should_draw_overlay
+
+    nw = native_width if native_width is not None else width
+    nh = native_height if native_height is not None else height
+    verified = native_bbox_from_vlm_png(
+        x_min=x0,
+        y_min=y0,
+        x_max=x1,
+        y_max=y1,
+        native_width=nw,
+        native_height=nh,
+        png_width=width,
+        png_height=height,
+    )
+    if not should_draw_overlay(verified):
         return None
+    assert verified is not None
+    return verified.bbox
 
 
 def resolve_source_frame(item: dict[str, Any], frames: Sequence[SentFrame]) -> SentFrame | None:
@@ -221,7 +242,13 @@ def evidence_for_frame(
             evidence_type="overlay",
             note="Ungrounded VLM claim: no verified IMG index.",
         )
-    bbox = _parse_bbox_norm(item.get("bbox_norm") or item.get("bbox"), width=frame.width, height=frame.height)
+    bbox = _parse_bbox_norm(
+        item.get("bbox_norm") or item.get("bbox"),
+        width=frame.width,
+        height=frame.height,
+        native_width=frame.native_width,
+        native_height=frame.native_height,
+    )
     desc_bits = [
         f"IMG-{frame.index}",
     ]
@@ -238,8 +265,10 @@ def evidence_for_frame(
     desc_bits.append(f"frame_index={frame.frame_index}")
     if bbox is not None:
         desc_bits.append(
-            f"bbox=({bbox.x_min:.0f},{bbox.y_min:.0f})-({bbox.x_max:.0f},{bbox.y_max:.0f}) PNG-px"
+            f"bbox=({bbox.x_min:.0f},{bbox.y_min:.0f})-({bbox.x_max:.0f},{bbox.y_max:.0f}) native-px"
         )
+    elif item.get("bbox_norm") or item.get("bbox"):
+        desc_bits.append("bbox omitted (transform unverified — no overlay)")
     return EvidenceReference(
         evidence_id=f"{finding_id}-ev-1",
         description="; ".join(desc_bits),
@@ -255,8 +284,8 @@ def evidence_for_frame(
         instance_number=frame.instance_number,
         bbox=bbox,
         note=(
-            "AI-proposed localization on the exact PNG sent to the VLM. "
-            "Not radiologist-confirmed."
+            "AI-proposed localization mapped to native DICOM pixels via verified "
+            "PNG↔DICOM transform. Not radiologist-confirmed. No overlay when unverified."
         ),
     )
 

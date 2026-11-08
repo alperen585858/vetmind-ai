@@ -1,5 +1,7 @@
 """P0 hardening regression tests (architecture review)."""
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.container import AppContainer
@@ -72,13 +74,26 @@ def test_failed_cannot_approve(client: TestClient) -> None:
     assert client.get(f"/api/v1/cases/{case_id}").json()["status"] == "failed"
 
 
-def test_validation_failed_cannot_approve(client: TestClient) -> None:
-    container = AppContainer(repo=InMemoryCaseRepository())
+def test_validation_failed_cannot_approve(client: TestClient, tmp_path: Path) -> None:
+    from app.settings import Settings
+
+    container = AppContainer(
+        repo=InMemoryCaseRepository(),
+        settings=Settings(
+            storage_backend="memory",
+            sqlite_path=Path("unused-memory.sqlite3"),
+            quarantine_root=tmp_path / "quarantine",
+            async_analyze_delay_ms=0,
+            analyze_gate_path=tmp_path / "analyze_gate.count",
+            vision_endpoint=None,
+        ),
+    )
     app_client = TestClient(__import__("app.main", fromlist=["create_app"]).create_app(container))
     case_id = app_client.post("/api/v1/cases", json=make_payload().model_dump(mode="json")).json()["case_id"]
-    app_client.post(f"/api/v1/cases/{case_id}/analyze")
+    analyzed = app_client.post(f"/api/v1/cases/{case_id}/analyze")
+    assert analyzed.status_code == 200, analyzed.text
     case = container.repo.get_case(case_id)
-    assert case and case.draft_report
+    assert case and case.draft_report, f"status={getattr(case, 'status', None)} body={analyzed.json()}"
     case.draft_report.impression.cited_finding_ids.append("does-not-exist")
     case.draft_report.status = ReportStatus.VALIDATION_FAILED
     container.repo.save_case(case)

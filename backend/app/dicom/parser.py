@@ -75,6 +75,19 @@ def _tag_int(ds: Any, name: str) -> Optional[int]:
         return None
 
 
+def _tag_multi_number_str(ds: Any, name: str) -> Optional[str]:
+    """Normalize multi-value numeric tags to backslash-joined floats (IPP/IOP/spacing)."""
+    value = getattr(ds, name, None)
+    if value is None:
+        return None
+    try:
+        parts = [str(float(x)) for x in value]
+    except (TypeError, ValueError):
+        text = str(value).strip()
+        return text or None
+    return "\\".join(parts) if parts else None
+
+
 def _looks_like_dicom(data: bytes) -> bool:
     """DICOM Part 10 files have 'DICM' at offset 128."""
     return len(data) >= 132 and data[128:132] == b"DICM"
@@ -140,9 +153,9 @@ def parse_dicom_bytes(data: bytes, filename: str) -> ParsedInstance:
         series_number=_tag_int(ds, "SeriesNumber"),
         rows=_tag_int(ds, "Rows"),
         columns=_tag_int(ds, "Columns"),
-        pixel_spacing=_tag_str(ds, "PixelSpacing"),
+        pixel_spacing=_tag_multi_number_str(ds, "PixelSpacing") or _tag_str(ds, "PixelSpacing"),
         slice_thickness=_tag_str(ds, "SliceThickness"),
-        image_orientation_patient=_tag_str(ds, "ImageOrientationPatient"),
-        image_position_patient=_tag_str(ds, "ImagePositionPatient"),
+        image_orientation_patient=_tag_multi_number_str(ds, "ImageOrientationPatient"),
+        image_position_patient=_tag_multi_number_str(ds, "ImagePositionPatient"),
         has_pixel_data=has_pixel,
     )

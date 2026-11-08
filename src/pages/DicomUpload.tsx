@@ -26,14 +26,11 @@ import { CLINIC } from '../data/mock'
 import { buildAssessment, makeDocument } from '../data/templates'
 import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
-import { AI_PHASE_START, PIPELINE_MS } from '../lib/pipeline'
 import {
   BackendUnavailableError,
   PollingCancelledError,
-  confirmDicomAndAnalyze,
-  draftToSections,
+  confirmDicomAndEnqueueAnalyze,
   fetchDemoDicomFiles,
-  pipelineToAssessment,
   uploadDicomDemo,
   uploadDicomFiles,
 } from '../lib/backend'
@@ -53,10 +50,8 @@ import {
   canStartDemoAnalysis,
   classificationConfirmationLabel,
   deriveSelectionPhase,
-  phaseFromPipelineOutcome,
   validatePatientForm,
 } from '../lib/dicomWorkflow'
-import { caseStatusFromBackendOutcome } from '../lib/caseStatusMap'
 import { cacheCaseDicomFiles } from '../lib/dicomCaseCache'
 import type {
   BackendAnatomicalRegion,
@@ -97,7 +92,7 @@ const DEMO_SETS: {
 ]
 
 export default function DicomUpload() {
-  const { addCase, pushToast, updateCase, user } = useApp()
+  const { addCase, pushToast, user } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -507,8 +502,8 @@ export default function DicomUpload() {
         ingestId = upload.ingest_id
       }
 
-      setUploadProgress('Sınıflandırma onayı + analiz…')
-      const result = await confirmDicomAndAnalyze({
+      setUploadProgress('Sınıflandırma onayı…')
+      const { case: caseRecord, job } = await confirmDicomAndEnqueueAnalyze({
         ingestId,
         acceptSuggestion,
         modality: acceptSuggestion ? undefined : overrideModality,
@@ -518,10 +513,6 @@ export default function DicomUpload() {
         imagingSourcePermissionVerified: consent,
         imagingAnalysisConsentVerified: consent,
         signal: controller.signal,
-        cancelBackendOnAbort: true,
-        onJobEnqueued: () => {
-          setUploadProgress('Analiz sürüyor… Durdurmak için İptal’e basın.')
-        },
       })
 
       const parsedAge = ageYears.trim() === '' ? 0 : Number(ageYears)
@@ -546,20 +537,18 @@ export default function DicomUpload() {
       const neuro = EMPTY_NEURO
       const stamp = nowStamp()
       const loc = localize(neuro, clinical, locale)
-      let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
-      if (result.report && result.findings) {
-        built = {
-          ...built,
-          ai: pipelineToAssessment(result.findings, result.report),
-          draft: draftToSections(result.report),
-        }
-      }
+      const built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
 
-      const id = result.job.case_id
+      const id = caseRecord.case_id
       const no = id.replace(/^case-/, 'VM-').toUpperCase()
       const priority: Priority = 'Normal'
       const instanceCount =
-        uploadSnap?.study?.series.reduce((n, s) => n + s.instances.length, 0) ?? files.length
+        uploadSnap?.study?.series.reduce((n, s) => n + s.instances.length, 0) ??
+        caseRecord.dicom_study?.series?.reduce((n, s) => n + (s.instances?.length ?? 0), 0) ??
+        files.length
+      // Rough ETA for Processing progress (VLM batches + LLM draft); refined live by job %.
+      const vlmBatches = Math.max(1, Math.ceil(instanceCount / 8))
+      const estimatedMs = 12_000 + vlmBatches * 7_000 + 50_000
 
       const newCase: VetCase = {
         id,
@@ -595,7 +584,7 @@ export default function DicomUpload() {
             ],
           },
         ],
-        status: caseStatusFromBackendOutcome(result.outcome),
+        status: 'ai_analizi',
         module: 'Nöroloji',
         priority,
         createdAt: today(),
@@ -609,19 +598,20 @@ export default function DicomUpload() {
           { date: stamp, label: 'Giriş sonrası DICOM metadata yüklendi', by: user?.name ?? 'vet' },
           {
             date: stamp,
-            label: `Analiz tamamlandı: ${result.outcome} · phase=${phaseFromPipelineOutcome(result.outcome)} (${result.job.case_id})`,
+            label: `Analiz kuyruğa alındı (${job.job_id})`,
             by: 'Sistem',
           },
         ],
         processingStartedAt: Date.now(),
-        processingMs: PIPELINE_MS,
-        backendCaseId: result.job.case_id,
-        backendJobId: result.job.job_id,
-        backendOutcome: result.outcome,
-        backendFindings: result.findings ?? undefined,
-        backendDraft: result.report ?? undefined,
+        processingMs: estimatedMs,
+        backendCaseId: id,
+        backendJobId: job.job_id,
         fromBackend: true,
         dicomDemoKind: pendingDemo ?? undefined,
+        modality: caseRecord.modality,
+        anatomicalRegion: caseRecord.anatomical_region,
+        studyInstanceUid: caseRecord.dicom_study?.study_instance_uid,
+        instanceCount,
       }
 
       addCase(newCase)
@@ -629,19 +619,13 @@ export default function DicomUpload() {
       if (files.length > 0) {
         void cacheCaseDicomFiles(id, files.slice(0, MAX_VIEWER_FRAMES))
       }
-      // Keep a short Processing page animation; persisted status already matches backend outcome.
-      if (result.outcome !== 'failed') {
-        updateCase(id, { status: 'ai_analizi' })
-        setTimeout(() => {
-          updateCase(id, { status: caseStatusFromBackendOutcome(result.outcome) })
-        }, AI_PHASE_START)
-      }
       pushToast({
-        tone: result.outcome === 'failed' ? 'error' : 'success',
-        title: 'DICOM vaka oluşturuldu',
-        body: `${patientName} · ${result.outcome}`,
+        tone: 'info',
+        title: 'Analiz başladı',
+        body: `${patientName} · ilerleme ekranına yönlendirildiniz`,
       })
 
+      // Leave the upload page immediately — do not wait for analysis to finish.
       nav(`/vakalar/${id}/isleme`)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return

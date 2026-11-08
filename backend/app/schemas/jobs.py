@@ -38,6 +38,7 @@ class AnalysisJob(BaseModel):
     vision_batch_index: Optional[int] = None
     vision_batch_total: Optional[int] = None
     vision_frames_detected: Optional[int] = None
+    vision_frames_decoded: Optional[int] = None
     vision_frames_analyzed: Optional[int] = None
     vision_series_total: Optional[int] = None
     vision_series_done: Optional[int] = None

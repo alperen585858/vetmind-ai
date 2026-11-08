@@ -204,8 +204,10 @@ def build_user_prompt(
             f"dicom_files={gen.dicom_files_total if gen.dicom_files_total is not None else '—'}; "
             f"series={gen.series_total if gen.series_total is not None else '—'}; "
             f"frames_detected={gen.frames_detected if gen.frames_detected is not None else '—'}; "
+            f"frames_decoded={gen.frames_decoded if gen.frames_decoded is not None else '—'}; "
             f"frames_visually_analyzed={gen.frames_visually_analyzed if gen.frames_visually_analyzed is not None else '—'} "
-            "(do not contradict these counts)"
+            "(inventory≠decode≠visual; do not contradict these counts; "
+            "metadata-only is never full visual analysis)"
         )
     parts = [
         "\n".join(context),
