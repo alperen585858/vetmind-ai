@@ -22,6 +22,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { currentActorId } from '../lib/auth'
+import { canonicalizeCaseId, isBackendCaseId } from '../lib/caseId'
 import { AIFindingsPanel, type EvidenceFocus } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -68,7 +69,8 @@ import {
 import type { BackendCaseSummary, ReportSections } from '../types'
 
 export default function RadiologistWorkspace() {
-  const { id = '' } = useParams()
+  const { id: routeId = '' } = useParams()
+  const id = canonicalizeCaseId(routeId)
   const nav = useLocalizedNavigate()
   const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase, role } = useApp()
   const { t } = useLocale()
@@ -80,8 +82,8 @@ export default function RadiologistWorkspace() {
     ],
     [t],
   )
-  const c = getCase(id)
-  const [hydrating, setHydrating] = useState(() => Boolean(id.startsWith('case-') && !c))
+  const c = getCase(id) ?? (routeId ? getCase(routeId) : undefined)
+  const [hydrating, setHydrating] = useState(() => Boolean(isBackendCaseId(id) && !c))
   const [text, setText] = useState<ReportSections | undefined>(c?.report ?? c?.aiDraft)
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [loadingFrames, setLoadingFrames] = useState(true)
@@ -119,7 +121,7 @@ export default function RadiologistWorkspace() {
   }, [c?.backendFindings?.findings, activeViewerFrame, evidenceFocus, overlaysVisible])
 
   useEffect(() => {
-    if (!id.startsWith('case-')) {
+    if (!isBackendCaseId(id)) {
       setHydrating(false)
       return
     }
@@ -142,24 +144,37 @@ export default function RadiologistWorkspace() {
     setLoadingFrames(true)
     setError(null)
     void (async () => {
-      try {
-        const caseKey = c.backendCaseId || c.id
+      const caseKey = canonicalizeCaseId(c.backendCaseId || c.id)
+      const load = async () => {
         // Fetches all linked DICOM ingests (primary + attachment_refs); decode yields for large studies.
         const files = await fetchCaseDicomFiles(caseKey, MAX_VIEWER_FRAMES)
         if (cancelled) return
         const decoded = await buildDicomPreviews(files, { signal: ac.signal })
         if (cancelled) return
         setFrames(decoded)
-      } catch (err) {
+      }
+      try {
+        await load()
+      } catch (firstErr) {
         if (cancelled) return
-        setFrames([])
-        setError(
-          err instanceof BackendUnavailableError
-            ? err.message
-            : err instanceof Error
+        const firstName = firstErr instanceof Error ? firstErr.name : ''
+        if (firstName === 'AbortError' || firstErr instanceof PollingCancelledError) return
+        // One retry: backend reload / brief 404 during analyze handoff.
+        try {
+          await new Promise((r) => setTimeout(r, 400))
+          if (cancelled) return
+          await load()
+        } catch (err) {
+          if (cancelled) return
+          setFrames([])
+          const raw =
+            err instanceof BackendUnavailableError
               ? err.message
-              : t('review.workspace.dicomLoadFailed'),
-        )
+              : err instanceof Error
+                ? err.message
+                : t('review.workspace.dicomLoadFailed')
+          setError(/case not found/i.test(raw) ? t('review.workspace.dicomCaseMissing') : raw)
+        }
       } finally {
         if (!cancelled) setLoadingFrames(false)
       }
@@ -168,11 +183,11 @@ export default function RadiologistWorkspace() {
       cancelled = true
       ac.abort()
     }
-  }, [c?.id, c?.backendCaseId])
+  }, [c?.id, c?.backendCaseId, t])
 
   useEffect(() => {
-    if (!c?.backendCaseId && !c?.id.startsWith('case-')) return
-    const caseKey = c.backendCaseId || c.id
+    if (!c?.backendCaseId && !isBackendCaseId(c?.id)) return
+    const caseKey = canonicalizeCaseId(c.backendCaseId || c.id)
     void listReportVersions(caseKey)
       .then((v) => setVersions(v.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status }))))
       .catch(() => setVersions([]))

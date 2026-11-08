@@ -867,6 +867,7 @@
       "toastDeleted": "Vaka silindi",
       "toastDeleteFailed": "Silinemedi",
       "dicomLoadFailed": "DICOM yüklenemedi",
+      "dicomCaseMissing": "DICOM için vaka bulunamadı. Sayfayı yenileyin veya iş listesinden yeniden açın.",
       "ageYears": "{age} yaş",
       "manualDraftStarted": "Manuel taslak başlatıldı",
       "manualDraftFailed": "Manuel taslak başlatılamadı",

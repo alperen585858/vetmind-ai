@@ -1,4 +1,5 @@
 import { currentActorId, getBackendAccessToken, loadSession } from './auth'
+import { canonicalizeCaseId } from './caseId'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, DifferentialLikelihood, ReportSections, Species } from '../types'
 import type {
@@ -994,7 +995,8 @@ export async function saveBackendDraftReport(
 }
 
 export async function getBackendCase(caseId: string, signal?: AbortSignal): Promise<BackendCaseRecord> {
-  return request<BackendCaseRecord>(`/cases/${caseId}`, { signal })
+  const id = canonicalizeCaseId(caseId)
+  return request<BackendCaseRecord>(`/cases/${id}`, { signal })
 }
 
 export async function listReportVersions(
@@ -1118,7 +1120,8 @@ export async function fetchIngestDicomFiles(ingestId: string, maxFiles = MAX_VIE
 
 /** List quarantined DICOM files for a backend case (user upload, not synthetic fixtures). */
 export async function listCaseDicomFiles(caseId: string): Promise<CaseDicomFileList> {
-  return request<CaseDicomFileList>(`/cases/${caseId}/dicom/files`)
+  const id = canonicalizeCaseId(caseId)
+  return request<CaseDicomFileList>(`/cases/${id}/dicom/files`)
 }
 
 /**
@@ -1126,7 +1129,8 @@ export async function listCaseDicomFiles(caseId: string): Promise<CaseDicomFileL
  * Returns empty array when the case has no ingest (seed / metadata-only).
  */
 export async function fetchCaseDicomFiles(caseId: string, maxFiles = MAX_VIEWER_FRAMES): Promise<File[]> {
-  const listing = await listCaseDicomFiles(caseId)
+  const id = canonicalizeCaseId(caseId)
+  const listing = await listCaseDicomFiles(id)
   if (!listing.files.length) return []
   const headers = new Headers()
   const token = getBackendAccessToken()
@@ -1137,7 +1141,7 @@ export async function fetchCaseDicomFiles(caseId: string, maxFiles = MAX_VIEWER_
     const meta = listing.files[i]
     let res: Response
     try {
-      res = await fetch(`${API_BASE}/cases/${caseId}/dicom/files/${meta.index}`, { headers })
+      res = await fetch(`${API_BASE}/cases/${id}/dicom/files/${meta.index}`, { headers })
     } catch {
       throw new BackendUnavailableError()
     }

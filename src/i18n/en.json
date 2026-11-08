@@ -867,6 +867,7 @@
       "toastDeleted": "Case deleted",
       "toastDeleteFailed": "Could not delete",
       "dicomLoadFailed": "Could not load DICOM",
+      "dicomCaseMissing": "Case not found for DICOM. Refresh the page or reopen from the worklist.",
       "ageYears": "{age} y",
       "manualDraftStarted": "Manual draft started",
       "manualDraftFailed": "Could not start a manual draft",

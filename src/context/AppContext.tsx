@@ -15,6 +15,7 @@ import {
   getUserSettings,
   listBackendCases,
 } from '../lib/backend'
+import { canonicalizeCaseId } from '../lib/caseId'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
 import { applyLocaleFromSettings } from './LocaleContext'
@@ -203,7 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const hydrateBackendCase = useCallback(async (caseId: string) => {
     try {
-      const record = await getBackendCase(caseId)
+      const record = await getBackendCase(canonicalizeCaseId(caseId))
       const mapped = recordToVetCase(record)
       setCases((all) => {
         const without = all.filter((c) => c.id !== mapped.id && c.backendCaseId !== mapped.id)
@@ -282,7 +283,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       authMode,
       refreshAuthMode,
       cases,
-      getCase: (id) => cases.find((c) => c.id === id || c.backendCaseId === id),
+      getCase: (id) => {
+        const key = canonicalizeCaseId(id)
+        const upperNo = id.trim().toUpperCase()
+        return cases.find(
+          (c) =>
+            c.id === id ||
+            c.backendCaseId === id ||
+            c.id === key ||
+            c.backendCaseId === key ||
+            c.no === upperNo ||
+            c.no === id,
+        )
+      },
       addCase: (c) => setCases((all) => [c, ...all.filter((x) => x.id !== c.id)]),
       updateCase,
       removeCase,

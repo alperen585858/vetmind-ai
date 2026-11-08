@@ -81,6 +81,7 @@ from app.services.report_versioning import (
     snapshot_from_draft,
     upsert_version_snapshot,
 )
+from app.services.case_ids import canonicalize_case_id
 from app.services.repository import CaseRepository
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
@@ -912,6 +913,7 @@ class CaseService:
         return report
 
     def get_case(self, case_id: str, *, principal: AuthPrincipal | None = None) -> CaseRecord:
+        case_id = canonicalize_case_id(case_id)
         case = self._repo.get_case(case_id)
         if case is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
@@ -930,6 +932,7 @@ class CaseService:
 
     def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
         """Permanently remove a case (and its jobs). Demo / list cleanup — not clinical archival."""
+        case_id = canonicalize_case_id(case_id)
         case = self._repo.get_case(case_id)
         if case is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
