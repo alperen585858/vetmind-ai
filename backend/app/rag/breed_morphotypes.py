@@ -21,6 +21,7 @@ _COVERAGE_NOTE = (
 
 # Passages and titles are shown to Turkish users (reports, Bilgi Tabanı); data keys stay English.
 _SPECIES_TR = {"dogs": "Köpek", "cats": "Kedi"}
+_SPECIES_TAG = {"dogs": "canine", "cats": "feline"}
 _LABEL_TR = {
     "description": "açıklama",
     "cephalic_index_range": "sefalik indeks aralığı",
@@ -100,6 +101,8 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
                             + ["cranial morphology", "cephalic index", "kraniyal morfoloji", "sefalik indeks", "ırk"]
                         )
                     ),
+                    regions=("SKULL",),
+                    species=(_SPECIES_TAG[species],) if species in _SPECIES_TAG else (),
                 )
             )
 
@@ -114,6 +117,7 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
                 section="Kraniyal sütür kapanma kuralları",
                 passage=f"{structure}. {_format_value('closure rules', details)}",
                 keywords=("suture", "synchondrosis", "closure", "cranial", "sütür", "kapanma", structure),
+                regions=("SKULL",),
             )
         )
 
@@ -138,6 +142,7 @@ def load_breed_morphotype_documents(path: Path | None = None) -> tuple[CorpusDoc
                 section="Veteriner kraniyal anatomi tuzakları",
                 passage=" ".join(passage_parts),
                 keywords=("anatomical pitfall", "cranial anatomy", "anatomik tuzak", "kraniyal anatomi", structure),
+                regions=("SKULL",),
             )
         )
     return tuple(documents)

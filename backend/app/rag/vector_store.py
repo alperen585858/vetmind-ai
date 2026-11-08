@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from app.rag.breed_morphotypes import load_default_rag_corpus
 from app.rag.corpus import CorpusDoc
-from app.rag.embeddings import EmbeddingBackend, HashEmbeddingBackend
+from app.rag.embeddings import EmbeddingBackend, default_embedding_backend
 
 
 @dataclass
@@ -21,6 +21,17 @@ class IndexedDoc:
     vector: list[float]
     # Clinic-approved knowledge flag — default false (never imply clinical KB).
     approved: bool = False
+    # Relevance tags (app/rag/relevance.py); empty = general doc, never filtered out.
+    regions: list[str] = field(default_factory=list)
+    species: list[str] = field(default_factory=list)
+
+
+def _embed_text(title: str, section: str, passage: str, keywords: list[str] | tuple[str, ...]) -> str:
+    return f"{title} {section} {passage} {' '.join(keywords)}"
+
+
+def _signature(backend: EmbeddingBackend) -> str:
+    return str(getattr(backend, "signature", f"dim-{backend.dim}"))
 
 
 class JsonVectorStore:
@@ -28,7 +39,7 @@ class JsonVectorStore:
 
     def __init__(self, path: Path | None = None, backend: EmbeddingBackend | None = None) -> None:
         self.path = path
-        self._backend = backend or HashEmbeddingBackend(dim=64)
+        self._backend = backend or default_embedding_backend()
         self._docs: list[IndexedDoc] = []
 
     @property
@@ -49,12 +60,25 @@ class JsonVectorStore:
                 keywords=list(d.get("keywords") or []),
                 vector=list(d["vector"]),
                 approved=bool(d.get("approved", False)),
+                regions=list(d.get("regions") or []),
+                species=list(d.get("species") or []),
             )
             for d in raw.get("documents", [])
         ]
         if not self._docs:
             self.reindex_seed(persist=True)
             return
+
+        # Embedding config changed (e.g. 64 -> 1024 dims): re-embed every doc, custom
+        # ones included, otherwise cosine() sees length-mismatched vectors and returns 0.
+        stored_sig = raw.get("embedding") or f"dim-{raw.get('dim')}"
+        reembedded = False
+        if stored_sig != _signature(self._backend) or any(
+            len(d.vector) != self._backend.dim for d in self._docs
+        ):
+            for doc in self._docs:
+                doc.vector = self._backend.embed(_embed_text(doc.title, doc.section, doc.passage, doc.keywords))
+            reembedded = True
 
         # Add missing seed docs and re-index seed docs whose text changed in code
         # (e.g. translated titles), so an old index file never serves stale wording.
@@ -63,16 +87,25 @@ class JsonVectorStore:
         stale_seed_docs = []
         for doc in load_default_rag_corpus():
             current = existing.get(doc.source_id)
-            if current is None or (current.title, current.section, current.passage, current.keywords) != (
+            if current is None or (
+                current.title,
+                current.section,
+                current.passage,
+                current.keywords,
+                current.regions,
+                current.species,
+            ) != (
                 doc.title,
                 doc.section,
                 doc.passage,
                 list(doc.keywords),
+                list(doc.regions),
+                list(doc.species),
             ):
                 stale_seed_docs.append(doc)
         for doc in stale_seed_docs:
             self.add_corpus_doc(doc, persist=False)
-        if stale_seed_docs:
+        if stale_seed_docs or reembedded:
             self.save()
 
     def save(self) -> None:
@@ -82,6 +115,7 @@ class JsonVectorStore:
         payload = {
             "version": "1.0.0",
             "dim": self._backend.dim,
+            "embedding": _signature(self._backend),
             "method": "hash_embedding_cosine",
             "count": len(self._docs),
             "documents": [asdict(d) for d in self._docs],
@@ -100,7 +134,7 @@ class JsonVectorStore:
     def add_corpus_doc(
         self, doc: CorpusDoc, *, persist: bool = True, approved: bool = False
     ) -> IndexedDoc:
-        text = f"{doc.title} {doc.section} {doc.passage} {' '.join(doc.keywords)}"
+        text = _embed_text(doc.title, doc.section, doc.passage, doc.keywords)
         indexed = IndexedDoc(
             source_id=doc.source_id,
             title=doc.title,
@@ -109,6 +143,8 @@ class JsonVectorStore:
             keywords=list(doc.keywords),
             vector=self._backend.embed(text),
             approved=approved,
+            regions=list(doc.regions),
+            species=list(doc.species),
         )
         self._docs = [d for d in self._docs if d.source_id != indexed.source_id]
         self._docs.append(indexed)

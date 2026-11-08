@@ -675,6 +675,22 @@ oranı, hakemce desteklenen cümle, süre, çağrı sayısı; `--repeat` ile ort
 | lexical | `lexical` | Token overlap |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.  
+
+**Alaka filtresi** (`rag/relevance.py`). Rapor taslağı için yapılan aramada:
+
+- Her kaynağın bölge/tür etiketi var (`regions`/`species`). Vaka yalnızca kendi bölgesine uyan kaynakları görür. Kafatası/sütür/ırk kaynakları yalnızca beyin BT/röntgende gelir. Etiketsiz (`custom-*`) kaynaklar her zaman aday olur.
+- Sorgu Türkçe içerikten oluşur (bölge, şikâyet, bulgu metni). Enum ve bulgu kodları sorguya girmez.
+- Hash embedding 2048 boyutlu; Türkçe kök özelliği kullanıyor ve "ve/ile/bir" gibi dolgu kelimeleri atıyor.
+- Skor eşiğinin altında kalan kaynaklar atılır. İlgili kaynak yoksa model kaynaksız yazar.
+
+Ölçüm: `python scripts/rag_eval.py` (`eval/rag_relevance_set.json`, 18 sentetik vaka). Toraks için 6 yeni kaynak eklendi (kb-11–kb-16).
+
+| | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız |
+|---|---:|---:|---:|---:|---:|
+| Önce | 0.14 | 0.62 | 0.30 | 0.00 | 3.44 |
+| Sonra | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
+
+Boyut/embedding ayarı değişirse `rag_index.json` ilk açılışta özel kaynaklar dahil yeniden hesaplanır.  
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
 
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).

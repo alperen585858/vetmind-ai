@@ -8,6 +8,7 @@ from app.llm.interfaces import (
     RevisionContext,
 )
 from app.llm.privacy import redact_personal_data
+from app.rag.relevance import RagFilter, build_retrieval_query
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
 from app.schemas.findings import StructuredFindings
@@ -15,19 +16,30 @@ from app.schemas.report import DraftReport
 
 
 def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
-    parts = [
-        case.species.value,
-        case.modality.value,
-        case.anatomical_region.value,
-        case.clinical_history or "",
-    ]
-    for f in findings.findings:
-        parts.append(f.finding_code)
-        parts.append(f.description)
-        parts.append(f.anatomical_location)
+    """Turkish content query (region/modality words, history, finding text; no enum codes)."""
+    history = case.clinical_history or ""
+    structured = case.clinical_history_structured
+    if structured is not None and structured.complaint and structured.complaint.strip() not in history:
+        history = f"{structured.complaint.strip()}. {history}".strip()
+    document_text = None
     if case.document_context and case.document_context.combined_text_preview:
-        parts.append(case.document_context.combined_text_preview[:500])
-    return " ".join(p for p in parts if p)
+        document_text = case.document_context.combined_text_preview
+    return build_retrieval_query(
+        species=case.species.value,
+        modality=case.modality.value,
+        region=case.anatomical_region.value,
+        history=history,
+        findings=[(f.description, f.anatomical_location) for f in findings.findings],
+        document_text=document_text,
+    )
+
+
+def build_rag_filter(case: CaseRecord) -> RagFilter:
+    return RagFilter(
+        region=case.anatomical_region.value,
+        species=case.species.value,
+        modality=case.modality.value,
+    )
 
 
 _STRUCTURED_HISTORY_LABELS = (
@@ -136,6 +148,14 @@ class LLMGateway:
     def set_rag(self, rag: RagRetriever | None) -> None:
         self._rag = rag
 
+    def _retrieve(self, case: CaseRecord, findings: StructuredFindings) -> list:
+        assert self._rag is not None
+        return self._rag.retrieve(
+            build_rag_query(case, findings),
+            top_k=self._rag_top_k,
+            filters=build_rag_filter(case),
+        )
+
     def generate_draft(
         self,
         case: CaseRecord,
@@ -145,8 +165,7 @@ class LLMGateway:
     ) -> DraftReport:
         passages = []
         if self._rag is not None:
-            query = build_rag_query(case, findings)
-            passages = self._rag.retrieve(query, top_k=self._rag_top_k)
+            passages = self._retrieve(case, findings)
         generation = build_generation_input(case, findings, rag_passages=passages, language=language)
         try:
             response: LLMResponse = self._provider.generate(
@@ -169,7 +188,7 @@ class LLMGateway:
         """Regenerate the draft with the expert's revision request; same findings, fresh retrieval."""
         passages = []
         if self._rag is not None:
-            passages = self._rag.retrieve(build_rag_query(case, findings), top_k=self._rag_top_k)
+            passages = self._retrieve(case, findings)
         generation = build_generation_input(case, findings, rag_passages=passages, language=language)
         known = [(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")]
         revision = RevisionContext(

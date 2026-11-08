@@ -57,4 +57,5 @@ def test_build_rag_query_includes_modality() -> None:
     )
     q = build_rag_query(case, findings)
     assert "MR" in q
-    assert "BRAIN" in q
+    assert "beyin" in q  # Turkish region word, not the BRAIN enum code
+    assert "BRAIN" not in q

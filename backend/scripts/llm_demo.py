@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.llm.factory import build_llm_provider  # noqa: E402
-from app.llm.gateway import LLMGateway, build_generation_input, build_rag_query  # noqa: E402
+from app.llm.gateway import LLMGateway, build_generation_input, build_rag_filter, build_rag_query  # noqa: E402
 from app.llm.interfaces import LLMProviderError  # noqa: E402
 from app.llm.prompts import build_aliases, build_system_prompt, build_user_prompt  # noqa: E402
 from app.models.mock_vision import MockBrainMriModel, MockCervicalMriModel  # noqa: E402
@@ -75,7 +75,7 @@ def main() -> int:
     rag = LexicalRagRetriever()
 
     if args.dry_run:
-        passages = rag.retrieve(build_rag_query(case, findings), top_k=4)
+        passages = rag.retrieve(build_rag_query(case, findings), top_k=4, filters=build_rag_filter(case))
         gen = build_generation_input(case, findings, rag_passages=passages)
         print("=== SYSTEM ===\n" + build_system_prompt(settings.llm_report_language))
         print("\n=== USER ===\n" + build_user_prompt(gen, build_aliases(gen)))

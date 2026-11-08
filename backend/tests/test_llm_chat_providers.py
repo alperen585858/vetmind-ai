@@ -46,7 +46,7 @@ PASSAGES = [
 
 
 class FixedRetriever:
-    def retrieve(self, query: str, top_k: int = 4) -> list[RagPassage]:
+    def retrieve(self, query: str, top_k: int = 4, filters=None) -> list[RagPassage]:  # noqa: ANN001
         return PASSAGES[:top_k]
 
 

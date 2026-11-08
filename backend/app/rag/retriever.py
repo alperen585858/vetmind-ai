@@ -7,6 +7,7 @@ from typing import Protocol, runtime_checkable
 
 from app.rag.breed_morphotypes import load_default_rag_corpus
 from app.rag.corpus import CorpusDoc
+from app.rag.relevance import RagFilter
 from app.schemas.rag import RagPassage
 
 _TOKEN = re.compile(r"[a-zA-ZğüşıöçĞÜŞİÖÇ0-9-]{2,}", re.UNICODE)
@@ -18,7 +19,9 @@ def _tokenize(text: str) -> set[str]:
 
 @runtime_checkable
 class RagRetriever(Protocol):
-    def retrieve(self, query: str, *, top_k: int = 4) -> list[RagPassage]: ...
+    def retrieve(
+        self, query: str, *, top_k: int = 4, filters: RagFilter | None = None
+    ) -> list[RagPassage]: ...
 
 
 class LexicalRagRetriever:
@@ -27,7 +30,9 @@ class LexicalRagRetriever:
     def __init__(self, corpus: tuple[CorpusDoc, ...] | None = None) -> None:
         self._corpus = corpus if corpus is not None else load_default_rag_corpus()
 
-    def retrieve(self, query: str, *, top_k: int = 4) -> list[RagPassage]:
+    def retrieve(
+        self, query: str, *, top_k: int = 4, filters: RagFilter | None = None
+    ) -> list[RagPassage]:
         q = (query or "").strip()
         if not q:
             return []
@@ -37,6 +42,8 @@ class LexicalRagRetriever:
 
         scored: list[tuple[float, CorpusDoc]] = []
         for doc in self._corpus:
+            if filters is not None and not filters.allows(doc.regions, doc.species):
+                continue
             hay_tokens = _tokenize(f"{doc.title} {doc.section} {doc.passage} {' '.join(doc.keywords)}")
             overlap = q_tokens & hay_tokens
             if not overlap:

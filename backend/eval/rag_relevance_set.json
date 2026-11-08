@@ -1,0 +1,344 @@
+{
+  "version": 2,
+  "name": "VetMind RAG relevance set",
+  "note": "Sentetik vakalar; ilgili kaynaklar ekip tarafından işaretlendi (yazarların yargısını yansıtır). Kafatası/ırk kaynakları (suture-*, breed-*) yalnızca kafa travması veya kafatası morfolojisi sorularında ilgili sayılır; kb-10 (raporlama güvenlik notu) klinik kaynak değildir. 'relevant' boşsa doğru davranış hiç kaynak getirmemektir. Klinik validasyon değildir.",
+  "cases": [
+    {
+      "id": "brain-mri-seizure-cat",
+      "title": "Kedi, nöbet + beyinde ekstra-aksiyel kitle (Duman benzeri)",
+      "species": "feline",
+      "modality": "MR",
+      "region": "BRAIN",
+      "complaint": "Tekrarlayan jeneralize nöbetler (son 3 ayda 4 kez)",
+      "history": "Kapalı ortamda yaşıyor, toksin maruziyeti öyküsü yok.",
+      "findings": [
+        {
+          "code": "MOCK-BRAIN-MASS-EFFECT",
+          "description": "Olfaktör bulbus bölgesi yakınında şüpheli ekstra-aksiyel kitle etkisi.",
+          "location": "beyin / olfaktör bulbus bölgesi"
+        }
+      ],
+      "relevant": [
+        "kb-6",
+        "kb-5"
+      ]
+    },
+    {
+      "id": "brain-mri-meningioma-cat",
+      "title": "Yaşlı kedi, kitle şüphesi",
+      "species": "feline",
+      "modality": "MR",
+      "region": "BRAIN",
+      "complaint": "Davranış değişikliği, sürekli aynı yöne dönme",
+      "history": "13 yaşında. Hipertiroidi tedavisi altında.",
+      "findings": [
+        {
+          "code": "BRAIN-EXTRA-AXIAL-MASS",
+          "description": "Dural tabanlı, kontrast tutan ekstra-aksiyel kitle; dural kuyruk işareti.",
+          "location": "beyin / sağ frontal"
+        }
+      ],
+      "relevant": [
+        "kb-5"
+      ]
+    },
+    {
+      "id": "brain-mri-idiopathic-epilepsy-dog",
+      "title": "Genç köpek, nöbet, MR normal",
+      "species": "canine",
+      "modality": "MR",
+      "region": "BRAIN",
+      "complaint": "İlk kez görülen jeneralize nöbet",
+      "history": "2 yaşında Border Collie. Nöbetler arası muayene normal.",
+      "findings": [],
+      "relevant": [
+        "kb-6"
+      ]
+    },
+    {
+      "id": "brain-ct-vestibular-dog",
+      "title": "Köpek, baş eğikliği, beyin BT (Karamel benzeri)",
+      "species": "canine",
+      "modality": "CT",
+      "region": "BRAIN",
+      "complaint": "Ani başlayan baş eğikliği, gözlerde istemsiz hareket, dengesizlik",
+      "history": "Hipotiroidi şüphesi (tetkik edilmedi).",
+      "findings": [
+        {
+          "code": "MOCK-CT-VOLUME-HINT",
+          "description": "Beyin çalışmasında olası yumuşak doku yoğunluk asimetrisi.",
+          "location": "beyin"
+        }
+      ],
+      "relevant": [
+        "kb-9",
+        "kb-5"
+      ]
+    },
+    {
+      "id": "skull-ct-trauma-puppy",
+      "title": "Yavru köpek, kafa travması, kırık mı sütür mü",
+      "species": "canine",
+      "modality": "CT",
+      "region": "BRAIN",
+      "complaint": "Kafa travması sonrası kafatasında kırık şüphesi",
+      "history": "4 aylık yavru. Merdivenden düşme.",
+      "findings": [
+        {
+          "code": "SKULL-LINEAR-LUCENCY",
+          "description": "Parietal kemikte lineer hipodens hat; kırık veya açık sütür ayrımı gerekli.",
+          "location": "kafatası / parietal"
+        }
+      ],
+      "relevant": [
+        "kb-9",
+        "suture-*",
+        "breed-pitfall-*"
+      ]
+    },
+    {
+      "id": "skull-brachycephalic-morphology",
+      "title": "Brakisefalik ırkta kafatası şekli sorusu",
+      "species": "canine",
+      "modality": "CT",
+      "region": "BRAIN",
+      "complaint": "Fransız Bulldog, kafatası şekil bozukluğu ve açık bıngıldak şüphesi",
+      "history": "6 aylık. Brakisefalik ırk.",
+      "findings": [
+        {
+          "code": "SKULL-OPEN-FONTANELLE",
+          "description": "Bregma bölgesinde kapanmamış bıngıldak görünümü.",
+          "location": "kafatası / bregma"
+        }
+      ],
+      "relevant": [
+        "breed-dogs-brachycephalic",
+        "suture-*",
+        "breed-pitfall-001",
+        "breed-pitfall-007"
+      ]
+    },
+    {
+      "id": "cervical-mri-neck-pain-bulldog",
+      "title": "Genç Fransız Bulldog, boyun ağrısı (Tarçın benzeri)",
+      "species": "canine",
+      "modality": "MR",
+      "region": "CERVICAL",
+      "complaint": "Boyun ağrısı, başını aşağıda tutma, dokunulunca bağırma",
+      "history": "3 yaşında. Bilinen hastalık yok. Ateş ölçülmedi.",
+      "findings": [
+        {
+          "code": "MOCK-CERVICAL-CORD-COMPRESSION",
+          "description": "C2–C3 seviyesinde şüpheli ekstradural omurilik basısı.",
+          "location": "servikal omurga / C2–C3"
+        }
+      ],
+      "relevant": [
+        "kb-7",
+        "kb-2"
+      ]
+    },
+    {
+      "id": "cervical-mri-ivdd-dachshund",
+      "title": "Dachshund, tetraparezi, servikal disk (Paşa benzeri)",
+      "species": "canine",
+      "modality": "MR",
+      "region": "CERVICAL",
+      "complaint": "Ani başlayan boyun ağrısı, dört bacakta güçsüzlük",
+      "history": "6 yaşında. Hafif kilolu.",
+      "findings": [
+        {
+          "code": "MOCK-CERVICAL-CORD-COMPRESSION",
+          "description": "C2–C3 seviyesinde şüpheli ekstradural omurilik basısı.",
+          "location": "servikal omurga / C2–C3"
+        }
+      ],
+      "relevant": [
+        "kb-2",
+        "kb-7",
+        "kb-4"
+      ]
+    },
+    {
+      "id": "cervical-mri-cat",
+      "title": "Kedi, boyun ağrısı",
+      "species": "feline",
+      "modality": "MR",
+      "region": "CERVICAL",
+      "complaint": "Boynunu hareket ettirirken ağrı, başını kaldırmakta isteksizlik",
+      "history": "8 yaşında.",
+      "findings": [],
+      "relevant": [
+        "kb-7",
+        "kb-2"
+      ]
+    },
+    {
+      "id": "thorax-xr-cough-dog",
+      "title": "Yaşlı köpek, kronik öksürük (Zeytin benzeri)",
+      "species": "canine",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Kronik öksürük ve egzersiz intoleransı",
+      "history": "10 yaşında Alman Kurdu. Kalça displazisi öyküsü.",
+      "findings": [
+        {
+          "code": "MOCK-XR-THORAX-OPACITY",
+          "description": "Toraks grafisinde kaudal akciğer alanında olası interstisyel opasite.",
+          "location": "toraks / kaudal akciğer alanı"
+        }
+      ],
+      "relevant": [
+        "kb-8",
+        "kb-11",
+        "kb-13"
+      ]
+    },
+    {
+      "id": "thorax-xr-dyspnea-cat",
+      "title": "Kedi, nefes darlığı",
+      "species": "feline",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Hızlı ve zorlu solunum, ağızdan soluma",
+      "history": "5 yaşında.",
+      "findings": [
+        {
+          "code": "THORAX-PLEURAL-EFFUSION",
+          "description": "Plevral boşlukta sıvı ile uyumlu opasite.",
+          "location": "toraks / plevral boşluk"
+        }
+      ],
+      "relevant": [
+        "kb-12"
+      ]
+    },
+    {
+      "id": "thorax-xr-asthma-cat",
+      "title": "Kedi, öksürük, bronşiyal patern",
+      "species": "feline",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Ara ara öksürük ve hırıltılı solunum",
+      "history": "4 yaşında. Kapalı ortam.",
+      "findings": [
+        {
+          "code": "THORAX-BRONCHIAL-PATTERN",
+          "description": "Bronş duvarlarında kalınlaşma; halka ve tren rayı görünümü.",
+          "location": "toraks / kaudal akciğer lobları"
+        }
+      ],
+      "relevant": [
+        "kb-11"
+      ]
+    },
+    {
+      "id": "thorax-xr-trauma-dog",
+      "title": "Köpek, trafik kazası sonrası solunum güçlüğü",
+      "species": "canine",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Trafik kazası sonrası hızlı ve yüzeysel solunum",
+      "history": "3 yaşında. Kaza 2 saat önce.",
+      "findings": [
+        {
+          "code": "THORAX-PNEUMOTHORAX",
+          "description": "Lateral grafide kalp sternumdan ayrılmış; periferde damar izi olmayan hava alanı.",
+          "location": "toraks / plevral boşluk"
+        }
+      ],
+      "relevant": [
+        "kb-14"
+      ]
+    },
+    {
+      "id": "thorax-xr-metastasis-dog",
+      "title": "Köpek, kemik tümörü sonrası akciğer taraması",
+      "species": "canine",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Osteosarkom tanısı sonrası akciğer metastaz taraması",
+      "history": "9 yaşında Rottweiler.",
+      "findings": [
+        {
+          "code": "THORAX-NODULES",
+          "description": "Akciğer alanlarında birkaç adet yuvarlak yumuşak doku nodülü.",
+          "location": "toraks / akciğer"
+        }
+      ],
+      "relevant": [
+        "kb-15",
+        "kb-11"
+      ]
+    },
+    {
+      "id": "thorax-xr-tracheal-collapse-dog",
+      "title": "Küçük ırk köpek, kaz ötüşü öksürük",
+      "species": "canine",
+      "modality": "XR",
+      "region": "THORAX",
+      "complaint": "Heyecanlanınca kaz ötüşü gibi öksürük",
+      "history": "8 yaşında Yorkshire Terrier.",
+      "findings": [
+        {
+          "code": "THORAX-TRACHEAL-NARROWING",
+          "description": "Servikotorasik bölgede trakea lümeninde dorsoventral daralma.",
+          "location": "toraks / trakea"
+        }
+      ],
+      "relevant": [
+        "kb-16"
+      ]
+    },
+    {
+      "id": "tl-spine-paresis-dog",
+      "title": "Torakolomber disk, arka bacak güçsüzlüğü (bölge: diğer)",
+      "species": "canine",
+      "modality": "MR",
+      "region": "OTHER",
+      "complaint": "Arka bacaklarda ani güçsüzlük, sırt ağrısı",
+      "history": "5 yaşında Dachshund.",
+      "findings": [
+        {
+          "code": "TL-DISK-EXTRUSION",
+          "description": "T13-L1 seviyesinde ventral ekstradural disk materyali.",
+          "location": "torakolomber omurga / T13-L1"
+        }
+      ],
+      "relevant": [
+        "kb-1",
+        "kb-2",
+        "kb-3",
+        "kb-4"
+      ]
+    },
+    {
+      "id": "empty-abdomen",
+      "title": "Batın — bilgi tabanında ilgili kaynak yok",
+      "species": "canine",
+      "modality": "OTHER",
+      "region": "OTHER",
+      "complaint": "Kusma ve karın ağrısı",
+      "history": "7 yaşında. İştahsızlık.",
+      "findings": [],
+      "relevant": []
+    },
+    {
+      "id": "empty-limb-fracture",
+      "title": "Ön bacak kırığı — ilgili kaynak yok (kafatası 'kırık' pasajları tuzak)",
+      "species": "canine",
+      "modality": "XR",
+      "region": "OTHER",
+      "complaint": "Ön bacakta topallık, kırık şüphesi",
+      "history": "Trafik kazası.",
+      "findings": [
+        {
+          "code": "LIMB-FRACTURE",
+          "description": "Radius diyafizinde kırık hattı şüphesi.",
+          "location": "sol ön bacak / radius"
+        }
+      ],
+      "relevant": []
+    }
+  ]
+}
