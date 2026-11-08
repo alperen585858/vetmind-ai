@@ -20,18 +20,30 @@
   --vm-font-body: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
 }
 
-/* Pet owner shell — match Landing sky / navy */
+/* Pet owner — Premium care workspace (sky / navy brand lane) */
 [data-role='owner'] {
+  --vm-sidebar: #0f2744;
+  --vm-midnight: #0b1a2e;
   --vm-accent: #0ea5e9;
   --vm-accent-hover: #0284c7;
   --vm-accent-soft: #e0f2fe;
-  --vm-surface: #f0f9ff;
+  --vm-surface: #f3f8fc;
+  --vm-surface-elevated: #ffffff;
+  --vm-text: #172b4d;
+  --vm-danger: #e5484d;
+  --vm-success: #059669;
+  --vm-warning: #d99a32;
+  --vm-radius: 0.75rem;
+  --vm-shadow: 0 1px 2px rgba(15, 39, 68, 0.05), 0 8px 24px rgba(15, 39, 68, 0.05);
+  --vm-border: rgba(148, 163, 184, 0.32);
+  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
 }
 body:has([data-role='owner']) {
   background:
-    radial-gradient(1200px 480px at 12% -10%, rgba(14, 165, 233, 0.12), transparent 55%),
-    radial-gradient(900px 420px at 100% 0%, rgba(18, 35, 58, 0.08), transparent 50%),
+    radial-gradient(900px 420px at 90% -10%, rgba(14, 165, 233, 0.14), transparent 55%),
+    radial-gradient(700px 360px at 0% 0%, rgba(15, 39, 68, 0.07), transparent 50%),
     var(--vm-surface);
+  color: var(--vm-text);
 }
 [data-role='owner'] .input {
   @apply focus:border-sky-500 focus:ring-sky-500/20;
@@ -41,6 +53,115 @@ body:has([data-role='owner']) {
 }
 [data-role='owner'] .skip-link:focus {
   @apply bg-sky-500;
+}
+[data-role='owner'] aside.vm-sidebar {
+  background: linear-gradient(180deg, #0f2744 0%, #0b1a2e 100%);
+  border-right: 1px solid rgba(56, 189, 248, 0.1);
+}
+[data-role='owner'] .vm-owner-card {
+  @apply rounded-vm border border-slate-200/70 bg-white shadow-soft transition duration-200;
+}
+[data-role='owner'] .vm-owner-card:hover {
+  @apply border-sky-200/80 shadow-md;
+}
+[data-role='owner'] .vm-fade-up {
+  animation: vm-fade-up 0.45s ease-out both;
+}
+
+/* System admin — Premium control plane (slate / emerald) */
+[data-role='admin'] {
+  --vm-sidebar: #0f172a;
+  --vm-midnight: #020617;
+  --vm-accent: #10b981;
+  --vm-accent-hover: #059669;
+  --vm-accent-soft: #ecfdf5;
+  --vm-surface: #f4f6f8;
+  --vm-surface-elevated: #ffffff;
+  --vm-text: #172b4d;
+  --vm-danger: #e5484d;
+  --vm-success: #059669;
+  --vm-warning: #d99a32;
+  --vm-radius: 0.75rem;
+  --vm-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --vm-border: rgba(148, 163, 184, 0.32);
+  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+}
+body:has([data-role='admin']) {
+  background:
+    radial-gradient(900px 420px at 90% -8%, rgba(16, 185, 129, 0.1), transparent 55%),
+    radial-gradient(700px 360px at 0% 0%, rgba(15, 23, 42, 0.08), transparent 50%),
+    var(--vm-surface);
+  color: var(--vm-text);
+}
+[data-role='admin'] .input {
+  @apply focus:border-emerald-600 focus:ring-emerald-600/15;
+}
+[data-role='admin'] :where(a, button, [role='button'], summary):focus-visible {
+  @apply outline-emerald-700;
+}
+[data-role='admin'] .skip-link:focus {
+  @apply bg-emerald-600;
+}
+[data-role='admin'] aside.vm-sidebar {
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  border-right: 1px solid rgba(52, 211, 153, 0.1);
+}
+[data-role='admin'] .vm-admin-card {
+  @apply rounded-vm border border-slate-200/70 bg-white shadow-soft transition duration-200;
+}
+[data-role='admin'] .vm-admin-card:hover {
+  @apply border-emerald-200/80 shadow-md;
+}
+[data-role='admin'] .vm-fade-up {
+  animation: vm-fade-up 0.45s ease-out both;
+}
+
+/* Clinic owner — Premium operations board (indigo / navy) */
+[data-role='clinic_owner'] {
+  --vm-sidebar: #1e1b4b;
+  --vm-midnight: #0f172a;
+  --vm-accent: #6366f1;
+  --vm-accent-hover: #4f46e5;
+  --vm-accent-soft: #eef2ff;
+  --vm-surface: #f5f6fb;
+  --vm-surface-elevated: #ffffff;
+  --vm-text: #172b4d;
+  --vm-danger: #e5484d;
+  --vm-success: #059669;
+  --vm-warning: #d99a32;
+  --vm-radius: 0.75rem;
+  --vm-shadow: 0 1px 2px rgba(30, 27, 75, 0.05), 0 8px 24px rgba(30, 27, 75, 0.05);
+  --vm-border: rgba(148, 163, 184, 0.32);
+  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+}
+body:has([data-role='clinic_owner']) {
+  background:
+    radial-gradient(900px 420px at 92% -8%, rgba(99, 102, 241, 0.12), transparent 55%),
+    radial-gradient(700px 360px at 0% 0%, rgba(15, 23, 42, 0.07), transparent 50%),
+    var(--vm-surface);
+  color: var(--vm-text);
+}
+[data-role='clinic_owner'] .input {
+  @apply focus:border-indigo-500 focus:ring-indigo-500/20;
+}
+[data-role='clinic_owner'] :where(a, button, [role='button'], summary):focus-visible {
+  @apply outline-indigo-600;
+}
+[data-role='clinic_owner'] .skip-link:focus {
+  @apply bg-indigo-500;
+}
+[data-role='clinic_owner'] aside.vm-sidebar {
+  background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
+  border-right: 1px solid rgba(165, 180, 252, 0.12);
+}
+[data-role='clinic_owner'] .vm-clinic-card {
+  @apply rounded-vm border border-slate-200/70 bg-white shadow-soft transition duration-200;
+}
+[data-role='clinic_owner'] .vm-clinic-card:hover {
+  @apply border-indigo-200/80 shadow-md;
+}
+[data-role='clinic_owner'] .vm-fade-up {
+  animation: vm-fade-up 0.45s ease-out both;
 }
 
 /* Expert / radiologist — Premium Veterinary Intelligence */

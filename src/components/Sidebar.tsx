@@ -54,6 +54,8 @@ export function Sidebar({
   const ic = 'h-[18px] w-[18px] shrink-0'
   const isOwner = role === 'owner'
   const isExpert = role === 'expert'
+  const isClinic = role === 'clinic_owner'
+  const isAdmin = role === 'admin'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
     vet: t('roles.vetShort'),
     expert: t('roles.expertShort'),
@@ -119,7 +121,11 @@ export function Sidebar({
                 className={`hidden h-9 w-9 items-center justify-center rounded-xl shadow-sm lg:flex ${
                   isOwner
                     ? 'bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800'
-                    : 'bg-gradient-to-br from-teal-400 to-teal-700'
+                    : isClinic
+                      ? 'bg-gradient-to-br from-indigo-300 via-indigo-500 to-navy-900'
+                      : isAdmin
+                        ? 'bg-gradient-to-br from-emerald-300 via-slate-500 to-slate-900'
+                        : 'bg-gradient-to-br from-teal-400 to-teal-700'
                 }`}
                 title="VetMind AI"
               >
@@ -129,9 +135,21 @@ export function Sidebar({
               </div>
             ) : null}
             <div className={collapsed ? 'lg:hidden' : ''}>
-              <Logo dark accent={isOwner ? 'sky' : isExpert ? 'navy' : 'teal'} />
-              <p className={`mt-1.5 pl-[46px] text-[11px] ${isExpert ? 'text-slate-400' : 'text-navy-300'}`}>
-                {isExpert ? 'Veterinary Radiology Intelligence' : 'VRM Teknoloji iş birliğiyle'}
+              <Logo dark accent={isOwner ? 'sky' : isExpert || isClinic || isAdmin ? 'navy' : 'teal'} />
+              <p
+                className={`mt-1.5 pl-[46px] text-[11px] ${
+                  isExpert || isOwner || isClinic || isAdmin ? 'text-slate-400' : 'text-navy-300'
+                }`}
+              >
+                {isExpert
+                  ? 'Veterinary Radiology Intelligence'
+                  : isOwner
+                    ? 'Pet Care Intelligence'
+                    : isClinic
+                      ? 'Clinic Operations Intelligence'
+                      : isAdmin
+                        ? 'Platform Control Plane'
+                        : 'VRM Teknoloji iş birliğiyle'}
               </p>
               {role && (
                 <span
@@ -140,7 +158,11 @@ export function Sidebar({
                       ? 'bg-sky-500/15 text-sky-200 ring-sky-400/30'
                       : isExpert
                         ? 'bg-teal-400/10 text-teal-200 ring-teal-300/25'
-                        : 'bg-teal-500/15 text-teal-200 ring-teal-400/30'
+                        : isClinic
+                          ? 'bg-indigo-400/15 text-indigo-200 ring-indigo-300/30'
+                          : isAdmin
+                            ? 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/30'
+                            : 'bg-teal-500/15 text-teal-200 ring-teal-400/30'
                   }`}
                 >
                   {roleLabels[role]}
@@ -186,10 +208,14 @@ export function Sidebar({
                 } px-3 py-2.5 ${
                   isActive
                     ? isOwner
-                      ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
+                      ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
                       : isExpert
                         ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
-                        : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                        : isClinic
+                          ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
+                          : isAdmin
+                            ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_0_#34d399]'
+                            : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
                     : 'text-navy-200 hover:bg-navy-800/80 hover:text-white'
                 }`
               }
@@ -219,10 +245,14 @@ export function Sidebar({
               } gap-3 px-3 py-2.5 ${
                 isActive
                   ? isOwner
-                    ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
+                    ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
                     : isExpert
                       ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
-                      : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                      : isClinic
+                        ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
+                        : isAdmin
+                          ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_0_#34d399]'
+                          : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
                   : 'text-navy-200 hover:bg-navy-800/80 hover:text-white'
               }`
             }

@@ -31,8 +31,13 @@ import {
   Layers,
   MoreHorizontal,
   PawPrint,
+  RefreshCw,
+  Server,
+  ShieldCheck,
   Timer,
   UploadCloud,
+  Users,
+  Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
@@ -40,19 +45,48 @@ import { useLocale } from '../context/LocaleContext'
 import type { TranslateFn } from '../i18n'
 import { studyLabel } from '../lib/displayClean'
 import { Card, CardHeader, StatCard } from '../components/Card'
-import { ExpertNodeAccent, ExpertWaveAccent } from '../components/ExpertBrandMark'
+import {
+  AdminCircuitAccent,
+  AdminWaveAccent,
+  ClinicGridAccent,
+  ClinicWaveAccent,
+  ExpertNodeAccent,
+  ExpertWaveAccent,
+  OwnerPawAccent,
+  OwnerWaveAccent,
+} from '../components/ExpertBrandMark'
 import { ExpertWorklistTable } from '../components/ExpertWorklistTable'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { SpeciesIcon } from '../components/CaseTable'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import { DEPLOYMENTS, GPU_SERIES, MODULES, SERVICES } from '../data/mock'
-import { getClinicDashboard, getClinicStats, listPets, listSubmissions } from '../lib/backend'
+import { DEPLOYMENTS, GPU_SERIES } from '../data/mock'
+import {
+  BackendUnavailableError,
+  fetchBackendHealth,
+  fetchModelReadiness,
+  fetchRadiologistPayoutLedger,
+  getClinicDashboard,
+  getClinicStats,
+  listManagedUsers,
+  listPets,
+  listSubmissions,
+  type BackendHealth,
+  type BackendModelReadiness,
+} from '../lib/backend'
 import { fmtDate } from '../lib/format'
 import { isSlaAttention } from '../lib/reviewSla'
 import { caseBelongsToOwner } from '../lib/caseMapper'
-import type { BackendClinicStats, BackendPet, BackendImagingSubmission, ClinicDashboardStats, VetCase } from '../types'
+import type {
+  BackendClinicStats,
+  BackendManagedUser,
+  BackendPet,
+  BackendImagingSubmission,
+  BackendRadiologistPayoutLedger,
+  ClinicDashboardStats,
+  VetCase,
+} from '../types'
 
 const PIE_COLORS = ['#0b807a', '#3e6895', '#94a3b8']
 
@@ -867,101 +901,387 @@ function ownerStatusText(status: string, t: TranslateFn) {
   return map[status] ?? map.ai_analizi
 }
 
+function ownerGreeting(name: string, t: TranslateFn) {
+  const h = new Date().getHours()
+  const key = h < 12 ? 'dashboard.ownerGoodMorning' : h < 18 ? 'dashboard.ownerGoodAfternoon' : 'dashboard.ownerGoodEvening'
+  return t(key, { name })
+}
+
+function OwnerMetric({
+  label,
+  value,
+  hint,
+  to,
+  delayMs = 0,
+  emphasize,
+}: {
+  label: string
+  value: number
+  hint?: string
+  to: string
+  delayMs?: number
+  emphasize?: boolean
+}) {
+  return (
+    <LocalizedLink
+      to={to}
+      aria-label={`${label}: ${value}`}
+      className={`vm-owner-card vm-fade-up block px-4 py-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 ${
+        emphasize && value > 0 ? 'border-emerald-300/70 ring-1 ring-emerald-100' : ''
+      }`}
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p
+        className={`mt-1 font-display text-3xl font-semibold tabular-nums tracking-tight ${
+          emphasize && value > 0 ? 'text-emerald-700' : 'text-[color:var(--vm-text,#172b4d)]'
+        }`}
+      >
+        {value}
+      </p>
+      {hint ? <p className="mt-1 text-[11px] text-slate-400">{hint}</p> : null}
+    </LocalizedLink>
+  )
+}
+
 function OwnerDashboard() {
   const { cases, user, session, refreshBackendCases } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const [pets, setPets] = useState<BackendPet[]>([])
   const [subs, setSubs] = useState<BackendImagingSubmission[]>([])
+  const [q, setQ] = useState('')
+
   useEffect(() => {
     void refreshBackendCases()
     void listPets().then(setPets).catch(() => setPets([]))
     void listSubmissions().then(setSubs).catch(() => setSubs([]))
   }, [refreshBackendCases])
-  // Match ReportList: only this owner's pets — not every approved case in the DB.
-  const mine = cases.filter((c) =>
-    caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name }),
-  )
-  const ready = mine.filter((c) => c.status === 'onaylandi')
-  const pendingSubs = subs.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length
-  return (
-    <>
-      <PageHeader
-        title={t('dashboard.helloNamed', { name: user?.name ?? '' })}
-        actions={
-          <Button onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
-            {t('dashboard.ownerNewRequest')}
-          </Button>
-        }
-      />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard to="/hayvanlar" label={t('dashboard.ownerStatPets')} value={pets.length} icon={<PawPrint className="h-5 w-5" />} tone="navy" hint={t('dashboard.ownerStatPetsHint')} />
-        <StatCard to="/basvurular" label={t('dashboard.ownerStatPending')} value={pendingSubs} icon={<Hourglass className="h-5 w-5" />} tone="amber" hint={t('dashboard.ownerStatPendingHint')} />
-        <StatCard to="/raporlar" label={t('dashboard.ownerStatReady')} value={ready.length} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" hint={t('dashboard.ownerStatReadyHint')} />
+  // Match ReportList: only this owner's pets — not every approved case in the DB.
+  const mine = useMemo(
+    () =>
+      cases.filter((c) =>
+        caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name }),
+      ),
+    [cases, session?.email, user?.email, user?.name],
+  )
+  const ready = useMemo(() => mine.filter((c) => c.status === 'onaylandi'), [mine])
+  const inProgress = useMemo(
+    () => mine.filter((c) => c.status !== 'onaylandi' && c.status !== 'reddedildi'),
+    [mine],
+  )
+  const pendingSubs = subs.filter((s) => s.status === 'pending_verification' || s.status === 'needs_info').length
+  const trend = useMemo(() => buildTrend(mine, t), [mine, t])
+  const statusDist = useMemo(() => {
+    const buckets: { key: string; name: string; value: number; color: string }[] = [
+      { key: 'ready', name: t('dashboard.ownerChartReady'), value: 0, color: '#059669' },
+      { key: 'review', name: t('dashboard.ownerChartReview'), value: 0, color: '#0EA5E9' },
+      { key: 'process', name: t('dashboard.ownerChartProcess'), value: 0, color: '#D99A32' },
+      { key: 'other', name: t('dashboard.ownerChartOther'), value: 0, color: '#64748B' },
+    ]
+    for (const c of mine) {
+      if (c.status === 'onaylandi') buckets[0].value += 1
+      else if (c.status === 'uzman_incelemesinde' || c.status === 'revizyon') buckets[1].value += 1
+      else if (c.status === 'isleniyor' || c.status === 'ai_analizi' || c.status === 'taslak') buckets[2].value += 1
+      else buckets[3].value += 1
+    }
+    return buckets.filter((b) => b.value > 0)
+  }, [mine, t])
+
+  const filteredMine = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return mine
+    return mine.filter((c) =>
+      [c.patient.name, c.no, c.patient.species, c.patient.breed, c.clinical.complaint].join(' ').toLowerCase().includes(needle),
+    )
+  }, [mine, q])
+
+  const name = user?.name ?? ''
+
+  return (
+    <div className="space-y-6">
+      <section className="vm-fade-up relative overflow-hidden rounded-2xl border border-slate-200/60 bg-[color:var(--vm-midnight,#0b1a2e)] text-white shadow-soft">
+        <OwnerWaveAccent className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-80" />
+        <OwnerPawAccent className="pointer-events-none absolute -left-2 top-6 h-32 w-32 opacity-50" />
+        <div className="relative grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="flex flex-col justify-center px-6 py-7 sm:px-8 sm:py-9">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-200/90">
+              {t('dashboard.ownerBrandTag')}
+            </p>
+            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">
+              {ownerGreeting(name, t)}
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">{t('dashboard.ownerSubtitle')}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
+                {t('dashboard.ownerNewRequest')}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                onClick={() => nav('/raporlar')}
+              >
+                {t('nav.myReports')}
+                {ready.length > 0 ? ` · ${ready.length}` : ''}
+              </Button>
+            </div>
+          </div>
+          <div className="relative min-h-[200px] overflow-hidden lg:min-h-[260px]">
+            <img
+              src="/dashboard-hero-dog.jpg"
+              alt=""
+              width={720}
+              height={520}
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover object-[52%_18%]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--vm-midnight,#0b1a2e)] via-[color:var(--vm-midnight,#0b1a2e)]/55 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--vm-midnight,#0b1a2e)]/70 via-transparent to-[color:var(--vm-midnight,#0b1a2e)]/20" />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <OwnerMetric
+          label={t('dashboard.ownerStatPets')}
+          value={pets.length}
+          hint={t('dashboard.ownerStatPetsHint')}
+          to="/hayvanlar"
+          delayMs={40}
+        />
+        <OwnerMetric
+          label={t('dashboard.ownerStatPending')}
+          value={pendingSubs}
+          hint={t('dashboard.ownerStatPendingHint')}
+          to="/basvurular"
+          delayMs={80}
+        />
+        <OwnerMetric
+          label={t('dashboard.ownerStatInProgress')}
+          value={inProgress.length}
+          hint={t('dashboard.ownerStatInProgressHint')}
+          to="/raporlar"
+          delayMs={120}
+        />
+        <OwnerMetric
+          label={t('dashboard.ownerStatReady')}
+          value={ready.length}
+          hint={t('dashboard.ownerStatReadyHint')}
+          to="/raporlar"
+          delayMs={160}
+          emphasize
+        />
       </div>
-      {ready.length > 0 && (
-        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
-          <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" aria-hidden />
+
+      {ready.length > 0 ? (
+        <div className="vm-fade-up flex flex-col gap-3 overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-sky-50/80 px-4 py-3.5 shadow-soft sm:flex-row sm:items-center">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" aria-hidden />
+          </div>
           <p className="flex-1 text-sm text-emerald-950">
-            <strong>{t('dashboard.ownerReadyBanner', { count: ready.length })}</strong> {t('dashboard.ownerReadyBannerBody')}
+            <span className="font-semibold">{t('dashboard.ownerReadyBanner', { count: ready.length })}</span>{' '}
+            {t('dashboard.ownerReadyBannerBody')}
           </p>
-          <Button variant="success" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
+          <Button variant="success" size="sm" onClick={() => nav('/raporlar')} icon={<FileText className="h-4 w-4" />}>
             {t('nav.myReports')}
           </Button>
         </div>
-      )}
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {mine.map((c) => {
-          const visibleStatus = c.status === 'revizyon' ? 'uzman_incelemesinde' : c.status
-          return (
-            <Card key={c.id} className="flex flex-col overflow-hidden">
-              <div className="flex items-center gap-4 bg-gradient-to-br from-navy-900 to-navy-700 p-5 text-white">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-lg font-semibold" aria-hidden>
-                  {c.patient.species === 'Kedi' ? 'K' : 'Kö'}
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">{c.patient.name}</p>
-                  <p className="text-sm text-navy-200">
-                    {c.patient.species} · {c.patient.breed} · {t('dashboard.ownerAgeYears', { age: c.patient.age })}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">
-                    {c.no} · {fmtDate(c.createdAt, locale)}
+      ) : null}
+
+      {pets.length > 0 ? (
+        <div className="vm-fade-up" style={{ animationDelay: '180ms' }}>
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.ownerPets')}</h2>
+            <LocalizedLink to="/hayvanlar" className="text-xs font-semibold text-sky-700 transition hover:text-sky-800">
+              {t('dashboard.ownerViewAllPets')}
+            </LocalizedLink>
+          </div>
+          <ul className="flex gap-2 overflow-x-auto pb-1">
+            {pets.map((p) => (
+              <li key={p.pet_id}>
+                <LocalizedLink
+                  to="/hayvanlar"
+                  className="vm-owner-card flex min-w-[148px] items-center gap-3 px-3 py-2.5"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700" aria-hidden>
+                    <PawPrint className="h-4 w-4" />
                   </span>
-                  <StatusBadge status={visibleStatus} />
-                </div>
-                {c.clinical.complaint ? (
-                  <p className="text-sm text-slate-600">
-                    <span className="font-medium text-navy-800">{t('dashboard.ownerComplaint')}</span> {c.clinical.complaint}
-                  </p>
-                ) : null}
-                <p className="rounded-lg bg-slate-50 p-3 text-sm text-navy-800">{ownerStatusText(c.status, t)}</p>
-                <div className="mt-auto pt-1">
-                  {c.status === 'onaylandi' ? (
-                    <Button className="w-full" onClick={() => nav(`/raporlar/${c.id}`)} icon={<FileText className="h-4 w-4" />}>
-                      {t('dashboard.ownerViewReport')}
-                    </Button>
-                  ) : (
-                    <p className="flex items-center gap-2 text-xs text-slate-400">
-                      <Clock className="h-3.5 w-3.5" /> {t('dashboard.ownerNotifyWhenReady')}
-                    </p>
-                  )}
-                </div>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{p.name}</span>
+                    <span className="block truncate text-[11px] text-slate-500">
+                      {p.species}
+                      {p.breed ? ` · ${p.breed}` : ''}
+                    </span>
+                  </span>
+                </LocalizedLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '200ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.ownerChartActivity')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.ownerChartActivityHint')}</p>
+          </div>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="ownerTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0EA5E9" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#0EA5E9" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                <Area type="monotone" dataKey="yeni" name={t('dashboard.trendNew')} stroke="#0EA5E9" fill="url(#ownerTrendFill)" strokeWidth={2} />
+                <Area
+                  type="monotone"
+                  dataKey="tamamlanan"
+                  name={t('dashboard.trendCompleted')}
+                  stroke="#102A43"
+                  fill="transparent"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '240ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.ownerChartStatus')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.ownerChartStatusHint')}</p>
+          </div>
+          {statusDist.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">{t('dashboard.ownerNoCases')}</p>
+          ) : (
+            <div className="flex h-44 items-center gap-4">
+              <div className="h-40 w-40 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusDist} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={2}>
+                      {statusDist.map((row) => (
+                        <Cell key={row.key} fill={row.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            </Card>
-          )
-        })}
-        {!mine.length && (
-          <Card className="md:col-span-2 xl:col-span-3">
-            <EmptyState icon={<PawPrint className="h-6 w-6" />} title={t('dashboard.ownerNoCases')} />
-          </Card>
-        )}
+              <ul className="min-w-0 flex-1 space-y-2">
+                {statusDist.map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 text-slate-600">
+                      <span className="h-2 w-2 rounded-full" style={{ background: row.color }} />
+                      {row.name}
+                    </span>
+                    <span className="font-semibold tabular-nums text-[color:var(--vm-text,#172b4d)]">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
       </div>
-    </>
+
+      <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '280ms' }}>
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+              {t('dashboard.ownerCasesTitle')}
+            </h2>
+            <p className="text-xs text-slate-500">{t('dashboard.ownerCasesSubtitle')}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="owner-dash-q">
+              {t('common.search')}
+            </label>
+            <input
+              id="owner-dash-q"
+              className="input max-w-xs py-2 text-sm"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t('dashboard.ownerSearchPlaceholder')}
+            />
+            <Button size="sm" variant="secondary" onClick={() => nav('/basvurular')}>
+              {t('dashboard.ownerNewRequest')}
+            </Button>
+          </div>
+        </div>
+        {filteredMine.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<PawPrint className="h-5 w-5" />}
+            title={t('dashboard.ownerNoCases')}
+            action={
+              <Button size="sm" onClick={() => nav('/basvurular')} icon={<UploadCloud className="h-4 w-4" />}>
+                {t('dashboard.ownerNewRequest')}
+              </Button>
+            }
+          />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {filteredMine.map((c) => {
+              const visibleStatus = c.status === 'revizyon' ? 'uzman_incelemesinde' : c.status
+              return (
+                <li
+                  key={c.id}
+                  className="flex flex-col gap-3 px-4 py-3.5 transition hover:bg-sky-50/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-slate-100 text-sky-800"
+                      aria-hidden
+                    >
+                      <PawPrint className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[color:var(--vm-text,#172b4d)]">{c.patient.name}</p>
+                        <StatusBadge status={visibleStatus} />
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {c.patient.species}
+                        {c.patient.breed ? ` · ${c.patient.breed}` : ''}
+                        {c.patient.age != null ? ` · ${t('dashboard.ownerAgeYears', { age: c.patient.age })}` : ''}
+                        {' · '}
+                        {c.no} · {fmtDate(c.createdAt, locale)}
+                      </p>
+                      <p className="mt-1.5 text-sm text-slate-600">{ownerStatusText(c.status, t)}</p>
+                      {c.clinical.complaint ? (
+                        <p className="mt-1 line-clamp-1 text-xs text-slate-400">
+                          <span className="font-medium text-slate-500">{t('dashboard.ownerComplaint')}</span> {c.clinical.complaint}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+                    {c.status === 'onaylandi' ? (
+                      <Button size="sm" onClick={() => nav(`/raporlar/${c.id}`)} icon={<FileText className="h-4 w-4" />}>
+                        {t('dashboard.ownerViewReport')}
+                      </Button>
+                    ) : (
+                      <p className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                        <Clock className="h-3.5 w-3.5" aria-hidden />
+                        {t('dashboard.ownerNotifyWhenReady')}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
+    </div>
   )
 }
 
@@ -985,119 +1305,827 @@ export function GpuChart({ height = 180 }: { height?: number }) {
   )
 }
 
+function clinicGreeting(name: string, t: TranslateFn) {
+  const h = new Date().getHours()
+  const key =
+    h < 12 ? 'dashboard.clinicGoodMorning' : h < 18 ? 'dashboard.clinicGoodAfternoon' : 'dashboard.clinicGoodEvening'
+  return t(key, { name })
+}
+
+function ClinicMetric({
+  label,
+  value,
+  hint,
+  to,
+  delayMs = 0,
+  emphasize,
+}: {
+  label: string
+  value: number | string
+  hint?: string
+  to: string
+  delayMs?: number
+  emphasize?: boolean
+}) {
+  return (
+    <LocalizedLink
+      to={to}
+      aria-label={`${label}: ${value}`}
+      className={`vm-clinic-card vm-fade-up block px-4 py-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
+        emphasize ? 'border-amber-300/70 ring-1 ring-amber-100' : ''
+      }`}
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p
+        className={`mt-1 font-display text-3xl font-semibold tabular-nums tracking-tight ${
+          emphasize ? 'text-amber-700' : 'text-[color:var(--vm-text,#172b4d)]'
+        }`}
+      >
+        {value}
+      </p>
+      {hint ? <p className="mt-1 text-[11px] text-slate-400">{hint}</p> : null}
+    </LocalizedLink>
+  )
+}
+
 function ClinicOwnerDashboard() {
-  const { user } = useApp()
-  const { t } = useLocale()
+  const { user, cases, refreshBackendCases } = useApp()
+  const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const [stats, setStats] = useState<BackendClinicStats | null>(null)
+  const [dash, setDash] = useState<ClinicDashboardStats | null>(null)
+  const [q, setQ] = useState('')
+
   useEffect(() => {
+    void refreshBackendCases()
     void getClinicStats().then(setStats).catch(() => setStats(null))
-  }, [])
+    void getClinicDashboard().then(setDash).catch(() => setDash(null))
+  }, [refreshBackendCases])
+
+  const total = stats?.case_count ?? cases.length
+  const awaiting = stats?.awaiting_review ?? dash?.awaiting_review ?? 0
+  const approved = stats?.approved ?? dash?.completed_reports ?? 0
+  const pendingSubs = stats?.pending_submissions ?? 0
+  const urgent = dash?.urgent_cases ?? 0
+  const staff = stats?.staff ?? []
+  const activeStaff = staff.filter((s) => s.active).length
+
+  const trend = useMemo(() => buildTrend(cases, t), [cases, t])
+  const opsDist = useMemo(() => {
+    const rows = [
+      { key: 'review', name: t('dashboard.clinicChartReview'), value: awaiting, color: '#D99A32' },
+      { key: 'approved', name: t('dashboard.clinicChartApproved'), value: approved, color: '#059669' },
+      { key: 'pending', name: t('dashboard.clinicChartPending'), value: pendingSubs, color: '#6366F1' },
+      { key: 'urgent', name: t('dashboard.clinicChartUrgent'), value: urgent, color: '#E5484D' },
+    ]
+    return rows.filter((r) => r.value > 0)
+  }, [awaiting, approved, pendingSubs, urgent, t])
+
+  const recent = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    const list = [...cases].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    if (!needle) return list.slice(0, 8)
+    return list
+      .filter((c) =>
+        [c.patient.name, c.no, c.clinic, c.patient.species, c.modality].join(' ').toLowerCase().includes(needle),
+      )
+      .slice(0, 8)
+  }, [cases, q])
+
+  const name = user?.name ?? ''
+  const dashFallback = t('common.dash')
+
   return (
-    <>
-      <PageHeader
-        title={t('dashboard.clinicBoardNamed', { name: user?.name ?? '' })}
-        subtitle={t('dashboard.clinicSubtitle')}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => nav('/basvurular')}>
-              {t('nav.ownerSubmissions')}
-            </Button>
-            <Button onClick={() => nav('/vakalar')}>{t('nav.clinicCases')}</Button>
+    <div className="space-y-6">
+      <section className="vm-fade-up relative overflow-hidden rounded-2xl border border-slate-200/60 bg-[color:var(--vm-midnight,#0f172a)] text-white shadow-soft">
+        <ClinicWaveAccent className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-80" />
+        <ClinicGridAccent className="pointer-events-none absolute -left-4 top-4 h-36 w-36 opacity-45" />
+        <div className="relative grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="flex flex-col justify-center px-6 py-7 sm:px-8 sm:py-9">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-200/90">
+              {t('dashboard.clinicBrandTag')}
+            </p>
+            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">
+              {clinicGreeting(name, t)}
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">{t('dashboard.clinicSubtitlePremium')}</p>
+            {stats?.clinic_id ? (
+              <p className="mt-2 font-mono text-[11px] text-slate-400">
+                {t('dashboard.clinicIdLabel')}: {stats.clinic_id}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => nav('/vakalar')}>
+                {t('nav.clinicCases')}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                onClick={() => nav('/basvurular')}
+              >
+                {t('nav.ownerSubmissions')}
+                {pendingSubs > 0 ? ` · ${pendingSubs}` : ''}
+              </Button>
+            </div>
           </div>
-        }
-      />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard to="/vakalar" label={t('dashboard.clinicStatTotal')} value={stats?.case_count ?? t('common.dash')} icon={<FolderOpen className="h-5 w-5" />} tone="navy" />
-        <StatCard to="/vakalar" label={t('dashboard.clinicStatReview')} value={stats?.awaiting_review ?? t('common.dash')} icon={<Hourglass className="h-5 w-5" />} tone="amber" />
-        <StatCard to="/raporlar" label={t('dashboard.clinicStatApproved')} value={stats?.approved ?? t('common.dash')} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-        <StatCard to="/basvurular" label={t('dashboard.clinicStatPendingSubs')} value={stats?.pending_submissions ?? t('common.dash')} icon={<UploadCloud className="h-5 w-5" />} tone="violet" />
+          <div className="relative min-h-[200px] overflow-hidden lg:min-h-[260px]">
+            <img
+              src="/expert-brand-dog.jpg"
+              alt=""
+              width={720}
+              height={520}
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover object-[48%_20%]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--vm-midnight,#0f172a)] via-[color:var(--vm-midnight,#0f172a)]/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--vm-midnight,#0f172a)]/75 via-transparent to-[color:var(--vm-midnight,#0f172a)]/25" />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ClinicMetric
+          label={t('dashboard.clinicStatTotal')}
+          value={stats ? total : dashFallback}
+          hint={t('dashboard.clinicStatTotalHint')}
+          to="/vakalar"
+          delayMs={40}
+        />
+        <ClinicMetric
+          label={t('dashboard.clinicStatReview')}
+          value={stats || dash ? awaiting : dashFallback}
+          hint={t('dashboard.clinicStatReviewHint')}
+          to="/vakalar"
+          delayMs={80}
+          emphasize={awaiting > 0}
+        />
+        <ClinicMetric
+          label={t('dashboard.clinicStatApproved')}
+          value={stats || dash ? approved : dashFallback}
+          hint={t('dashboard.clinicStatApprovedHint')}
+          to="/raporlar"
+          delayMs={120}
+        />
+        <ClinicMetric
+          label={t('dashboard.clinicStatPendingSubs')}
+          value={stats ? pendingSubs : dashFallback}
+          hint={t('dashboard.clinicStatPendingHint')}
+          to="/basvurular"
+          delayMs={160}
+        />
       </div>
-      <Card className="mt-6">
-        <CardHeader title={t('dashboard.clinicStaff')} subtitle={stats?.clinic_id || t('common.dash')} />
-        <ul className="divide-y divide-slate-100">
-          {(stats?.staff || []).map((s) => (
-            <li key={s.email} className="flex items-center justify-between px-5 py-3 text-sm">
-              <span className="font-medium text-navy-900">{s.display_name || s.email}</span>
-              <span className="font-mono text-xs text-slate-500">
-                {s.role} · {s.active ? t('admin.activeStaff') : t('admin.inactiveStaff')}
-              </span>
-            </li>
-          ))}
-          {!stats?.staff?.length && (
-            <li className="px-5 py-4 text-sm text-slate-500">{t('dashboard.clinicStaffEmpty')}</li>
+
+      {(awaiting > 0 || pendingSubs > 0 || urgent > 0) && (
+        <div className="vm-fade-up flex flex-col gap-3 overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-r from-indigo-50 via-white to-amber-50/70 px-4 py-3.5 shadow-soft sm:flex-row sm:items-center">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+            <ClipboardCheck className="h-5 w-5" aria-hidden />
+          </div>
+          <p className="flex-1 text-sm text-indigo-950">
+            <span className="font-semibold">{t('dashboard.clinicOpsBanner', { review: awaiting, pending: pendingSubs })}</span>{' '}
+            {urgent > 0 ? t('dashboard.clinicOpsUrgent', { count: urgent }) : t('dashboard.clinicOpsBannerBody')}
+          </p>
+          <Button size="sm" onClick={() => nav(pendingSubs > 0 ? '/basvurular' : '/vakalar')}>
+            {pendingSubs > 0 ? t('nav.ownerSubmissions') : t('nav.clinicCases')}
+          </Button>
+        </div>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '180ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.clinicChartWorkload')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.clinicChartWorkloadHint')}</p>
+          </div>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="clinicTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366F1" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                <Area type="monotone" dataKey="yeni" name={t('dashboard.trendNew')} stroke="#6366F1" fill="url(#clinicTrendFill)" strokeWidth={2} />
+                <Area
+                  type="monotone"
+                  dataKey="tamamlanan"
+                  name={t('dashboard.trendCompleted')}
+                  stroke="#102A43"
+                  fill="transparent"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '220ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.clinicChartOps')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.clinicChartOpsHint')}</p>
+          </div>
+          {opsDist.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">{t('dashboard.clinicOpsEmpty')}</p>
+          ) : (
+            <div className="flex h-44 items-center gap-4">
+              <div className="h-40 w-40 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={opsDist} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={2}>
+                      {opsDist.map((row) => (
+                        <Cell key={row.key} fill={row.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="min-w-0 flex-1 space-y-2">
+                {opsDist.map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 text-slate-600">
+                      <span className="h-2 w-2 rounded-full" style={{ background: row.color }} />
+                      {row.name}
+                    </span>
+                    <span className="font-semibold tabular-nums text-[color:var(--vm-text,#172b4d)]">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </ul>
-      </Card>
-    </>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '260ms' }}>
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+                {t('dashboard.clinicRecentCases')}
+              </h2>
+              <p className="text-xs text-slate-500">{t('dashboard.clinicRecentCasesHint')}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="sr-only" htmlFor="clinic-dash-q">
+                {t('common.search')}
+              </label>
+              <input
+                id="clinic-dash-q"
+                className="input max-w-xs py-2 text-sm"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('dashboard.clinicSearchPlaceholder')}
+              />
+              <LocalizedLink to="/vakalar" className="text-sm font-semibold text-indigo-700 transition hover:text-indigo-800">
+                {t('dashboard.clinicViewAllCases')}
+              </LocalizedLink>
+            </div>
+          </div>
+          {recent.length === 0 ? (
+            <EmptyState compact icon={<FolderOpen className="h-5 w-5" />} title={t('dashboard.clinicNoCases')} />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recent.map((c) => (
+                <li key={c.id}>
+                  <LocalizedLink
+                    to={`/vakalar/${c.id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-indigo-50/40"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[color:var(--vm-text,#172b4d)]">{c.patient.name}</p>
+                        <StatusBadge status={c.status === 'revizyon' ? 'uzman_incelemesinde' : c.status} />
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {c.patient.species}
+                        {c.modality ? ` · ${c.modality}` : ''}
+                        {' · '}
+                        {c.no} · {fmtDate(c.createdAt, locale)}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                  </LocalizedLink>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '300ms' }}>
+          <div className="border-b border-slate-100 px-4 py-3.5">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-indigo-600" aria-hidden />
+              <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+                {t('dashboard.clinicStaff')}
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {stats?.clinic_id
+                ? t('dashboard.clinicStaffMeta', { active: activeStaff, total: staff.length })
+                : t('dashboard.clinicStaffEmpty')}
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {staff.map((s) => (
+              <li key={s.email} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[color:var(--vm-text,#172b4d)]">{s.display_name || s.email}</p>
+                  <p className="truncate font-mono text-[11px] text-slate-400">{s.email}</p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+                    s.active
+                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                      : 'bg-slate-50 text-slate-500 ring-slate-200'
+                  }`}
+                >
+                  {s.role} · {s.active ? t('admin.activeStaff') : t('admin.inactiveStaff')}
+                </span>
+              </li>
+            ))}
+            {!staff.length && (
+              <li className="px-4 py-6 text-center text-sm text-slate-400">{t('dashboard.clinicStaffEmpty')}</li>
+            )}
+          </ul>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function adminGreeting(name: string, t: TranslateFn) {
+  const h = new Date().getHours()
+  const key =
+    h < 12 ? 'dashboard.adminGoodMorning' : h < 18 ? 'dashboard.adminGoodAfternoon' : 'dashboard.adminGoodEvening'
+  return t(key, { name })
+}
+
+function AdminMetric({
+  label,
+  value,
+  hint,
+  to,
+  delayMs = 0,
+  emphasize,
+}: {
+  label: string
+  value: number | string
+  hint?: string
+  to: string
+  delayMs?: number
+  emphasize?: boolean
+}) {
+  return (
+    <LocalizedLink
+      to={to}
+      aria-label={`${label}: ${value}`}
+      className={`vm-admin-card vm-fade-up block px-4 py-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
+        emphasize ? 'border-amber-300/70 ring-1 ring-amber-100' : ''
+      }`}
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p
+        className={`mt-1 font-display text-3xl font-semibold tabular-nums tracking-tight ${
+          emphasize ? 'text-amber-700' : 'text-[color:var(--vm-text,#172b4d)]'
+        }`}
+      >
+        {value}
+      </p>
+      {hint ? <p className="mt-1 text-[11px] text-slate-400">{hint}</p> : null}
+    </LocalizedLink>
   )
 }
 
 function AdminDashboard() {
-  const { kbSources, cases } = useApp()
+  const { kbSources, cases, user, refreshBackendCases } = useApp()
   const { t, locale, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
+  const [health, setHealth] = useState<BackendHealth | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [readiness, setReadiness] = useState<BackendModelReadiness | null>(null)
+  const [users, setUsers] = useState<BackendManagedUser[]>([])
+  const [payouts, setPayouts] = useState<BackendRadiologistPayoutLedger | null>(null)
+  const [loadingLive, setLoadingLive] = useState(true)
+
   const chunks = kbSources.reduce((s, k) => s + k.chunks, 0)
+  const backendOk = health?.status === 'ok'
+  const unpaid = payouts?.total_unpaid_cases ?? 0
+  const owed = payouts?.total_amount_owed ?? 0
+  const activeUsers = users.filter((u) => u.active).length
+
+  const loadLive = () => {
+    setLoadingLive(true)
+    setHealthError(null)
+    void refreshBackendCases()
+    void Promise.all([
+      fetchBackendHealth()
+        .then((h) => {
+          setHealth(h)
+          setHealthError(null)
+        })
+        .catch((err) => {
+          setHealth(null)
+          setHealthError(
+            err instanceof BackendUnavailableError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : t('admin.healthFetchFail'),
+          )
+        }),
+      fetchModelReadiness()
+        .then(setReadiness)
+        .catch(() => setReadiness(null)),
+      listManagedUsers()
+        .then(setUsers)
+        .catch(() => setUsers([])),
+      fetchRadiologistPayoutLedger()
+        .then(setPayouts)
+        .catch(() => setPayouts(null)),
+    ]).finally(() => setLoadingLive(false))
+  }
+
+  useEffect(() => {
+    loadLive()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount refresh only
+  }, [])
+
+  const trend = useMemo(() => buildTrend(cases, t), [cases, t])
+  const statusDist = useMemo(() => {
+    const rows = [
+      {
+        key: 'approved',
+        name: t('dashboard.adminChartApproved'),
+        value: cases.filter((c) => c.status === 'onaylandi').length,
+        color: '#059669',
+      },
+      {
+        key: 'review',
+        name: t('dashboard.adminChartReview'),
+        value: cases.filter((c) => c.status === 'uzman_incelemesinde' || c.status === 'revizyon').length,
+        color: '#D99A32',
+      },
+      {
+        key: 'process',
+        name: t('dashboard.adminChartProcess'),
+        value: cases.filter((c) => c.status === 'isleniyor' || c.status === 'ai_analizi' || c.status === 'taslak').length,
+        color: '#64748B',
+      },
+      {
+        key: 'other',
+        name: t('dashboard.adminChartOther'),
+        value: cases.filter((c) => c.status === 'reddedildi' || c.status === 'manuel_inceleme').length,
+        color: '#E5484D',
+      },
+    ]
+    return rows.filter((r) => r.value > 0)
+  }, [cases, t])
+
+  const recentCases = useMemo(
+    () => [...cases].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6),
+    [cases],
+  )
+
+  const name = user?.name ?? ''
+  const dash = t('common.dash')
+
   return (
-    <>
-      <PageHeader
-        title={t('dashboard.adminTitle')}
-        subtitle={t('dashboard.adminSubtitle')}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => nav('/radyologlarim')}>
-              {t('nav.myRadiologists')}
-            </Button>
-            <Button variant="secondary" onClick={() => nav('/kullanicilar')}>
-              {t('admin.users')}
-            </Button>
-            <Button variant="secondary" onClick={() => nav('/sistem')}>
-              {t('admin.system')}
-            </Button>
+    <div className="space-y-6">
+      <section className="vm-fade-up relative overflow-hidden rounded-2xl border border-slate-200/60 bg-[color:var(--vm-midnight,#020617)] text-white shadow-soft">
+        <AdminWaveAccent className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-80" />
+        <AdminCircuitAccent className="pointer-events-none absolute -left-4 top-4 h-36 w-36 opacity-45" />
+        <div className="relative grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="flex flex-col justify-center px-6 py-7 sm:px-8 sm:py-9">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/90">
+              {t('dashboard.adminBrandTag')}
+            </p>
+            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">
+              {adminGreeting(name, t)}
+            </h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-300">{t('dashboard.adminSubtitlePremium')}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${
+                  healthError
+                    ? 'bg-rose-500/15 text-rose-200 ring-rose-400/30'
+                    : backendOk
+                      ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/30'
+                      : loadingLive
+                        ? 'bg-slate-500/20 text-slate-200 ring-slate-400/30'
+                        : 'bg-amber-500/15 text-amber-200 ring-amber-400/30'
+                }`}
+              >
+                <Server className="h-3.5 w-3.5" aria-hidden />
+                {healthError
+                  ? t('dashboard.adminHealthDown')
+                  : backendOk
+                    ? t('dashboard.adminHealthOk')
+                    : loadingLive
+                      ? t('dashboard.adminHealthLoading')
+                      : t('dashboard.adminHealthDegraded')}
+                {health?.version ? ` · v${health.version}` : ''}
+              </span>
+              {health?.mode ? (
+                <span className="rounded-full bg-white/5 px-2.5 py-1 font-mono text-[11px] text-slate-300 ring-1 ring-inset ring-white/10">
+                  {health.mode}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => nav('/sistem')} icon={<Activity className="h-4 w-4" />}>
+                {t('admin.system')}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+                onClick={loadLive}
+                icon={<RefreshCw className={`h-4 w-4 ${loadingLive ? 'animate-spin' : ''}`} />}
+              >
+                {t('dashboard.adminRefreshLive')}
+              </Button>
+            </div>
           </div>
-        }
-      />
-      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
-          {t('dashboard.adminDemoBadge')}
-        </span>
-        {t('dashboard.adminDemoBanner')}
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard to="/moduller" label={t('dashboard.adminActiveModules')} value={`${MODULES.filter((m) => m.status === 'Aktif').length} / ${MODULES.length}`} icon={<Layers className="h-5 w-5" />} tone="teal" hint={t('dashboard.adminModulesHint')} />
-        <StatCard to="/bilgi-tabani" label={t('dashboard.adminKb')} value={kbSources.length} icon={<BookOpen className="h-5 w-5" />} tone="navy" hint={t('dashboard.adminKbHint', { chunks: chunks.toLocaleString(intlLocale) })} />
-        <StatCard to="/sistem" label={t('dashboard.adminSessionCases')} value={cases.length} icon={<Database className="h-5 w-5" />} tone="violet" hint={t('dashboard.adminSessionHint')} />
-        <StatCard
+          <div className="relative min-h-[200px] overflow-hidden lg:min-h-[260px]">
+            <img
+              src="/dashboard-hero-dog.jpg"
+              alt=""
+              width={720}
+              height={520}
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover object-[50%_18%] opacity-90"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--vm-midnight,#020617)] via-[color:var(--vm-midnight,#020617)]/65 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--vm-midnight,#020617)]/80 via-transparent to-[color:var(--vm-midnight,#020617)]/30" />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminMetric
+          label={t('dashboard.adminSessionCases')}
+          value={cases.length}
+          hint={t('dashboard.adminSessionHint')}
           to="/sistem"
-          label={t('dashboard.adminServiceCards')}
-          value={`${SERVICES.length}`}
-          icon={<Activity className="h-5 w-5" />}
-          tone="amber"
-          hint={t('dashboard.adminServiceHint')}
+          delayMs={40}
+        />
+        <AdminMetric
+          label={t('dashboard.adminKb')}
+          value={kbSources.length}
+          hint={t('dashboard.adminKbHint', { chunks: chunks.toLocaleString(intlLocale) })}
+          to="/bilgi-tabani"
+          delayMs={80}
+        />
+        <AdminMetric
+          label={t('dashboard.adminUsersMetric')}
+          value={users.length ? activeUsers : dash}
+          hint={users.length ? t('dashboard.adminUsersHint', { total: users.length }) : t('dashboard.adminUsersUnavailable')}
+          to="/kullanicilar"
+          delayMs={120}
+        />
+        <AdminMetric
+          label={t('dashboard.adminPayoutsMetric')}
+          value={payouts ? unpaid : dash}
+          hint={
+            payouts
+              ? t('dashboard.adminPayoutsHint', { amount: owed.toLocaleString(intlLocale), currency: payouts.currency })
+              : t('dashboard.adminPayoutsUnavailable')
+          }
+          to="/radyologlarim"
+          delayMs={160}
+          emphasize={unpaid > 0}
         />
       </div>
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader title={t('dashboard.gpuUsage')} subtitle={t('dashboard.adminGpuSubtitle')} icon={<Cpu className="h-5 w-5" />} action={<LocalizedLink to="/sistem" className="text-sm font-medium text-teal-700 hover:underline">{t('admin.system')}</LocalizedLink>} />
-          <div className="p-4">
-            <GpuChart />
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '180ms' }}>
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.adminLivePlatform')}</h2>
+              <p className="text-[11px] text-slate-400">{t('dashboard.adminLivePlatformHint')}</p>
+            </div>
+            <LocalizedLink to="/sistem" className="text-xs font-semibold text-emerald-700 transition hover:text-emerald-800">
+              {t('admin.system')}
+            </LocalizedLink>
+          </div>
+          <dl className="grid gap-2 sm:grid-cols-2">
+            {[
+              { label: t('dashboard.adminHealthStatus'), value: health?.status ?? (healthError ? t('dashboard.adminHealthDown') : dash) },
+              { label: t('dashboard.adminHealthStorage'), value: health?.storage ?? dash },
+              { label: t('dashboard.adminHealthRag'), value: health?.rag ?? dash },
+              { label: t('dashboard.adminHealthJobs'), value: health?.job_backend ?? dash },
+              {
+                label: t('dashboard.adminModelsReady'),
+                value: readiness
+                  ? `${readiness.enabled_count}/${readiness.model_count}`
+                  : dash,
+              },
+              {
+                label: t('dashboard.adminVisionEndpoint'),
+                value: health ? (health.vision_endpoint ? t('common.yes') : t('common.no')) : dash,
+              },
+            ].map((row) => (
+              <div key={row.label} className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{row.label}</dt>
+                <dd className="mt-1 truncate font-mono text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {healthError ? <p className="mt-3 text-xs text-rose-600">{healthError}</p> : null}
+          {readiness?.note ? <p className="mt-3 text-xs text-slate-500">{readiness.note}</p> : null}
+        </Card>
+
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '220ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.adminChartStatus')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.adminChartStatusHint')}</p>
+          </div>
+          {statusDist.length === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">{t('dashboard.adminNoCases')}</p>
+          ) : (
+            <div className="flex h-44 items-center gap-4">
+              <div className="h-40 w-40 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusDist} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={2}>
+                      {statusDist.map((row) => (
+                        <Cell key={row.key} fill={row.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="min-w-0 flex-1 space-y-2">
+                {statusDist.map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 text-slate-600">
+                      <span className="h-2 w-2 rounded-full" style={{ background: row.color }} />
+                      {row.name}
+                    </span>
+                    <span className="font-semibold tabular-nums text-[color:var(--vm-text,#172b4d)]">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '260ms' }}>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{t('dashboard.adminChartWorkload')}</h2>
+            <p className="text-[11px] text-slate-400">{t('dashboard.adminChartWorkloadHint')}</p>
+          </div>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="adminTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 6" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                <Area type="monotone" dataKey="yeni" name={t('dashboard.trendNew')} stroke="#10B981" fill="url(#adminTrendFill)" strokeWidth={2} />
+                <Area
+                  type="monotone"
+                  dataKey="tamamlanan"
+                  name={t('dashboard.trendCompleted')}
+                  stroke="#0F172A"
+                  fill="transparent"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </Card>
-        <Card>
-          <CardHeader title={t('dashboard.adminRecentDeploys')} subtitle={t('dashboard.adminDemoBadge')} />
+
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '300ms' }}>
+          <div className="border-b border-slate-100 px-4 py-3.5">
+            <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+              {t('dashboard.adminQuickLinks')}
+            </h2>
+            <p className="text-xs text-slate-500">{t('dashboard.adminQuickLinksHint')}</p>
+          </div>
           <ul className="divide-y divide-slate-100">
-            {DEPLOYMENTS.slice(0, 3).map((d) => (
-              <li key={d.version} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-medium text-navy-900">{d.version}</p>
-                  <p className="text-xs text-slate-500">{d.kind} · {fmtDate(d.date, locale)}</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-300" />
+            {[
+              { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className="h-4 w-4" />, hint: t('dashboard.adminLinkUsers') },
+              { to: '/radyologlarim', label: t('nav.myRadiologists'), icon: <Wallet className="h-4 w-4" />, hint: t('dashboard.adminLinkPayouts') },
+              { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className="h-4 w-4" />, hint: t('dashboard.adminLinkKb') },
+              { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Cpu className="h-4 w-4" />, hint: t('dashboard.adminLinkModels') },
+              { to: '/moduller', label: t('nav.modules'), icon: <Layers className="h-4 w-4" />, hint: t('dashboard.adminModulesHint') },
+            ].map((item) => (
+              <li key={item.to}>
+                <LocalizedLink
+                  to={item.to}
+                  className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-emerald-50/50"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-emerald-700">
+                      {item.icon}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">{item.label}</span>
+                      <span className="block truncate text-[11px] text-slate-400">{item.hint}</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                </LocalizedLink>
               </li>
             ))}
           </ul>
         </Card>
       </div>
-    </>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '320ms' }}>
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+            <div>
+              <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+                {t('dashboard.adminRecentCases')}
+              </h2>
+              <p className="text-xs text-slate-500">{t('dashboard.adminRecentCasesHint')}</p>
+            </div>
+            <span className="text-xs tabular-nums text-slate-400">{cases.length}</span>
+          </div>
+          {recentCases.length === 0 ? (
+            <EmptyState compact icon={<Database className="h-5 w-5" />} title={t('dashboard.adminNoCases')} />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recentCases.map((c) => (
+                <li key={c.id}>
+                  <LocalizedLink
+                    to={`/vakalar/${c.id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-emerald-50/40"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[color:var(--vm-text,#172b4d)]">{c.patient.name}</p>
+                        <StatusBadge status={c.status === 'revizyon' ? 'uzman_incelemesinde' : c.status} />
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {c.no} · {fmtDate(c.createdAt, locale)}
+                        {c.clinic ? ` · ${c.clinic}` : ''}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                  </LocalizedLink>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="vm-fade-up overflow-hidden border-amber-200/60 bg-amber-50/30 shadow-soft" style={{ animationDelay: '340ms' }}>
+          <div className="border-b border-amber-100/80 px-4 py-3.5">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
+                {t('dashboard.adminDemoBadge')}
+              </span>
+              <h2 className="font-display text-sm font-semibold text-[color:var(--vm-text,#172b4d)]">
+                {t('dashboard.gpuUsage')}
+              </h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">{t('dashboard.adminDemoBannerShort')}</p>
+          </div>
+          <div className="p-3">
+            <GpuChart height={140} />
+          </div>
+          <ul className="divide-y divide-amber-100/80 border-t border-amber-100/80">
+            {DEPLOYMENTS.slice(0, 3).map((d) => (
+              <li key={d.version} className="flex items-center justify-between px-4 py-2.5">
+                <div>
+                  <p className="text-sm font-medium text-[color:var(--vm-text,#172b4d)]">{d.version}</p>
+                  <p className="text-xs text-slate-500">
+                    {d.kind} · {fmtDate(d.date, locale)}
+                  </p>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                  {t('dashboard.adminDemoBadge')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-amber-100/80 px-4 py-3">
+            <LocalizedLink to="/sistem" className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-800">
+              {t('dashboard.adminOpenLiveStatus')}
+            </LocalizedLink>
+          </div>
+        </Card>
+      </div>
+    </div>
   )
 }
