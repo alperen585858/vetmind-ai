@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Brain,
   CheckCircle2,
+  ChevronDown,
   Circle,
   FileText,
   Loader2,
@@ -15,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { Card, CardHeader } from '../components/Card'
+import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { StatusBadge } from '../components/StatusBadge'
@@ -93,6 +94,27 @@ function statusIcon(status: string) {
     return <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
   }
   return <Circle className="h-5 w-5 text-slate-400" />
+}
+
+function friendlyJobStatus(status: string, t: TranslateFn): string {
+  switch (status) {
+    case 'completed':
+      return t('cases.processing.statusCompleted')
+    case 'failed':
+      return t('cases.processing.statusFailed')
+    case 'timed_out':
+      return t('cases.processing.statusTimedOut')
+    case 'cancelled':
+      return t('cases.processing.statusCancelled')
+    case 'queued':
+      return t('cases.processing.statusQueued')
+    case 'running':
+      return t('cases.processing.statusRunning')
+    case 'cancel_requested':
+      return t('cases.processing.statusCancelling')
+    default:
+      return status
+  }
 }
 
 function isInFlightStatus(status: string | undefined): boolean {
@@ -489,12 +511,16 @@ export default function Processing() {
     (isInFlightStatus(job?.status) || retrying) &&
     jobStatus !== 'cancel_requested'
   const roundedPct = Math.round(progressPct)
+  const completedOk = jobStatus === 'completed' && !failed && !unsupported && !cancelled
   const stageText =
     handoffPhase === 'uploading'
       ? t('cases.processing.preparingUpload')
       : handoffPhase === 'queuing'
         ? t('cases.processing.preparingQueue')
-        : stageLabel(job) || (inFlight ? t('analysis.analyzing') : t('cases.processing.loadingTitle'))
+        : completedOk
+          ? t('cases.processing.statusCompleted')
+          : stageLabel(job) || (inFlight ? t('analysis.analyzing') : t('cases.processing.loadingTitle'))
+  const heroTitle = completedOk ? t('cases.processing.completedTitle') : t('cases.processing.loadingTitle')
 
   return (
     <>
@@ -507,12 +533,6 @@ export default function Processing() {
       <div className="mb-4">
         <CaseWorkflowStepper currentStep={2} status={failed || cancelled ? 'error' : undefined} />
       </div>
-
-      {!isPending && (
-        <div className={`mb-4 rounded-lg border px-4 py-2 text-sm font-semibold tracking-wide ${mode.cls}`}>
-          {mode.label}
-        </div>
-      )}
 
       {loadError && (
         <div className="mb-4 flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 sm:flex-row sm:items-center sm:justify-between">
@@ -533,70 +553,161 @@ export default function Processing() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          {showLoadingHero && (
-            <Card className="overflow-hidden p-6 sm:p-8">
-              <div className="flex flex-col items-center text-center">
-                {jobStatus === 'completed' ? (
-                  <CheckCircle2 className="h-12 w-12 text-teal-600" aria-hidden />
+      <div className="mx-auto max-w-2xl space-y-4">
+        {showLoadingHero && (
+          <Card className="overflow-hidden p-6 sm:p-8">
+            <div className="flex flex-col items-center text-center">
+              {completedOk ? (
+                <CheckCircle2 className="h-12 w-12 text-teal-600" aria-hidden />
+              ) : (
+                <Loader2 className="h-12 w-12 animate-spin text-teal-600" aria-hidden />
+              )}
+              <h2 className="mt-4 text-xl font-semibold tracking-tight text-navy-900">{heroTitle}</h2>
+              <p className="mt-1 text-sm text-slate-600">{stageText}</p>
+
+              <div
+                className={`mt-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${
+                  sentToAi
+                    ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+                    : 'bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200'
+                }`}
+              >
+                {sentToAi ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
                 ) : (
-                  <Loader2 className="h-12 w-12 animate-spin text-teal-600" aria-hidden />
+                  <Circle className="h-4 w-4" aria-hidden />
                 )}
-                <h2 className="mt-4 text-xl font-semibold tracking-tight text-navy-900">
-                  {t('cases.processing.loadingTitle')}
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">{stageText}</p>
+                {t('cases.processing.sentToAi')}
+              </div>
 
-                <div
-                  className={`mt-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${
-                    sentToAi
-                      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
-                      : 'bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-200'
-                  }`}
-                >
-                  {sentToAi ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
-                  ) : (
-                    <Circle className="h-4 w-4" aria-hidden />
-                  )}
-                  {t('cases.processing.sentToAi')}
+              <div className="mt-6 w-full max-w-lg">
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-navy-800">{stageText}</span>
+                  <span className="font-semibold tabular-nums text-teal-800">
+                    {t('cases.processing.progressOf100', { pct: String(roundedPct) })}
+                  </span>
                 </div>
-
-                <div className="mt-6 w-full max-w-lg">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium text-navy-800">{stageText}</span>
-                    <span className="font-mono text-base font-semibold tabular-nums text-teal-800">
-                      {t('cases.processing.progressOf100', { pct: String(roundedPct) })}
-                    </span>
-                  </div>
+                <div
+                  className="h-3.5 overflow-hidden rounded-full bg-slate-100"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={roundedPct}
+                  aria-label={t('cases.processing.progressAria')}
+                >
                   <div
-                    className="h-3.5 overflow-hidden rounded-full bg-slate-100"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={roundedPct}
-                    aria-label={t('cases.processing.progressAria')}
-                  >
-                    <div
-                      className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
-                      style={{ width: `${progressPct}%` }}
-                    />
-                  </div>
+                    className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
+                    style={{ width: `${progressPct}%` }}
+                  />
                 </div>
               </div>
-            </Card>
-          )}
+            </div>
+          </Card>
+        )}
 
-          {!isPending && (
-            <Card className="p-5">
+        {inFlight && !isPending && (
+          <Card className="border-teal-100 p-5">
+            <p className="flex items-start gap-2 text-sm text-navy-800">
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-teal-600" />
+              {cancelling ? t('cases.processing.stoppingCard') : t('cases.processing.inFlightCard')}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={
+                  cancelling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Square className="h-4 w-4" />
+                  )
+                }
+                disabled={!canStop || stopping}
+                onClick={() => void onStop()}
+              >
+                {cancelling ? t('cases.detail.stopping') : t('cases.processing.stopAnalysis')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void refresh()}>
+                {t('cases.processing.refreshJob')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => nav(`/vakalar/${c.id}`)}>
+                {t('cases.processing.caseDetail')}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {(failed || unsupported || cancelled) && !inFlight && (
+          <Card className="border-rose-100 p-5">
+            <p className="flex items-start gap-2 text-sm text-rose-900">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              {failed && t('cases.processing.failedMsg')}
+              {unsupported && t('cases.processing.unsupportedMsg')}
+              {cancelled && t('cases.processing.cancelledMsg')}
+            </p>
+            {job?.error_message && (
+              <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{job.error_message}</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!isPending && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} />}
+                  disabled={retrying}
+                  onClick={() => void onRetry()}
+                >
+                  {t('cases.processing.retryAsync')}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => nav(isPending ? '/dicom-yukle' : `/vakalar/${c.id}`)}>
+                {isPending ? t('common.retry') : t('cases.processing.caseDetail')}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {!failed && !unsupported && !cancelled && !inFlight && !isPending && (
+          <Card className="p-5">
+            <p className="text-sm text-navy-800">{t('cases.processing.completedHint')}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
+                {t('cases.processing.viewAiDraft')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+                {t('cases.processing.expertReview')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void refresh()}>
+                {t('cases.processing.refreshJob')}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {!isPending && (
+          <details className="group rounded-vm border border-slate-200/80 bg-surface-elevated shadow-soft">
+            <summary className="cursor-pointer list-none px-5 py-4 marker:hidden">
+              <span className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="block text-sm font-semibold text-navy-900">{t('common.details')}</span>
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                    {t('cases.processing.detailsHint')}
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="space-y-4 border-t border-slate-100 px-5 py-4">
+              <div className={`rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide ${mode.cls}`}>
+                {mode.label}
+              </div>
+
               <div className="flex items-start gap-3">
                 {statusIcon(jobStatus)}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-navy-900">
-                    {t('cases.processing.jobStatus')}{' '}
-                    <span className="font-mono">{jobStatus}</span>
-                    {outcome ? ` · outcome=${outcome}` : ''}
+                    {t('cases.processing.jobStatus')} {friendlyJobStatus(jobStatus, t)}
+                    {outcome ? ` · ${outcome}` : ''}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
                     {cancelling
@@ -610,166 +721,91 @@ export default function Processing() {
                   )}
                 </div>
               </div>
-            </Card>
-          )}
 
-          {!isPending && (
-            <Card>
-              <CardHeader title={t('cases.processing.pipelineSummary')} icon={<Brain className="h-5 w-5" />} />
-              <dl className="divide-y divide-slate-50 px-5 py-2 text-sm">
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">Case ID</dt>
-                  <dd className="col-span-3 font-mono text-xs">{caseId}</dd>
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-navy-900">
+                  <Brain className="h-4 w-4 text-accent" />
+                  {t('cases.processing.pipelineSummary')}
                 </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">{t('cases.study')}</dt>
-                  <dd className="col-span-3">{studyMeta}</dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">Job ID</dt>
-                  <dd className="col-span-3 font-mono text-xs">{job?.job_id ?? c.backendJobId ?? t('common.dash')}</dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">{t('cases.processing.models')}</dt>
-                  <dd className="col-span-3 text-xs">
-                    {(
-                      (job?.routed_model_ids?.length
-                        ? job.routed_model_ids
-                        : c.backendFindings?.contributing_model_ids) ?? []
-                    ).join(', ') || t('common.dash')}
-                    {job?.routed_model_versions?.length ? ` · v${job.routed_model_versions.join(', ')}` : ''}
-                  </dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">Route</dt>
-                  <dd className="col-span-3 text-xs">{job?.route_reason ?? t('common.dash')}</dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">source_kind</dt>
-                  <dd className="col-span-3 font-mono text-xs">
-                    {c.backendFindings?.source_kind ?? job?.analysis_mode ?? 'mock'}
-                  </dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">Timeout (declared)</dt>
-                  <dd className="col-span-3 text-xs">{job?.timeout_s != null ? `${job.timeout_s}s` : t('common.dash')}</dd>
-                </div>
-                <div className="grid grid-cols-5 gap-2 py-2">
-                  <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
-                  <dd className="col-span-3 text-xs">
-                    {stageLabel(job) || t('common.dash')}
-                    {` · ${roundedPct}%`}
-                  </dd>
-                </div>
-                {(job?.vision_frames_detected != null || job?.vision_batch_total != null) && (
+                <dl className="divide-y divide-slate-50 text-sm">
                   <div className="grid grid-cols-5 gap-2 py-2">
-                    <dt className="col-span-2 text-slate-500">Görsel kapsam</dt>
+                    <dt className="col-span-2 text-slate-500">Case ID</dt>
+                    <dd className="col-span-3 font-mono text-xs">{caseId}</dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">{t('cases.study')}</dt>
+                    <dd className="col-span-3">{studyMeta}</dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">Job ID</dt>
+                    <dd className="col-span-3 font-mono text-xs">{job?.job_id ?? c.backendJobId ?? t('common.dash')}</dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">{t('cases.processing.models')}</dt>
                     <dd className="col-span-3 text-xs">
-                      {job.vision_detail || (
-                        <>
-                          parti {(job.vision_batch_index ?? 0) + 1}/{job.vision_batch_total ?? '—'}
-                          {' · '}
-                          tespit {job.vision_frames_detected ?? '—'}
-                          {' · '}decode {job.vision_frames_decoded ?? '—'}
-                          {' · '}görsel {job.vision_frames_analyzed ?? 0}
-                          {job.vision_series_total != null
-                            ? ` · seri ${job.vision_series_done ?? 0}/${job.vision_series_total}`
-                            : ''}
-                          {job.vision_analysis_scope ? ` · ${job.vision_analysis_scope}` : ''}
-                        </>
-                      )}
+                      {(
+                        (job?.routed_model_ids?.length
+                          ? job.routed_model_ids
+                          : c.backendFindings?.contributing_model_ids) ?? []
+                      ).join(', ') || t('common.dash')}
+                      {job?.routed_model_versions?.length ? ` · v${job.routed_model_versions.join(', ')}` : ''}
                     </dd>
                   </div>
-                )}
-              </dl>
-            </Card>
-          )}
-
-          {inFlight && !isPending && (
-            <Card className="border-teal-100 p-5">
-              <p className="flex items-start gap-2 text-sm text-navy-800">
-                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-teal-600" />
-                {cancelling ? t('cases.processing.stoppingCard') : t('cases.processing.inFlightCard')}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={
-                    cancelling ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Square className="h-4 w-4" />
-                    )
-                  }
-                  disabled={!canStop || stopping}
-                  onClick={() => void onStop()}
-                >
-                  {cancelling ? t('cases.detail.stopping') : t('cases.processing.stopAnalysis')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => void refresh()}>
-                  {t('cases.processing.refreshJob')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => nav(`/vakalar/${c.id}`)}>
-                  {t('cases.processing.caseDetail')}
-                </Button>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">Route</dt>
+                    <dd className="col-span-3 text-xs">{job?.route_reason ?? t('common.dash')}</dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">source_kind</dt>
+                    <dd className="col-span-3 font-mono text-xs">
+                      {c.backendFindings?.source_kind ?? job?.analysis_mode ?? 'mock'}
+                    </dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">Timeout</dt>
+                    <dd className="col-span-3 text-xs">{job?.timeout_s != null ? `${job.timeout_s}s` : t('common.dash')}</dd>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 py-2">
+                    <dt className="col-span-2 text-slate-500">{t('cases.processing.stage')}</dt>
+                    <dd className="col-span-3 text-xs">
+                      {stageLabel(job) || t('common.dash')}
+                      {` · ${roundedPct}%`}
+                    </dd>
+                  </div>
+                  {(job?.vision_frames_detected != null || job?.vision_batch_total != null) && (
+                    <div className="grid grid-cols-5 gap-2 py-2">
+                      <dt className="col-span-2 text-slate-500">{t('cases.processing.visionScope')}</dt>
+                      <dd className="col-span-3 text-xs">
+                        {job.vision_detail || (
+                          <>
+                            parti {(job.vision_batch_index ?? 0) + 1}/{job.vision_batch_total ?? '—'}
+                            {' · '}
+                            tespit {job.vision_frames_detected ?? '—'}
+                            {' · '}decode {job.vision_frames_decoded ?? '—'}
+                            {' · '}görsel {job.vision_frames_analyzed ?? 0}
+                            {job.vision_series_total != null
+                              ? ` · seri ${job.vision_series_done ?? 0}/${job.vision_series_total}`
+                              : ''}
+                            {job.vision_analysis_scope ? ` · ${job.vision_analysis_scope}` : ''}
+                          </>
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
               </div>
-            </Card>
-          )}
 
-          {(failed || unsupported || cancelled) && !inFlight && (
-            <Card className="border-rose-100 p-5">
-              <p className="flex items-start gap-2 text-sm text-rose-900">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                {failed && t('cases.processing.failedMsg')}
-                {unsupported && t('cases.processing.unsupportedMsg')}
-                {cancelled && t('cases.processing.cancelledMsg')}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {!isPending && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={<RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} />}
-                    disabled={retrying}
-                    onClick={() => void onRetry()}
-                  >
-                    {t('cases.processing.retryAsync')}
-                  </Button>
-                )}
-                <Button size="sm" variant="ghost" onClick={() => nav(isPending ? '/dicom-yukle' : `/vakalar/${c.id}`)}>
-                  {isPending ? t('common.retry') : t('cases.processing.caseDetail')}
-                </Button>
+              <div>
+                <h3 className="text-sm font-semibold text-navy-900">{t('cases.processing.securityTitle')}</h3>
+                <ul className="mt-2 space-y-1.5 text-xs text-slate-600">
+                  <li>{t('cases.processing.security1')}</li>
+                  <li>{t('cases.processing.security2')}</li>
+                  <li>{t('cases.processing.security3')}</li>
+                </ul>
               </div>
-            </Card>
-          )}
-
-          {!failed && !unsupported && !cancelled && !inFlight && !isPending && (
-            <Card className="p-5">
-              <p className="text-sm text-navy-800">{t('cases.processing.completedHint')}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
-                  {t('cases.processing.viewAiDraft')}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-                  {t('cases.processing.expertReview')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => void refresh()}>
-                  {t('cases.processing.refreshJob')}
-                </Button>
-              </div>
-            </Card>
-          )}
-        </div>
-
-        <Card className="h-fit p-5">
-          <h3 className="text-sm font-semibold text-navy-900">{t('cases.processing.securityTitle')}</h3>
-          <ul className="mt-3 space-y-2 text-xs text-slate-600">
-            <li>{t('cases.processing.security1')}</li>
-            <li>{t('cases.processing.security2')}</li>
-            <li>{t('cases.processing.security3')}</li>
-          </ul>
-        </Card>
+            </div>
+          </details>
+        )}
       </div>
     </>
   )

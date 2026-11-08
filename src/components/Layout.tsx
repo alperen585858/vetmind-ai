@@ -63,7 +63,11 @@ export function Layout() {
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
       />
-      <div className={`print:pl-0 transition-[padding] duration-200 ease-out ${collapsed ? 'lg:pl-[72px]' : 'lg:pl-64'}`}>
+      <div
+        className={`print:pl-0 transition-[padding] duration-200 ease-out ${
+          collapsed ? 'lg:pl-[64px]' : role === 'expert' ? 'lg:pl-56' : 'lg:pl-64'
+        }`}
+      >
         <Topbar onMenu={() => setMenu(true)} />
         <main
           id="main-content"

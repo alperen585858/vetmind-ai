@@ -13,9 +13,9 @@ export function Logo({
     accent === 'sky'
       ? 'bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800'
       : accent === 'navy'
-        ? 'bg-gradient-to-br from-navy-400 to-navy-800'
+        ? 'bg-gradient-to-br from-teal-300 via-teal-500 to-navy-900'
         : 'bg-gradient-to-br from-teal-400 to-teal-700'
-  const ai = accent === 'sky' ? 'text-sky-400' : accent === 'navy' ? 'text-navy-300' : 'text-teal-400'
+  const ai = accent === 'sky' ? 'text-sky-400' : accent === 'navy' ? 'text-teal-300' : 'text-teal-400'
   return (
     <div className="flex items-center gap-2.5">
       <div className={`${box} flex items-center justify-center rounded-xl ${mark} shadow-sm`}>

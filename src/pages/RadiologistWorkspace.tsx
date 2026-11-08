@@ -26,12 +26,11 @@ import { canonicalizeCaseId, isBackendCaseId } from '../lib/caseId'
 import { AIFindingsPanel, type EvidenceFocus } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
-import { CaseProgressTracker } from '../components/CaseProgressTracker'
 import { DicomViewer } from '../components/DicomViewer'
 import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
-import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
+import { PriorityBadge } from '../components/StatusBadge'
 import { ReportDocumentEditor } from '../components/ReportDocumentEditor'
 import {
   BackendUnavailableError,
@@ -186,7 +185,8 @@ export default function RadiologistWorkspace() {
   }, [c?.id, c?.backendCaseId, t])
 
   useEffect(() => {
-    if (!c?.backendCaseId && !isBackendCaseId(c?.id)) return
+    if (!c) return
+    if (!c.backendCaseId && !isBackendCaseId(c.id)) return
     const caseKey = canonicalizeCaseId(c.backendCaseId || c.id)
     void listReportVersions(caseKey)
       .then((v) => setVersions(v.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status }))))
@@ -378,6 +378,7 @@ export default function RadiologistWorkspace() {
           setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
         }
       }
+      const nextCase = action === 'approve' ? worklistNav.next : null
       pushToast({
         tone: action === 'approve' ? 'success' : 'info',
         title:
@@ -389,15 +390,19 @@ export default function RadiologistWorkspace() {
                 ? t('review.workspace.toastNewVersionOpened')
                 : t('review.workspace.toastRevisionRequested'),
         body:
-          action === 'request_revision' && immutable
-            ? t('review.workspace.toastApprovedStaysLocked')
-            : undefined,
+          action === 'approve' && nextCase
+            ? t('review.workspace.nextCaseOpening')
+            : action === 'request_revision' && immutable
+              ? t('review.workspace.toastApprovedStaysLocked')
+              : undefined,
       })
       setModal(null)
       setReason('')
       setReasonCodes([])
-      if (action === 'approve') nav(`/raporlar/${caseRow.id}`)
-      else if (action === 'reject') nav('/kuyruk')
+      if (action === 'approve') {
+        if (nextCase) nav(`/vakalar/${nextCase.case_id}/calisma`)
+        else nav('/kuyruk')
+      } else if (action === 'reject') nav('/kuyruk')
       // request_revision: stay in workspace so the expert can edit the new mutable version
     } catch (err) {
       pushToast({
@@ -526,7 +531,6 @@ export default function RadiologistWorkspace() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <PriorityBadge priority={c.priority} />
-            <StatusBadge status={c.status} />
             {c.reviewDueAt ? (
               <span
                 className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
@@ -535,12 +539,7 @@ export default function RadiologistWorkspace() {
                 <Clock className="h-3 w-3" aria-hidden />
                 {formatSlaRemaining(c.reviewDueAt)}
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-                <Clock className="h-3 w-3" aria-hidden />
-                {slaHoursForPriority(c.priority)}s SLA
-              </span>
-            )}
+            ) : null}
             <Button
               variant="secondary"
               size="sm"
@@ -558,9 +557,6 @@ export default function RadiologistWorkspace() {
             >
               {t('review.workspace.nextCase')} <ChevronRight className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => nav(`/vakalar/${c.id}`)}>
-              {t('review.workspace.caseSummary')}
-            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -577,36 +573,33 @@ export default function RadiologistWorkspace() {
         }
       />
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-4">
-        <Card className="lg:col-span-3 p-3 text-sm text-slate-700">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.caseContext')}</p>
-          <p className="mt-1">
-            {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || t('review.workspace.noClinicalHistory')}
-          </p>
-          {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
-          {priorReports.length > 0 && (
-            <div className="mt-3 border-t border-slate-100 pt-2">
-              <p className="text-xs font-semibold text-slate-500">{t('review.workspace.priorReports')}</p>
-              <ul className="mt-1 space-y-1 text-xs">
-                {priorReports.map((r, i) => (
-                  <li key={`${r.case_id}-${i}`}>
-                    {r.title}
-                    {r.link_path ? (
-                      <>
-                        {' '}
-                        <LocalizedLink className="text-teal-700 hover:underline" to={r.link_path}>
-                          {t('review.workspace.openLink')}
-                        </LocalizedLink>
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Card>
-        <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
-      </div>
+      <Card className="mb-4 p-3 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.caseContext')}</p>
+        <p className="mt-1">
+          {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || t('review.workspace.noClinicalHistory')}
+        </p>
+        {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
+        {priorReports.length > 0 && (
+          <div className="mt-3 border-t border-slate-100 pt-2">
+            <p className="text-xs font-semibold text-slate-500">{t('review.workspace.priorReports')}</p>
+            <ul className="mt-1 space-y-1 text-xs">
+              {priorReports.map((r, i) => (
+                <li key={`${r.case_id}-${i}`}>
+                  {r.title}
+                  {r.link_path ? (
+                    <>
+                      {' '}
+                      <LocalizedLink className="text-teal-700 hover:underline" to={r.link_path}>
+                        {t('review.workspace.openLink')}
+                      </LocalizedLink>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
 
       <div className={`grid gap-4 ${showDicom ? 'xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}>
         {showDicom && (
@@ -748,6 +741,16 @@ export default function RadiologistWorkspace() {
               >
                 {t('review.approve')}
               </Button>
+              {worklistNav.next ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<ChevronRight className="h-3.5 w-3.5" />}
+                  onClick={() => void goAssigned(worklistNav.next)}
+                >
+                  {t('review.workspace.nextCaseCta')}
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 variant="secondary"
@@ -765,25 +768,6 @@ export default function RadiologistWorkspace() {
               >
                 {t('review.reject')}
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-rose-700 hover:bg-rose-50"
-                icon={<Trash2 className="h-3.5 w-3.5" />}
-                onClick={() => setModal('sil')}
-              >
-                {t('review.workspace.deleteCase')}
-              </Button>
-              {!showDicom && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={<ImageIcon className="h-3.5 w-3.5" />}
-                  onClick={() => setShowDicom(true)}
-                >
-                  {t('review.workspace.openDicomSide')}
-                </Button>
-              )}
             </div>
             {validationFailed && (
               <p className="mt-2 text-xs text-amber-800">
@@ -797,135 +781,152 @@ export default function RadiologistWorkspace() {
             )}
           </Card>
 
-          <Card className="p-4">
-            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <Sparkles className="h-3.5 w-3.5" /> {t('review.workspace.resendSection')}
-            </p>
-            <p className="mb-3 text-xs text-slate-600">
-              {t('review.workspace.resendBody')}{' '}
-              <LocalizedLink to="/ai-tekrar" className="font-semibold text-teal-700 underline">
-                {t('ai.resend.title')}
-              </LocalizedLink>
-              .
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={resendingAi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                disabled={resendingAi || !caseKey.startsWith('case-')}
-                onClick={() => void resendFullPipelineToAI()}
-              >
-                {resendingAi
-                  ? t('review.workspace.sending')
-                  : immutable
-                    ? t('review.workspace.reviseOpenResend')
-                    : t('review.workspace.resendThisCase')}
-              </Button>
-              {resendingAi && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Square className="h-3.5 w-3.5" />}
-                  onClick={() => resendAbortRef.current?.abort()}
-                >
-                  {t('review.workspace.stopAnalysis')}
-                </Button>
+          <details className="group rounded-vm border border-slate-200/80 bg-surface-elevated">
+            <summary className="cursor-pointer list-none px-4 py-3 marker:hidden">
+              <span className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="block text-sm font-semibold text-navy-900">{t('review.workspace.techTools')}</span>
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">{t('review.workspace.techToolsHint')}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-90" aria-hidden />
+              </span>
+            </summary>
+            <div className="space-y-4 border-t border-slate-100 px-4 py-4">
+              <div>
+                <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Sparkles className="h-3.5 w-3.5" /> {t('review.workspace.resendSection')}
+                </p>
+                <p className="mb-3 text-xs text-slate-600">
+                  {t('review.workspace.resendBody')}{' '}
+                  <LocalizedLink to="/ai-tekrar" className="font-semibold text-teal-700 underline">
+                    {t('ai.resend.title')}
+                  </LocalizedLink>
+                  .
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={resendingAi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    disabled={resendingAi || !caseKey.startsWith('case-')}
+                    onClick={() => void resendFullPipelineToAI()}
+                  >
+                    {resendingAi
+                      ? t('review.workspace.sending')
+                      : immutable
+                        ? t('review.workspace.reviseOpenResend')
+                        : t('review.workspace.resendThisCase')}
+                  </Button>
+                  {resendingAi && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Square className="h-3.5 w-3.5" />}
+                      onClick={() => resendAbortRef.current?.abort()}
+                    >
+                      {t('review.workspace.stopAnalysis')}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-[color:var(--vm-danger)]"
+                    icon={<Trash2 className="h-3.5 w-3.5" />}
+                    onClick={() => setModal('sil')}
+                  >
+                    {t('review.workspace.deleteCase')}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <History className="h-3.5 w-3.5" /> {t('review.workspace.reportHistory')}
+                </p>
+                {versions.length === 0 ? (
+                  <p className="text-xs text-slate-500">{t('review.workspace.noVersions')}</p>
+                ) : (
+                  <ul className="space-y-1 text-xs">
+                    {versions.map((v) => (
+                      <li key={v.version} className="flex justify-between rounded bg-slate-50 px-2 py-1">
+                        <span>
+                          v{v.version} · {v.status}
+                        </span>
+                        <span className={v.immutable ? 'text-emerald-700' : 'text-slate-500'}>
+                          {v.immutable ? 'immutable' : 'mutable'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {caseKey.startsWith('case-') && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.internalNotes')}</p>
+                  <label className="block text-xs text-slate-600">
+                    {t('review.workspace.internalNoteLabel')}
+                    <textarea
+                      className="input mt-1 min-h-[56px] text-sm"
+                      value={internalNote}
+                      onChange={(e) => setInternalNote(e.target.value)}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!internalNote.trim() || saving}
+                    onClick={() =>
+                      void appendCaseInternalNote(caseKey, internalNote.trim())
+                        .then(() => {
+                          setInternalNote('')
+                          pushToast({ tone: 'success', title: t('review.workspace.toastInternalSaved') })
+                        })
+                        .catch((e) =>
+                          pushToast({
+                            tone: 'error',
+                            title: t('review.workspace.toastInternalFailed'),
+                            body: e instanceof Error ? e.message : undefined,
+                          }),
+                        )
+                    }
+                  >
+                    {t('review.workspace.saveInternalNote')}
+                  </Button>
+                  <label className="block text-xs text-slate-600">
+                    {t('review.workspace.askVetInfo')}
+                    <input
+                      className="input mt-1 text-sm"
+                      value={infoAsk}
+                      onChange={(e) => setInfoAsk(e.target.value)}
+                      placeholder={t('review.workspace.requestPlaceholder')}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!infoAsk.trim()}
+                    onClick={() =>
+                      void createCaseInfoRequest(caseKey, { body: infoAsk.trim(), to_role: 'vet' })
+                        .then(() => {
+                          setInfoAsk('')
+                          pushToast({ tone: 'info', title: t('review.workspace.toastInfoOpened') })
+                        })
+                        .catch((e) =>
+                          pushToast({
+                            tone: 'error',
+                            title: t('review.workspace.toastRequestFailed'),
+                            body: e instanceof Error ? e.message : undefined,
+                          }),
+                        )
+                    }
+                  >
+                    {t('review.workspace.sendRequest')}
+                  </Button>
+                </div>
               )}
             </div>
-            {immutable && !resendingAi && (
-              <p className="mt-2 text-xs text-amber-800">
-                {t('review.workspace.approvedProtected')}
-              </p>
-            )}
-          </Card>
-
-          <Card className="p-4">
-            <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <History className="h-3.5 w-3.5" /> {t('review.workspace.reportHistory')}
-            </p>
-            {versions.length === 0 ? (
-              <p className="text-xs text-slate-500">{t('review.workspace.noVersions')}</p>
-            ) : (
-              <ul className="space-y-1 text-xs">
-                {versions.map((v) => (
-                  <li key={v.version} className="flex justify-between rounded bg-slate-50 px-2 py-1">
-                    <span>
-                      v{v.version} · {v.status}
-                    </span>
-                    <span className={v.immutable ? 'text-emerald-700' : 'text-slate-500'}>
-                      {v.immutable ? 'immutable' : 'mutable'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          {caseKey.startsWith('case-') && (
-            <Card className="space-y-3 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.internalNotes')}</p>
-              <label className="block text-xs text-slate-600">
-                {t('review.workspace.internalNoteLabel')}
-                <textarea
-                  className="input mt-1 min-h-[56px] text-sm"
-                  value={internalNote}
-                  onChange={(e) => setInternalNote(e.target.value)}
-                />
-              </label>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!internalNote.trim() || saving}
-                onClick={() =>
-                  void appendCaseInternalNote(caseKey, internalNote.trim())
-                    .then(() => {
-                      setInternalNote('')
-                      pushToast({ tone: 'success', title: t('review.workspace.toastInternalSaved') })
-                    })
-                    .catch((e) =>
-                      pushToast({
-                        tone: 'error',
-                        title: t('review.workspace.toastInternalFailed'),
-                        body: e instanceof Error ? e.message : undefined,
-                      }),
-                    )
-                }
-              >
-                {t('review.workspace.saveInternalNote')}
-              </Button>
-              <label className="block text-xs text-slate-600">
-                {t('review.workspace.askVetInfo')}
-                <input
-                  className="input mt-1 text-sm"
-                  value={infoAsk}
-                  onChange={(e) => setInfoAsk(e.target.value)}
-                  placeholder={t('review.workspace.requestPlaceholder')}
-                />
-              </label>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!infoAsk.trim()}
-                onClick={() =>
-                  void createCaseInfoRequest(caseKey, { body: infoAsk.trim(), to_role: 'vet' })
-                    .then(() => {
-                      setInfoAsk('')
-                      pushToast({ tone: 'info', title: t('review.workspace.toastInfoOpened') })
-                    })
-                    .catch((e) =>
-                      pushToast({
-                        tone: 'error',
-                        title: t('review.workspace.toastRequestFailed'),
-                        body: e instanceof Error ? e.message : undefined,
-                      }),
-                    )
-                }
-              >
-                {t('review.workspace.sendRequest')}
-              </Button>
-            </Card>
-          )}
+          </details>
         </div>
       </div>
 

@@ -53,6 +53,7 @@ export function Sidebar({
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
   const isOwner = role === 'owner'
+  const isExpert = role === 'expert'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
     vet: t('roles.vetShort'),
     expert: t('roles.expertShort'),
@@ -71,12 +72,12 @@ export function Sidebar({
       { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
     ],
     expert: [
-      { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard className={ic} /> },
-      { to: '/kuyruk', label: t('nav.worklist'), icon: <ClipboardCheck className={ic} />, badge: queue },
-      { to: '/ai-tekrar', label: t('nav.aiResend'), icon: <Sparkles className={ic} /> },
-      { to: '/vakalar', label: t('nav.allCases'), icon: <FolderOpen className={ic} /> },
-      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
-      { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
+      { to: '/', label: t('nav.expertOverview'), icon: <LayoutDashboard className={ic} /> },
+      { to: '/kuyruk', label: t('nav.expertWorklist'), icon: <ClipboardCheck className={ic} />, badge: queue },
+      { to: '/ai-tekrar', label: t('nav.expertAiAnalysis'), icon: <Sparkles className={ic} /> },
+      { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
+      { to: '/raporlar', label: t('nav.expertApproved'), icon: <FileText className={ic} /> },
+      { to: '/mesajlar', label: t('nav.expertMessages'), icon: <MessageSquare className={ic} /> },
     ],
     owner: [
       { to: '/', label: t('nav.ownerHome'), icon: <LayoutDashboard className={ic} /> },
@@ -107,8 +108,8 @@ export function Sidebar({
     <>
       {open && <div className="fixed inset-0 z-30 bg-navy-950/40 lg:hidden no-print" onClick={onClose} />}
       <aside
-        className={`no-print fixed inset-y-0 left-0 z-40 flex flex-col bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
-          collapsed ? 'lg:w-[72px]' : 'lg:w-64'
+        className={`vm-sidebar no-print fixed inset-y-0 left-0 z-40 flex flex-col bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
+          collapsed ? 'lg:w-[64px]' : isExpert ? 'lg:w-56' : 'lg:w-64'
         } w-64 ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className={`flex items-start gap-2 pb-4 pt-5 ${collapsed ? 'lg:flex-col lg:items-center lg:px-2' : 'justify-between px-5'}`}>
@@ -128,14 +129,18 @@ export function Sidebar({
               </div>
             ) : null}
             <div className={collapsed ? 'lg:hidden' : ''}>
-              <Logo dark accent={isOwner ? 'sky' : 'teal'} />
-              <p className="mt-1.5 pl-[46px] text-[11px] text-navy-300">VRM Teknoloji iş birliğiyle</p>
+              <Logo dark accent={isOwner ? 'sky' : isExpert ? 'navy' : 'teal'} />
+              <p className={`mt-1.5 pl-[46px] text-[11px] ${isExpert ? 'text-slate-400' : 'text-navy-300'}`}>
+                {isExpert ? 'Veterinary Radiology Intelligence' : 'VRM Teknoloji iş birliğiyle'}
+              </p>
               {role && (
                 <span
                   className={`mt-2 ml-[46px] inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${
                     isOwner
                       ? 'bg-sky-500/15 text-sky-200 ring-sky-400/30'
-                      : 'bg-teal-500/15 text-teal-200 ring-teal-400/30'
+                      : isExpert
+                        ? 'bg-teal-400/10 text-teal-200 ring-teal-300/25'
+                        : 'bg-teal-500/15 text-teal-200 ring-teal-400/30'
                   }`}
                 >
                   {roleLabels[role]}
@@ -176,14 +181,16 @@ export function Sidebar({
               onClick={onClose}
               title={collapsed ? it.label : undefined}
               className={({ isActive }) =>
-                `group relative flex items-center rounded-lg text-sm font-medium transition ${
+                `group relative flex items-center rounded-lg text-sm font-medium transition duration-200 ${
                   collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
                 } px-3 py-2.5 ${
                   isActive
                     ? isOwner
                       ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
-                      : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
-                    : 'text-navy-200 hover:bg-navy-800 hover:text-white'
+                      : isExpert
+                        ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
+                        : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                    : 'text-navy-200 hover:bg-navy-800/80 hover:text-white'
                 }`
               }
             >
@@ -207,14 +214,16 @@ export function Sidebar({
             onClick={onClose}
             title={collapsed ? t('nav.settings') : undefined}
             className={({ isActive }) =>
-              `group relative flex min-h-11 items-center rounded-lg text-sm font-medium transition ${
+              `group relative flex min-h-11 items-center rounded-lg text-sm font-medium transition duration-200 ${
                 collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
               } gap-3 px-3 py-2.5 ${
                 isActive
                   ? isOwner
                     ? 'bg-sky-500/20 text-white ring-1 ring-inset ring-sky-400/40'
-                    : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
-                  : 'text-navy-200 hover:bg-navy-800 hover:text-white'
+                    : isExpert
+                      ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
+                      : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                  : 'text-navy-200 hover:bg-navy-800/80 hover:text-white'
               }`
             }
           >

@@ -1,27 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { LocalizedLink } from '../components/LocalizedLink'
-import { Clock, Info, LayoutPanelLeft, Loader2, RefreshCw, Search, Trash2, UserPlus } from 'lucide-react'
+import { Clock, Info, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { Button } from '../components/Button'
-import { Card, CardHeader } from '../components/Card'
-import { EmptyState } from '../components/EmptyState'
+import { Card } from '../components/Card'
+import { ExpertWorklistTable } from '../components/ExpertWorklistTable'
 import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
-import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
 import { currentActorId } from '../lib/auth'
 import { deleteBackendCase, listBackendWorklist, updateCaseAssignment } from '../lib/backend'
 import { summaryToVetCase } from '../lib/caseMapper'
-import {
-  compareBySlaUrgency,
-  formatSlaRemaining,
-  isSlaAttention,
-  slaBadgeClass,
-  slaHoursForPriority,
-  slaRowClass,
-  slaTone,
-} from '../lib/reviewSla'
+import { compareBySlaUrgency, isSlaAttention } from '../lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../types'
 
 export default function ReviewQueue() {
@@ -53,7 +43,6 @@ export default function ReviewQueue() {
       .then(setRows)
       .catch((err) => {
         setError(err instanceof Error ? err.message : t('review.loadFailed'))
-        // Fallback: local awaiting queue
         setRows([])
       })
       .finally(() => setLoading(false))
@@ -76,12 +65,12 @@ export default function ReviewQueue() {
       : rows.map(summaryToVetCase)
 
   const display = useMemo(() => {
-    const list = slaOnly
-      ? baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt))
-      : baseDisplay
+    const list = slaOnly ? baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt)) : baseDisplay
     if (!slaOnly) return list
     return [...list].sort((a, b) => compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt))
   }, [baseDisplay, slaOnly])
+
+  const slaCount = baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt)).length
 
   const setSlaFilter = (on: boolean) => {
     const next = new URLSearchParams(params)
@@ -90,12 +79,38 @@ export default function ReviewQueue() {
     setParams(next, { replace: true })
   }
 
+  const claim = (c: VetCase) => {
+    void updateCaseAssignment(c.backendCaseId || c.id, {
+      assigned_reviewer_id: currentActorId(),
+      priority:
+        c.priority === 'STAT'
+          ? 'stat'
+          : c.priority === 'Acil'
+            ? 'urgent'
+            : c.priority === 'Yüksek'
+              ? 'high'
+              : 'normal',
+    })
+      .then(() => {
+        pushToast({ tone: 'success', title: t('review.assignedToast') })
+        void hydrateBackendCase(c.backendCaseId || c.id)
+        load()
+      })
+      .catch((err) =>
+        pushToast({
+          tone: 'error',
+          title: t('review.assignFailed'),
+          body: err instanceof Error ? err.message : undefined,
+        }),
+      )
+  }
+
   return (
     <>
       <PageHeader
         title={t('review.worklistTitle')}
         subtitle={t('review.worklistSubtitle')}
-        crumbs={[{ label: t('nav.dashboard'), to: '/' }, { label: t('review.queue') }]}
+        crumbs={[{ label: t('nav.expertOverview'), to: '/' }, { label: t('nav.expertWorklist') }]}
         actions={
           <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
             {t('common.refresh')}
@@ -103,48 +118,31 @@ export default function ReviewQueue() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label={t('dashboard.expertFilterAria')}>
         <button
           type="button"
           onClick={() => setSlaFilter(false)}
-          className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
             !slaOnly ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
           {t('review.allQueue')}
+          <span className={`ml-1.5 tabular-nums ${!slaOnly ? 'text-white/70' : 'text-slate-400'}`}>{baseDisplay.length}</span>
         </button>
         <button
           type="button"
           onClick={() => setSlaFilter(true)}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
             slaOnly
-              ? 'bg-rose-600 text-white shadow-sm'
-              : 'bg-rose-50 text-rose-800 ring-1 ring-inset ring-rose-200 hover:bg-rose-100'
+              ? 'bg-[color:var(--vm-danger)] text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
           }`}
         >
-          <Clock className="h-4 w-4" aria-hidden />
+          <Clock className="h-3.5 w-3.5" aria-hidden />
           {t('review.slaFilter')}
-          <span
-            className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-              slaOnly ? 'bg-white/20 text-white' : 'bg-rose-600 text-white'
-            }`}
-          >
-            {baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt)).length}
-          </span>
+          <span className={`tabular-nums ${slaOnly ? 'text-white/80' : 'text-slate-400'}`}>{slaCount}</span>
         </button>
       </div>
-
-      {slaOnly && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
-          <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <p>
-            {t('review.slaBanner')}{' '}
-            <button type="button" className="font-semibold underline" onClick={() => setSlaFilter(false)}>
-              {t('review.clearFilter')}
-            </button>
-          </p>
-        </div>
-      )}
 
       <Card className="mb-4 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -186,7 +184,7 @@ export default function ReviewQueue() {
             <select id="wl-priority" className="input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
               <option value="">{t('common.all')}</option>
               <option value="stat">{t('priority.STAT')}</option>
-              <option value="urgent">{t('priority.Acil')} (URGENT)</option>
+              <option value="urgent">{t('priority.Acil')}</option>
               <option value="high">{t('priority.Yüksek')}</option>
               <option value="normal">{t('priority.Normal')}</option>
             </select>
@@ -208,147 +206,51 @@ export default function ReviewQueue() {
       </Card>
 
       <Card>
-        <CardHeader
-          title={t('review.caseCountTitle', { count: display.length })}
-          subtitle={
-            error
+        <div className="border-b border-slate-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-navy-900">{t('review.caseCountTitle', { count: display.length })}</h2>
+          <p className="text-xs text-slate-500">
+            {error
               ? t('review.apiFallbackSubtitle', { error })
               : slaOnly
                 ? t('review.slaListSubtitle')
-                : t('review.defaultListSubtitle')
-          }
-        />
-        {loading ? (
-          <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t('review.loadingWorklist')}
+                : t('review.defaultListSubtitle')}
           </p>
-        ) : display.length === 0 ? (
-          <EmptyState
-            compact
-            icon={<LayoutPanelLeft className="h-5 w-5" />}
-            title={slaOnly ? t('review.emptySlaTitle') : t('review.emptyNoMatch')}
-            text={
-              slaOnly
-                ? t('review.emptySlaText')
-                : error
-                  ? t('review.emptyApiText', { error })
-                  : t('review.emptyExpandFilters')
-            }
-            action={
-              slaOnly ? (
-                <Button size="sm" variant="secondary" onClick={() => setSlaFilter(false)}>
-                  {t('review.showAllQueue')}
-                </Button>
-              ) : (
-                <Button size="sm" variant="secondary" onClick={load}>
-                  {t('common.refresh')}
-                </Button>
-              )
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100">
-              <thead className="bg-slate-50/70">
-                <tr>
-                  <th className="th">{t('review.colCase')}</th>
-                  <th className="th">{t('common.patient')}</th>
-                  <th className="th">{t('cases.modality')}</th>
-                  <th className="th">{t('common.priority')}</th>
-                  <th className="th">{t('review.colResponseTime')}</th>
-                  <th className="th">{t('common.status')}</th>
-                  <th className="th">{t('review.colAssignment')}</th>
-                  <th className="th" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {display.map((c) => {
-                  const tone = slaTone(c.reviewDueAt)
-                  const attention = isSlaAttention(c.reviewDueAt)
-                  const displayTone = attention && (tone === 'ok' || tone === 'none') ? 'warn' : tone
-                  const hours = slaHoursForPriority(c.priority)
-                  return (
-                  <tr key={c.id} className={slaRowClass(displayTone) || (attention ? 'bg-rose-50/60' : '')}>
-                    <td className="td font-mono text-xs">{c.no}</td>
-                    <td className="td">
-                      <p className="font-medium text-navy-900">{c.patient.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {c.patient.species} · {c.patient.breed}
-                        {c.patient.age ? ` · ${c.patient.age}y` : ''}
-                      </p>
-                    </td>
-                    <td className="td text-xs">{c.modality || '—'}</td>
-                    <td className="td">
-                      <PriorityBadge priority={c.priority} />
-                    </td>
-                    <td className="td">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(displayTone)}`}
-                        title={t('review.slaHoursTitle', { hours })}
-                      >
-                        <Clock className="h-3 w-3" aria-hidden />
-                        {c.reviewDueAt ? formatSlaRemaining(c.reviewDueAt) : `${hours}s SLA`}
-                      </span>
-                    </td>
-                    <td className="td">
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className="td text-xs text-slate-600">{c.assignedReviewerId || '—'}</td>
-                    <td className="td">
-                      <div className="flex flex-wrap gap-2">
-                        <LocalizedLink
-                          to={`/vakalar/${c.id}/calisma`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700"
-                        >
-                          <LayoutPanelLeft className="h-3.5 w-3.5" /> {t('review.openWorkspace')}
-                        </LocalizedLink>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-navy-900"
-                          onClick={() => {
-                            void updateCaseAssignment(c.backendCaseId || c.id, {
-                              assigned_reviewer_id: currentActorId(),
-                              priority:
-                                c.priority === 'STAT'
-                                  ? 'stat'
-                                  : c.priority === 'Acil'
-                                    ? 'urgent'
-                                    : c.priority === 'Yüksek'
-                                      ? 'high'
-                                      : 'normal',
-                            })
-                              .then(() => {
-                                pushToast({ tone: 'success', title: t('review.assignedToast') })
-                                void hydrateBackendCase(c.backendCaseId || c.id)
-                                load()
-                              })
-                              .catch((err) =>
-                                pushToast({
-                                  tone: 'error',
-                                  title: t('review.assignFailed'),
-                                  body: err instanceof Error ? err.message : undefined,
-                                }),
-                              )
-                          }}
-                        >
-                          <UserPlus className="h-3.5 w-3.5" /> {t('review.claimCase')}
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-rose-700 hover:text-rose-900"
-                          onClick={() => setPendingDelete(c)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> {t('common.delete')}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </div>
+        <ExpertWorklistTable
+          items={display}
+          loading={loading}
+          showClaim
+          onClaim={claim}
+          emptyTitle={slaOnly ? t('review.emptySlaTitle') : t('review.emptyNoMatch')}
+          emptyText={
+            slaOnly
+              ? t('review.emptySlaText')
+              : error
+                ? t('review.emptyApiText', { error })
+                : t('review.emptyExpandFilters')
+          }
+          emptyAction={
+            slaOnly ? (
+              <Button size="sm" variant="secondary" onClick={() => setSlaFilter(false)}>
+                {t('review.showAllQueue')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={load}>
+                {t('common.refresh')}
+              </Button>
+            )
+          }
+          secondaryActions={(c) => (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-[color:var(--vm-danger)]"
+              onClick={() => setPendingDelete(c)}
+              aria-label={t('common.delete')}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        />
       </Card>
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
         <Info className="h-3.5 w-3.5" /> {t('review.footerNote')}
@@ -398,13 +300,11 @@ export default function ReviewQueue() {
       >
         {pendingDelete ? (
           <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              {t('review.deleteCaseConfirm', { name: pendingDelete.patient.name })}
-            </p>
+            <p>{t('review.deleteCaseConfirm', { name: pendingDelete.patient.name })}</p>
             <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
               {pendingDelete.no} · {pendingDelete.id}
             </p>
-            <p className="text-xs text-rose-700">{t('review.irreversible')}</p>
+            <p className="text-xs text-[color:var(--vm-danger)]">{t('review.irreversible')}</p>
           </div>
         ) : null}
       </Modal>

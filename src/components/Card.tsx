@@ -1,9 +1,17 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { LocalizedLink } from './LocalizedLink'
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = '',
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}) {
   return (
-    <div className={`rounded-vm border border-slate-200/80 bg-surface-elevated shadow-soft ${className}`}>
+    <div className={`rounded-vm border border-slate-200/80 bg-surface-elevated shadow-soft ${className}`} style={style}>
       {children}
     </div>
   )
