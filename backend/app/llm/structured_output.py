@@ -135,6 +135,23 @@ HAS_FINDINGS_EMPTY_SECTION = {
     },
 }
 
+# Every canned text code puts in place of a section the model left blank. Grounding /
+# eval read this to tell "model wrote nothing" from model prose, so any NEW placeholder
+# table must be added here (tests/test_llm_grounding.py checks the whole pipeline).
+PLACEHOLDER_TABLES: tuple[dict[str, dict[str, str]], ...] = (EMPTY_SECTION_TEXT, HAS_FINDINGS_EMPTY_SECTION)
+
+
+def is_placeholder_text(text: str) -> bool:
+    """True if ``text`` is one of our blank-section placeholders (after prose sanitizing)."""
+    stripped = (text or "").strip()
+    return any(
+        stripped in (raw, sanitize_report_prose(raw))
+        for table in PLACEHOLDER_TABLES
+        for lang in table.values()
+        for raw in lang.values()
+    )
+
+
 # When the model leaves "findings" blank but structured findings exist, the section is
 # rebuilt from them (a restatement with [F#] citations, not new claims). The first line
 # marks it so grounding can tell the reviewer the model did not write it.

@@ -10,7 +10,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from app.llm.structured_output import AUTO_FINDINGS_HEADER, EMPTY_SECTION_TEXT, MARKER_GROUP_RE, extract_markers
+from app.llm.structured_output import (
+    AUTO_FINDINGS_HEADER,
+    MARKER_GROUP_RE,
+    extract_markers,
+    is_placeholder_text,
+)
 from app.schemas.report import DraftReport
 
 SECTIONS = ("technique", "findings", "impression", "recommendations")
@@ -71,8 +76,6 @@ def find_overclaim(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
             return m
     return None
 
-# Our own placeholder for a section the model left blank: never a model claim.
-_FALLBACK_TEXTS = {text for lang in EMPTY_SECTION_TEXT.values() for text in lang.values()}
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -148,7 +151,8 @@ def analyze_grounding(report: DraftReport) -> GroundingStats:
 
     for name in SECTIONS:
         text = getattr(report, name).text
-        if text.strip() in _FALLBACK_TEXTS:
+        # Our own placeholder for a section the model left blank: never a model claim.
+        if is_placeholder_text(text):
             stats.blank_sections.append(name)
             continue
         if text.startswith(tuple(AUTO_FINDINGS_HEADER.values())):

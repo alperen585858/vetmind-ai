@@ -191,7 +191,9 @@ def test_blank_findings_are_rebuilt_from_structured_findings() -> None:
     )
     report = provider.generate(request).report
     assert report.findings.text.startswith("Otomatik bulgu listesi")
-    assert "(şüpheli) [F1]" in report.findings.text
+    # Line shape: "- <location>: <description> (<status>)[ — <series hint>] [F1]"
+    line = next(ln for ln in report.findings.text.splitlines() if ln.startswith("- "))
+    assert "(şüpheli)" in line and line.endswith("[F1]")
     assert report.findings.cited_finding_ids == [findings.findings[0].finding_id]
     warnings = check_grounding(report)
     assert any("model left section(s) empty: findings" in w for w in warnings)

@@ -142,3 +142,63 @@ def test_no_disease_claims_are_flagged() -> None:
     assert any("absence of disease" in w for w in check_grounding(r))
     r = _report("Kitle [F1]. Ödem [F2].", "Hastalık bulunmamaktadır [S1].")
     assert any("absence of disease" in w for w in check_grounding(r))
+
+
+def _blank_sections_after_parse(*, with_findings: bool, language: str) -> tuple[list[str], dict[str, str]]:
+    """Run the real parser on a model reply that only wrote technique; return what grounding flags."""
+    from app.llm.gateway import build_generation_input
+    from app.llm.grounding import analyze_grounding
+    from app.llm.interfaces import LLMRequest
+    from app.llm.prompts import build_aliases
+    from app.llm.structured_output import ReportWire, build_draft_report
+
+    case = CaseRecord(
+        case_id="c-blank",
+        patient_name="Pax",
+        species=Species.CANINE,
+        modality=Modality.MR,
+        anatomical_region=AnatomicalRegion.BRAIN,
+        scenario=MockScenario.BRAIN_MRI_SUSPECTED,
+    )
+    findings = MockBrainMriModel().analyze(case)
+    gen = build_generation_input(case, findings, language=language)
+    if not with_findings:
+        gen = gen.model_copy(update={"findings": [], "no_findings_returned": True})
+    wire = ReportWire(technique="Köpek, beyin MR.", findings="", impression="", recommendations="", differentials=[])
+    report = build_draft_report(
+        wire,
+        LLMRequest(generation=gen),
+        build_aliases(gen),
+        provider_id="test",
+        model_id="m",
+        model_version="0",
+        prompt_version="t",
+        language=language,
+    )
+    texts = {k: getattr(report, k).text for k in ("technique", "findings", "impression", "recommendations")}
+    return analyze_grounding(report).blank_sections, texts
+
+
+def test_every_blank_section_placeholder_is_flagged_by_grounding() -> None:
+    # Guards against adding a new placeholder text that grounding/eval then mistakes for model prose.
+    for language in ("tr", "en"):
+        blanks, texts = _blank_sections_after_parse(with_findings=True, language=language)
+        # findings is rebuilt from structured findings (also flagged), the rest are placeholders.
+        assert set(blanks) == {"findings", "impression", "recommendations"}, (language, texts)
+
+        blanks, texts = _blank_sections_after_parse(with_findings=False, language=language)
+        # No findings: the findings section is written by code on purpose (not a placeholder).
+        assert set(blanks) == {"impression", "recommendations"}, (language, texts)
+
+
+def test_placeholder_tables_are_registered() -> None:
+    import app.llm.structured_output as so
+
+    tables = [
+        v
+        for name, v in vars(so).items()
+        if name.isupper() and isinstance(v, dict) and set(v) >= {"tr", "en"}
+        and all(isinstance(x, dict) and "impression" in x for x in v.values())
+    ]
+    assert tables, "expected section placeholder tables"
+    assert all(any(t is r for r in so.PLACEHOLDER_TABLES) for t in tables)

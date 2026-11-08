@@ -92,9 +92,10 @@ describe('analyzeCaseAsyncAndWait polling cancel', () => {
       }),
     )
 
-    const result = await analyzeCaseAsyncAndWait('case-2', { intervalMs: 5, timeoutMs: 2000 })
-    expect(result.job.status).toBe('cancelled')
-    expect(result.outcome).toBe('failed')
+    // Terminal: polling stops at once and the backend's job error is surfaced (not a timeout).
+    await expect(
+      analyzeCaseAsyncAndWait('case-2', { intervalMs: 5, timeoutMs: 2000 }),
+    ).rejects.toThrow('Cancelled while queued.')
   })
 
   it('requests backend cancel when cancelBackendOnAbort is set', async () => {
