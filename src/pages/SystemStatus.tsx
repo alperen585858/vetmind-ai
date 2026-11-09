@@ -262,7 +262,7 @@ export default function SystemStatus() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">
-          DEMO FICTION
+          {t('admin.demoFiction')}
         </span>
         <p className="text-xs text-slate-500">{t('admin.servicesDemoNote')}</p>
       </div>
@@ -422,7 +422,13 @@ export default function SystemStatus() {
         </div>
       </Modal>
 
-      <Card className="mt-6">
+      <Card className="mt-6 border-amber-200/70 bg-amber-50/20">
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-100 px-5 py-3">
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
+            {t('admin.demoFiction')}
+          </span>
+          <p className="text-xs text-amber-950">{t('admin.deploymentsDemoNote')}</p>
+        </div>
         <CardHeader title={t('admin.deploymentsTitle')} subtitle={t('admin.deploymentsSub')} icon={<Rocket className="h-5 w-5" />} />
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">

@@ -30,6 +30,7 @@ import { DicomViewer } from '../components/DicomViewer'
 import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
+import { ProvenanceBanner, provenanceKindFromSource } from '../components/ProvenanceBanner'
 import { PriorityBadge } from '../components/StatusBadge'
 import { ReportDocumentEditor } from '../components/ReportDocumentEditor'
 import {
@@ -686,6 +687,26 @@ export default function RadiologistWorkspace() {
         )}
 
         <div className={`space-y-3 ${showDicom ? '' : 'mx-auto w-full max-w-[920px]'}`}>
+          <ProvenanceBanner
+            kind={provenanceKindFromSource(
+              c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind,
+              {
+                analysisMode: (
+                  c.backendFindings?.source_kind ||
+                  c.backendDraft?.generation?.source_kind ||
+                  'mock'
+                )
+                  .toString()
+                  .toLowerCase(),
+              },
+            )}
+            detail={
+              c.backendFindings?.source_model_id ||
+              c.backendDraft?.generation?.model_id ||
+              undefined
+            }
+            compact
+          />
           <AIFindingsPanel
             findings={c.backendFindings}
             analysisMode={

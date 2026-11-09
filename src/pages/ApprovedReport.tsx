@@ -27,6 +27,7 @@ import {
   downloadApprovedReportPdf,
   getReportVersion,
   listReportVersions,
+  markReportDelivered,
   markReportViewed,
   submitBackendReview,
 } from '../lib/backend'
@@ -43,7 +44,7 @@ export default function ApprovedReport() {
   const [params, setParams] = useSearchParams()
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
-  const { getCase, role, user, hydrateBackendCase, pushToast } = useApp()
+  const { getCase, role, user, hydrateBackendCase, pushToast, updateCase } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const base = getCase(id)
@@ -56,6 +57,7 @@ export default function ApprovedReport() {
   const [reviseNote, setReviseNote] = useState('')
   const [revising, setRevising] = useState(false)
   const [versionSwitching, setVersionSwitching] = useState(false)
+  const [deliverBusy, setDeliverBusy] = useState(false)
   const viewedRef = useRef<string | null>(null)
 
   // Load case + version list once per case id (do NOT depend on hydrate fields — that caused a flash loop).
@@ -295,6 +297,35 @@ export default function ApprovedReport() {
     setParams(next, { replace: true })
   }
 
+  const canMarkDelivered =
+    c.fromBackend &&
+    id.startsWith('case-') &&
+    !c.reportDeliveredAt &&
+    (role === 'expert' || role === 'vet' || role === 'clinic_owner' || role === 'admin')
+
+  const onMarkDelivered = () => {
+    if (!canMarkDelivered || deliverBusy) return
+    setDeliverBusy(true)
+    void markReportDelivered(id)
+      .then(async () => {
+        const mapped = await hydrateBackendCase(id)
+        if (mapped) updateCase(mapped.id, mapped)
+        pushToast({
+          tone: 'success',
+          title: t('reports.deliveredToastTitle'),
+          body: t('reports.deliveredToastBody'),
+        })
+      })
+      .catch((err) => {
+        pushToast({
+          tone: 'error',
+          title: t('reports.deliverFailed'),
+          body: err instanceof Error ? err.message : t('reports.deliverFailed'),
+        })
+      })
+      .finally(() => setDeliverBusy(false))
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="no-print">
@@ -316,6 +347,16 @@ export default function ApprovedReport() {
                   {t('reports.reviseApproved')}
                 </Button>
               )}
+              {canMarkDelivered ? (
+                <Button
+                  variant="secondary"
+                  icon={<BadgeCheck className="h-4 w-4" />}
+                  onClick={onMarkDelivered}
+                  disabled={deliverBusy}
+                >
+                  {deliverBusy ? t('common.loading') : t('reports.markDelivered')}
+                </Button>
+              ) : null}
               {import.meta.env.MODE !== 'share' && (
                 <>
                   <Button

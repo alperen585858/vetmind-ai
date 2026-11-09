@@ -1080,6 +1080,15 @@ Gerçek modeller / altyapı eklerken orchestrator’ı yeniden yazmak gerekmez:
 | Belge | Amaç |
 |-------|------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Mimari, API, kalıcılık, frontend, güvenlik, demo |
+| [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) | **Master engineering roadmap** — 12 workstream, fazlar, kabul kriterleri |
+| [docs/ENGINEERING_STATUS.md](docs/ENGINEERING_STATUS.md) | Canlı olgunluk skorları ve quality-gate listesi |
+| [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md) | Paket → API → FE mimari haritası |
+| [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) | Öncelikli teknik borç kaydı |
+| [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md) | Demo / protected / Goal A / Goal B GO–NO-GO |
+| [docs/TRAINING_EXPORT_RUNBOOK.md](docs/TRAINING_EXPORT_RUNBOOK.md) | Verify → training export operasyon runbook’u |
+| [docs/MODEL_PROMOTION.md](docs/MODEL_PROMOTION.md) | Experimental checkpoint promotion kuralları (Gemini path korunur) |
+| [docs/PROTECTED_DEMO_RUNBOOK.md](docs/PROTECTED_DEMO_RUNBOOK.md) | Auth-on / protected demo Tier A–B runbook |
+| [docs/READINESS_GOALS.md](docs/READINESS_GOALS.md) | Goal A vs Goal B ayrımı (karıştırma) |
 | [docs/INTEGRATION_PLAYBOOK.md](docs/INTEGRATION_PLAYBOOK.md) | AI/LLM/veri gelince bağlama (basit Türkçe) |
 | [docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md) | Hedef mimari gap / issue listesi |
 | [docs/PHASE_20_FINAL_AI_READINESS.md](docs/PHASE_20_FINAL_AI_READINESS.md) | İlk gerçek model için 8 adım |

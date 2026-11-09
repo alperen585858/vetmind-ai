@@ -37,6 +37,7 @@ class TrainingExportRow:
     dataset_version: str
     study_instance_uid: str | None = None
     modality: str | None = None
+    finding_code: str | None = None
 
 
 def _stable_anon_patient_key(*parts: str | None) -> str:
@@ -120,6 +121,7 @@ def iter_export_rows(
                         dataset_version=dataset_version,
                         study_instance_uid=study_uid or ev.study_instance_uid,
                         modality=modality,
+                        finding_code=getattr(finding, "finding_code", None) or None,
                     )
                 )
     return rows

@@ -41,11 +41,8 @@ export default function Register() {
       signIn(session)
       pushToast({
         tone: 'success',
-        title: t('common.success'),
-        body:
-          role === 'vet'
-            ? t('auth.roleHelpVet')
-            : `${t(`roles.${role}`)} — ${t('auth.registerSubtitle')}`,
+        title: t('auth.registerDemoToastTitle'),
+        body: t('auth.registerDemoToastBody'),
       })
       nav(postLoginPath(session.role, locale))
     } catch (err) {
@@ -70,8 +67,7 @@ export default function Register() {
           </div>
           <p className="text-sm text-navy-300">{t('auth.registerSubtitle')}</p>
           <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-xs leading-relaxed text-amber-100 ring-1 ring-inset ring-amber-500/30">
-            Bu kayıt yalnızca tarayıcıda (demo hesap) saklanır. Backend API dizini için Admin → Kullanıcılar
-            üzerinden kullanıcı oluşturun; aksi halde özel e-postalar JWT / RBAC ile eşleşmeyebilir.
+            {t('auth.registerDemoWarning')}
           </p>
 
           <label className="mt-5 block text-xs font-medium text-navy-300">
@@ -106,7 +102,7 @@ export default function Register() {
           {error && <p className="mt-3 rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/30">{error}</p>}
 
           <Button type="submit" className="mt-5 w-full" size="lg" disabled={busy} icon={<ArrowRight className="h-4 w-4" />}>
-            {busy ? t('common.loading') : t('auth.submitRegister')}
+            {busy ? t('common.loading') : t('auth.submitRegisterDemo')}
           </Button>
 
           <p className="mt-4 text-center text-sm text-navy-300">

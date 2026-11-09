@@ -1711,3 +1711,47 @@ export async function addManualCaseEvidence(
     body: JSON.stringify(body),
   })
 }
+
+export type TrainingExportPolicy = 'verified_only' | 'accepted_or_verified' | 'all'
+
+export type TrainingExportResult = {
+  manifest: {
+    export_id: string
+    dataset_version: string
+    policy: string
+    row_count: number
+    source_case_ids?: string[]
+    split_counts?: Record<string, number>
+    created_by?: string
+    [key: string]: unknown
+  }
+  jsonl: string
+  rows: Record<string, unknown>[]
+  splits?: Record<string, Record<string, unknown>[]> | null
+}
+
+/** Expert/admin: verified annotation export for offline training (CAP_TRAINING_VERIFY). */
+export async function exportTrainingDataset(body: {
+  dataset_version: string
+  policy?: TrainingExportPolicy
+  case_ids?: string[]
+  max_cases?: number
+  include_splits?: boolean
+  split_salt?: string
+  train_frac?: number
+  val_frac?: number
+}): Promise<TrainingExportResult> {
+  return request<TrainingExportResult>('/training/export', {
+    method: 'POST',
+    body: JSON.stringify({
+      dataset_version: body.dataset_version,
+      policy: body.policy ?? 'verified_only',
+      case_ids: body.case_ids,
+      max_cases: body.max_cases ?? 200,
+      include_splits: body.include_splits ?? true,
+      split_salt: body.split_salt,
+      train_frac: body.train_frac,
+      val_frac: body.val_frac,
+    }),
+  })
+}
