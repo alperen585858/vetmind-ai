@@ -1,0 +1,78 @@
+# Hosted quality gate for Goal A software readiness (CPU-only, mock-default path).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck · vitest · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  backend-gate:
+    name: Backend regression gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: P0 regression gate
+        run: |
+          python -m pytest \
+            tests/test_dicom_integrity_regressions.py \
+            tests/test_analysis_coverage_honesty.py \
+            tests/test_png_dicom_transforms.py \
+            tests/test_vlm_image_grounding.py \
+            tests/test_vlm_study_scale.py \
+            tests/test_dicom_anonymize.py \
+            tests/test_training_export_verification.py \
+            tests/test_queue_reliability.py \
+            tests/test_plugin_modularity_smoke.py \
+            tests/test_pixel_opt_in_smoke_e2e.py \
+            tests/test_hardening_p0.py \
+            tests/test_bbox_edit_persistence.py \
+            tests/test_evidence_verify_rbac.py \
+            tests/test_training_export_api.py \
+            -q --tb=line
+
+  backend-unit:
+    name: Backend unit suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: Full pytest (CPU; vision extras optional/skip)
+        run: python -m pytest -q --tb=line

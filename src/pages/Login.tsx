@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowRight, Lock, Mail, UserRound } from 'lucide-react'
@@ -26,8 +26,30 @@ export default function Login() {
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [authEnabled, setAuthEnabled] = useState(false)
+  const [deploymentMode, setDeploymentMode] = useState('demo')
+  const [statusLoaded, setStatusLoaded] = useState(false)
 
   const roleLabel = (role: Role) => t(`roles.${role}`)
+  const lockedMode = authEnabled || deploymentMode === 'protected'
+
+  useEffect(() => {
+    let cancelled = false
+    void backendAuthStatus()
+      .then((s) => {
+        if (cancelled) return
+        setAuthEnabled(Boolean(s.auth_enabled))
+        setDeploymentMode(String(s.deployment_mode || 'demo'))
+        setProtectedTokenMode(Boolean(s.auth_enabled || s.deployment_mode === 'protected'))
+        setStatusLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) setStatusLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -200,17 +222,41 @@ export default function Login() {
                 {busy ? t('common.loading') : t('auth.submitLogin')}
               </Button>
 
+              {statusLoaded ? (
+                <p
+                  className={`mt-4 rounded-lg px-3 py-2 text-xs leading-relaxed ring-1 ring-inset ${
+                    lockedMode
+                      ? 'bg-amber-50 text-amber-950 ring-amber-200'
+                      : 'bg-sky-50 text-navy-700 ring-sky-100'
+                  }`}
+                >
+                  {deploymentMode === 'protected'
+                    ? t('auth.modeProtectedBanner')
+                    : authEnabled
+                      ? t('auth.modeAuthOnBanner')
+                      : t('auth.modeDemoBanner')}
+                </p>
+              ) : null}
+
               <p className="mt-4 text-center text-sm text-navy-600">
-                {t('auth.noAccount')}{' '}
-                <LocalizedLink to="/kayit" className="font-semibold text-sky-600 hover:underline">
-                  {t('auth.goRegister')}
-                </LocalizedLink>
+                {lockedMode ? (
+                  t('auth.registerNotServerAccount')
+                ) : (
+                  <>
+                    {t('auth.noAccount')}{' '}
+                    <LocalizedLink to="/kayit" className="font-semibold text-sky-600 hover:underline">
+                      {t('auth.goRegister')}
+                    </LocalizedLink>
+                  </>
+                )}
               </p>
             </form>
 
             <div className="mt-4 rounded-xl border border-sky-100 bg-white/80 p-4 text-xs text-navy-600">
               <p className="font-semibold text-navy-800">{t('auth.demoAccounts')}</p>
-              <p className="mt-1 text-navy-500">{t('auth.demoHint')}</p>
+              <p className="mt-1 text-navy-500">
+                {lockedMode ? t('auth.demoHintAuthOn') : t('auth.demoHint')}
+              </p>
               <ul className="mt-2 space-y-1">
                 {listDemoCredentials().map((c) => (
                   <li key={c.email}>

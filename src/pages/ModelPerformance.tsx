@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Bot, CheckCircle2, ClipboardCheck, FlaskConical, Languages, PenLine, RefreshCw, Sparkles } from 'lucide-react'
+import { Bot, CheckCircle2, ClipboardCheck, Download, FlaskConical, Languages, PenLine, RefreshCw, Sparkles } from 'lucide-react'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { useLocale } from '../context/LocaleContext'
 import {
+  exportTrainingDataset,
   fetchLatestClassificationEval,
   fetchLatestLlmEval,
   fetchLlmFeedback,
@@ -17,6 +18,8 @@ import {
   type LlmEvalRun,
   type LlmFeedbackSummary,
   type LlmStatus,
+  type TrainingExportPolicy,
+  type TrainingExportResult,
 } from '../lib/backend'
 
 const EVAL_ROW_KEYS: { key: string; fmt: 'pct' | 'num' | 'sec' | 'score'; better: 'high' | 'low' }[] = [
@@ -131,6 +134,16 @@ export default function ModelPerformance() {
   const [clsEval, setClsEval] = useState<ClassificationEvalResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [datasetVersion, setDatasetVersion] = useState(() => {
+    const d = new Date()
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+    return `export-${stamp}`
+  })
+  const [exportPolicy, setExportPolicy] = useState<TrainingExportPolicy>('verified_only')
+  const [includeSplits, setIncludeSplits] = useState(true)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportResult, setExportResult] = useState<TrainingExportResult | null>(null)
 
   const evalRows = useMemo(
     () =>
@@ -156,6 +169,37 @@ export default function ModelPerformance() {
   }
 
   useEffect(load, [])
+
+  const runTrainingExport = () => {
+    const version = datasetVersion.trim()
+    if (!version) {
+      setExportError(t('admin.trainingExportVersionRequired'))
+      return
+    }
+    setExportBusy(true)
+    setExportError(null)
+    void exportTrainingDataset({
+      dataset_version: version,
+      policy: exportPolicy,
+      include_splits: includeSplits,
+    })
+      .then((res) => setExportResult(res))
+      .catch((err) =>
+        setExportError(err instanceof Error ? err.message : t('admin.trainingExportFail')),
+      )
+      .finally(() => setExportBusy(false))
+  }
+
+  const downloadExportJsonl = () => {
+    if (!exportResult?.jsonl) return
+    const blob = new Blob([exportResult.jsonl], { type: 'application/x-ndjson' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${exportResult.manifest.dataset_version || 'training-export'}.jsonl`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const approved = feedback?.by_decision.approved ?? 0
   const models = Object.values(feedback?.models ?? {})
@@ -215,6 +259,88 @@ export default function ModelPerformance() {
           </dl>
         </Card>
       )}
+
+      <Card className="mb-6">
+        <CardHeader title={t('admin.trainingExportTitle')} subtitle={t('admin.trainingExportSubtitle')} icon={<Download className="h-5 w-5" />} />
+        <div className="space-y-4 px-5 pb-5">
+          <p className="text-xs leading-relaxed text-slate-600">{t('admin.trainingExportHint')}</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block text-xs font-medium text-slate-600">
+              {t('admin.trainingExportVersion')}
+              <input
+                className="input mt-1 w-full"
+                value={datasetVersion}
+                onChange={(e) => setDatasetVersion(e.target.value)}
+                disabled={exportBusy}
+              />
+            </label>
+            <label className="block text-xs font-medium text-slate-600">
+              {t('admin.trainingExportPolicy')}
+              <select
+                className="input mt-1 w-full"
+                value={exportPolicy}
+                onChange={(e) => setExportPolicy(e.target.value as TrainingExportPolicy)}
+                disabled={exportBusy}
+              >
+                <option value="verified_only">{t('admin.trainingExportPolicyVerified')}</option>
+                <option value="accepted_or_verified">{t('admin.trainingExportPolicyAccepted')}</option>
+                <option value="all">{t('admin.trainingExportPolicyAll')}</option>
+              </select>
+            </label>
+            <label className="flex items-end gap-2 pb-2 text-sm text-navy-900">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300"
+                checked={includeSplits}
+                onChange={(e) => setIncludeSplits(e.target.checked)}
+                disabled={exportBusy}
+              />
+              {t('admin.trainingExportSplits')}
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={runTrainingExport} disabled={exportBusy}>
+              {exportBusy ? t('common.loading') : t('admin.trainingExportRun')}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Download className="h-3.5 w-3.5" />}
+              onClick={downloadExportJsonl}
+              disabled={!exportResult?.jsonl}
+            >
+              {t('admin.trainingExportDownload')}
+            </Button>
+          </div>
+          {exportError ? <p className="text-sm text-amber-900">{exportError}</p> : null}
+          {exportResult ? (
+            <dl className="grid gap-3 rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-sm sm:grid-cols-4">
+              <div>
+                <dt className="text-xs text-slate-500">{t('admin.trainingExportId')}</dt>
+                <dd className="font-mono text-xs text-navy-900">{exportResult.manifest.export_id}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">{t('admin.trainingExportRows')}</dt>
+                <dd className="font-semibold text-navy-900">{exportResult.manifest.row_count}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">{t('admin.trainingExportPolicy')}</dt>
+                <dd className="font-medium text-navy-900">{exportResult.manifest.policy}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">{t('admin.trainingExportSplitCounts')}</dt>
+                <dd className="font-mono text-xs text-navy-900">
+                  {exportResult.manifest.split_counts
+                    ? Object.entries(exportResult.manifest.split_counts)
+                        .map(([k, v]) => `${k}:${v}`)
+                        .join(' · ') || '—'
+                    : '—'}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+        </div>
+      </Card>
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('admin.expertFeedback')}</h2>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

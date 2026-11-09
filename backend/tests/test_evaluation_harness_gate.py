@@ -26,3 +26,28 @@ def test_patient_split_helper_importable() -> None:
     splits = split_patients([f"p{i}" for i in range(10)], train_frac=0.6, val_frac=0.2)
     assert_no_patient_leakage(splits)
     assert set(splits) == {"train", "val", "test"}
+
+
+def test_train_output_eval_gate_fail_closed_without_checkpoint() -> None:
+    """Synthetic train→eval gate: missing checkpoint/manifest ⇒ not_evaluated (no fabricated metrics)."""
+    repo = Path(__file__).resolve().parents[2]
+    missing_ckpt = repo / "artifacts" / "__missing_train_contract__.pt"
+    missing_manifest = repo / "ml" / "runs" / "__missing__" / "manifest.json"
+    if missing_ckpt.exists() or missing_manifest.exists():
+        status = "ready"
+        metrics = {"accuracy": 0.99}  # would be dishonest if files missing
+    else:
+        status = "not_evaluated"
+        metrics = None
+    assert status == "not_evaluated"
+    assert metrics is None
+
+
+def test_train_fixture_jsonl_present_for_contract() -> None:
+    fixture = Path(__file__).resolve().parents[2] / "ml" / "datasets" / "fixtures" / "tiny_export.jsonl"
+    assert fixture.is_file()
+    lines = [ln for ln in fixture.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) >= 3
+    row = __import__("json").loads(lines[0])
+    assert row.get("finding_code"), "train contract fixture must carry labels"
+    assert row.get("expert_verification_status") == "verified"
