@@ -10,6 +10,7 @@ import {
   FileText,
   FolderOpen,
   Gauge,
+  GraduationCap,
   LayoutDashboard,
   Layers,
   LogOut,
@@ -77,6 +78,7 @@ export function Sidebar({
       { to: '/', label: t('nav.expertOverview'), icon: <LayoutDashboard className={ic} /> },
       { to: '/kuyruk', label: t('nav.expertWorklist'), icon: <ClipboardCheck className={ic} />, badge: queue },
       { to: '/ai-tekrar', label: t('nav.expertAiAnalysis'), icon: <Sparkles className={ic} /> },
+      { to: '/ai-dersleri', label: t('nav.aiLessons'), icon: <GraduationCap className={ic} /> },
       { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
       { to: '/raporlar', label: t('nav.expertApproved'), icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: t('nav.expertMessages'), icon: <MessageSquare className={ic} /> },
@@ -102,6 +104,7 @@ export function Sidebar({
       { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
       { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Gauge className={ic} /> },
+      { to: '/ai-dersleri', label: t('nav.aiLessons'), icon: <GraduationCap className={ic} /> },
     ],
   }
   const items = role ? menus[role] : []

@@ -493,6 +493,8 @@ export interface BackendDraftReport {
     synthetic?: boolean
     /** Set when drafted by a real prompt-based LLM; enables grounding warnings. */
     prompt_version?: string | null
+    /** Expert revision lessons that were in this draft's prompt. */
+    applied_lesson_ids?: string[]
   }
   technique: { text: string; cited_finding_ids: string[] }
   findings: { text: string; cited_finding_ids: string[] }

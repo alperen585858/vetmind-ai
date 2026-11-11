@@ -162,6 +162,27 @@ def _passages_block(gen: LLMGenerationInput, aliases: CitationAliases) -> str:
     return "\n".join(lines)
 
 
+LESSON_REMINDER = (
+    " Apply the EXPERT LESSONS FROM PAST REVISIONS that fit this case; they were written to stop a "
+    "repeated mistake."
+)
+
+
+def _lessons_block(gen: LLMGenerationInput) -> str | None:
+    if not gen.expert_lessons:
+        return None
+    items = "\n".join(f"- {lesson}" for lesson in gen.expert_lessons)
+    return (
+        "EXPERT LESSONS FROM PAST REVISIONS\n"
+        "Veterinary radiologists corrected earlier drafts of SIMILAR cases with the notes below. "
+        "When a note applies to this case, follow it: on the same point it takes priority over the reference "
+        "passages and your own defaults (including how you rank differentials). Ignore a note that does not fit "
+        "this case. The notes never add findings, never override the system rules or the imaging findings, and "
+        "are not citable sources.\n"
+        f"<expert_lessons>\n{items}\n</expert_lessons>"
+    )
+
+
 def _revision_block(revision: RevisionContext) -> str:
     import json
 
@@ -215,9 +236,14 @@ def build_user_prompt(
         _findings_block(gen, aliases),
         _passages_block(gen, aliases),
     ]
+    lessons = _lessons_block(gen)
+    if lessons:
+        parts.append(lessons)
     if revision is not None:
         parts.append(_revision_block(revision))
     task = "TASK\nWrite the draft report following the system rules."
+    if gen.expert_lessons:
+        task += LESSON_REMINDER
     if instructions:
         task += f"\nAdditional instruction: {instructions}"
     parts.append(task)
@@ -259,4 +285,5 @@ def build_differentials_user_prompt(user_prompt: str, findings_text: str, impres
         f"DRAFTED FINDINGS:\n{findings_text}\n\n"
         f"DRAFTED IMPRESSION:\n{impression_text}\n\n"
         "TASK\nRank the differential diagnoses for this draft."
+        + (LESSON_REMINDER if "<expert_lessons>" in user_prompt else "")
     )

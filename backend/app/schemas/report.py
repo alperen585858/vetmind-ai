@@ -27,6 +27,8 @@ class GenerationMetadata(BaseModel):
     prompt_version: Optional[str] = None
     # Calls made for this draft, e.g. ["draft", "repair", "differentials"] (two-step prompt v4).
     pipeline_steps: list[str] = Field(default_factory=list)
+    # Expert revision lessons that were put in this draft's prompt (app/llm/lessons.py).
+    applied_lesson_ids: list[str] = Field(default_factory=list)
 
 
 class DifferentialDiagnosis(BaseModel):

@@ -7,6 +7,7 @@ from app.llm.interfaces import (
     LLMResponse,
     RevisionContext,
 )
+from app.llm.lessons import LessonContext, LessonStore
 from app.llm.privacy import redact_personal_data
 from app.rag.relevance import RagFilter, build_retrieval_query
 from app.rag.retriever import RagRetriever
@@ -31,6 +32,15 @@ def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
         history=history,
         findings=[(f.description, f.anatomical_location) for f in findings.findings],
         document_text=document_text,
+    )
+
+
+def build_lesson_context(case: CaseRecord, findings: StructuredFindings | None) -> LessonContext:
+    return LessonContext(
+        region=case.anatomical_region.value,
+        species=case.species.value,
+        modality=case.modality.value,
+        finding_codes=[f.finding_code for f in (findings.findings if findings else [])],
     )
 
 
@@ -133,10 +143,12 @@ class LLMGateway:
         rag: RagRetriever | None = None,
         *,
         rag_top_k: int = 4,
+        lessons: LessonStore | None = None,
     ) -> None:
         self._provider = provider
         self._rag = rag
         self._rag_top_k = rag_top_k
+        self._lessons = lessons
 
     @property
     def provider_id(self) -> str:
@@ -156,6 +168,24 @@ class LLMGateway:
             filters=build_rag_filter(case),
         )
 
+    def _with_lessons(self, case: CaseRecord, findings: StructuredFindings, generation):  # noqa: ANN001
+        """Attach matching expert lessons; returns (generation, lesson_ids)."""
+        if self._lessons is None:
+            return generation, []
+        matched = self._lessons.match(build_lesson_context(case, findings))
+        if not matched:
+            return generation, []
+        updated = generation.model_copy(update={"expert_lessons": [m.instruction for m in matched]})
+        return updated, [m.lesson_id for m in matched]
+
+    def _record_lessons(self, report: DraftReport, lesson_ids: list[str]) -> DraftReport:
+        # Template providers (mock/stub) never read the prompt, so they did not "apply" anything.
+        if lesson_ids and report.generation.prompt_version is not None:
+            report.generation.applied_lesson_ids = list(lesson_ids)
+            if self._lessons is not None:
+                self._lessons.mark_applied(lesson_ids)
+        return report
+
     def generate_draft(
         self,
         case: CaseRecord,
@@ -167,6 +197,7 @@ class LLMGateway:
         if self._rag is not None:
             passages = self._retrieve(case, findings)
         generation = build_generation_input(case, findings, rag_passages=passages, language=language)
+        generation, lesson_ids = self._with_lessons(case, findings, generation)
         try:
             response: LLMResponse = self._provider.generate(
                 LLMRequest(generation=generation)
@@ -174,7 +205,7 @@ class LLMGateway:
         except LLMProviderError:
             # Do not fall back to a mock draft after a real provider failure.
             raise
-        return response.report
+        return self._record_lessons(response.report, lesson_ids)
 
     def revise_draft(
         self,
@@ -190,6 +221,7 @@ class LLMGateway:
         if self._rag is not None:
             passages = self._retrieve(case, findings)
         generation = build_generation_input(case, findings, rag_passages=passages, language=language)
+        generation, lesson_ids = self._with_lessons(case, findings, generation)
         known = [(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")]
         revision = RevisionContext(
             previous_sections={
@@ -199,4 +231,4 @@ class LLMGateway:
             expert_note=redact_personal_data(expert_note, known=known).text,
         )
         response = self._provider.generate(LLMRequest(generation=generation, revision=revision))
-        return response.report
+        return self._record_lessons(response.report, lesson_ids)

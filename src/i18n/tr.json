@@ -158,7 +158,8 @@
     "expandMenu": "Menüyü genişlet",
     "collapseMenu": "Menüyü daralt",
     "closeSidebar": "Kenar çubuğunu kapat",
-    "brandSubtitle": "Teleradyoloji"
+    "brandSubtitle": "Teleradyoloji",
+    "aiLessons": "AI Dersleri"
   },
   "topbar": {
     "openMenu": "Menüyü aç",
@@ -1049,7 +1050,14 @@
       "toastRegenerateFailed": "Yeniden yazma başarısız",
       "slaTitle": "{hours} saat uzman yanıt SLA",
       "shortcutsHelp": "Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri karşılaştır · R reset · ok tuşları dilim. AI kutusu: kesikli kırmızı; vet: mavi.",
-      "deleteConfirmBody": "vakası listenizden kaldırılacak. Onaylı raporlar tıbbi kayıt olarak saklanır; kalıcı silme yalnızca yönetici (ve onay öncesi veteriner hekim) içindir."
+      "deleteConfirmBody": "vakası listenizden kaldırılacak. Onaylı raporlar tıbbi kayıt olarak saklanır; kalıcı silme yalnızca yönetici (ve onay öncesi veteriner hekim) içindir.",
+      "rememberLesson": "Bu düzeltmeyi benzer vakalar için hatırla",
+      "rememberLessonHint": "Gerekçeniz bir ders olarak kaydedilir; aynı bölge ve türdeki sonraki taslaklarda modele hatırlatılır. AI Dersleri sayfasından kapatabilirsiniz.",
+      "lessonSaved": "Ders kaydedildi",
+      "lessonSavedBody": "Benzer vakaların taslaklarında modele hatırlatılacak.",
+      "lessonFailed": "Ders kaydedilemedi",
+      "appliedLessons": "Bu taslakta {count} kayıtlı uzman dersi uygulandı.",
+      "viewLessons": "Dersleri gör"
     }
   },
   "analysis": {
@@ -1793,7 +1801,26 @@
     "provNotConfiguredLabel": "BAĞLI DEĞİL",
     "provNotConfiguredText": "Gerçek görüntü / dil modeli bağlı değil. Bulgu uydurulmaz; entegrasyon bekleniyor.",
     "provUnknownLabel": "BİLİNMİYOR",
-    "provUnknownText": "Kaynak bilgisi yok. Klinik kullanım için uygun değildir."
+    "provUnknownText": "Kaynak bilgisi yok. Klinik kullanım için uygun değildir.",
+    "panel": {
+      "real": "Gerçek",
+      "mock": "Demo",
+      "mode": "Analiz: {mode}",
+      "notice": "AI'ın önerdiği işaretler PDF'e girmeden önce kabul ya da red gerektirir. Yalnızca destekleyici kanıttır — kesin tanı değildir.",
+      "confidence": "güven %{pct}",
+      "badgeVet": "Hekim",
+      "badgeAccepted": "AI · kabul",
+      "badgeRejected": "AI · red",
+      "badgePending": "AI · bekliyor",
+      "accept": "Kabul et",
+      "reject": "Reddet",
+      "includePdf": "PDF'e ekle",
+      "excludePdf": "PDF'ten çıkar",
+      "trainingVerify": "Eğitim verisi onayı (kabulden ayrı)",
+      "verified": "Doğrulandı",
+      "unverify": "Doğrulamayı kaldır",
+      "verify": "Eğitim için doğrula"
+    }
   },
   "empty": {
     "defaultTitle": "İçerik yok",
@@ -1846,5 +1873,28 @@
     "useAppError": "useApp, AppProvider içinde kullanılmalı",
     "useLocaleError": "useLocale, LocaleProvider içinde kullanılmalı",
     "backendSyncFail": "Sunucuyla eşitleme başarısız"
+  },
+  "lessons": {
+    "title": "AI Dersleri",
+    "subtitle": "Revizyon gerekçelerinden kaydedilen dersler. Model benzer vakaların taslaklarını yazarken bunları hatırlar.",
+    "how": "Nasıl çalışır: revizyon penceresinde \"Bu düzeltmeyi benzer vakalar için hatırla\" işaretliyse gerekçeniz ders olur. Aynı bölge ve türdeki yeni taslaklarda (en çok 3 ders, ortak bulgusu olan önce) modele hatırlatılır. Dersler bulgu eklemez ve kaynak sayılmaz.",
+    "empty": "Henüz ders yok",
+    "emptyText": "Bir taslakta revizyon isterken \"Bu düzeltmeyi benzer vakalar için hatırla\" kutusunu işaretleyin.",
+    "colLesson": "Ders",
+    "colScope": "Kapsam",
+    "colUsed": "Uygulandı",
+    "colStatus": "Durum",
+    "active": "Açık",
+    "inactive": "Kapalı",
+    "turnOff": "Kapat",
+    "turnOn": "Aç",
+    "delete": "Sil",
+    "deleteConfirm": "Bu ders kalıcı olarak silinsin mi?",
+    "times": "{count} kez",
+    "never": "henüz yok",
+    "sourceCase": "Kaynak vaka",
+    "loadFailed": "Dersler yüklenemedi",
+    "updateFailed": "Ders güncellenemedi",
+    "count": "{active} açık · {total} toplam"
   }
 }

@@ -28,6 +28,7 @@ import Modules from './pages/Modules'
 import KnowledgeBase from './pages/KnowledgeBase'
 import SystemStatus from './pages/SystemStatus'
 import ModelPerformance from './pages/ModelPerformance'
+import AiLessons from './pages/AiLessons'
 import OwnerPets from './pages/OwnerPets'
 import Submissions from './pages/Submissions'
 import Messages from './pages/Messages'
@@ -105,6 +106,7 @@ export default function App() {
             )}
             {dualRoutes('kuyruk', 'queue', <Gate roles={['expert']}><ReviewQueue /></Gate>)}
             {dualRoutes('ai-tekrar', 'ai-resend', <Gate roles={['expert']}><ExpertAiResend /></Gate>)}
+            {dualRoutes('ai-dersleri', 'ai-lessons', <Gate roles={['expert', 'admin']}><AiLessons /></Gate>)}
             {dualRoutes('hayvanlar', 'pets', <Gate roles={['owner']}><OwnerPets /></Gate>)}
             {dualRoutes(
               'basvurular',

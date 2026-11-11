@@ -112,6 +112,8 @@ class Settings:
     analyze_gate_path: Path | None = None
     audit_log_path: Path | None = None
     feedback_log_path: Path | None = None
+    # Expert revision lessons (app/llm/lessons.py). None = in-memory (tests / memory storage).
+    lessons_path: Path | None = None
     document_ocr_endpoint: str | None = None
     document_ocr_timeout_s: float = 30.0
     # Load scripted demo cases on startup when the case store is empty (app.demo_seed).
@@ -152,6 +154,10 @@ def _default_audit_log_path() -> Path:
 
 def _default_feedback_log_path() -> Path:
     return _backend_root() / "data" / "feedback" / "feedback.jsonl"
+
+
+def _default_lessons_path() -> Path:
+    return _backend_root() / "data" / "revision_lessons.json"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -418,6 +424,14 @@ def load_settings() -> Settings:
     else:
         feedback_log_path = None
 
+    lessons_raw = os.getenv("VETMIND_LESSONS_PATH")
+    if lessons_raw:
+        lessons_path = Path(lessons_raw)
+    elif backend != "memory":
+        lessons_path = _default_lessons_path()
+    else:
+        lessons_path = None
+
     document_ocr_endpoint = os.getenv("VETMIND_DOCUMENT_OCR_ENDPOINT") or None
     try:
         document_ocr_timeout_s = float(os.getenv("VETMIND_DOCUMENT_OCR_TIMEOUT_S", "30"))
@@ -509,6 +523,7 @@ def load_settings() -> Settings:
         analyze_gate_path=analyze_gate_path,
         audit_log_path=audit_log_path,
         feedback_log_path=feedback_log_path,
+        lessons_path=lessons_path,
         document_ocr_endpoint=document_ocr_endpoint,
         document_ocr_timeout_s=max(1.0, document_ocr_timeout_s),
         demo_seed=_env_bool("VETMIND_DEMO_SEED", False),

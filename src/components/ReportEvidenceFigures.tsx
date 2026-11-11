@@ -169,8 +169,8 @@ function FigureCard({
           {item.inPdf
             ? 'Onayda PDF’e gömülür'
             : ev.include_in_report
-              ? 'Include PDF açık — Accept/edit sonrası PDF’e girer'
-              : 'PDF dışı · sol panelden Include PDF'}
+              ? 'PDF’e ekle açık — kabul edilince PDF’e girer'
+              : 'PDF dışı · sol panelden “PDF’e ekle”'}
         </p>
       </figcaption>
     </figure>
@@ -203,7 +203,7 @@ export function ReportEvidenceFigures({
       </div>
       {!items.length ? (
         <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
-          Onaydan önce burada F1 / F2 gibi AI kanıt görselleri görünür. Sol panelden Accept + Include PDF
+          Onaydan önce burada F1 / F2 gibi AI kanıt görselleri görünür. Sol panelden “Kabul et” + “PDF’e ekle”
           işaretleyin.
         </p>
       ) : (

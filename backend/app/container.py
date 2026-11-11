@@ -30,6 +30,7 @@ from app.routing.local_config import local_capability_from_settings, validate_lo
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
 from app.feedback.store import FeedbackStore
+from app.llm.lessons import LessonStore
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
@@ -251,7 +252,8 @@ class AppContainer:
         self.llm_provider = build_llm_provider(self.settings)
         # Fails fast on a bad config (like the report LLM); runtime errors fall back to rules.
         self.metadata_classifier = build_metadata_classifier(self.settings)
-        self.llm = LLMGateway(self.llm_provider, rag=self.rag)
+        self.lessons = LessonStore(self.settings.lessons_path)
+        self.llm = LLMGateway(self.llm_provider, rag=self.rag, lessons=self.lessons)
         self.validator = ReportValidator()
         evidence_root = (
             Path(self.settings.vision_artifact_root)

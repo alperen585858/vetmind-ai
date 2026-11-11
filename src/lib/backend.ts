@@ -1182,6 +1182,45 @@ export async function getJob(jobId: string) {
 }
 
 /** Expert revision request → LLM rewrites the draft as a new version (can take ~10-60 s). */
+/** Expert revision note remembered for similar cases (backend app/llm/lessons.py). */
+export interface RevisionLesson {
+  lesson_id: string
+  instruction: string
+  region: string
+  species: string
+  modality: string
+  finding_codes: string[]
+  reason_codes: string[]
+  source_case_id?: string | null
+  created_by: string
+  created_at: string
+  active: boolean
+  times_applied: number
+  last_applied_at?: string | null
+}
+
+export async function listLessons(): Promise<RevisionLesson[]> {
+  return request('/lessons')
+}
+
+export async function createLesson(caseId: string, instruction: string, reasonCodes: string[] = []) {
+  return request<RevisionLesson>('/lessons', {
+    method: 'POST',
+    body: JSON.stringify({ case_id: caseId, instruction, reason_codes: reasonCodes }),
+  })
+}
+
+export async function updateLesson(lessonId: string, patch: { active?: boolean; instruction?: string }) {
+  return request<RevisionLesson>(`/lessons/${encodeURIComponent(lessonId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function deleteLesson(lessonId: string) {
+  await request<void>(`/lessons/${encodeURIComponent(lessonId)}`, { method: 'DELETE' })
+}
+
 export async function regenerateBackendReport(caseId: string, note: string) {
   return request<BackendCaseRecord>(`/cases/${caseId}/report/regenerate`, {
     method: 'POST',

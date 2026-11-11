@@ -51,20 +51,21 @@ export function AIFindingsPanel({
         {t('ai.findings')}
         {isReal ? (
           <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-800">
-            REAL
+            {t('ai.panel.real')}
           </span>
         ) : sourceKind ? (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
-            {sourceKind}
+            {sourceKind === 'MOCK' ? t('ai.panel.mock') : sourceKind}
           </span>
         ) : null}
         {mode ? (
-          <span className="text-[10px] font-normal text-slate-500">mode:{mode}</span>
+          <span className="text-[10px] font-normal text-slate-500">
+            {t('ai.panel.mode', { mode: mode === 'mock' ? t('ai.panel.mock') : mode === 'real' ? t('ai.panel.real') : mode })}
+          </span>
         ) : null}
       </div>
       <p className="mb-2 text-[10px] leading-snug text-slate-500">
-        AI-proposed marks need accept/reject before PDF inclusion. Supportive evidence only —
-        not a final diagnosis.
+        {t('ai.panel.notice')}
       </p>
       {items.length === 0 ? (
         <p className="mt-3 text-xs text-slate-500">{t('ai.findingsEmpty')}</p>
@@ -73,17 +74,16 @@ export function AIFindingsPanel({
           {items.map((f, findingIndex) => (
             <li key={f.finding_id} className="rounded-lg bg-white p-2 ring-1 ring-slate-100">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-navy-900">
+                <p className="font-medium text-navy-900" title={displayFindingCode(f.finding_code)}>
                   <span className="mr-1 font-mono text-[10px] text-teal-800">F{findingIndex + 1}</span>
-                  {displayFindingCode(f.finding_code)}
+                  {displayFindingDescription(f.description)}
                 </p>
                 {typeof f.model_confidence === 'number' ? (
                   <span className="shrink-0 text-[10px] tabular-nums text-slate-500">
-                    conf {(f.model_confidence * 100).toFixed(0)}%
+                    {t('ai.panel.confidence', { pct: (f.model_confidence * 100).toFixed(0) })}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-0.5 text-slate-600">{displayFindingDescription(f.description)}</p>
               {f.anatomical_location ? (
                 <p className="mt-1 text-[10px] text-slate-400">
                   {displayFindingDescription(f.anatomical_location)}
@@ -96,12 +96,12 @@ export function AIFindingsPanel({
                     const status = ev.review_status || 'pending'
                     const badge =
                       origin === 'vet_manual'
-                        ? 'Vet'
+                        ? t('ai.panel.badgeVet')
                         : status === 'accepted' || status === 'edited'
-                          ? 'AI·ok'
+                          ? t('ai.panel.badgeAccepted')
                           : status === 'rejected'
-                            ? 'AI·rej'
-                            : 'AI·pending'
+                            ? t('ai.panel.badgeRejected')
+                            : t('ai.panel.badgePending')
                     const selected = selectedEvidenceId === ev.evidence_id
                     return (
                       <li
@@ -142,14 +142,14 @@ export function AIFindingsPanel({
                               className="rounded bg-teal-700 px-1.5 py-0.5 text-[10px] text-white"
                               onClick={() => onReviewEvidence(ev.evidence_id, 'accept', true)}
                             >
-                              Accept
+                              {t('ai.panel.accept')}
                             </button>
                             <button
                               type="button"
                               className="rounded bg-slate-600 px-1.5 py-0.5 text-[10px] text-white"
                               onClick={() => onReviewEvidence(ev.evidence_id, 'reject')}
                             >
-                              Reject
+                              {t('ai.panel.reject')}
                             </button>
                             {(status === 'accepted' || status === 'edited') && (
                               <button
@@ -163,7 +163,7 @@ export function AIFindingsPanel({
                                   )
                                 }
                               >
-                                {ev.include_in_report ? 'Exclude PDF' : 'Include PDF'}
+                                {ev.include_in_report ? t('ai.panel.excludePdf') : t('ai.panel.includePdf')}
                               </button>
                             )}
                           </div>
@@ -171,12 +171,12 @@ export function AIFindingsPanel({
                         {canVerify && onVerifyEvidence && ev.bbox ? (
                           <div className="mt-1 flex flex-wrap items-center gap-1 border-t border-dashed border-slate-200 pt-1">
                             <span className="text-[9px] uppercase tracking-wide text-slate-400">
-                              Eğitim verify ≠ Accept
+                              {t('ai.panel.trainingVerify')}
                             </span>
                             {(ev.expert_verification_status || 'unverified') === 'verified' ? (
                               <>
                                 <span className="rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-800">
-                                  Verified
+                                  {t('ai.panel.verified')}
                                   {ev.expert_verified_by ? ` · ${ev.expert_verified_by}` : ''}
                                 </span>
                                 <button
@@ -184,7 +184,7 @@ export function AIFindingsPanel({
                                   className="rounded bg-white px-1.5 py-0.5 text-[10px] ring-1 ring-slate-300"
                                   onClick={() => onVerifyEvidence(ev.evidence_id, 'unverify')}
                                 >
-                                  Unverify
+                                  {t('ai.panel.unverify')}
                                 </button>
                               </>
                             ) : (
@@ -193,7 +193,7 @@ export function AIFindingsPanel({
                                 className="rounded bg-indigo-700 px-1.5 py-0.5 text-[10px] text-white"
                                 onClick={() => onVerifyEvidence(ev.evidence_id, 'verify')}
                               >
-                                Verify (export)
+                                {t('ai.panel.verify')}
                               </button>
                             )}
                           </div>

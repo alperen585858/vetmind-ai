@@ -158,7 +158,8 @@
     "expandMenu": "Expand menu",
     "collapseMenu": "Collapse menu",
     "closeSidebar": "Close sidebar",
-    "brandSubtitle": "Teleradiology"
+    "brandSubtitle": "Teleradiology",
+    "aiLessons": "AI Lessons"
   },
   "topbar": {
     "openMenu": "Open menu",
@@ -1049,7 +1050,14 @@
       "toastRegenerateFailed": "Rewrite failed",
       "slaTitle": "{hours}-hour specialist response SLA",
       "shortcutsHelp": "Shortcuts: W/L · P pan · Z zoom · M distance · A angle · O ROI · Space cine · F full screen · C compare series · R reset · arrow keys slice. AI box: dashed red; vet: blue.",
-      "deleteConfirmBody": "will be removed from your list. Approved reports are kept as medical records; permanent deletion is for admins (and the clinic before approval) only."
+      "deleteConfirmBody": "will be removed from your list. Approved reports are kept as medical records; permanent deletion is for admins (and the clinic before approval) only.",
+      "rememberLesson": "Remember this correction for similar cases",
+      "rememberLessonHint": "Your reason is saved as a lesson and reminded to the model in later drafts with the same region and species. You can switch it off on the AI Lessons page.",
+      "lessonSaved": "Lesson saved",
+      "lessonSavedBody": "It will be reminded to the model in drafts of similar cases.",
+      "lessonFailed": "Lesson could not be saved",
+      "appliedLessons": "{count} saved expert lesson(s) were applied to this draft.",
+      "viewLessons": "View lessons"
     }
   },
   "analysis": {
@@ -1793,7 +1801,26 @@
     "provNotConfiguredLabel": "NOT CONNECTED",
     "provNotConfiguredText": "No real imaging / language model is connected. Findings are not fabricated; awaiting integration.",
     "provUnknownLabel": "UNKNOWN",
-    "provUnknownText": "Source information unavailable. Not suitable for clinical use."
+    "provUnknownText": "Source information unavailable. Not suitable for clinical use.",
+    "panel": {
+      "real": "Real",
+      "mock": "Demo",
+      "mode": "Analysis: {mode}",
+      "notice": "AI-proposed marks need accept/reject before PDF inclusion. Supportive evidence only — not a final diagnosis.",
+      "confidence": "conf {pct}%",
+      "badgeVet": "Vet",
+      "badgeAccepted": "AI · accepted",
+      "badgeRejected": "AI · rejected",
+      "badgePending": "AI · pending",
+      "accept": "Accept",
+      "reject": "Reject",
+      "includePdf": "Include PDF",
+      "excludePdf": "Exclude PDF",
+      "trainingVerify": "Training verification (separate from accept)",
+      "verified": "Verified",
+      "unverify": "Unverify",
+      "verify": "Verify for training"
+    }
   },
   "empty": {
     "defaultTitle": "Nothing here",
@@ -1846,5 +1873,28 @@
     "useAppError": "useApp must be used within AppProvider",
     "useLocaleError": "useLocale must be used within LocaleProvider",
     "backendSyncFail": "Sync with the server failed"
+  },
+  "lessons": {
+    "title": "AI Lessons",
+    "subtitle": "Lessons saved from revision reasons. The model is reminded of them when drafting similar cases.",
+    "how": "How it works: when \"Remember this correction for similar cases\" is ticked in the revision dialog, your reason becomes a lesson. New drafts with the same region and species get it in the prompt (at most 3, shared findings first). Lessons never add findings and are not citable sources.",
+    "empty": "No lessons yet",
+    "emptyText": "When requesting a revision on a draft, tick \"Remember this correction for similar cases\".",
+    "colLesson": "Lesson",
+    "colScope": "Scope",
+    "colUsed": "Applied",
+    "colStatus": "Status",
+    "active": "On",
+    "inactive": "Off",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this lesson permanently?",
+    "times": "{count} times",
+    "never": "not yet",
+    "sourceCase": "Source case",
+    "loadFailed": "Could not load lessons",
+    "updateFailed": "Could not update lesson",
+    "count": "{active} on · {total} total"
   }
 }

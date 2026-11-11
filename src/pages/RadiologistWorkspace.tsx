@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Clock,
   FileSearch,
+  GraduationCap,
   History,
   Image as ImageIcon,
   Loader2,
@@ -38,6 +39,7 @@ import {
   PollingCancelledError,
   appendCaseInternalNote,
   createCaseInfoRequest,
+  createLesson,
   deleteBackendCase,
   fetchCaseDicomFiles,
   getPetMedicalHistory,
@@ -92,6 +94,7 @@ export default function RadiologistWorkspace() {
   const [deleting, setDeleting] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonCodes, setReasonCodes] = useState<string[]>([])
+  const [rememberLesson, setRememberLesson] = useState(true)
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [worklist, setWorklist] = useState<BackendCaseSummary[]>([])
@@ -358,6 +361,21 @@ export default function RadiologistWorkspace() {
     nav(`/vakalar/${target.case_id}/calisma`)
   }
 
+  /** Save the revision reason as a lesson for similar cases; never blocks the revision itself. */
+  async function maybeSaveLesson(note: string, codes: string[]) {
+    if (!rememberLesson || !caseKey.startsWith('case-')) return
+    try {
+      await createLesson(caseKey, note, codes)
+      pushToast({ tone: 'success', title: t('review.workspace.lessonSaved'), body: t('review.workspace.lessonSavedBody') })
+    } catch (err) {
+      pushToast({
+        tone: 'error',
+        title: t('review.workspace.lessonFailed'),
+        body: err instanceof Error ? err.message : undefined,
+      })
+    }
+  }
+
   async function decide(action: 'approve' | 'reject' | 'request_revision') {
     if (!text || !caseRow) return
     try {
@@ -374,6 +392,7 @@ export default function RadiologistWorkspace() {
         })
         const mapped = await hydrateBackendCase(caseKey)
         if (action === 'request_revision') {
+          await maybeSaveLesson(reason, reasonCodes)
           if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
           const history = await listReportVersions(caseKey)
           setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
@@ -490,6 +509,8 @@ export default function RadiologistWorkspace() {
         edited_recommendations: text.oneriler,
       })
       const updated = await regenerateBackendReport(caseKey, reason)
+      // After the rewrite, so the lesson serves later drafts (this one already has the note).
+      await maybeSaveLesson(reason, reasonCodes)
       const mapped = await hydrateBackendCase(caseKey)
       if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
       // Case status can read the same before and after, so refresh history explicitly.
@@ -707,6 +728,15 @@ export default function RadiologistWorkspace() {
             }
             compact
           />
+          {c.backendDraft?.generation?.applied_lesson_ids?.length ? (
+            <p className="flex flex-wrap items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
+              <GraduationCap className="h-3.5 w-3.5" aria-hidden />
+              {t('review.workspace.appliedLessons', { count: c.backendDraft.generation.applied_lesson_ids.length })}
+              <button type="button" className="font-semibold underline" onClick={() => nav('/ai-dersleri')}>
+                {t('review.workspace.viewLessons')}
+              </button>
+            </p>
+          ) : null}
           <AIFindingsPanel
             findings={c.backendFindings}
             analysisMode={
@@ -1068,6 +1098,20 @@ export default function RadiologistWorkspace() {
               />
             </label>
             <p className="mt-2 text-xs text-slate-500">{t('review.workspace.reasonHint')}</p>
+            {modal === 'revizyon' && caseKey.startsWith('case-') && (
+              <label className="mt-3 flex items-start gap-2 text-sm text-navy-900">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-600"
+                  checked={rememberLesson}
+                  onChange={(e) => setRememberLesson(e.target.checked)}
+                />
+                <span>
+                  {t('review.workspace.rememberLesson')}
+                  <span className="mt-0.5 block text-xs text-slate-500">{t('review.workspace.rememberLessonHint')}</span>
+                </span>
+              </label>
+            )}
           </>
         )}
         {modal === 'revizyon' && caseKey.startsWith('case-') && (

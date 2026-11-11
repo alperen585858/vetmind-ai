@@ -101,6 +101,8 @@ class LLMGenerationInput(BaseModel):
     dicom_files_total: Optional[int] = None
     rag_passages: list[RagPassage] = Field(default_factory=list)
     rag_is_clinical_validation: bool = False
+    # Expert revision lessons from similar past cases (app/llm/lessons.py): guidance only.
+    expert_lessons: list[str] = Field(default_factory=list)
     # UI / UserSettings language (tr|en); providers fall back to env default when unset by caller.
     language: str = "tr"
     note: str = (

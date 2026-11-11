@@ -693,6 +693,24 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 Boyut/embedding ayarı değişirse `rag_index.json` ilk açılışta özel kaynaklar dahil yeniden hesaplanır.  
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
 
+### 8.5 Revizyondan öğrenen AI (uzman dersleri)
+
+Radyolog revizyon isterken **"Bu düzeltmeyi benzer vakalar için hatırla"** kutusu işaretliyse gerekçe bir **ders** olarak kaydedilir (`app/llm/lessons.py`, `data/revision_lessons.json`). Ders vakanın bölge / tür / modalite / bulgu kodlarıyla etiketlenir; hasta ve klinik adı kayıttan önce maskelenir.
+
+- **O anda düzeltme:** "Yapay zekâ ile yeniden yaz" gerekçeyi modele verip yeni taslak yazdırır.
+- **Kalıcı öğrenme:** sonraki taslaklarda aynı bölge ve türdeki dersler (en çok 3; ortak bulgu kodu olan önce) prompta `EXPERT LESSONS` bloğu olarak eklenir. Ayırıcı tanı adımı da bunları görür. Dersler bulgu eklemez, kaynak sayılmaz, sistem kurallarını aşamaz.
+- **Kontrol:** radyolog ve admin **AI Dersleri** sayfasında (`/ai-dersleri`) dersleri görür, kapatır veya siler; taslakta kaç ders uygulandığı çalışma alanında gösterilir (`generation.applied_lesson_ids`).
+- **API:** `GET/POST /api/v1/lessons`, `PATCH/DELETE /api/v1/lessons/{id}`.
+
+Ölçüm (`python scripts/lesson_eval.py`): Tarçın'da yazılan ders ("ağrılı servikal vakada FKE'yi öne çıkarma, kondrodistrofik ırkta IVDD'yi değerlendir") benzer vaka Paşa'ya, qwen2.5:7b ile 5'er çalıştırma:
+
+| | FKE yüksek/orta sırada | IVDD geçiyor |
+|---|---:|---:|
+| Derssiz | 4/5 | 2/5 |
+| Dersli | 2/5 | 5/5 |
+
+Küçük bir duman testi; model dersi her seferinde uygulamıyor. Son karar yine radyologda.
+
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).
 
 ---
@@ -1123,13 +1141,12 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 | 1 | **Referans raporlu test seti** — VRM uzmanlarının yazdığı gerçek (anonim) vakalar + referans rapor | GREEN tarzı klinik hata sayımı ve tezin "klinik doğruluk" sonucu için şart | Buğra + VRM |
 | 2 | **GREEN tarzı referanslı değerlendirme** — üretilen rapor ↔ uzman raporu: uydurma / atlanan bulgu, yanlış konum, yanlış ciddiyet | Atıf kontrolünün ötesinde gerçek kalite ölçümü | Alperen |
 | 3 | **Hakem doğruluğunu ölçmek** — hakem kararlarını uzman kararlarıyla karşılaştırmak; TurkMedNLI alt kümesiyle hakem model seçimi | Hakeme ne kadar güvenebileceğimizi bilmek | Alperen |
-| 4 | ✅ **RAG alaka filtresi** — bölge/tür filtresi, skor eşiği, toraks kaynakları (bkz. §8.4). Kalan: bge-m3 gibi gerçek embedding | Hakem bunu "alakasız kaynak" diye yakalıyor ama kaynağında çözülmeli | Nehir |
+| 4 | **RAG için gerçek embedding (bge-m3)** — alaka filtresi bitti (bkz. §8.4); hash embedding yerine Ollama bge-m3 ile anlamsal arama | Hash embedding eşanlamlı kelimeleri tanımıyor; ilgili kaynak (ör. IVDD) eşiğe takılıp kaçabiliyor | Nehir |
 | 5 | **Türkçe veteriner terim sözlüğü** — İngilizce terimlerin (%3–9) Türkçe karşılıkları | Rapor dili tutarlılığı | Alperen + Buğra |
 | 6 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
 | 7 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
 | 8 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
 | 9 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
-| 10 | **Revizyondan öğrenen AI** — radyoloğun revizyon gerekçesine göre (a) taslak o anda düzeltilsin ("Yapay zekâ ile yeniden yaz" bunun ilk hâli), (b) düzeltme kalıcı bir "ders" olarak kaydedilsin (ör. "ağrılı servikal vakada FKE'yi öne çıkarma") ve benzer vakalarda (bölge/tür/bulgu eşleşmesiyle) prompta eklensin ki aynı hata tekrarlanmasın. Uzun vadede #6 (LoRA) ile birleşir | Aynı hatayı her vakada elle düzeltmek zorunda kalınmasın | Nehir |
 
 **Olası sonraki adımlar (platform):**
 
