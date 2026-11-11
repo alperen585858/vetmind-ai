@@ -61,6 +61,9 @@ class RetrievalConfig:
     case_filter: bool = False
     min_cosine: float = EmbeddingRagRetriever.LEGACY_MIN_COSINE
     relative_floor: float = 0.0
+    broad_min_cosine: float | None = None
+    # "hash" or "ollama:<model>" (e.g. "ollama:bge-m3").
+    embedding: str = "hash"
     top_k: int = 4
 
 
@@ -166,12 +169,28 @@ def case_query(case: RagEvalCase, *, clean: bool) -> str:
     )
 
 
+_OLLAMA_BACKENDS: dict[str, object] = {}
+
+
+def _backend_for(config: RetrievalConfig):  # noqa: ANN202
+    if config.embedding.startswith("ollama:"):
+        from app.rag.ollama_embeddings import OllamaEmbeddingBackend
+
+        model = config.embedding.split(":", 1)[1]
+        # One instance per model so its cache is shared across configs.
+        return _OLLAMA_BACKENDS.setdefault(model, OllamaEmbeddingBackend(model))
+    return HashEmbeddingBackend(dim=config.dim, stem_prefix=config.stem_prefix, stopwords=config.stopwords)
+
+
 def build_retriever(config: RetrievalConfig) -> EmbeddingRagRetriever:
-    store = JsonVectorStore(
-        path=None, backend=HashEmbeddingBackend(dim=config.dim, stem_prefix=config.stem_prefix, stopwords=config.stopwords)
-    )
+    store = JsonVectorStore(path=None, backend=_backend_for(config))
     store.reindex_seed(persist=False)
-    return EmbeddingRagRetriever(store=store, min_cosine=config.min_cosine, relative_floor=config.relative_floor)
+    return EmbeddingRagRetriever(
+        store=store,
+        min_cosine=config.min_cosine,
+        relative_floor=config.relative_floor,
+        broad_min_cosine=config.broad_min_cosine,
+    )
 
 
 def run_config(cases: list[RagEvalCase], config: RetrievalConfig) -> ConfigResult:

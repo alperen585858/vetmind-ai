@@ -1,0 +1,4367 @@
+[
+  {
+    "config": {
+      "name": "0 baseline (64-dim, raw query, no filter, top-4)",
+      "dim": 64,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": false,
+      "case_filter": false,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.1389,
+    "hit_rate": 0.625,
+    "gold_recall": 0.303,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 3.4444,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.687
+          ],
+          [
+            "breed-cats-mesaticephalic",
+            0.627
+          ],
+          [
+            "breed-pitfall-007",
+            0.615
+          ],
+          [
+            "kb-9",
+            0.615
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-4",
+            0.655
+          ],
+          [
+            "kb-9",
+            0.637
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.613
+          ],
+          [
+            "kb-2",
+            0.61
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-1",
+            0.615
+          ],
+          [
+            "kb-6",
+            0.6
+          ],
+          [
+            "suture-fonticulus-frontoparietalis-bregmatic-fontanelle-molera",
+            0.568
+          ],
+          [
+            "kb-13",
+            0.568
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.634
+          ],
+          [
+            "suture-synchondrosis-sphenooccipitalis-normal-mesaticephalic",
+            0.617
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.588
+          ],
+          [
+            "kb-6",
+            0.583
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "kb-6",
+            0.616
+          ],
+          [
+            "breed-pitfall-002",
+            0.602
+          ],
+          [
+            "kb-13",
+            0.6
+          ],
+          [
+            "kb-16",
+            0.597
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "kb-15",
+            0.623
+          ],
+          [
+            "kb-6",
+            0.617
+          ],
+          [
+            "kb-12",
+            0.613
+          ],
+          [
+            "kb-11",
+            0.605
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-4",
+            0.667
+          ],
+          [
+            "breed-pitfall-001",
+            0.665
+          ],
+          [
+            "breed-pitfall-004",
+            0.641
+          ],
+          [
+            "breed-pitfall-005",
+            0.631
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-4",
+            0.666
+          ],
+          [
+            "kb-6",
+            0.649
+          ],
+          [
+            "kb-8",
+            0.625
+          ],
+          [
+            "breed-cats-dolichocephalic",
+            0.615
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-2",
+            0.687
+          ],
+          [
+            "kb-4",
+            0.643
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.635
+          ],
+          [
+            "breed-pitfall-002",
+            0.626
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "breed-pitfall-005",
+            0.677
+          ],
+          [
+            "kb-13",
+            0.672
+          ],
+          [
+            "kb-12",
+            0.65
+          ],
+          [
+            "kb-14",
+            0.623
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.659
+          ],
+          [
+            "suture-sutura-sagittalis",
+            0.645
+          ],
+          [
+            "suture-symphysis-mandibulae-specific-cranial-physes-thrall-reference",
+            0.642
+          ],
+          [
+            "kb-15",
+            0.621
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.683
+          ],
+          [
+            "kb-12",
+            0.678
+          ],
+          [
+            "breed-pitfall-005",
+            0.673
+          ],
+          [
+            "suture-symphysis-mandibulae-specific-cranial-physes-thrall-reference",
+            0.638
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "suture-sutura-lambdoidea",
+            0.686
+          ],
+          [
+            "kb-6",
+            0.685
+          ],
+          [
+            "suture-sutura-coronalis-normal-peke-face-persian-neonatal-synostosis-in-cats",
+            0.62
+          ],
+          [
+            "kb-14",
+            0.618
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.62
+          ],
+          [
+            "breed-dogs-mesaticephalic",
+            0.617
+          ],
+          [
+            "breed-pitfall-005",
+            0.594
+          ],
+          [
+            "breed-pitfall-003",
+            0.574
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.705
+          ],
+          [
+            "kb-7",
+            0.585
+          ],
+          [
+            "kb-5",
+            0.584
+          ],
+          [
+            "breed-pitfall-007",
+            0.577
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.646
+          ],
+          [
+            "breed-pitfall-001",
+            0.641
+          ],
+          [
+            "kb-12",
+            0.613
+          ],
+          [
+            "kb-16",
+            0.606
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "breed-pitfall-004",
+            0.623
+          ],
+          [
+            "breed-cats-mesaticephalic",
+            0.616
+          ],
+          [
+            "kb-16",
+            0.613
+          ],
+          [
+            "kb-12",
+            0.603
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-12",
+            0.656
+          ],
+          [
+            "kb-16",
+            0.622
+          ],
+          [
+            "breed-pitfall-002",
+            0.612
+          ],
+          [
+            "kb-14",
+            0.606
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "1a only region/species filter",
+      "dim": 64,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": false,
+      "case_filter": true,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.2881,
+    "hit_rate": 0.8125,
+    "gold_recall": 0.4848,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 2.3333,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.687
+          ],
+          [
+            "kb-9",
+            0.615
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-9",
+            0.637
+          ],
+          [
+            "kb-6",
+            0.606
+          ],
+          [
+            "kb-5",
+            0.588
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.6
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.634
+          ],
+          [
+            "suture-synchondrosis-sphenooccipitalis-normal-mesaticephalic",
+            0.617
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.588
+          ],
+          [
+            "kb-6",
+            0.583
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "kb-6",
+            0.616
+          ],
+          [
+            "breed-pitfall-002",
+            0.602
+          ],
+          [
+            "breed-pitfall-007",
+            0.59
+          ],
+          [
+            "kb-5",
+            0.579
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "kb-6",
+            0.617
+          ],
+          [
+            "breed-pitfall-002",
+            0.569
+          ],
+          [
+            "kb-5",
+            0.565
+          ],
+          [
+            "kb-9",
+            0.561
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-4",
+            0.667
+          ],
+          [
+            "kb-2",
+            0.567
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-4",
+            0.666
+          ],
+          [
+            "kb-2",
+            0.591
+          ],
+          [
+            "kb-7",
+            0.551
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 3,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-2",
+            0.687
+          ],
+          [
+            "kb-4",
+            0.643
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-13",
+            0.672
+          ],
+          [
+            "kb-12",
+            0.65
+          ],
+          [
+            "kb-14",
+            0.623
+          ],
+          [
+            "kb-8",
+            0.597
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-15",
+            0.621
+          ],
+          [
+            "kb-16",
+            0.589
+          ],
+          [
+            "kb-14",
+            0.569
+          ],
+          [
+            "kb-12",
+            0.558
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.678
+          ],
+          [
+            "kb-16",
+            0.622
+          ],
+          [
+            "kb-15",
+            0.616
+          ],
+          [
+            "kb-14",
+            0.601
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.618
+          ],
+          [
+            "kb-16",
+            0.611
+          ],
+          [
+            "kb-15",
+            0.581
+          ],
+          [
+            "kb-12",
+            0.578
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.566
+          ],
+          [
+            "kb-14",
+            0.564
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.705
+          ],
+          [
+            "kb-12",
+            0.566
+          ],
+          [
+            "kb-13",
+            0.564
+          ],
+          [
+            "kb-8",
+            0.543
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.646
+          ],
+          [
+            "kb-12",
+            0.613
+          ],
+          [
+            "kb-16",
+            0.606
+          ],
+          [
+            "kb-8",
+            0.577
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-16",
+            0.613
+          ],
+          [
+            "kb-12",
+            0.603
+          ],
+          [
+            "kb-2",
+            0.586
+          ],
+          [
+            "kb-1",
+            0.584
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-12",
+            0.656
+          ],
+          [
+            "kb-16",
+            0.622
+          ],
+          [
+            "kb-14",
+            0.606
+          ],
+          [
+            "kb-13",
+            0.597
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "1b only 2048-dim hash",
+      "dim": 2048,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": false,
+      "case_filter": false,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.2958,
+    "hit_rate": 0.875,
+    "gold_recall": 0.6061,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 2.7778,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-3",
+            0.549
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.545
+          ],
+          [
+            "kb-5",
+            0.543
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.538
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.59
+          ],
+          [
+            "kb-6",
+            0.544
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.538
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.538
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.579
+          ],
+          [
+            "kb-3",
+            0.534
+          ],
+          [
+            "breed-pitfall-007",
+            0.533
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "breed-dogs-dolichocephalic",
+            0.552
+          ],
+          [
+            "kb-16",
+            0.542
+          ],
+          [
+            "kb-5",
+            0.541
+          ],
+          [
+            "kb-9",
+            0.541
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-cats-brachycephalic",
+            0.56
+          ],
+          [
+            "breed-pitfall-001",
+            0.56
+          ],
+          [
+            "breed-pitfall-007",
+            0.554
+          ],
+          [
+            "breed-cats-dolichocephalic",
+            0.545
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-pitfall-007",
+            0.576
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.575
+          ],
+          [
+            "breed-pitfall-006",
+            0.568
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.566
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.561
+          ],
+          [
+            "kb-7",
+            0.557
+          ],
+          [
+            "kb-4",
+            0.547
+          ],
+          [
+            "suture-synchondrosis-sphenoethmoidalis",
+            0.536
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.567
+          ],
+          [
+            "kb-3",
+            0.557
+          ],
+          [
+            "suture-synchondrosis-sphenoethmoidalis",
+            0.537
+          ],
+          [
+            "kb-4",
+            0.535
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "breed-dogs-dolichocephalic",
+            0.534
+          ],
+          [
+            "kb-5",
+            0.533
+          ],
+          [
+            "breed-dogs-mesaticephalic",
+            0.533
+          ],
+          [
+            "kb-6",
+            0.53
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.584
+          ],
+          [
+            "kb-11",
+            0.579
+          ],
+          [
+            "kb-13",
+            0.577
+          ],
+          [
+            "kb-15",
+            0.573
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.596
+          ],
+          [
+            "kb-14",
+            0.578
+          ],
+          [
+            "kb-8",
+            0.575
+          ],
+          [
+            "kb-15",
+            0.564
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "breed-cats-brachycephalic",
+            0.577
+          ],
+          [
+            "kb-13",
+            0.576
+          ],
+          [
+            "kb-12",
+            0.573
+          ],
+          [
+            "kb-16",
+            0.571
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.652
+          ],
+          [
+            "kb-12",
+            0.57
+          ],
+          [
+            "kb-13",
+            0.562
+          ],
+          [
+            "breed-pitfall-006",
+            0.561
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.593
+          ],
+          [
+            "kb-11",
+            0.553
+          ],
+          [
+            "kb-14",
+            0.553
+          ],
+          [
+            "breed-pitfall-005",
+            0.548
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.586
+          ],
+          [
+            "kb-13",
+            0.554
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.551
+          ],
+          [
+            "breed-pitfall-005",
+            0.547
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.571
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.539
+          ],
+          [
+            "kb-12",
+            0.532
+          ],
+          [
+            "kb-2",
+            0.53
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-13",
+            0.563
+          ],
+          [
+            "breed-cats-dolichocephalic",
+            0.562
+          ],
+          [
+            "breed-pitfall-002",
+            0.561
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.559
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "suture-apex-radicis-dentis-canini-canine-tooth-root-closure",
+            0.548
+          ],
+          [
+            "breed-cats-mesaticephalic",
+            0.546
+          ],
+          [
+            "breed-pitfall-006",
+            0.543
+          ],
+          [
+            "kb-13",
+            0.541
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "1c only cleaned query",
+      "dim": 64,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": true,
+      "case_filter": false,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.1528,
+    "hit_rate": 0.625,
+    "gold_recall": 0.3333,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 3.3889,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.653
+          ],
+          [
+            "kb-13",
+            0.624
+          ],
+          [
+            "breed-cats-mesaticephalic",
+            0.61
+          ],
+          [
+            "breed-pitfall-007",
+            0.605
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "breed-cats-brachycephalic",
+            0.643
+          ],
+          [
+            "kb-2",
+            0.632
+          ],
+          [
+            "kb-4",
+            0.621
+          ],
+          [
+            "kb-14",
+            0.612
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-1",
+            0.622
+          ],
+          [
+            "kb-3",
+            0.62
+          ],
+          [
+            "kb-6",
+            0.615
+          ],
+          [
+            "breed-pitfall-005",
+            0.592
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.645
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.605
+          ],
+          [
+            "suture-synchondrosis-sphenooccipitalis-normal-mesaticephalic",
+            0.605
+          ],
+          [
+            "suture-sutura-lambdoidea",
+            0.588
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "kb-8",
+            0.617
+          ],
+          [
+            "kb-2",
+            0.601
+          ],
+          [
+            "breed-pitfall-002",
+            0.596
+          ],
+          [
+            "kb-6",
+            0.593
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "kb-12",
+            0.644
+          ],
+          [
+            "kb-11",
+            0.638
+          ],
+          [
+            "kb-15",
+            0.638
+          ],
+          [
+            "kb-6",
+            0.606
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "breed-pitfall-005",
+            0.665
+          ],
+          [
+            "breed-pitfall-001",
+            0.66
+          ],
+          [
+            "kb-4",
+            0.65
+          ],
+          [
+            "breed-pitfall-004",
+            0.633
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-4",
+            0.679
+          ],
+          [
+            "suture-fonticulus-frontoparietalis-bregmatic-fontanelle-molera",
+            0.634
+          ],
+          [
+            "kb-6",
+            0.628
+          ],
+          [
+            "breed-pitfall-001",
+            0.61
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-2",
+            0.669
+          ],
+          [
+            "kb-4",
+            0.632
+          ],
+          [
+            "breed-pitfall-003",
+            0.624
+          ],
+          [
+            "kb-14",
+            0.596
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "breed-pitfall-005",
+            0.689
+          ],
+          [
+            "kb-8",
+            0.65
+          ],
+          [
+            "kb-14",
+            0.644
+          ],
+          [
+            "kb-13",
+            0.639
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-14",
+            0.66
+          ],
+          [
+            "kb-6",
+            0.647
+          ],
+          [
+            "suture-sutura-lambdoidea",
+            0.644
+          ],
+          [
+            "kb-15",
+            0.632
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-14",
+            0.668
+          ],
+          [
+            "kb-12",
+            0.667
+          ],
+          [
+            "breed-pitfall-005",
+            0.666
+          ],
+          [
+            "breed-pitfall-001",
+            0.634
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "suture-sutura-lambdoidea",
+            0.707
+          ],
+          [
+            "kb-14",
+            0.68
+          ],
+          [
+            "kb-6",
+            0.643
+          ],
+          [
+            "suture-synchondrosis-sphenooccipitalis-normal-mesaticephalic",
+            0.618
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "breed-pitfall-005",
+            0.622
+          ],
+          [
+            "kb-3",
+            0.617
+          ],
+          [
+            "kb-14",
+            0.608
+          ],
+          [
+            "breed-pitfall-003",
+            0.591
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-8",
+            0.673
+          ],
+          [
+            "kb-16",
+            0.605
+          ],
+          [
+            "suture-sutura-lambdoidea",
+            0.587
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.582
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.712
+          ],
+          [
+            "kb-12",
+            0.676
+          ],
+          [
+            "breed-pitfall-001",
+            0.667
+          ],
+          [
+            "kb-8",
+            0.622
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-3",
+            0.632
+          ],
+          [
+            "kb-15",
+            0.632
+          ],
+          [
+            "breed-cats-mesaticephalic",
+            0.622
+          ],
+          [
+            "kb-12",
+            0.608
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-12",
+            0.646
+          ],
+          [
+            "breed-pitfall-002",
+            0.618
+          ],
+          [
+            "breed-cats-brachycephalic",
+            0.608
+          ],
+          [
+            "kb-4",
+            0.598
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "2 filter + 2048-dim",
+      "dim": 2048,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": false,
+      "case_filter": true,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.4386,
+    "hit_rate": 0.9375,
+    "gold_recall": 0.697,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 1.7778,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.543
+          ],
+          [
+            "kb-6",
+            0.528
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.59
+          ],
+          [
+            "kb-6",
+            0.544
+          ],
+          [
+            "kb-9",
+            0.528
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.579
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "breed-dogs-dolichocephalic",
+            0.552
+          ],
+          [
+            "kb-5",
+            0.541
+          ],
+          [
+            "kb-9",
+            0.541
+          ],
+          [
+            "breed-pitfall-005",
+            0.54
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.56
+          ],
+          [
+            "breed-pitfall-007",
+            0.554
+          ],
+          [
+            "breed-pitfall-005",
+            0.541
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.539
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-pitfall-007",
+            0.576
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.575
+          ],
+          [
+            "breed-pitfall-006",
+            0.568
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.564
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.557
+          ],
+          [
+            "kb-4",
+            0.547
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.567
+          ],
+          [
+            "kb-4",
+            0.535
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.533
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.584
+          ],
+          [
+            "kb-11",
+            0.579
+          ],
+          [
+            "kb-13",
+            0.577
+          ],
+          [
+            "kb-15",
+            0.573
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.596
+          ],
+          [
+            "kb-14",
+            0.578
+          ],
+          [
+            "kb-8",
+            0.575
+          ],
+          [
+            "kb-15",
+            0.564
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-13",
+            0.576
+          ],
+          [
+            "kb-12",
+            0.573
+          ],
+          [
+            "kb-16",
+            0.571
+          ],
+          [
+            "kb-11",
+            0.568
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.652
+          ],
+          [
+            "kb-12",
+            0.57
+          ],
+          [
+            "kb-13",
+            0.562
+          ],
+          [
+            "kb-8",
+            0.557
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.593
+          ],
+          [
+            "kb-11",
+            0.553
+          ],
+          [
+            "kb-14",
+            0.553
+          ],
+          [
+            "kb-8",
+            0.544
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.586
+          ],
+          [
+            "kb-13",
+            0.554
+          ],
+          [
+            "kb-15",
+            0.535
+          ],
+          [
+            "kb-8",
+            0.529
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.571
+          ],
+          [
+            "kb-12",
+            0.532
+          ],
+          [
+            "kb-2",
+            0.53
+          ],
+          [
+            "kb-1",
+            0.529
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 3,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-13",
+            0.563
+          ],
+          [
+            "kb-14",
+            0.548
+          ],
+          [
+            "kb-16",
+            0.543
+          ],
+          [
+            "kb-11",
+            0.54
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-13",
+            0.541
+          ],
+          [
+            "kb-14",
+            0.537
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "3 + cleaned query",
+      "dim": 2048,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.4576,
+    "hit_rate": 1.0,
+    "gold_recall": 0.7576,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 1.7778,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.537
+          ],
+          [
+            "kb-6",
+            0.528
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.584
+          ],
+          [
+            "kb-6",
+            0.545
+          ],
+          [
+            "kb-9",
+            0.528
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.57
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.571
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.549
+          ],
+          [
+            "breed-pitfall-001",
+            0.54
+          ],
+          [
+            "kb-5",
+            0.536
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.573
+          ],
+          [
+            "breed-pitfall-007",
+            0.557
+          ],
+          [
+            "kb-9",
+            0.556
+          ],
+          [
+            "breed-pitfall-006",
+            0.54
+          ]
+        ],
+        "relevant_hits": 4,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.584
+          ],
+          [
+            "kb-9",
+            0.579
+          ],
+          [
+            "breed-pitfall-006",
+            0.576
+          ],
+          [
+            "breed-pitfall-007",
+            0.57
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.588
+          ],
+          [
+            "kb-4",
+            0.539
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.592
+          ],
+          [
+            "kb-4",
+            0.527
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.577
+          ],
+          [
+            "kb-5",
+            0.532
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-11",
+            0.606
+          ],
+          [
+            "kb-14",
+            0.596
+          ],
+          [
+            "kb-15",
+            0.581
+          ],
+          [
+            "kb-13",
+            0.576
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.615
+          ],
+          [
+            "kb-14",
+            0.609
+          ],
+          [
+            "kb-15",
+            0.574
+          ],
+          [
+            "kb-13",
+            0.573
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-13",
+            0.603
+          ],
+          [
+            "kb-11",
+            0.597
+          ],
+          [
+            "kb-14",
+            0.592
+          ],
+          [
+            "kb-12",
+            0.588
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.666
+          ],
+          [
+            "kb-12",
+            0.573
+          ],
+          [
+            "kb-11",
+            0.572
+          ],
+          [
+            "kb-15",
+            0.564
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.593
+          ],
+          [
+            "kb-11",
+            0.584
+          ],
+          [
+            "kb-14",
+            0.562
+          ],
+          [
+            "kb-12",
+            0.541
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.577
+          ],
+          [
+            "kb-11",
+            0.564
+          ],
+          [
+            "kb-13",
+            0.556
+          ],
+          [
+            "kb-8",
+            0.546
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.574
+          ],
+          [
+            "kb-12",
+            0.533
+          ],
+          [
+            "kb-2",
+            0.532
+          ],
+          [
+            "kb-1",
+            0.531
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 3,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-13",
+            0.559
+          ],
+          [
+            "kb-11",
+            0.555
+          ],
+          [
+            "kb-16",
+            0.55
+          ],
+          [
+            "kb-12",
+            0.544
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-13",
+            0.542
+          ],
+          [
+            "kb-11",
+            0.541
+          ],
+          [
+            "kb-14",
+            0.532
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "4 + Turkish stem feature",
+      "dim": 2048,
+      "stem_prefix": 5,
+      "stopwords": false,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.4098,
+    "hit_rate": 1.0,
+    "gold_recall": 0.7273,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 2.0,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.549
+          ],
+          [
+            "kb-6",
+            0.534
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.601
+          ],
+          [
+            "kb-9",
+            0.544
+          ],
+          [
+            "kb-6",
+            0.54
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.594
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.581
+          ],
+          [
+            "breed-pitfall-001",
+            0.555
+          ],
+          [
+            "breed-pitfall-005",
+            0.554
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.543
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.572
+          ],
+          [
+            "kb-9",
+            0.568
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.566
+          ],
+          [
+            "breed-pitfall-007",
+            0.563
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.598
+          ],
+          [
+            "breed-pitfall-006",
+            0.582
+          ],
+          [
+            "kb-9",
+            0.573
+          ],
+          [
+            "breed-pitfall-001",
+            0.572
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.633
+          ],
+          [
+            "kb-4",
+            0.556
+          ],
+          [
+            "kb-2",
+            0.528
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.615
+          ],
+          [
+            "kb-4",
+            0.554
+          ],
+          [
+            "kb-5",
+            0.53
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.588
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.622
+          ],
+          [
+            "kb-11",
+            0.615
+          ],
+          [
+            "kb-15",
+            0.602
+          ],
+          [
+            "kb-13",
+            0.598
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.657
+          ],
+          [
+            "kb-14",
+            0.616
+          ],
+          [
+            "kb-15",
+            0.591
+          ],
+          [
+            "kb-11",
+            0.578
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.615
+          ],
+          [
+            "kb-13",
+            0.612
+          ],
+          [
+            "kb-11",
+            0.604
+          ],
+          [
+            "kb-14",
+            0.597
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.679
+          ],
+          [
+            "kb-12",
+            0.61
+          ],
+          [
+            "kb-15",
+            0.594
+          ],
+          [
+            "kb-11",
+            0.582
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.646
+          ],
+          [
+            "kb-11",
+            0.599
+          ],
+          [
+            "kb-14",
+            0.582
+          ],
+          [
+            "kb-12",
+            0.574
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.621
+          ],
+          [
+            "kb-13",
+            0.576
+          ],
+          [
+            "kb-11",
+            0.57
+          ],
+          [
+            "kb-15",
+            0.563
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.593
+          ],
+          [
+            "kb-11",
+            0.566
+          ],
+          [
+            "kb-1",
+            0.555
+          ],
+          [
+            "kb-7",
+            0.55
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-11",
+            0.556
+          ],
+          [
+            "kb-12",
+            0.554
+          ],
+          [
+            "kb-7",
+            0.553
+          ],
+          [
+            "kb-13",
+            0.547
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-14",
+            0.537
+          ],
+          [
+            "kb-11",
+            0.537
+          ],
+          [
+            "kb-13",
+            0.535
+          ],
+          [
+            "kb-1",
+            0.526
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "4b + stopwords",
+      "dim": 2048,
+      "stem_prefix": 5,
+      "stopwords": true,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.05,
+      "relative_floor": 0.0,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.4167,
+    "hit_rate": 1.0,
+    "gold_recall": 0.7273,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 1.9444,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.551
+          ],
+          [
+            "kb-6",
+            0.536
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.605
+          ],
+          [
+            "kb-9",
+            0.544
+          ],
+          [
+            "kb-6",
+            0.527
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.6
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.581
+          ],
+          [
+            "breed-pitfall-005",
+            0.553
+          ],
+          [
+            "breed-pitfall-001",
+            0.551
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.549
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.571
+          ],
+          [
+            "kb-9",
+            0.57
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.565
+          ],
+          [
+            "breed-pitfall-007",
+            0.565
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.588
+          ],
+          [
+            "kb-9",
+            0.57
+          ],
+          [
+            "breed-pitfall-006",
+            0.568
+          ],
+          [
+            "breed-pitfall-001",
+            0.56
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.626
+          ],
+          [
+            "kb-4",
+            0.553
+          ],
+          [
+            "kb-2",
+            0.529
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.613
+          ],
+          [
+            "kb-4",
+            0.552
+          ],
+          [
+            "kb-5",
+            0.532
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.59
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-11",
+            0.616
+          ],
+          [
+            "kb-14",
+            0.615
+          ],
+          [
+            "kb-15",
+            0.602
+          ],
+          [
+            "kb-13",
+            0.592
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.655
+          ],
+          [
+            "kb-14",
+            0.607
+          ],
+          [
+            "kb-15",
+            0.583
+          ],
+          [
+            "kb-11",
+            0.577
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-11",
+            0.598
+          ],
+          [
+            "kb-12",
+            0.598
+          ],
+          [
+            "kb-15",
+            0.584
+          ],
+          [
+            "kb-13",
+            0.583
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.678
+          ],
+          [
+            "kb-12",
+            0.603
+          ],
+          [
+            "kb-15",
+            0.587
+          ],
+          [
+            "kb-11",
+            0.579
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.654
+          ],
+          [
+            "kb-11",
+            0.607
+          ],
+          [
+            "kb-14",
+            0.584
+          ],
+          [
+            "kb-12",
+            0.573
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.631
+          ],
+          [
+            "kb-11",
+            0.577
+          ],
+          [
+            "kb-13",
+            0.572
+          ],
+          [
+            "kb-15",
+            0.563
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.59
+          ],
+          [
+            "kb-11",
+            0.569
+          ],
+          [
+            "kb-1",
+            0.552
+          ],
+          [
+            "kb-7",
+            0.544
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-7",
+            0.546
+          ],
+          [
+            "kb-11",
+            0.537
+          ],
+          [
+            "kb-12",
+            0.536
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-11",
+            0.539
+          ],
+          [
+            "kb-14",
+            0.538
+          ],
+          [
+            "kb-13",
+            0.528
+          ],
+          [
+            "kb-1",
+            0.527
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "5 + score floor (production hash)",
+      "dim": 2048,
+      "stem_prefix": 5,
+      "stopwords": true,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.1,
+      "relative_floor": 0.7,
+      "broad_min_cosine": null,
+      "embedding": "hash",
+      "top_k": 4
+    },
+    "precision": 0.6786,
+    "hit_rate": 1.0,
+    "gold_recall": 0.5455,
+    "abstain_rate": 1.0,
+    "irrelevant_per_case": 0.5,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.551
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.605
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.6
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.581
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.571
+          ],
+          [
+            "kb-9",
+            0.57
+          ],
+          [
+            "breed-dogs-brachycephalic",
+            0.565
+          ],
+          [
+            "breed-pitfall-007",
+            0.565
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.588
+          ],
+          [
+            "kb-9",
+            0.57
+          ],
+          [
+            "breed-pitfall-006",
+            0.568
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.626
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.613
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.59
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-11",
+            0.616
+          ],
+          [
+            "kb-14",
+            0.615
+          ],
+          [
+            "kb-15",
+            0.602
+          ],
+          [
+            "kb-13",
+            0.592
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.655
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-11",
+            0.598
+          ],
+          [
+            "kb-12",
+            0.598
+          ],
+          [
+            "kb-15",
+            0.584
+          ],
+          [
+            "kb-13",
+            0.583
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.678
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.654
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.631
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-3",
+            0.59
+          ],
+          [
+            "kb-11",
+            0.569
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "6 bge-m3, filter, no floor",
+      "dim": 64,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.0,
+      "relative_floor": 0.0,
+      "broad_min_cosine": 0.0,
+      "embedding": "ollama:bge-m3",
+      "top_k": 4
+    },
+    "precision": 0.4203,
+    "hit_rate": 1.0,
+    "gold_recall": 0.8182,
+    "abstain_rate": 0.0,
+    "irrelevant_per_case": 2.2222,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.822
+          ],
+          [
+            "kb-5",
+            0.817
+          ],
+          [
+            "kb-9",
+            0.755
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.846
+          ],
+          [
+            "kb-6",
+            0.78
+          ],
+          [
+            "kb-9",
+            0.767
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.797
+          ],
+          [
+            "kb-5",
+            0.764
+          ],
+          [
+            "kb-9",
+            0.716
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.803
+          ],
+          [
+            "kb-6",
+            0.793
+          ],
+          [
+            "kb-5",
+            0.781
+          ],
+          [
+            "breed-pitfall-002",
+            0.772
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.8
+          ],
+          [
+            "breed-pitfall-007",
+            0.794
+          ],
+          [
+            "breed-pitfall-002",
+            0.788
+          ],
+          [
+            "suture-sutura-coronalis-normal-peke-face-persian-neonatal-synostosis-in-cats",
+            0.776
+          ]
+        ],
+        "relevant_hits": 4,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.836
+          ],
+          [
+            "breed-pitfall-001",
+            0.805
+          ],
+          [
+            "breed-dogs-mesaticephalic",
+            0.795
+          ],
+          [
+            "breed-dogs-dolichocephalic",
+            0.786
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.838
+          ],
+          [
+            "kb-5",
+            0.753
+          ],
+          [
+            "kb-2",
+            0.738
+          ],
+          [
+            "kb-4",
+            0.713
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.831
+          ],
+          [
+            "kb-2",
+            0.743
+          ],
+          [
+            "kb-5",
+            0.741
+          ],
+          [
+            "kb-4",
+            0.72
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 3,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.813
+          ],
+          [
+            "kb-5",
+            0.745
+          ],
+          [
+            "kb-2",
+            0.722
+          ],
+          [
+            "kb-4",
+            0.708
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-11",
+            0.819
+          ],
+          [
+            "kb-16",
+            0.811
+          ],
+          [
+            "kb-8",
+            0.798
+          ],
+          [
+            "kb-14",
+            0.793
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.834
+          ],
+          [
+            "kb-11",
+            0.816
+          ],
+          [
+            "kb-16",
+            0.8
+          ],
+          [
+            "kb-13",
+            0.788
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-11",
+            0.857
+          ],
+          [
+            "kb-12",
+            0.813
+          ],
+          [
+            "kb-16",
+            0.809
+          ],
+          [
+            "kb-13",
+            0.775
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.847
+          ],
+          [
+            "kb-12",
+            0.816
+          ],
+          [
+            "kb-11",
+            0.811
+          ],
+          [
+            "kb-16",
+            0.792
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.81
+          ],
+          [
+            "kb-11",
+            0.809
+          ],
+          [
+            "kb-8",
+            0.775
+          ],
+          [
+            "kb-13",
+            0.771
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.862
+          ],
+          [
+            "kb-11",
+            0.797
+          ],
+          [
+            "kb-12",
+            0.783
+          ],
+          [
+            "kb-13",
+            0.771
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [
+          [
+            "kb-1",
+            0.799
+          ],
+          [
+            "kb-3",
+            0.785
+          ],
+          [
+            "kb-13",
+            0.778
+          ],
+          [
+            "kb-12",
+            0.769
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [
+          [
+            "kb-13",
+            0.757
+          ],
+          [
+            "kb-7",
+            0.736
+          ],
+          [
+            "kb-5",
+            0.73
+          ],
+          [
+            "kb-12",
+            0.729
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [
+          [
+            "kb-11",
+            0.794
+          ],
+          [
+            "kb-14",
+            0.791
+          ],
+          [
+            "kb-12",
+            0.784
+          ],
+          [
+            "kb-16",
+            0.773
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  },
+  {
+    "config": {
+      "name": "7 bge-m3 + floors (VETMIND_RAG_EMBEDDING=ollama)",
+      "dim": 64,
+      "stem_prefix": 0,
+      "stopwords": false,
+      "clean_query": true,
+      "case_filter": true,
+      "min_cosine": 0.5,
+      "relative_floor": 0.9,
+      "broad_min_cosine": 0.6,
+      "embedding": "ollama:bge-m3",
+      "top_k": 4
+    },
+    "precision": 0.8214,
+    "hit_rate": 0.9375,
+    "gold_recall": 0.6364,
+    "abstain_rate": 1.0,
+    "irrelevant_per_case": 0.2778,
+    "cases": [
+      {
+        "case_id": "brain-mri-seizure-cat",
+        "retrieved": [
+          [
+            "kb-6",
+            0.822
+          ],
+          [
+            "kb-5",
+            0.817
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "brain-mri-meningioma-cat",
+        "retrieved": [
+          [
+            "kb-5",
+            0.846
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-mri-idiopathic-epilepsy-dog",
+        "retrieved": [
+          [
+            "kb-6",
+            0.797
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "brain-ct-vestibular-dog",
+        "retrieved": [
+          [
+            "kb-9",
+            0.803
+          ],
+          [
+            "kb-6",
+            0.793
+          ],
+          [
+            "kb-5",
+            0.781
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "skull-ct-trauma-puppy",
+        "retrieved": [
+          [
+            "breed-pitfall-001",
+            0.8
+          ],
+          [
+            "breed-pitfall-007",
+            0.794
+          ],
+          [
+            "breed-pitfall-002",
+            0.788
+          ],
+          [
+            "suture-sutura-coronalis-normal-peke-face-persian-neonatal-synostosis-in-cats",
+            0.776
+          ]
+        ],
+        "relevant_hits": 4,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "skull-brachycephalic-morphology",
+        "retrieved": [
+          [
+            "breed-dogs-brachycephalic",
+            0.836
+          ],
+          [
+            "breed-pitfall-001",
+            0.805
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "cervical-mri-neck-pain-bulldog",
+        "retrieved": [
+          [
+            "kb-7",
+            0.838
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "cervical-mri-ivdd-dachshund",
+        "retrieved": [
+          [
+            "kb-7",
+            0.831
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 3
+      },
+      {
+        "case_id": "cervical-mri-cat",
+        "retrieved": [
+          [
+            "kb-7",
+            0.813
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-cough-dog",
+        "retrieved": [
+          [
+            "kb-11",
+            0.819
+          ],
+          [
+            "kb-16",
+            0.811
+          ],
+          [
+            "kb-8",
+            0.798
+          ],
+          [
+            "kb-14",
+            0.793
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 3
+      },
+      {
+        "case_id": "thorax-xr-dyspnea-cat",
+        "retrieved": [
+          [
+            "kb-12",
+            0.834
+          ],
+          [
+            "kb-11",
+            0.816
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-asthma-cat",
+        "retrieved": [
+          [
+            "kb-11",
+            0.857
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-trauma-dog",
+        "retrieved": [
+          [
+            "kb-14",
+            0.847
+          ],
+          [
+            "kb-12",
+            0.816
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "thorax-xr-metastasis-dog",
+        "retrieved": [
+          [
+            "kb-15",
+            0.81
+          ],
+          [
+            "kb-11",
+            0.809
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
+      },
+      {
+        "case_id": "thorax-xr-tracheal-collapse-dog",
+        "retrieved": [
+          [
+            "kb-16",
+            0.862
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 1
+      },
+      {
+        "case_id": "tl-spine-paresis-dog",
+        "retrieved": [],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 4
+      },
+      {
+        "case_id": "empty-abdomen",
+        "retrieved": [],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      },
+      {
+        "case_id": "empty-limb-fracture",
+        "retrieved": [],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 0
+      }
+    ]
+  }
+]

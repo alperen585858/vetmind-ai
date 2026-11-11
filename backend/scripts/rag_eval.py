@@ -51,7 +51,12 @@ CONFIGS = [
     RetrievalConfig(
         "4b + stopwords", case_filter=True, dim=2048, clean_query=True, stem_prefix=5, stopwords=True
     ),
-    RetrievalConfig("5 + score floor (production)", **PRODUCTION),
+    RetrievalConfig("5 + score floor (production hash)", **PRODUCTION),
+    # Semantic embeddings (needs Ollama + `ollama pull bge-m3`; skipped with --no-ollama).
+    RetrievalConfig("6 bge-m3, filter, no floor", embedding="ollama:bge-m3", case_filter=True, clean_query=True,
+                    min_cosine=0.0, relative_floor=0.0, broad_min_cosine=0.0),
+    RetrievalConfig("7 bge-m3 + floors (VETMIND_RAG_EMBEDDING=ollama)", embedding="ollama:bge-m3",
+                    case_filter=True, clean_query=True, min_cosine=0.50, relative_floor=0.90, broad_min_cosine=0.60),
 ]
 
 
@@ -61,10 +66,12 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT / "eval" / "results")
     parser.add_argument("--details", action="store_true", help="print per-case tables too")
     parser.add_argument("--no-write", action="store_true")
+    parser.add_argument("--no-ollama", action="store_true", help="skip the bge-m3 rows")
     args = parser.parse_args()
 
     cases = load_rag_eval_set(args.set)
-    results = [run_config(cases, c) for c in CONFIGS]
+    configs = [c for c in CONFIGS if not (args.no_ollama and c.embedding.startswith("ollama"))]
+    results = [run_config(cases, c) for c in configs]
     md = render_markdown(results, cases)
     print(md if args.details else md.split("\n## ")[0])
 
