@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -92,29 +93,79 @@ class SqliteNotificationStore:
     def __init__(self, db_path: Path | str) -> None:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(self._path, check_same_thread=False, timeout=30.0)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS notifications (
-                notification_id TEXT PRIMARY KEY,
-                recipient_subject TEXT NOT NULL,
-                dedupe_key TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_ntf_recipient ON notifications(recipient_subject);
-            """
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS notifications (
+                    notification_id TEXT PRIMARY KEY,
+                    recipient_subject TEXT NOT NULL,
+                    dedupe_key TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_ntf_recipient ON notifications(recipient_subject);
+                """
+            )
+            self._conn.commit()
 
     def upsert(self, n: AppNotification) -> AppNotification | None:
-        try:
+        with self._lock:
+            try:
+                self._conn.execute(
+                    """
+                    INSERT INTO notifications (notification_id, recipient_subject, dedupe_key, created_at, payload)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        n.notification_id,
+                        n.recipient_subject,
+                        n.dedupe_key,
+                        n.created_at.isoformat(),
+                        n.model_dump_json(),
+                    ),
+                )
+                self._conn.commit()
+                return n
+            except sqlite3.IntegrityError:
+                # Duplicate dedupe_key: end the implicit transaction, or this connection keeps
+                # the database write-locked for every other process (e.g. scripts/seed_demo.py).
+                self._conn.rollback()
+                return None
+
+    def list_for(self, recipient: str, *, unread_only: bool = False) -> list[AppNotification]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM notifications WHERE recipient_subject=? ORDER BY created_at DESC",
+                (recipient,),
+            ).fetchall()
+        items = [AppNotification.model_validate_json(r["payload"]) for r in rows]
+        if unread_only:
+            items = [n for n in items if n.read_at is None]
+        return items
+
+    def get(self, notification_id: str) -> Optional[AppNotification]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM notifications WHERE notification_id=?",
+                (notification_id,),
+            ).fetchone()
+        return AppNotification.model_validate_json(row["payload"]) if row else None
+
+    def save(self, n: AppNotification) -> AppNotification:
+        with self._lock:
             self._conn.execute(
                 """
                 INSERT INTO notifications (notification_id, recipient_subject, dedupe_key, created_at, payload)
                 VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(notification_id) DO UPDATE SET
+                  recipient_subject=excluded.recipient_subject,
+                  dedupe_key=excluded.dedupe_key,
+                  created_at=excluded.created_at,
+                  payload=excluded.payload
                 """,
                 (
                     n.notification_id,
@@ -125,50 +176,6 @@ class SqliteNotificationStore:
                 ),
             )
             self._conn.commit()
-            return n
-        except sqlite3.IntegrityError:
-            # Duplicate dedupe_key: end the implicit transaction, or this connection keeps
-            # the database write-locked for every other process (e.g. scripts/seed_demo.py).
-            self._conn.rollback()
-            return None
-
-    def list_for(self, recipient: str, *, unread_only: bool = False) -> list[AppNotification]:
-        rows = self._conn.execute(
-            "SELECT payload FROM notifications WHERE recipient_subject=? ORDER BY created_at DESC",
-            (recipient,),
-        ).fetchall()
-        items = [AppNotification.model_validate_json(r["payload"]) for r in rows]
-        if unread_only:
-            items = [n for n in items if n.read_at is None]
-        return items
-
-    def get(self, notification_id: str) -> Optional[AppNotification]:
-        row = self._conn.execute(
-            "SELECT payload FROM notifications WHERE notification_id=?",
-            (notification_id,),
-        ).fetchone()
-        return AppNotification.model_validate_json(row["payload"]) if row else None
-
-    def save(self, n: AppNotification) -> AppNotification:
-        self._conn.execute(
-            """
-            INSERT INTO notifications (notification_id, recipient_subject, dedupe_key, created_at, payload)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(notification_id) DO UPDATE SET
-              recipient_subject=excluded.recipient_subject,
-              dedupe_key=excluded.dedupe_key,
-              created_at=excluded.created_at,
-              payload=excluded.payload
-            """,
-            (
-                n.notification_id,
-                n.recipient_subject,
-                n.dedupe_key,
-                n.created_at.isoformat(),
-                n.model_dump_json(),
-            ),
-        )
-        self._conn.commit()
         return n
 
     def mark_all_read(self, recipient: str) -> int:
@@ -181,33 +188,36 @@ class SqliteNotificationStore:
         return len(items)
 
     def delete(self, notification_id: str) -> bool:
-        cur = self._conn.execute(
-            "DELETE FROM notifications WHERE notification_id=?",
-            (notification_id,),
-        )
-        self._conn.commit()
-        return cur.rowcount > 0
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM notifications WHERE notification_id=?",
+                (notification_id,),
+            )
+            self._conn.commit()
+            return cur.rowcount > 0
 
     def delete_all_for(self, recipient: str) -> int:
-        cur = self._conn.execute(
-            "DELETE FROM notifications WHERE recipient_subject=?",
-            (recipient,),
-        )
-        self._conn.commit()
-        return cur.rowcount
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM notifications WHERE recipient_subject=?",
+                (recipient,),
+            )
+            self._conn.commit()
+            return cur.rowcount
 
     def delete_for_cases(self, case_ids: set[str]) -> int:
-        rows = self._conn.execute("SELECT notification_id, payload FROM notifications").fetchall()
-        doomed = [
-            r["notification_id"]
-            for r in rows
-            if AppNotification.model_validate_json(r["payload"]).case_id in case_ids
-        ]
-        self._conn.executemany(
-            "DELETE FROM notifications WHERE notification_id=?", [(i,) for i in doomed]
-        )
-        self._conn.commit()
-        return len(doomed)
+        with self._lock:
+            rows = self._conn.execute("SELECT notification_id, payload FROM notifications").fetchall()
+            doomed = [
+                r["notification_id"]
+                for r in rows
+                if AppNotification.model_validate_json(r["payload"]).case_id in case_ids
+            ]
+            self._conn.executemany(
+                "DELETE FROM notifications WHERE notification_id=?", [(i,) for i in doomed]
+            )
+            self._conn.commit()
+            return len(doomed)
 
 
 def build_notification_store(settings) -> NotificationStore:

@@ -917,6 +917,7 @@ class CaseService:
         case = self._repo.get_case(case_id)
         if case is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
+        case = self._heal_stale_analyzing(case)
         if principal is not None:
             assert_case_access(principal, case, isolation=self._tenant_isolation)
             if (
@@ -929,6 +930,52 @@ class CaseService:
             # Radiologist-only fields are filtered on the response (app.auth.visibility),
             # never here: services save what get_case returns.
         return case
+
+    def _heal_stale_analyzing(self, case: CaseRecord) -> CaseRecord:
+        """Unstick cases whose job finished but case status/results were not persisted.
+
+        Seen when SQLite shared-connection races interrupt ``_persist_pipeline_result``
+        after the job row was already marked completed.
+        """
+        if case.status != CaseLifecycleStatus.ANALYZING or not case.latest_job_id:
+            return case
+        job = self._repo.get_job(case.latest_job_id)
+        if job is None:
+            return case
+        terminal = {
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+            JobStatus.TIMED_OUT,
+        }
+        if job.status not in terminal:
+            return case
+
+        with self._lock:
+            latest = self._repo.get_case(case.case_id)
+            if latest is None or latest.status != CaseLifecycleStatus.ANALYZING:
+                return latest or case
+            stored_job = self._repo.get_job(latest.latest_job_id or "")
+            if stored_job is None or stored_job.status not in terminal:
+                return latest
+
+            if stored_job.status == JobStatus.COMPLETED and (
+                latest.structured_findings is not None or latest.draft_report is not None
+            ):
+                latest.status = CaseLifecycleStatus.AWAITING_REVIEW
+                apply_review_sla(latest)
+            else:
+                # Completed-without-results or failed/cancelled/timed_out with no persist.
+                latest.status = CaseLifecycleStatus.FAILED
+                if not latest.structured_findings and stored_job.status == JobStatus.COMPLETED:
+                    # Keep an honest breadcrumb for operators / UI retry.
+                    stored_job.error_message = (
+                        stored_job.error_message
+                        or "Analysis job completed but case results were not persisted; re-run analysis."
+                    )
+                    self._repo.save_job(stored_job)
+            latest.updated_at = _now()
+            return self._repo.save_case(latest)
 
     def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
         """Permanently remove a case (and its jobs). Demo / list cleanup — not clinical archival."""
