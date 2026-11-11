@@ -76,6 +76,7 @@ class JsonVectorStore:
         if stored_sig != _signature(self._backend) or any(
             len(d.vector) != self._backend.dim for d in self._docs
         ):
+            self._prefetch([_embed_text(d.title, d.section, d.passage, d.keywords) for d in self._docs])
             for doc in self._docs:
                 doc.vector = self._backend.embed(_embed_text(doc.title, doc.section, doc.passage, doc.keywords))
             reembedded = True
@@ -123,9 +124,17 @@ class JsonVectorStore:
         }
         self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    def _prefetch(self, texts: list[str]) -> None:
+        """Batch-embed up front when the backend supports it (one HTTP call, then cache hits)."""
+        embed_many = getattr(self._backend, "embed_many", None)
+        if callable(embed_many) and texts:
+            embed_many(texts)
+
     def reindex_seed(self, *, persist: bool = True) -> int:
         self._docs = []
-        for doc in load_default_rag_corpus():
+        corpus = load_default_rag_corpus()
+        self._prefetch([_embed_text(d.title, d.section, d.passage, d.keywords) for d in corpus])
+        for doc in corpus:
             self.add_corpus_doc(doc, persist=False)
         if persist:
             self.save()

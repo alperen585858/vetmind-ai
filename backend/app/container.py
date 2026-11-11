@@ -14,6 +14,7 @@ from app.models.registry import ModelRegistry
 from app.models.vlm_vision import build_optional_vlm_vision
 from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
+from app.rag.ollama_embeddings import build_embedding_backend
 from app.rag.retriever import LexicalRagRetriever
 from app.rag.vector_store import JsonVectorStore
 from app.routing.capabilities import (
@@ -98,10 +99,14 @@ class AppContainer:
         else:
             # Tests with memory storage: keep index in-memory (no disk) unless path set explicitly.
             index_path = None if self.storage_backend == "memory" else self.settings.rag_index_path
-            self.vector_store = JsonVectorStore(path=index_path)
+            self.vector_store = JsonVectorStore(path=index_path, backend=build_embedding_backend())
             self.vector_store.load()
             self.rag = EmbeddingRagRetriever(store=self.vector_store)
-            self.rag_method = "hash_embedding_cosine"
+            self.rag_method = (
+                "ollama_embedding_cosine"
+                if str(getattr(self.vector_store.backend, "signature", "")).startswith("ollama")
+                else "hash_embedding_cosine"
+            )
 
         capabilities = list(default_capabilities())
         self.models = default_model_registry()

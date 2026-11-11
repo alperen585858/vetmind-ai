@@ -22,14 +22,25 @@ class EmbeddingRagRetriever:
         self,
         store: JsonVectorStore | None = None,
         *,
-        min_cosine: float = CASE_MIN_COSINE,
-        relative_floor: float = CASE_RELATIVE_FLOOR,
+        min_cosine: float | None = None,
+        relative_floor: float | None = None,
+        broad_min_cosine: float | None = None,
     ) -> None:
         if store is None:
             store = JsonVectorStore(path=None)
             store.reindex_seed(persist=False)
         self._store = store
+        # Floors are per embedding backend (dense vectors score unrelated text much higher).
+        backend = store.backend
+        if min_cosine is None:
+            min_cosine = float(getattr(backend, "case_min_cosine", self.CASE_MIN_COSINE))
+        if relative_floor is None:
+            relative_floor = float(getattr(backend, "case_relative_floor", self.CASE_RELATIVE_FLOOR))
         self._min_cosine = min_cosine
+        # OTHER/UNKNOWN region: no region filter protects the result, so demand stronger evidence.
+        if broad_min_cosine is None:
+            broad_min_cosine = float(getattr(backend, "case_broad_min_cosine", min_cosine))
+        self._broad_min_cosine = max(min_cosine, broad_min_cosine)
         # Filtered calls also drop hits far below the best one (cos < ratio * best).
         self._relative_floor = relative_floor
 
@@ -47,7 +58,12 @@ class EmbeddingRagRetriever:
         q = (query or "").strip()
         if not q:
             return []
-        floor = self.LEGACY_MIN_COSINE if filters is None else self._min_cosine
+        if filters is None:
+            floor = self.LEGACY_MIN_COSINE
+        elif filters.region and filters.allowed_regions() is None:
+            floor = self._broad_min_cosine
+        else:
+            floor = self._min_cosine
         qv = self._store.backend.embed(q)
         scored: list[tuple[float, object]] = []
         for doc in self._store.documents:
