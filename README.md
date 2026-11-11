@@ -691,6 +691,15 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 | Sonra | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
 
 Boyut/embedding ayarı değişirse `rag_index.json` ilk açılışta özel kaynaklar dahil yeniden hesaplanır.  
+
+**Anlamsal embedding (bge-m3).** `VETMIND_RAG_EMBEDDING=ollama` ile kaynaklar Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`). `npm run backend:dev:ai` bunu otomatik açar. Model yoksa ya da Ollama kapalıysa uygulama hash embedding'e geri döner. Kurulum: `ollama pull bge-m3` (~1.2 GB).
+
+| | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız |
+|---|---:|---:|---:|---:|---:|
+| Hash (varsayılan) | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
+| bge-m3 | 0.82 | 0.94 | 0.64 | 1.00 | 0.28 |
+
+bge-m3 sıralamada çok daha iyi (ilgili kaynağı olan her vakada 1. sıradaki kaynak doğru), ama yoğun vektörlerde alakasız metin de yüksek puan aldığı için eşikler daha yüksek: bölgeli vakada 0.50, bölgesi "diğer/bilinmiyor" vakada 0.60. Bu yüzden bölgesi "diğer" olan torakolomber disk vakası eşiğe takılıyor.
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
 
 ### 8.5 Revizyondan öğrenen AI (uzman dersleri)
@@ -1141,12 +1150,11 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 | 1 | **Referans raporlu test seti** — VRM uzmanlarının yazdığı gerçek (anonim) vakalar + referans rapor | GREEN tarzı klinik hata sayımı ve tezin "klinik doğruluk" sonucu için şart | Buğra + VRM |
 | 2 | **GREEN tarzı referanslı değerlendirme** — üretilen rapor ↔ uzman raporu: uydurma / atlanan bulgu, yanlış konum, yanlış ciddiyet | Atıf kontrolünün ötesinde gerçek kalite ölçümü | Alperen |
 | 3 | **Hakem doğruluğunu ölçmek** — hakem kararlarını uzman kararlarıyla karşılaştırmak; TurkMedNLI alt kümesiyle hakem model seçimi | Hakeme ne kadar güvenebileceğimizi bilmek | Alperen |
-| 4 | **RAG için gerçek embedding (bge-m3)** — alaka filtresi bitti (bkz. §8.4); hash embedding yerine Ollama bge-m3 ile anlamsal arama | Hash embedding eşanlamlı kelimeleri tanımıyor; ilgili kaynak (ör. IVDD) eşiğe takılıp kaçabiliyor | Nehir |
-| 5 | **Türkçe veteriner terim sözlüğü** — İngilizce terimlerin (%3–9) Türkçe karşılıkları | Rapor dili tutarlılığı | Alperen + Buğra |
-| 6 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
-| 7 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
-| 8 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
-| 9 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
+| 4 | **Türkçe veteriner terim sözlüğü** — İngilizce terimlerin (%3–9) Türkçe karşılıkları | Rapor dili tutarlılığı | Alperen + Buğra |
+| 5 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
+| 6 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
+| 7 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
+| 8 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
 
 **Olası sonraki adımlar (platform):**
 
