@@ -117,6 +117,23 @@ Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri içi
 
 ## 4. Hızlı başlangıç
 
+### 4.0 Docker ile tek komut (önerilen deneme yolu)
+
+**Gereksinim:** Docker Desktop (veya Docker Engine + Compose v2). Node/Python kurmak gerekmez.
+
+```bash
+docker compose up --build
+```
+
+- Arayüz: **http://localhost:8080** · demo giriş `vet@demo.local` / `demo1234` (diğer hesaplar §5)
+- İki servis: `backend` (FastAPI, Python 3.12) ve `web` (nginx: derlenmiş arayüz + `/api` → backend proxy)
+- Veriler (SQLite, karantina, audit, dersler) `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
+- Ayarlar: compose dosyasının yanına `.env` koyup `VETMIND_*` değişkenlerini yazın (bkz. `backend/.env.example`). Port: `VETMIND_WEB_PORT` (varsayılan 8080)
+- Varsayılanlar demo modudur: auth kapalı, mock LLM. Gerçek LLM için `VETMIND_LLM_PROVIDER` ve ilgili ayarlar (§4.4) `.env`'e eklenir. Ollama bilgisayarda çalışıyorsa `VETMIND_LLM_ENDPOINT=http://host.docker.internal:11434/v1`
+- Opsiyonel Postgres + Redis (geliştirme): `backend/docker-compose.yml`
+
+Geliştirme yaparken (hot reload) aşağıdaki yerel kurulum kullanılır.
+
 **Gereksinimler:** Node.js 18+ · Python 3.11+
 
 ### 4.1 Backend

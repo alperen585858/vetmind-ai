@@ -1,0 +1,12 @@
+.venv
+data
+q
+tests
+fixtures
+scripts
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.env
+.env.*
+*.sqlite3

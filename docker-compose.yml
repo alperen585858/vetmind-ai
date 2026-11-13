@@ -1,0 +1,34 @@
+# One-command local stack (issue #29):
+#
+#   docker compose up --build        → http://localhost:8080  (demo: vet@demo.local / demo1234)
+#   docker compose down              → stop (data is kept in the vetmind_data volume)
+#   docker compose down -v           → stop and delete all data
+#
+# Settings: put VETMIND_* overrides in a .env file next to this file (see backend/.env.example).
+# Optional Postgres + Redis for development live in backend/docker-compose.yml.
+services:
+  backend:
+    build: ./backend
+    environment:
+      VETMIND_STORAGE: ${VETMIND_STORAGE:-sqlite}
+      VETMIND_AUTH_ENABLED: ${VETMIND_AUTH_ENABLED:-0}
+      VETMIND_DEPLOYMENT_MODE: ${VETMIND_DEPLOYMENT_MODE:-demo}
+      VETMIND_JWT_SECRET: ${VETMIND_JWT_SECRET:-vetmind-demo-secret-change-me}
+      # Reset links in emails / the server log point at the web container.
+      VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-http://localhost:8080}
+      VETMIND_LLM_PROVIDER: ${VETMIND_LLM_PROVIDER:-mock}
+    volumes:
+      - vetmind_data:/app/data
+    restart: unless-stopped
+
+  web:
+    build: .
+    ports:
+      - "${VETMIND_WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  vetmind_data:
