@@ -8,6 +8,7 @@ import { LocalePathSync } from './components/LocalePathSync'
 import { Toasts } from './components/Toasts'
 import { Card } from './components/Card'
 import { EmptyState } from './components/EmptyState'
+import { NotFound } from './pages/NotFound'
 import { localizePath } from './i18n/paths'
 import type { Role } from './types'
 import Landing from './pages/Landing'
@@ -75,7 +76,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/kayit" element={<Register />} />
           <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       ) : (
         <Routes>
@@ -153,7 +154,7 @@ export default function App() {
             <Route path="login" element={<Navigate to="/" replace />} />
             <Route path="kayit" element={<Navigate to="/" replace />} />
             <Route path="register" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       )}
