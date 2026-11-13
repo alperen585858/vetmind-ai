@@ -29,6 +29,21 @@ _KEY_BYTES = 32
 _MAXMEM = 64 * 1024 * 1024
 
 
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 120
+
+
+def password_policy_error(password: str) -> str | None:
+    """Return why ``password`` is too weak for a new account, or ``None`` if it is fine."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
+    if not any(ch.isalpha() for ch in password) or not any(ch.isdigit() for ch in password):
+        return "Password must contain at least one letter and one digit."
+    return None
+
+
 def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode("ascii")
 

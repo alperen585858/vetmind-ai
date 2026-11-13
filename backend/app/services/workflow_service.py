@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
+import threading
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import HTTPException, status
 
-from app.auth.passwords import hash_password, is_password_hash
+from app.auth.passwords import hash_password, is_password_hash, password_policy_error
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
 from app.auth.tenancy import assert_case_access, can_access_owned
@@ -49,6 +51,31 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Roles anyone may sign up for. Vets start inactive (admin assigns a clinic and activates):
+# an active vet account sees its clinic's cases, so it must not be self-service.
+SelfRegisterRole = Literal["owner", "vet"]
+
+# Clinic-scoped staff roles. Several access checks skip the clinic comparison when the
+# principal has no clinic_id, so an *active* account in one of these roles must have one.
+CLINIC_REQUIRED_ROLES = frozenset({"vet", "expert", "clinic_owner"})
+
+
+def _assert_user_state_allowed(user: ManagedUser) -> None:
+    if user.active and user.role in CLINIC_REQUIRED_ROLES and not (user.clinic_id or "").strip():
+        raise HTTPException(
+            status_code=422,
+            detail=f"Assign a clinic before activating a '{user.role}' account.",
+        )
+
+
+def _assert_password_allowed(password: str) -> None:
+    weak = password_policy_error(password)
+    if weak:
+        raise HTTPException(status_code=422, detail=weak)
+
+
 class WorkflowService:
     def __init__(
         self,
@@ -68,6 +95,7 @@ class WorkflowService:
         self._tenant_isolation = tenant_isolation
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
         self._payments = payments
+        self._user_write_lock = threading.Lock()
         self._seed_managed_from_demo()
         self._migrate_plaintext_passwords()
 
@@ -123,7 +151,7 @@ class WorkflowService:
             pwd_hash = self._directory_hash(u)
             if not pwd_hash:
                 continue
-            directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id)
+            directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id, u.token_version)
         # Seed users that were never stored. A stored (e.g. deactivated) seed user is
         # not re-added, so deactivating a demo account really blocks its login.
         for email, rec in DEMO_USERS.items():
@@ -948,18 +976,87 @@ class WorkflowService:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         email = payload.email.strip().lower()
-        # An existing (or seed) email is overwritten via the managed store.
+        _assert_password_allowed(payload.password)
+        # An existing (or seed) email is overwritten via the managed store. Bump the
+        # token version past the old record so its sessions cannot come back.
+        previous = self._store.get_user(email)
         user = ManagedUser(
+            token_version=(previous.token_version + 1) if previous else 0,
             email=email,
             role=payload.role,
-            clinic_id=payload.clinic_id,
+            clinic_id=(payload.clinic_id or "").strip() or None,
             display_name=payload.display_name or email.split("@")[0],
             active=True,
             password_hash=hash_password(payload.password),
         )
+        _assert_user_state_allowed(user)
         self._store.save_user(user)
         self.sync_auth_directory()
         return user.to_public()
+
+    def register_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: SelfRegisterRole,
+        display_name: str | None = None,
+        owner_clinic_id: str | None = None,
+    ) -> ManagedUser:
+        """Public sign-up. Owners are active at once; vets wait for admin activation."""
+        email = email.strip().lower()
+        if not _EMAIL_RE.match(email):
+            raise HTTPException(status_code=422, detail="Enter a valid email address.")
+        if role not in ("owner", "vet"):
+            raise HTTPException(status_code=422, detail="This role cannot be self-registered.")
+        _assert_password_allowed(password)
+        name = (display_name or "").strip() or email.split("@")[0]
+        user = ManagedUser(
+            email=email,
+            role=role,
+            # Never let the client pick a clinic: an active clinic member sees its cases.
+            clinic_id=owner_clinic_id if role == "owner" else None,
+            display_name=name[:80],
+            active=role == "owner",
+            password_hash=hash_password(password),
+        )
+        with self._user_write_lock:
+            if self._store.get_user(email) is not None or email in DEMO_USERS:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="An account with this email already exists.",
+                )
+            self._store.save_user(user)
+            self.sync_auth_directory()
+        return user
+
+    def set_password(self, email: str, new_password: str) -> ManagedUser:
+        """Self-service password change/reset. Bumps token_version (signs out all sessions)."""
+        email = email.strip().lower()
+        _assert_password_allowed(new_password)
+        with self._user_write_lock:
+            existing = self._store.get_user(email)
+            if existing is None and email in DEMO_USERS:
+                rec = DEMO_USERS[email]
+                existing = ManagedUser(
+                    email=email,
+                    role=rec.role,  # type: ignore[arg-type]
+                    clinic_id=rec.clinic_id,
+                    display_name=email.split("@")[0],
+                    password_hash=demo_password_hash(email),
+                )
+            if existing is None or not existing.active:
+                raise HTTPException(status_code=404, detail="User not found.")
+            user = existing.model_copy(
+                update={
+                    "password": None,
+                    "password_hash": hash_password(new_password),
+                    "token_version": existing.token_version + 1,
+                }
+            )
+            self._store.save_user(user)
+            self.sync_auth_directory()
+        return user
 
     def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUserPublic:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
@@ -979,8 +1076,14 @@ class WorkflowService:
         data = payload.model_dump(exclude_unset=True)
         new_password = data.pop("password", None)
         if new_password:
+            _assert_password_allowed(new_password)
             data["password_hash"] = hash_password(new_password)
+            # Sign out every existing session of this user.
+            data["token_version"] = existing.token_version + 1
+        if "clinic_id" in data:
+            data["clinic_id"] = (data["clinic_id"] or "").strip() or None
         user = existing.model_copy(update=data)
+        _assert_user_state_allowed(user)
         self._store.save_user(user)
         self.sync_auth_directory()
         return user.to_public()

@@ -3,7 +3,7 @@ import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Check, ChevronDown, Menu, RefreshCcw } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { DEMO_PASSWORD, demoEmailForRole, setBackendAccessToken } from '../lib/auth'
+import { DEMO_PASSWORD, demoEmailForRole, setBackendTokens } from '../lib/auth'
 import { backendLogin } from '../lib/backend'
 import { USERS } from '../data/mock'
 import type { Role } from '../types'
@@ -44,7 +44,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       try {
         // Await JWT rebind so subsequent API calls (e.g. mesajlar) use the new role.
         const tokenRes = await backendLogin(demoEmailForRole(r), DEMO_PASSWORD)
-        setBackendAccessToken(tokenRes.access_token)
+        setBackendTokens(tokenRes)
       } catch {
         /* backend down or auth disabled — UI role still switches; demo headers attribute actors */
       }

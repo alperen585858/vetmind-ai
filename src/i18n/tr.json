@@ -1712,7 +1712,10 @@
     "activeStaff": "aktif",
     "inactiveStaff": "pasif",
     "evalCasesSubtitle": "{set} · {n} vaka{repeats} · prompt {prompt} · {file}",
-    "evalRepeats": " × {r} tekrar"
+    "evalRepeats": " × {r} tekrar",
+    "pendingApproval": "Onay bekliyor",
+    "clinicToActivate": "Aktifleştirmek için klinik",
+    "updateFail": "Güncellenemedi"
   },
   "notifications": {
     "title": "Bildirimler",

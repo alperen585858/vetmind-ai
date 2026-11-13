@@ -93,7 +93,29 @@ class Settings:
     auth_enabled: bool = False
     auth_api_key: str | None = None
     jwt_secret: str = DEFAULT_JWT_SECRET
-    jwt_ttl_seconds: int = 60 * 60 * 12
+    # Access JWT lifetime. Short on purpose: the frontend renews it with a refresh token.
+    jwt_ttl_seconds: int = 15 * 60
+    refresh_ttl_seconds: int = 7 * 24 * 60 * 60
+    # Issue #31 — public sign-up (POST /api/v1/auth/register).
+    self_registration_enabled: bool = True
+    # Clinic that self-registered pet owners' imaging requests are routed to.
+    self_registration_owner_clinic_id: str | None = "clinic-demo-a"
+    # Issue #31 step 4 — password reset links (single use).
+    password_reset_ttl_seconds: int = 30 * 60
+    # Frontend origin used to build links in emails.
+    public_base_url: str = "http://localhost:5173"
+    # Outgoing mail. Without smtp_host, mails are written to the server log in demo mode.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "VetMind <no-reply@vetmind.local>"
+    smtp_starttls: bool = True
+    # Issue #31 step 5 — attempt limits on auth endpoints (in-process).
+    auth_rate_limit_enabled: bool = True
+    # Use the first X-Forwarded-For hop as the client IP. Only behind a trusted proxy:
+    # otherwise clients can spoof it to dodge per-IP limits.
+    trust_proxy_headers: bool = False
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
     # Phase 5 — security / privacy / performance
@@ -360,9 +382,33 @@ def load_settings() -> Settings:
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
     jwt_secret = os.getenv("VETMIND_JWT_SECRET", DEFAULT_JWT_SECRET)
     try:
-        jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(60 * 60 * 12)))
+        jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(15 * 60)))
     except ValueError:
-        jwt_ttl = 60 * 60 * 12
+        jwt_ttl = 15 * 60
+    try:
+        refresh_ttl = int(os.getenv("VETMIND_REFRESH_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+    except ValueError:
+        refresh_ttl = 7 * 24 * 60 * 60
+    self_registration_enabled = _env_bool("VETMIND_SELF_REGISTRATION", True)
+    self_registration_owner_clinic_id = (
+        os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", "clinic-demo-a").strip() or None
+    )
+    try:
+        password_reset_ttl = int(os.getenv("VETMIND_PASSWORD_RESET_TTL_SECONDS", str(30 * 60)))
+    except ValueError:
+        password_reset_ttl = 30 * 60
+    public_base_url = (os.getenv("VETMIND_PUBLIC_BASE_URL") or "http://localhost:5173").strip().rstrip("/")
+    smtp_host = (os.getenv("VETMIND_SMTP_HOST") or "").strip() or None
+    try:
+        smtp_port = int(os.getenv("VETMIND_SMTP_PORT", "587"))
+    except ValueError:
+        smtp_port = 587
+    smtp_username = (os.getenv("VETMIND_SMTP_USERNAME") or "").strip() or None
+    smtp_password = os.getenv("VETMIND_SMTP_PASSWORD") or None
+    smtp_from = (os.getenv("VETMIND_SMTP_FROM") or "").strip() or "VetMind <no-reply@vetmind.local>"
+    smtp_starttls = _env_bool("VETMIND_SMTP_STARTTLS", True)
+    auth_rate_limit_enabled = _env_bool("VETMIND_AUTH_RATE_LIMIT", True)
+    trust_proxy_headers = _env_bool("VETMIND_TRUST_PROXY_HEADERS", False)
 
     job_backend = os.getenv("VETMIND_JOB_BACKEND", "thread").strip().lower()
     if job_backend not in {"thread", "rq"}:
@@ -506,6 +552,19 @@ def load_settings() -> Settings:
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,
         jwt_ttl_seconds=max(60, jwt_ttl),
+        refresh_ttl_seconds=max(300, refresh_ttl),
+        self_registration_enabled=self_registration_enabled,
+        self_registration_owner_clinic_id=self_registration_owner_clinic_id,
+        password_reset_ttl_seconds=min(max(300, password_reset_ttl), 24 * 60 * 60),
+        public_base_url=public_base_url,
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        smtp_username=smtp_username,
+        smtp_password=smtp_password,
+        smtp_from=smtp_from,
+        smtp_starttls=smtp_starttls,
+        auth_rate_limit_enabled=auth_rate_limit_enabled,
+        trust_proxy_headers=trust_proxy_headers,
         job_backend=job_backend,
         redis_url=redis_url,
         deployment_mode=deployment_mode,
@@ -533,6 +592,9 @@ def load_settings() -> Settings:
     )
 
 
+MIN_PROTECTED_JWT_SECRET_LENGTH = 32
+
+
 def validate_security_settings(settings: Settings) -> None:
     """Fail closed for protected / auth-enabled deployments with insecure defaults."""
     if settings.deployment_mode == "protected" and not settings.auth_enabled:
@@ -549,6 +611,11 @@ def validate_security_settings(settings: Settings) -> None:
     if settings.deployment_mode == "protected" and insecure_secret:
         raise RuntimeError(
             "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
+        )
+    if settings.deployment_mode == "protected" and len(settings.jwt_secret) < MIN_PROTECTED_JWT_SECRET_LENGTH:
+        raise RuntimeError(
+            f"Protected deployment requires VETMIND_JWT_SECRET of at least "
+            f"{MIN_PROTECTED_JWT_SECRET_LENGTH} characters (HS256 key strength)."
         )
     # Refuse fake "encryption enabled" claims — NullEncryptor is passthrough only.
     enc = (settings.encryption_at_rest or "none").strip().lower()

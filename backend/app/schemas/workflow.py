@@ -216,13 +216,15 @@ class ManagedUser(ManagedUserPublic):
 
     # scrypt hash from app.auth.passwords. The only credential that is persisted.
     password_hash: Optional[str] = None
+    # Incremented on password change; invalidates existing access and refresh tokens.
+    token_version: int = 0
     # Legacy plaintext from rows written before password hashing. Read only so
     # WorkflowService can migrate it to ``password_hash`` at startup; never written.
     password: Optional[str] = None
 
     def to_public(self) -> ManagedUserPublic:
         return ManagedUserPublic.model_validate(
-            self.model_dump(exclude={"password", "password_hash"})
+            self.model_dump(exclude={"password", "password_hash", "token_version"})
         )
 
 
@@ -230,7 +232,8 @@ class ManagedUserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: str = Field(min_length=3, max_length=120)
-    password: str = Field(min_length=6, max_length=120)
+    # Strength is enforced by app.auth.passwords.password_policy_error (specific message).
+    password: str = Field(min_length=1, max_length=200)
     role: ManagedRole
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
@@ -243,7 +246,7 @@ class ManagedUserUpdate(BaseModel):
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
     active: Optional[bool] = None
-    password: Optional[str] = Field(default=None, min_length=6, max_length=120)
+    password: Optional[str] = Field(default=None, min_length=1, max_length=200)
 
 
 class ClinicStaffStats(BaseModel):

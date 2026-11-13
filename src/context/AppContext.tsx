@@ -9,8 +9,10 @@ import {
   type DemoSession,
 } from '../lib/auth'
 import {
+  AUTH_EXPIRED_EVENT,
   BackendUnavailableError,
   backendAuthStatus,
+  backendLogout,
   getBackendCase,
   getUserSettings,
   listBackendCases,
@@ -222,7 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSourceId(null)
   }, [])
 
-  const signOut = useCallback(() => {
+  const resetSignedOut = useCallback(() => {
     clearAuthSession()
     void clearDicomCaseCache()
     setSession(null)
@@ -231,8 +233,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfileOverride({})
   }, [])
 
+  const signOut = useCallback(() => {
+    // Reads the refresh token synchronously, before resetSignedOut clears it.
+    void backendLogout()
+    resetSignedOut()
+  }, [resetSignedOut])
+
+  // The backend refused to renew the session (expired, revoked, password changed).
+  useEffect(() => {
+    const onExpired = () => resetSignedOut()
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired)
+  }, [resetSignedOut])
+
   const setRole = useCallback((r: Role | null) => {
     if (r === null) {
+      void backendLogout()
       clearAuthSession()
       void clearDicomCaseCache()
       setSession(null)

@@ -1,4 +1,11 @@
-import { currentActorId, getBackendAccessToken, loadSession } from './auth'
+import {
+  currentActorId,
+  getBackendAccessToken,
+  getBackendRefreshToken,
+  loadSession,
+  setBackendAccessToken,
+  setBackendTokens,
+} from './auth'
 import { canonicalizeCaseId } from './caseId'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, DifferentialLikelihood, ReportSections, Species } from '../types'
@@ -76,33 +83,100 @@ function formatDetail(detail: unknown): string {
   }
 }
 
+/** Fired on `window` when the backend session cannot be renewed (user must sign in again). */
+export const AUTH_EXPIRED_EVENT = 'vetmind:auth-expired'
+
+let refreshInFlight: Promise<boolean> | null = null
+
+function endBackendSession() {
+  setBackendAccessToken(null)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+}
+
+/**
+ * Exchange the stored refresh token for a new token pair. Concurrent callers in this tab
+ * share one request: refresh tokens are single-use, so two parallel refreshes would look
+ * like reuse. Other tabs share localStorage, so a refusal is checked against storage first.
+ * Returns false when the session cannot be renewed (tokens are then cleared and
+ * AUTH_EXPIRED_EVENT fires) or on a network error (tokens are kept).
+ */
+export function refreshBackendSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight
+  const refreshToken = getBackendRefreshToken()
+  if (!refreshToken) {
+    // Signed in before refresh tokens existed (or storage was cleared): nothing can renew it.
+    endBackendSession()
+    return Promise.resolve(false)
+  }
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+      if (!res.ok) {
+        // Another tab rotated the token meanwhile and stored the new pair: use that.
+        const current = getBackendRefreshToken()
+        if (current && current !== refreshToken) return true
+        endBackendSession()
+        return false
+      }
+      setBackendTokens((await res.json()) as { access_token: string; refresh_token: string })
+      return true
+    } catch {
+      // Network error: keep the tokens, the next request can try again.
+      return false
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+  return refreshInFlight
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers)
   const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
-  if (!isForm && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-  const token = getBackendAccessToken()
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-  // When auth is disabled, attribute support messages to the active demo session.
-  const session = loadSession()
-  if (session?.role && session?.email) {
-    if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
-    if (!headers.has('X-VetMind-Demo-Subject')) headers.set('X-VetMind-Demo-Subject', session.email)
+  let sentToken: string | null = null
+
+  const send = async (): Promise<Response> => {
+    const headers = new Headers(init?.headers)
+    if (!isForm && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json')
+    }
+    const token = getBackendAccessToken()
+    sentToken = null
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`)
+      sentToken = token
+    }
+    // When auth is disabled, attribute support messages to the active demo session.
+    const session = loadSession()
+    if (session?.role && session?.email) {
+      if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
+      if (!headers.has('X-VetMind-Demo-Subject')) headers.set('X-VetMind-Demo-Subject', session.email)
+    }
+    try {
+      if (init?.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
+      return await fetch(`${API_BASE}${path}`, { ...init, headers })
+    } catch (err) {
+      const name = err instanceof Error ? err.name : ''
+      if (name === 'AbortError') throw err
+      throw new BackendUnavailableError()
+    }
   }
 
-  let res: Response
-  try {
-    if (init?.signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError')
+  let res = await send()
+  // Expired access token: renew once with the refresh token and retry the same request.
+  if (res.status === 401 && sentToken && !path.startsWith('/auth/')) {
+    const current = getBackendAccessToken()
+    if (current && current !== sentToken) {
+      // Renewed meanwhile (another request or tab): just retry with the newer token.
+      res = await send()
+    } else if (await refreshBackendSession()) {
+      res = await send()
     }
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers })
-  } catch (err) {
-    const name = err instanceof Error ? err.name : ''
-    if (name === 'AbortError') throw err
-    throw new BackendUnavailableError()
   }
   if (!res.ok) {
     let detail = res.statusText
@@ -131,6 +205,8 @@ export function toBackendSpecies(species: Species): BackendSpecies {
 /** Optional backend JWT login (used when VETMIND_AUTH_ENABLED=1). */
 export async function backendLogin(email: string, password: string): Promise<{
   access_token: string
+  refresh_token: string
+  expires_in: number
   role: string
   email: string
   auth_enabled: boolean
@@ -139,6 +215,21 @@ export async function backendLogin(email: string, password: string): Promise<{
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
+}
+
+/** Revoke the stored refresh token on the backend. Never throws; call before clearing tokens. */
+export async function backendLogout(): Promise<void> {
+  const refreshToken = getBackendRefreshToken()
+  if (!refreshToken) return
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+  } catch {
+    /* offline: the refresh token simply expires */
+  }
 }
 
 export async function backendAuthStatus(): Promise<{

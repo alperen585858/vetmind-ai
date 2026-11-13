@@ -8,10 +8,11 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Button } from '../components/Button'
 import {
   backendAccountSession,
-  login,
   listDemoCredentials,
+  login,
   postLoginPath,
   setBackendAccessToken,
+  setBackendTokens,
   setProtectedTokenMode,
   type DemoSession,
 } from '../lib/auth'
@@ -65,7 +66,7 @@ export default function Login() {
           const status = await backendAuthStatus()
           setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
           const tokenRes = await backendLogin(email, password)
-          setBackendAccessToken(tokenRes.access_token)
+          setBackendTokens(tokenRes)
           session = backendAccountSession(tokenRes.email, tokenRes.role)
         } catch (backendErr) {
           throw backendErr instanceof Error && backendErr.message.includes('rol') ? backendErr : localErr
@@ -83,7 +84,7 @@ export default function Login() {
         const status = await backendAuthStatus()
         setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
         const tokenRes = await backendLogin(email, password)
-        setBackendAccessToken(tokenRes.access_token)
+        setBackendTokens(tokenRes)
       } catch {
         setBackendAccessToken(null)
       }
