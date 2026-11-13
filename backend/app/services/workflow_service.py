@@ -1030,6 +1030,34 @@ class WorkflowService:
             self.sync_auth_directory()
         return user
 
+    def set_password(self, email: str, new_password: str) -> ManagedUser:
+        """Self-service password change/reset. Bumps token_version (signs out all sessions)."""
+        email = email.strip().lower()
+        _assert_password_allowed(new_password)
+        with self._user_write_lock:
+            existing = self._store.get_user(email)
+            if existing is None and email in DEMO_USERS:
+                rec = DEMO_USERS[email]
+                existing = ManagedUser(
+                    email=email,
+                    role=rec.role,  # type: ignore[arg-type]
+                    clinic_id=rec.clinic_id,
+                    display_name=email.split("@")[0],
+                    password_hash=demo_password_hash(email),
+                )
+            if existing is None or not existing.active:
+                raise HTTPException(status_code=404, detail="User not found.")
+            user = existing.model_copy(
+                update={
+                    "password": None,
+                    "password_hash": hash_password(new_password),
+                    "token_version": existing.token_version + 1,
+                }
+            )
+            self._store.save_user(user)
+            self.sync_auth_directory()
+        return user
+
     def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUserPublic:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")

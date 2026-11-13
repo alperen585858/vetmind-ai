@@ -100,6 +100,17 @@ class Settings:
     self_registration_enabled: bool = True
     # Clinic that self-registered pet owners' imaging requests are routed to.
     self_registration_owner_clinic_id: str | None = "clinic-demo-a"
+    # Issue #31 step 4 — password reset links (single use).
+    password_reset_ttl_seconds: int = 30 * 60
+    # Frontend origin used to build links in emails.
+    public_base_url: str = "http://localhost:5173"
+    # Outgoing mail. Without smtp_host, mails are written to the server log in demo mode.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "VetMind <no-reply@vetmind.local>"
+    smtp_starttls: bool = True
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
     # Phase 5 — security / privacy / performance
@@ -377,6 +388,20 @@ def load_settings() -> Settings:
     self_registration_owner_clinic_id = (
         os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", "clinic-demo-a").strip() or None
     )
+    try:
+        password_reset_ttl = int(os.getenv("VETMIND_PASSWORD_RESET_TTL_SECONDS", str(30 * 60)))
+    except ValueError:
+        password_reset_ttl = 30 * 60
+    public_base_url = (os.getenv("VETMIND_PUBLIC_BASE_URL") or "http://localhost:5173").strip().rstrip("/")
+    smtp_host = (os.getenv("VETMIND_SMTP_HOST") or "").strip() or None
+    try:
+        smtp_port = int(os.getenv("VETMIND_SMTP_PORT", "587"))
+    except ValueError:
+        smtp_port = 587
+    smtp_username = (os.getenv("VETMIND_SMTP_USERNAME") or "").strip() or None
+    smtp_password = os.getenv("VETMIND_SMTP_PASSWORD") or None
+    smtp_from = (os.getenv("VETMIND_SMTP_FROM") or "").strip() or "VetMind <no-reply@vetmind.local>"
+    smtp_starttls = _env_bool("VETMIND_SMTP_STARTTLS", True)
 
     job_backend = os.getenv("VETMIND_JOB_BACKEND", "thread").strip().lower()
     if job_backend not in {"thread", "rq"}:
@@ -523,6 +548,14 @@ def load_settings() -> Settings:
         refresh_ttl_seconds=max(300, refresh_ttl),
         self_registration_enabled=self_registration_enabled,
         self_registration_owner_clinic_id=self_registration_owner_clinic_id,
+        password_reset_ttl_seconds=min(max(300, password_reset_ttl), 24 * 60 * 60),
+        public_base_url=public_base_url,
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        smtp_username=smtp_username,
+        smtp_password=smtp_password,
+        smtp_from=smtp_from,
+        smtp_starttls=smtp_starttls,
         job_backend=job_backend,
         redis_url=redis_url,
         deployment_mode=deployment_mode,

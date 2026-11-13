@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth
+from app.auth.mailer import OutgoingMail
+from app.auth.password_reset import PasswordResetError
+from app.auth.passwords import password_policy_error
 from app.auth.refresh_tokens import RefreshTokenError
 from app.auth.security import DEMO_USERS, DemoUserRecord, create_access_token, verify_password
 from app.container import AppContainer
@@ -63,6 +66,26 @@ class RegisterResponse(BaseModel):
     # active: signed in (``session`` set). pending_approval: an admin must activate the account.
     status: Literal["active", "pending_approval"]
     session: TokenResponse | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
+
+
+class PasswordForgotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=120)
+
+
+class PasswordResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
 
 
 class MeResponse(BaseModel):
@@ -246,3 +269,111 @@ def me(
         deployment_mode=container.auth.deployment_mode,
         tenant_isolation=container.auth.tenant_isolation,
     )
+
+
+# --- password change / forgot / reset (issue #31 step 4) ---------------------
+
+_RESET_LINK_INVALID = "This reset link is invalid or has expired. Request a new one."
+_FORGOT_ACCEPTED = "If an account exists for this email, we've sent a link to reset the password."
+
+
+@router.post("/password/change", response_model=TokenResponse)
+def change_password(
+    payload: PasswordChangeRequest,
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> TokenResponse:
+    """Change your own password. Other sessions end; this one gets a fresh token pair."""
+    if principal.via != "jwt":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sign in with a user account first.")
+    email = principal.subject
+    entry = container.auth.users.get(email) if container.auth.users else None
+    if entry is None or not verify_password(payload.current_password, entry.password):
+        container.audit.record(
+            event_type="auth.password_change",
+            actor=email,
+            resource="/api/v1/auth/password/change",
+            outcome=AuditOutcome.DENIED,
+            detail="wrong_current_password",
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
+    user = container.workflow.set_password(email, payload.new_password)
+    container.refresh_tokens.revoke_all_for(email)
+    container.audit.record(
+        event_type="auth.password_change",
+        actor=email,
+        resource="/api/v1/auth/password/change",
+        outcome=AuditOutcome.SUCCESS,
+        clinic_id=user.clinic_id,
+    )
+    return _issue_token(container, email=email, entry=container.auth.users[email])
+
+
+@router.post("/password/forgot", status_code=status.HTTP_202_ACCEPTED)
+def forgot_password(
+    payload: PasswordForgotRequest,
+    container: AppContainer = Depends(get_container),
+) -> dict[str, str]:
+    """Email a single-use reset link. Same answer whether or not the account exists."""
+    email = payload.email.strip().lower()
+    entry = container.auth.users.get(email) if container.auth.users else None
+    if entry is not None:
+        raw = container.password_resets.issue(email)
+        link = f"{container.settings.public_base_url}/sifre-sifirla?token={raw}"
+        minutes = container.password_resets.ttl_seconds // 60
+        container.mailer.send(
+            OutgoingMail(
+                to=email,
+                subject="VetMind şifre sıfırlama / password reset",
+                body=(
+                    "Merhaba,\n\n"
+                    f"VetMind şifrenizi sıfırlamak için bu bağlantıyı {minutes} dakika içinde açın:\n"
+                    f"{link}\n\n"
+                    "Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.\n\n"
+                    f"To reset your VetMind password, open the link above within {minutes} minutes. "
+                    "If you didn't ask for this, ignore this email.\n"
+                ),
+            )
+        )
+    container.audit.record(
+        event_type="auth.password_forgot",
+        actor=email,
+        resource="/api/v1/auth/password/forgot",
+        outcome=AuditOutcome.INFO,
+        detail="link_sent" if entry is not None else "no_active_account",
+    )
+    return {"detail": _FORGOT_ACCEPTED}
+
+
+@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(
+    payload: PasswordResetRequest,
+    container: AppContainer = Depends(get_container),
+) -> Response:
+    """Set a new password with an emailed token. Ends every existing session."""
+    weak = password_policy_error(payload.new_password)
+    if weak:
+        # Checked before the token is consumed, so a weak attempt does not burn the link.
+        raise HTTPException(status_code=422, detail=weak)
+    try:
+        email = container.password_resets.consume(payload.token)
+        user = container.workflow.set_password(email, payload.new_password)
+    except (PasswordResetError, HTTPException) as exc:
+        reason = exc.reason if isinstance(exc, PasswordResetError) else "user_inactive"
+        container.audit.record(
+            event_type="auth.password_reset",
+            actor="anonymous",
+            resource="/api/v1/auth/password/reset",
+            outcome=AuditOutcome.DENIED,
+            detail=reason,
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_RESET_LINK_INVALID) from exc
+    container.refresh_tokens.revoke_all_for(email)
+    container.audit.record(
+        event_type="auth.password_reset",
+        actor=email,
+        resource="/api/v1/auth/password/reset",
+        outcome=AuditOutcome.SUCCESS,
+        clinic_id=user.clinic_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

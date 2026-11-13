@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from app.auth.mailer import build_mailer
+from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
@@ -372,3 +374,8 @@ class AppContainer:
             ttl_seconds=self.settings.refresh_ttl_seconds,
             directory=self._auth_users,
         )
+        self.password_resets = PasswordResetService(
+            build_password_reset_store(self.settings),
+            ttl_seconds=self.settings.password_reset_ttl_seconds,
+        )
+        self.mailer = build_mailer(self.settings)
