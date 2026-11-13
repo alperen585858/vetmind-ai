@@ -4,8 +4,8 @@ import { fillRegister, signOutFromSettings, uniqueEmail } from './helpers/accoun
 
 /**
  * Issue #31 — server-side accounts in the browser (demo mode, auth off).
- * The full reset-with-emailed-token flow is covered by backend tests: the e2e run has
- * no mailbox to read the link from.
+ * The emailed link itself is not readable here (no mailbox); the real-token reset flow is
+ * exercised through the admin "reset link" instead.
  */
 test.describe('Accounts: sign-up, sign-in, password recovery', () => {
   test('pet owner signs up, signs out and signs back in from another session', async ({ page, context }) => {
@@ -104,5 +104,45 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
     await expect(page.getByRole('heading', { name: /Şifremi unuttum|Forgot your password/ })).toBeVisible()
     await page.goto('/reset-password')
     await expect(page.getByText(/eksik veya bozuk|incomplete or broken/)).toBeVisible()
+  })
+
+  test('admin creates a user, the user signs in, admin reset link sets a new password', async ({ page }) => {
+    const email = uniqueEmail('admin-made')
+    await loginAs(page, 'admin@demo.local')
+    await page.goto('/kullanicilar')
+    const form = page.getByRole('main')
+    await form.getByLabel('E-posta').fill(email)
+    await form.getByLabel('Şifre').fill('Patiler2026')
+    await form.getByLabel('Rol').selectOption('owner')
+    await form.getByRole('button', { name: 'Oluştur' }).click()
+    const row = page.getByRole('row').filter({ hasText: email })
+    await expect(row).toBeVisible({ timeout: 20_000 })
+
+    await row.getByRole('button', { name: 'Sıfırlama linki' }).click()
+    const linkField = page.getByLabel('Sıfırlama linki', { exact: true })
+    await expect(linkField).toHaveValue(/\/sifre-sifirla\?token=/)
+    const link = new URL(await linkField.inputValue())
+
+    await signOutFromSettings(page)
+    await loginAs(page, email, 'Patiler2026')
+    await signOutFromSettings(page)
+
+    await page.goto(`${link.pathname}${link.search}`)
+    await page.getByLabel('Yeni şifre').fill('Yeni-Sifre-2027')
+    await page.getByLabel('Şifre (tekrar)').fill('Yeni-Sifre-2027')
+    await page.getByRole('button', { name: 'Şifreyi kaydet' }).click()
+    await expect(page.getByRole('heading', { name: 'Şifreniz değişti' })).toBeVisible()
+
+    await page.goto('/giris')
+    await page.getByLabel(/E-posta/i).fill(email)
+    await page.getByLabel(/Şifre/i).fill('Patiler2026')
+    await page.getByRole('button', { name: /Giriş yap/i }).click()
+    await expect(page.getByText('Invalid email or password.')).toBeVisible()
+    await loginAs(page, email, 'Yeni-Sifre-2027')
+  })
+
+  test('expired session notice shows on the login page', async ({ page }) => {
+    await page.goto('/giris?expired=1')
+    await expect(page.getByText('Oturumunuzun süresi doldu')).toBeVisible()
   })
 })

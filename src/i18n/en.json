@@ -279,7 +279,8 @@
     "resetDoneBody": "You can sign in with your new password.",
     "resetMissingToken": "This link is incomplete or broken. Request a new one.",
     "requestNewLink": "Request a new link",
-    "backendUnreachable": "Can't reach the server. Is the backend running?"
+    "backendUnreachable": "Can't reach the server. Is the backend running?",
+    "sessionExpired": "Your session expired. Sign in again."
   },
   "settings": {
     "title": "Settings",
@@ -1750,7 +1751,13 @@
     "evalRepeats": " × {r} repeats",
     "pendingApproval": "Awaiting approval",
     "clinicToActivate": "Clinic to activate",
-    "updateFail": "Could not update"
+    "updateFail": "Could not update",
+    "resetLink": "Reset link",
+    "resetLinkTitle": "Password reset link for {email}",
+    "resetLinkHint": "Single use, valid for {minutes} minutes. No email was sent; pass the link on yourself.",
+    "copyLink": "Copy",
+    "copied": "Copied",
+    "close": "Close"
   },
   "notifications": {
     "title": "Notifications",

@@ -1664,6 +1664,13 @@ export async function createManagedUser(payload: {
   })
 }
 
+/** Admin: single-use password reset link for a user (nothing is emailed). */
+export async function createPasswordResetLink(
+  email: string,
+): Promise<{ email: string; link: string; expires_in: number }> {
+  return request(`/admin/users/${encodeURIComponent(email)}/reset-link`, { method: 'POST' })
+}
+
 export async function updateManagedUser(
   email: string,
   payload: Partial<{ role: string; clinic_id: string; display_name: string; active: boolean; password: string }>,

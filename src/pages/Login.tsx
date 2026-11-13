@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowRight, Lock, Mail, UserRound } from 'lucide-react'
@@ -28,6 +29,8 @@ export default function Login() {
   const [authEnabled, setAuthEnabled] = useState(false)
   const [deploymentMode, setDeploymentMode] = useState('demo')
   const [statusLoaded, setStatusLoaded] = useState(false)
+  const [params] = useSearchParams()
+  const sessionExpired = params.get('expired') === '1'
 
   const roleLabel = (role: Role) => t(`roles.${role}`)
   const lockedMode = authEnabled || deploymentMode === 'protected'
@@ -152,6 +155,11 @@ export default function Login() {
               className="rounded-2xl border border-sky-100 bg-white p-6 shadow-[0_12px_40px_rgba(14,165,233,0.12)] sm:p-7"
             >
               <h2 className="text-lg font-semibold text-navy-900">{t('auth.loginTitle')}</h2>
+              {sessionExpired && (
+                <p role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+                  {t('auth.sessionExpired')}
+                </p>
+              )}
               <p className="mt-1 text-sm text-navy-500">{t('auth.loginSubtitle')}</p>
 
               <label className="mt-5 block text-xs font-medium text-navy-700">

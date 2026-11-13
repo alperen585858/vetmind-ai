@@ -308,3 +308,83 @@ def test_forgot_does_the_same_work_before_answering_for_any_address(tmp_path: Pa
         for task in background.tasks:
             task.func(*task.args, **task.kwargs)
     assert [m.to for m in container.mailer.outbox] == ["vet@demo.local"]
+
+
+# --- admin reset link (issue #31 follow-up) ---------------------------------
+
+
+def _admin_hdr(client: TestClient) -> dict[str, str]:
+    return _bearer(_login(client, "admin@demo.local").json()["access_token"])
+
+
+def test_admin_reset_link_works_once_and_signs_out_the_user(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    old = _login(client, "owner@demo.local").json()
+    res = client.post("/api/v1/admin/users/Owner@Demo.local/reset-link", headers=_admin_hdr(client))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["email"] == "owner@demo.local"
+    assert body["expires_in"] == 30 * 60
+    assert body["link"].startswith("https://vetmind.example/sifre-sifirla?token=")
+    token = body["link"].split("token=")[1]
+    assert len(container.mailer.outbox) == 0  # nothing emailed
+
+    assert _reset(client, token).status_code == 204
+    assert _reset(client, token).status_code == 400
+    assert _login(client, "owner@demo.local", NEW_PASSWORD).status_code == 200
+    assert client.get("/api/v1/auth/me", headers=_bearer(old["access_token"])).status_code == 401
+    events = [e for e in container.audit.list_events(limit=100) if e["event_type"] == "admin.password_reset_link"]
+    assert events and token not in str(events)
+
+
+def test_admin_reset_link_requires_admin_and_an_active_account(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    vet = _bearer(_login(client).json()["access_token"])
+    assert client.post("/api/v1/admin/users/owner@demo.local/reset-link", headers=vet).status_code == 403
+    admin = _admin_hdr(client)
+    assert client.post("/api/v1/admin/users/nobody@x.test/reset-link", headers=admin).status_code == 404
+    client.patch("/api/v1/admin/users/owner@demo.local", json={"active": False}, headers=admin)
+    assert client.post("/api/v1/admin/users/owner@demo.local/reset-link", headers=admin).status_code == 404
+
+
+# --- timestamps and rehash on login -----------------------------------------
+
+
+def test_created_and_last_login_timestamps(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    res = client.post(
+        "/api/v1/auth/register", json={"email": "ts@owner.test", "password": "Patiler2026", "role": "owner"}
+    )
+    assert res.status_code == 201
+    user = container.workflow_store.get_user("ts@owner.test")
+    assert user.created_at is not None and user.last_login_at is None
+    assert _login(client, "ts@owner.test", "Patiler2026").status_code == 200
+    user = container.workflow_store.get_user("ts@owner.test")
+    assert user.last_login_at is not None and user.last_login_at >= user.created_at
+
+    listed = client.get("/api/v1/admin/users", headers=_admin_hdr(client)).json()
+    row = next(u for u in listed if u["email"] == "ts@owner.test")
+    assert row["created_at"] and row["last_login_at"]
+    assert "updated_at" not in row and "token_version" not in row
+
+
+def test_login_upgrades_outdated_hash_without_signing_out(tmp_path: Path) -> None:
+    import hashlib
+    import secrets as _secrets
+    import base64
+
+    client, container = _app(tmp_path)
+    salt = _secrets.token_bytes(16)
+    weak_key = hashlib.scrypt(b"demo1234", salt=salt, n=2**10, r=8, p=1, dklen=32)
+    weak = f"scrypt$1024$8$1${base64.b64encode(salt).decode()}${base64.b64encode(weak_key).decode()}"
+    stored = container.workflow_store.get_user("vet@demo.local")
+    container.workflow_store.save_user(stored.model_copy(update={"password_hash": weak}))
+    container.workflow.sync_auth_directory()
+
+    session = _login(client).json()  # old-parameter hash still verifies
+    upgraded = container.workflow_store.get_user("vet@demo.local")
+    assert upgraded.password_hash != weak
+    assert upgraded.password_hash.startswith("scrypt$16384$8$1$")
+    assert upgraded.token_version == stored.token_version
+    assert client.get("/api/v1/auth/me", headers=_bearer(session["access_token"])).status_code == 200
+    assert _login(client).status_code == 200

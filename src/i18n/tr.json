@@ -279,7 +279,8 @@
     "resetDoneBody": "Yeni şifrenizle giriş yapabilirsiniz.",
     "resetMissingToken": "Bu bağlantı eksik veya bozuk. Yeni bir bağlantı isteyin.",
     "requestNewLink": "Yeni bağlantı iste",
-    "backendUnreachable": "Sunucuya ulaşılamıyor. Backend çalışıyor mu?"
+    "backendUnreachable": "Sunucuya ulaşılamıyor. Backend çalışıyor mu?",
+    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın."
   },
   "settings": {
     "title": "Ayarlar",
@@ -1750,7 +1751,13 @@
     "evalRepeats": " × {r} tekrar",
     "pendingApproval": "Onay bekliyor",
     "clinicToActivate": "Aktifleştirmek için klinik",
-    "updateFail": "Güncellenemedi"
+    "updateFail": "Güncellenemedi",
+    "resetLink": "Sıfırlama linki",
+    "resetLinkTitle": "{email} için şifre sıfırlama linki",
+    "resetLinkHint": "Tek kullanımlık, {minutes} dakika geçerli. E-posta gönderilmedi; linki kullanıcıya siz iletin.",
+    "copyLink": "Kopyala",
+    "copied": "Kopyalandı",
+    "close": "Kapat"
   },
   "notifications": {
     "title": "Bildirimler",
