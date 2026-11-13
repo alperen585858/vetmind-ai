@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { modalityLabel, regionLabel } from '../lib/displayClean'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
@@ -514,11 +515,11 @@ export default function ApprovedReport() {
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">{t('reports.doc.modality')}</dt>
-                <dd className="text-navy-900">{c.modality ?? '—'}</dd>
+                <dd className="text-navy-900">{modalityLabel(t, c.modality) || '—'}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">{t('reports.doc.region')}</dt>
-                <dd className="text-navy-900">{c.anatomicalRegion ?? '—'}</dd>
+                <dd className="text-navy-900">{regionLabel(t, c.anatomicalRegion) || '—'}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 text-slate-500">{t('reports.doc.submitted')}</dt>

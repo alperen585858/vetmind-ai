@@ -886,6 +886,7 @@ export default function DicomUpload() {
                   variant={selected ? 'primary' : 'secondary'}
                   className="mt-3 w-full"
                   disabled={busy}
+                  aria-label={`${d.label} — ${selected ? 'Seçildi' : 'Kullan'}`}
                   onClick={() => void loadDemoForViewing(d.kind)}
                 >
                   {selected ? 'Seçildi' : 'Kullan'}
