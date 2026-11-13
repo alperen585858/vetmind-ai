@@ -217,6 +217,55 @@ export async function backendLogin(email: string, password: string): Promise<{
   })
 }
 
+export type BackendTokenResponse = {
+  access_token: string
+  refresh_token: string
+  expires_in: number
+  role: string
+  email: string
+  clinic_id?: string | null
+  auth_enabled: boolean
+}
+
+export type BackendRegisterResponse = {
+  email: string
+  role: string
+  /** active: signed in (``session`` set). pending_approval: an admin must activate the account. */
+  status: 'active' | 'pending_approval'
+  session: BackendTokenResponse | null
+}
+
+export async function backendRegister(payload: {
+  email: string
+  password: string
+  role: 'owner' | 'vet'
+  display_name?: string
+}): Promise<BackendRegisterResponse> {
+  return request('/auth/register', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function backendForgotPassword(email: string): Promise<void> {
+  await request('/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email }) })
+}
+
+export async function backendResetPassword(token: string, newPassword: string): Promise<void> {
+  await request('/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token, new_password: newPassword }),
+  })
+}
+
+/** Change your own password. Other sessions end; the returned pair keeps this one signed in. */
+export async function backendChangePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<BackendTokenResponse> {
+  return request('/auth/password/change', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+}
+
 /** Revoke the stored refresh token on the backend. Never throws; call before clearing tokens. */
 export async function backendLogout(): Promise<void> {
   const refreshToken = getBackendRefreshToken()
@@ -1613,6 +1662,13 @@ export async function createManagedUser(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+/** Admin: single-use password reset link for a user (nothing is emailed). */
+export async function createPasswordResetLink(
+  email: string,
+): Promise<{ email: string; link: string; expires_in: number }> {
+  return request(`/admin/users/${encodeURIComponent(email)}/reset-link`, { method: 'POST' })
 }
 
 export async function updateManagedUser(

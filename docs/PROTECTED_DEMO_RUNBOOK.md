@@ -22,7 +22,10 @@ Effects:
 - Frontend role-switch disabled (`authMode.roleSwitchAllowed=false`).
 - API requires Bearer JWT / API key.
 - Seed accounts: `vet@demo.local`, `expert@demo.local`, `owner@demo.local` (and admin seeds per demo credentials) with documented demo passwords.
-- Register remains **browser-only demo session** — durable users come from Admin → Users or seeds.
+- Seed accounts stay active in every mode (this runbook and the protected E2E rely on them). Change their passwords (Ayarlar → Şifre değiştir) or deactivate them before real users join.
+- Sign-up (`/kayit`) creates **server accounts** (#31): pet owners are active at once, vets wait until an admin assigns a clinic and activates them (Admin → Kullanıcılar). Disable with `VETMIND_SELF_REGISTRATION=0`.
+- Access tokens last 15 min and are renewed with a rotating refresh token; Ayarlar → Şifre değiştir works only with auth on.
+- Password reset links: without `VETMIND_SMTP_HOST`, demo mode writes them to the backend log and protected mode does not deliver them. An admin can also create a link from Admin → Kullanıcılar → Sıfırlama linki.
 
 ## Tier B — Full `protected` deployment mode
 

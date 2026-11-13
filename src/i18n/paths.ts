@@ -8,6 +8,8 @@ import type { Locale } from './types'
 const TR_TO_EN: Record<string, string> = {
   giris: 'login',
   kayit: 'register',
+  'sifremi-unuttum': 'forgot-password',
+  'sifre-sifirla': 'reset-password',
   vakalar: 'cases',
   yeni: 'new',
   'dicom-yukle': 'dicom-upload',
@@ -99,6 +101,8 @@ export const APP_ROUTE_PAIRS: { tr: string; en: string }[] = [
 export const PUBLIC_ROUTE_PAIRS: { tr: string; en: string }[] = [
   { tr: '/giris', en: '/login' },
   { tr: '/kayit', en: '/register' },
+  { tr: '/sifremi-unuttum', en: '/forgot-password' },
+  { tr: '/sifre-sifirla', en: '/reset-password' },
 ]
 
 /** True if ``pathname`` is one of the app's routes (TR or EN), e.g. "/vakalar/case-1". */

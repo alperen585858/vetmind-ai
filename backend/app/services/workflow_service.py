@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 from fastapi import HTTPException, status
 
-from app.auth.passwords import hash_password, is_password_hash, password_policy_error
+from app.auth.passwords import hash_password, is_password_hash, needs_rehash, password_policy_error
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
 from app.auth.tenancy import assert_case_access, can_access_owned
@@ -114,6 +114,7 @@ class WorkflowService:
                     display_name=email.split("@")[0],
                     active=True,
                     password_hash=demo_password_hash(email),
+                    created_at=_now(),
                 )
             )
 
@@ -988,6 +989,7 @@ class WorkflowService:
             display_name=payload.display_name or email.split("@")[0],
             active=True,
             password_hash=hash_password(payload.password),
+            created_at=_now(),
         )
         _assert_user_state_allowed(user)
         self._store.save_user(user)
@@ -1019,6 +1021,7 @@ class WorkflowService:
             display_name=name[:80],
             active=role == "owner",
             password_hash=hash_password(password),
+            created_at=_now(),
         )
         with self._user_write_lock:
             if self._store.get_user(email) is not None or email in DEMO_USERS:
@@ -1029,6 +1032,24 @@ class WorkflowService:
             self._store.save_user(user)
             self.sync_auth_directory()
         return user
+
+    def record_login(self, email: str, password: str) -> None:
+        """After a successful login: stamp last_login_at and upgrade an outdated hash.
+
+        The rehash keeps token_version, so it never signs anyone out.
+        """
+        email = email.strip().lower()
+        with self._user_write_lock:
+            existing = self._store.get_user(email)
+            if existing is None:
+                return
+            update: dict[str, object] = {"last_login_at": _now()}
+            if needs_rehash(existing.password_hash):
+                update["password_hash"] = hash_password(password)
+                update["password"] = None
+            self._store.save_user(existing.model_copy(update=update))
+            if "password_hash" in update:
+                self.sync_auth_directory()
 
     def set_password(self, email: str, new_password: str) -> ManagedUser:
         """Self-service password change/reset. Bumps token_version (signs out all sessions)."""
@@ -1052,6 +1073,7 @@ class WorkflowService:
                     "password": None,
                     "password_hash": hash_password(new_password),
                     "token_version": existing.token_version + 1,
+                    "updated_at": _now(),
                 }
             )
             self._store.save_user(user)
@@ -1082,6 +1104,7 @@ class WorkflowService:
             data["token_version"] = existing.token_version + 1
         if "clinic_id" in data:
             data["clinic_id"] = (data["clinic_id"] or "").strip() or None
+        data["updated_at"] = _now()
         user = existing.model_copy(update=data)
         _assert_user_state_allowed(user)
         self._store.save_user(user)

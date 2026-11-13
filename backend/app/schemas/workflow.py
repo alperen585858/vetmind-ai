@@ -209,6 +209,9 @@ class ManagedUserPublic(BaseModel):
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
     active: bool = True
+    # None for rows written before these fields existed.
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
 
 
 class ManagedUser(ManagedUserPublic):
@@ -218,13 +221,14 @@ class ManagedUser(ManagedUserPublic):
     password_hash: Optional[str] = None
     # Incremented on password change; invalidates existing access and refresh tokens.
     token_version: int = 0
+    updated_at: Optional[datetime] = None
     # Legacy plaintext from rows written before password hashing. Read only so
     # WorkflowService can migrate it to ``password_hash`` at startup; never written.
     password: Optional[str] = None
 
     def to_public(self) -> ManagedUserPublic:
         return ManagedUserPublic.model_validate(
-            self.model_dump(exclude={"password", "password_hash", "token_version"})
+            self.model_dump(exclude={"password", "password_hash", "token_version", "updated_at"})
         )
 
 

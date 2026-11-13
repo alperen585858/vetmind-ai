@@ -6,6 +6,7 @@ import { useLocale } from '../context/LocaleContext'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
+import { ChangePasswordCard } from '../components/ChangePasswordCard'
 import { ROLE_BADGE } from '../components/Topbar'
 import { isLocale } from '../i18n/types'
 import {
@@ -293,6 +294,8 @@ export default function Settings() {
               )}
             </div>
           </Card>
+
+          <ChangePasswordCard />
 
           <Card className="p-5">
             <CardHeader title={t('settings.account')} icon={<SettingsIcon className="h-5 w-5" />} />

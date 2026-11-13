@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, ConfigDict
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
@@ -16,6 +17,7 @@ from app.auth.rbac import (
     CAP_USERS_ADMIN,
 )
 from app.container import AppContainer
+from app.security.audit import AuditOutcome
 from app.schemas.case import CaseRecord
 from app.schemas.workflow import (
     ClinicStaffStats,
@@ -254,3 +256,43 @@ def update_user(
     service=Depends(_workflow),
 ) -> ManagedUserPublic:
     return service.update_user(email, payload, principal=principal)
+
+
+class PasswordResetLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str
+    link: str
+    expires_in: int
+
+
+@router.post("/admin/users/{email}/reset-link", response_model=PasswordResetLink)
+def create_password_reset_link(
+    email: str,
+    principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
+    container: AppContainer = Depends(get_container),
+) -> PasswordResetLink:
+    """Admin hands a user a single-use reset link (e.g. over the phone or chat).
+
+    Same token rules as the emailed link: 30 min by default, one use, newer links void
+    older ones. Nothing is emailed; the admin passes the link on.
+    """
+    if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
+        raise HTTPException(status_code=403, detail="Admin only.")
+    target = email.strip().lower()
+    if not container.auth.users or target not in container.auth.users:
+        # Unknown or inactive: activate the account first.
+        raise HTTPException(status_code=404, detail="No active account with this email.")
+    raw = container.password_resets.issue(target)
+    container.audit.record(
+        event_type="admin.password_reset_link",
+        actor=principal.subject,
+        resource=f"/api/v1/admin/users/{target}/reset-link",
+        outcome=AuditOutcome.SUCCESS,
+        detail=f"for={target}",
+    )
+    return PasswordResetLink(
+        email=target,
+        link=f"{container.settings.public_base_url}/sifre-sifirla?token={raw}",
+        expires_in=container.password_resets.ttl_seconds,
+    )

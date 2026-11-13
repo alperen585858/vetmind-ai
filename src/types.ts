@@ -107,7 +107,8 @@ export interface BackendManagedUser {
   clinic_id?: string | null
   display_name?: string | null
   active: boolean
-  password?: string | null
+  created_at?: string | null
+  last_login_at?: string | null
 }
 
 export interface BackendRadiologistPayoutSummary {

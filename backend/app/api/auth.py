@@ -198,7 +198,8 @@ def login(
         clinic_id=entry.clinic_id,
     )
     container.rate_limiter.reset("login_email", email)
-    return _issue_token(container, email=email, entry=entry)
+    container.workflow.record_login(email, payload.password)
+    return _issue_token(container, email=email, entry=container.auth.users.get(email, entry))
 
 
 def _issue_token(

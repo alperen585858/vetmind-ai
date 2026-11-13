@@ -24,6 +24,12 @@ describe('localizePath', () => {
     expect(localizePath('/login', 'tr')).toBe('/giris')
   })
 
+  it('maps password recovery routes and keeps the reset token', () => {
+    expect(localizePath('/sifremi-unuttum', 'en')).toBe('/forgot-password')
+    expect(localizePath('/sifre-sifirla?token=abc', 'en')).toBe('/reset-password?token=abc')
+    expect(toCanonicalPath('/reset-password?token=abc')).toBe('/sifre-sifirla?token=abc')
+  })
+
   it('leaves root alone', () => {
     expect(localizePath('/', 'en')).toBe('/')
   })

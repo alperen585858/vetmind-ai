@@ -4,6 +4,7 @@ import { KB_SOURCES, USERS } from '../data/mock'
 import {
   demoEmailForRole,
   loadSession,
+  purgeLegacyLocalAccounts,
   logout as clearAuthSession,
   userFromSession,
   type DemoSession,
@@ -21,6 +22,17 @@ import { canonicalizeCaseId } from '../lib/caseId'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
 import { applyLocaleFromSettings } from './LocaleContext'
+import { localizePath } from '../i18n/paths'
+import { isLocale, LOCALE_STORAGE_KEY, type Locale } from '../i18n/types'
+
+function storedLocale(): Locale {
+  try {
+    const raw = localStorage.getItem(LOCALE_STORAGE_KEY)
+    return isLocale(raw) ? raw : 'tr'
+  } catch {
+    return 'tr'
+  }
+}
 
 export type UserProfilePatch = {
   displayName?: string
@@ -88,6 +100,7 @@ const DEFAULT_AUTH_MODE: BackendAuthMode = {
 const Ctx = createContext<AppState | null>(null)
 
 function initialSession(): DemoSession | null {
+  purgeLegacyLocalAccounts()
   return loadSession()
 }
 
@@ -239,9 +252,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetSignedOut()
   }, [resetSignedOut])
 
-  // The backend refused to renew the session (expired, revoked, password changed).
+  // The backend refused to renew the session (expired, revoked, password changed):
+  // sign out and land on the login page with a short notice.
   useEffect(() => {
-    const onExpired = () => resetSignedOut()
+    const onExpired = () => {
+      resetSignedOut()
+      if (!/\/(giris|login)$/.test(window.location.pathname)) {
+        window.location.assign(`${localizePath('/giris', storedLocale())}?expired=1`)
+      }
+    }
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired)
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired)
   }, [resetSignedOut])

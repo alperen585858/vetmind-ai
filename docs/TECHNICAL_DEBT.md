@@ -7,9 +7,9 @@
 
 | ID | Debt | Evidence | Resolution track |
 |----|------|----------|------------------|
-| TD-01 | Auth disabled by default; demo principal has broad capabilities | `backend/app/settings.py` `auth_enabled=False`; `auth/deps.py` | **Mitigated (ops)** — Tier A/B runbook + Login honesty; default remains demo by design |
+| TD-01 | Auth disabled by default; demo principal has broad capabilities | `backend/app/settings.py` `auth_enabled=False`; `auth/deps.py` | **Mitigated (ops)** — Tier A/B runbook + Login honesty; default remains demo by design. Real accounts, hashed passwords, short JWT + refresh rotation, password reset and attempt limits exist (#31) for auth-on deployments |
 | TD-02 | Dashboard / Modules / SystemStatus mock GPU & deploy charts | `src/data/mock.ts` consumers | **Mitigated** — demoFiction badges + live /health panels (charts still illustrative) |
-| TD-03 | Register creates localStorage-only “accounts” | `src/pages/Register.tsx` | **Mitigated** — demo session copy + toast; no server-account claim |
+| TD-03 | Register creates localStorage-only “accounts” | `src/pages/Register.tsx` | **Resolved (#31)** — sign-up uses `POST /auth/register`; browser-only accounts removed and purged from old browsers |
 | TD-04 | No hosted CI | Missing `.github/workflows` | **Mitigated** — `.github/workflows/ci.yml` |
 | TD-05 | Vitest cancelled-job polling edge case | `src/lib/backend.polling.test.ts` | **Verified green** (2026-11-09) |
 | TD-06 | Dead env key `VETMIND_ALLOW_MOCK_LLM` not read by settings | `.env` / docs vs `settings.py` | Document or wire; do not silently change LLM routing |
@@ -63,3 +63,4 @@ Working modules that must not be duplicated:
 | 2026-11-09 | Initial register from master initiative baseline |
 | 2026-11-09 | Phase 1: CI + Register/provenance/mock honesty mitigations |
 | 2026-11-09 | Phase 2–4: export ops, CPU train contract, protected-demo runbook |
+| 2026-11-13 | #31: server-side accounts (scrypt), refresh rotation, password reset, rate limits; TD-03 resolved, TD-01 note updated |

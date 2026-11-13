@@ -3,19 +3,9 @@ import { localizePath } from '../i18n/paths'
 import type { Role, User } from '../types'
 import { USERS } from '../data/mock'
 
-const ACCOUNTS_KEY = 'vetmind.demo.accounts'
+const LEGACY_ACCOUNTS_KEY = 'vetmind.demo.accounts'
 const SESSION_KEY = 'vetmind.demo.session'
 const BACKEND_TOKEN_KEY = 'vetmind.backend.jwt'
-
-export interface DemoAccount {
-  id: string
-  email: string
-  /** Demo-only plaintext. Not production auth. */
-  password: string
-  name: string
-  role: Role
-  createdAt: string
-}
 
 export interface DemoSession {
   accountId: string
@@ -24,73 +14,29 @@ export interface DemoSession {
   name: string
 }
 
-const SEED_ACCOUNTS: DemoAccount[] = [
-  {
-    id: 'acc-vet',
-    email: 'vet@demo.local',
-    password: 'demo1234',
-    name: USERS.vet.name,
-    role: 'vet',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'acc-expert',
-    email: 'expert@demo.local',
-    password: 'demo1234',
-    name: USERS.expert.name,
-    role: 'expert',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'acc-owner',
-    email: 'owner@demo.local',
-    password: 'demo1234',
-    name: USERS.owner.name,
-    role: 'owner',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'acc-clinic-owner',
-    email: 'clinic-owner@demo.local',
-    password: 'demo1234',
-    name: USERS.clinic_owner.name,
-    role: 'clinic_owner',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'acc-admin',
-    email: 'admin@demo.local',
-    password: 'demo1234',
-    name: USERS.admin.name,
-    role: 'admin',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
+/** Seed accounts that exist in the backend (FastAPI DEMO_USERS); password is public demo data. */
+const DEMO_ACCOUNTS: { email: string; role: Role; name: string }[] = [
+  { email: 'vet@demo.local', role: 'vet', name: USERS.vet.name },
+  { email: 'expert@demo.local', role: 'expert', name: USERS.expert.name },
+  { email: 'owner@demo.local', role: 'owner', name: USERS.owner.name },
+  { email: 'clinic-owner@demo.local', role: 'clinic_owner', name: USERS.clinic_owner.name },
+  { email: 'admin@demo.local', role: 'admin', name: USERS.admin.name },
 ]
 
-function readAccounts(): DemoAccount[] {
+/**
+ * Browser-only "accounts" (with plaintext passwords) were kept here before sign-up moved to
+ * the backend (issue #31). Remove any left over in this browser.
+ */
+export function purgeLegacyLocalAccounts() {
   try {
-    const raw = localStorage.getItem(ACCOUNTS_KEY)
-    if (!raw) {
-      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(SEED_ACCOUNTS))
-      return [...SEED_ACCOUNTS]
-    }
-    const parsed = JSON.parse(raw) as DemoAccount[]
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(SEED_ACCOUNTS))
-      return [...SEED_ACCOUNTS]
-    }
-    return parsed
+    localStorage.removeItem(LEGACY_ACCOUNTS_KEY)
   } catch {
-    return [...SEED_ACCOUNTS]
+    /* ignore */
   }
 }
 
-function writeAccounts(accounts: DemoAccount[]) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
-}
-
 export function listDemoCredentials(): { email: string; password: string; role: Role }[] {
-  return SEED_ACCOUNTS.map(({ email, password, role }) => ({ email, password, role }))
+  return DEMO_ACCOUNTS.map(({ email, role }) => ({ email, password: DEMO_PASSWORD, role }))
 }
 
 export function loadSession(): DemoSession | null {
@@ -194,70 +140,24 @@ function saveSession(session: DemoSession) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
-export function login(email: string, password: string): DemoSession {
-  const normalized = email.trim().toLowerCase()
-  const accounts = readAccounts()
-  const account = accounts.find((a) => a.email.toLowerCase() === normalized)
-  if (!account || account.password !== password) {
-    throw new Error('E-posta veya şifre hatalı.')
-  }
-  const session: DemoSession = {
-    accountId: account.id,
-    email: account.email,
-    role: account.role,
-    name: account.name,
-  }
-  saveSession(session)
-  return session
-}
-
 const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
 
 /**
  * Session for an account that exists only in the backend directory (created by an
  * admin on Kullanıcılar). The backend has already verified the password.
  */
-export function backendAccountSession(email: string, role: string): DemoSession {
+export function backendAccountSession(email: string, role: string, name?: string | null): DemoSession {
   if (!ROLES.includes(role as Role)) throw new Error('Bu hesabın rolü web arayüzünde desteklenmiyor.')
   const normalized = email.trim().toLowerCase()
+  const seed = DEMO_ACCOUNTS.find((a) => a.email === normalized)
   const session: DemoSession = {
     accountId: `backend-${normalized}`,
     email: normalized,
     role: role as Role,
-    name: normalized.split('@')[0],
+    name: name?.trim() || seed?.name || normalized.split('@')[0],
   }
   saveSession(session)
   return session
-}
-
-export function register(input: {
-  name: string
-  email: string
-  password: string
-  role: Role
-}): DemoSession {
-  const name = input.name.trim()
-  const email = input.email.trim().toLowerCase()
-  const password = input.password
-  if (!name || name.length < 2) throw new Error('Ad soyad en az 2 karakter olmalı.')
-  if (!email.includes('@')) throw new Error('Geçerli bir e-posta girin.')
-  if (password.length < 6) throw new Error('Şifre en az 6 karakter olmalı.')
-
-  const accounts = readAccounts()
-  if (accounts.some((a) => a.email.toLowerCase() === email)) {
-    throw new Error('Bu e-posta ile zaten bir hesap var. Giriş yapın.')
-  }
-
-  const account: DemoAccount = {
-    id: `acc-${Date.now()}`,
-    email,
-    password,
-    name,
-    role: input.role,
-    createdAt: new Date().toISOString(),
-  }
-  writeAccounts([account, ...accounts])
-  return login(email, password)
 }
 
 export function logout() {

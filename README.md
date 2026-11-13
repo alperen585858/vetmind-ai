@@ -771,20 +771,42 @@ PDF: sunucu tarafı PDF kütüphanesi yok; `ApprovedReport` + `@media print` + `
 
 Capability sabitleri: `backend/app/auth/rbac.py` (`cases:write`, `review`, `rag:admin`, …).
 
+### Kullanıcı hesapları ve oturum (#31)
+
+Tüm hesaplar backend'de tutulur: demo seed kullanıcılar, kayıt olanlar ve Admin → Kullanıcılar'dan oluşturulanlar. Tarayıcıda hesap veya şifre saklanmaz.
+
+| Konu | Davranış |
+|------|----------|
+| Şifre saklama | stdlib scrypt hash (`backend/app/auth/passwords.py`). Eski düz metin kayıtlar backend açılırken otomatik hash'lenir |
+| Şifre politikası | En az 8 karakter, en az bir harf ve bir rakam (kayıt, admin, sıfırlama, değiştirme) |
+| Kayıt | `POST /api/v1/auth/register`. `owner` hemen aktif (kliniği `VETMIND_SELF_REGISTRATION_OWNER_CLINIC`), `vet` admin onayı bekler. Diğer roller kayıtla açılmaz. `VETMIND_SELF_REGISTRATION=0` kapatır |
+| Klinik kuralı | `vet` / `expert` / `clinic_owner` hesapları klinik atanmadan aktif olamaz |
+| Access token | HS256 JWT, varsayılan 15 dk (`VETMIND_JWT_TTL_SECONDS`), `tv` (token_version) claim'i taşır |
+| Refresh token | Opak, 7 gün kayan pencere (`VETMIND_REFRESH_TTL_SECONDS`). Her kullanımda döner. Kullanılmış token 20 sn sonra tekrar gelirse oturum ailesi iptal edilir. DB'de sadece SHA-256 |
+| Çıkış | `POST /api/v1/auth/logout` refresh ailesini iptal eder |
+| Şifre değiştirme | `POST /api/v1/auth/password/change` (giriş yapmış kullanıcı). Diğer oturumlar kapanır |
+| Şifremi unuttum | `POST /api/v1/auth/password/forgot` → 30 dk geçerli tek kullanımlık link. Hesap olsa da olmasa da aynı cevap. Demo modda e-posta sunucu log'una yazılır, `VETMIND_SMTP_*` ile gerçek e-posta |
+| Sıfırlama | `POST /api/v1/auth/password/reset`. Tüm oturumlar kapanır |
+| Deneme sınırı | login, register, forgot, reset, change için `429` + `Retry-After` (`VETMIND_AUTH_RATE_LIMIT`). Sayaçlar süreç belleğinde |
+
+Ayarların tamamı ve varsayılanları: `backend/.env.example`.
+
 ### Frontend ↔ backend auth
 
-1. UI oturumu: `src/lib/auth.ts` → localStorage (`vetmind.demo.session`)  
-2. API JWT: login/register/rol değişiminde `backendLogin` → `vetmind.backend.jwt`; `backend.ts` `Authorization: Bearer` ekler  
-3. Çıkışta IndexedDB DICOM önbelleği temizlenir (Phase 5)
+1. Giriş / kayıt `backendLogin` / `backendRegister` ile yapılır. UI oturumu `src/lib/auth.ts` → localStorage (`vetmind.demo.session`)
+2. Token çifti: `vetmind.backend.jwt` + `vetmind.backend.refresh` (protected modda sessionStorage). `backend.ts` `Authorization: Bearer` ekler, 401'de bir kez sessizce yenileyip isteği tekrarlar. Yenileme reddedilirse `vetmind:auth-expired` olayıyla çıkış yapılır
+3. Sayfalar: `/kayit`, `/giris`, `/sifremi-unuttum`, `/sifre-sifirla?token=…` (EN: `/register`, `/login`, `/forgot-password`, `/reset-password`), Ayarlar → Şifre değiştir (sadece auth açıkken)
+4. Çıkışta backend'deki refresh token iptal edilir ve IndexedDB DICOM önbelleği temizlenir
 
 ### Güvenlik notları (dürüst)
 
-- Varsayılan auth kapalı; internete açık deploy için **uygun değil**.  
-- Demo JWT secret ve şifreler bilinir.  
-- Frontend hesapları localStorage’da demo amaçlı tutulur.  
-- Quarantine yerel diskte; üretim AV / şifreleme yok.  
-- Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.  
-- AI çıktıları tanı değildir; UI disclaimer’ları bilinçlidir.
+- Varsayılan auth kapalı; internete açık deploy için **uygun değil**.
+- Demo seed şifresi (`demo1234`) ve varsayılan JWT secret bilinir. Protected mod varsayılan veya 32 karakterden kısa secret ile açılmaz.
+- Deneme sayaçları süreç belleğinde: yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar.
+- Kayıt ucu tekrar eden e-postaya `409` döner (kayıtlı e-postayı belli eder). E-posta doğrulaması yok.
+- Quarantine yerel diskte; üretim AV / şifreleme yok.
+- Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.
+- AI çıktıları tanı değildir; UI disclaimer'ları bilinçlidir.
 
 ---
 
@@ -796,7 +818,9 @@ Capability sabitleri: `backend/app/auth/rbac.py` (`cases:write`, `review`, `rag:
 |------|-------|--------|-------------------|
 | `/` | Landing / Dashboard | misafir / tümü | — |
 | `/giris` | Login | — | `POST /auth/login` |
-| `/kayit` | Register | — | localStorage + best-effort JWT |
+| `/kayit` | Register | — | `POST /auth/register` |
+| `/sifremi-unuttum` | ForgotPassword | — | `POST /auth/password/forgot` |
+| `/sifre-sifirla` | ResetPassword | — / tümü | `POST /auth/password/reset` |
 | `/dicom-yukle` | DicomUpload | vet | upload, confirm, async analyze, fixtures |
 | `/vakalar/yeni` | NewCase | vet | create+analyze veya yerel prototip |
 | `/vakalar` | CaseList | vet, expert | list / refresh |
@@ -834,7 +858,13 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 |--------|------|------|
 | GET | `/health` | Canlılık + storage / rag / jobs / auth / vision bayrakları |
 | GET | `/auth/status` | Auth zorunlu mu? |
-| POST | `/auth/login` | Demo JWT |
+| POST | `/auth/login` | Access + refresh token |
+| POST | `/auth/register` | Kayıt (owner aktif, vet onay bekler) |
+| POST | `/auth/refresh` | Token çiftini yenile (rotation) |
+| POST | `/auth/logout` | Refresh ailesini iptal et |
+| POST | `/auth/password/change` | Şifre değiştir (giriş gerekli) |
+| POST | `/auth/password/forgot` | Sıfırlama linki e-postala |
+| POST | `/auth/password/reset` | Link ile yeni şifre |
 | GET | `/auth/me` | Principal |
 | POST | `/cases` | Sentetik vaka oluştur |
 | GET | `/cases` | Vaka listesi |

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Loader2, ShieldCheck } from 'lucide-react'
+import { Copy, KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { useLocale } from '../context/LocaleContext'
-import { createManagedUser, listManagedUsers, updateManagedUser } from '../lib/backend'
+import { createManagedUser, createPasswordResetLink, listManagedUsers, updateManagedUser } from '../lib/backend'
 import type { BackendManagedUser } from '../types'
 
 /** Active accounts in these roles must belong to a clinic (the backend enforces it). */
@@ -29,6 +29,8 @@ export default function AdminUsers() {
   // Clinic typed per pending row (self-registered vets have none until an admin assigns it).
   const [activationClinic, setActivationClinic] = useState<Record<string, string>>({})
   const [updating, setUpdating] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<{ email: string; link: string; minutes: number } | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -81,6 +83,30 @@ export default function AdminUsers() {
     }
   }
 
+  const onResetLink = async (u: BackendManagedUser) => {
+    setUpdating(u.email)
+    setError(null)
+    setCopied(false)
+    try {
+      const res = await createPasswordResetLink(u.email)
+      setResetLink({ email: res.email, link: res.link, minutes: Math.round(res.expires_in / 60) })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.updateFail'))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const onCopy = async () => {
+    if (!resetLink) return
+    try {
+      await navigator.clipboard.writeText(resetLink.link)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -90,6 +116,34 @@ export default function AdminUsers() {
       />
       {error && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>
+      )}
+      {resetLink && (
+        <div role="status" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy-800">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-medium">{t('admin.resetLinkTitle', { email: resetLink.email })}</p>
+            <button
+              type="button"
+              aria-label={t('admin.close')}
+              className="text-navy-500 hover:text-navy-800"
+              onClick={() => setResetLink(null)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              readOnly
+              aria-label={t('admin.resetLink')}
+              className="input h-8 min-w-0 flex-1 font-mono text-xs"
+              value={resetLink.link}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button size="sm" variant="secondary" icon={<Copy className="h-3.5 w-3.5" />} onClick={() => void onCopy()}>
+              {copied ? t('admin.copied') : t('admin.copyLink')}
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-navy-600">{t('admin.resetLinkHint', { minutes: resetLink.minutes })}</p>
+        </div>
       )}
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="p-5 xl:col-span-1">
@@ -185,6 +239,18 @@ export default function AdminUsers() {
                         >
                           {u.active ? t('admin.deactivate') : t('admin.activate')}
                         </Button>
+                        {u.active && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="ml-2"
+                            icon={<KeyRound className="h-3.5 w-3.5" />}
+                            disabled={updating === u.email}
+                            onClick={() => void onResetLink(u)}
+                          >
+                            {t('admin.resetLink')}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

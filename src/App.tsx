@@ -15,6 +15,8 @@ import type { Role } from './types'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import CaseList from './pages/CaseList'
 import NewCase from './pages/NewCase'
@@ -89,10 +91,14 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/kayit" element={<Register />} />
           <Route path="/register" element={<Register />} />
+          {dualRoutes('/sifremi-unuttum', '/forgot-password', <ForgotPassword />)}
+          {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
           <Route path="*" element={<PublicFallback />} />
         </Routes>
       ) : (
         <Routes>
+          {/* Emailed reset links work even when this browser is still signed in. */}
+          {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             {dualRoutes('vakalar', 'cases', <Gate roles={['vet', 'expert', 'clinic_owner']}><CaseList /></Gate>)}
