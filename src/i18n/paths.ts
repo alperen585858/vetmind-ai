@@ -7,6 +7,8 @@ import type { Locale } from './types'
 const TR_TO_EN: Record<string, string> = {
   giris: 'login',
   kayit: 'register',
+  'sifremi-unuttum': 'forgot-password',
+  'sifre-sifirla': 'reset-password',
   vakalar: 'cases',
   yeni: 'new',
   'dicom-yukle': 'dicom-upload',

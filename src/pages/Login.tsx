@@ -9,14 +9,12 @@ import { Button } from '../components/Button'
 import {
   backendAccountSession,
   listDemoCredentials,
-  login,
   postLoginPath,
-  setBackendAccessToken,
   setBackendTokens,
   setProtectedTokenMode,
   type DemoSession,
 } from '../lib/auth'
-import { backendAuthStatus, backendLogin } from '../lib/backend'
+import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../lib/backend'
 import type { Role } from '../types'
 
 export default function Login() {
@@ -57,37 +55,12 @@ export default function Login() {
     setError(null)
     setBusy(true)
     try {
-      let session: DemoSession
-      try {
-        session = login(email, password)
-      } catch (localErr) {
-        // Not a browser account: users created on Admin → Kullanıcılar exist only in the backend.
-        try {
-          const status = await backendAuthStatus()
-          setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
-          const tokenRes = await backendLogin(email, password)
-          setBackendTokens(tokenRes)
-          session = backendAccountSession(tokenRes.email, tokenRes.role)
-        } catch (backendErr) {
-          throw backendErr instanceof Error && backendErr.message.includes('rol') ? backendErr : localErr
-        }
-        signIn(session)
-        pushToast({
-          tone: 'success',
-          title: t('auth.loginSuccess'),
-          body: `${session.name} · ${roleLabel(session.role)}`,
-        })
-        nav(postLoginPath(session.role, locale))
-        return
-      }
-      try {
-        const status = await backendAuthStatus()
-        setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
-        const tokenRes = await backendLogin(email, password)
-        setBackendTokens(tokenRes)
-      } catch {
-        setBackendAccessToken(null)
-      }
+      // Every account lives on the backend (seed demo users, sign-ups, admin-created users).
+      const status = await backendAuthStatus()
+      setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
+      const tokenRes = await backendLogin(email, password)
+      setBackendTokens(tokenRes)
+      const session: DemoSession = backendAccountSession(tokenRes.email, tokenRes.role)
       signIn(session)
       pushToast({
         tone: 'success',
@@ -96,7 +69,13 @@ export default function Login() {
       })
       nav(postLoginPath(session.role, locale))
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.loginFailed'))
+      setError(
+        err instanceof BackendUnavailableError
+          ? t('auth.backendUnreachable')
+          : err instanceof Error
+            ? err.message
+            : t('auth.loginFailed'),
+      )
     } finally {
       setBusy(false)
     }
@@ -206,6 +185,11 @@ export default function Login() {
                   />
                 </div>
               </label>
+              <div className="mt-2 text-right">
+                <LocalizedLink to="/sifremi-unuttum" className="text-xs font-medium text-sky-600 hover:underline">
+                  {t('auth.forgotLink')}
+                </LocalizedLink>
+              </div>
 
               {error && (
                 <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -240,16 +224,10 @@ export default function Login() {
               ) : null}
 
               <p className="mt-4 text-center text-sm text-navy-600">
-                {lockedMode ? (
-                  t('auth.registerNotServerAccount')
-                ) : (
-                  <>
-                    {t('auth.noAccount')}{' '}
-                    <LocalizedLink to="/kayit" className="font-semibold text-sky-600 hover:underline">
-                      {t('auth.goRegister')}
-                    </LocalizedLink>
-                  </>
-                )}
+                {t('auth.noAccount')}{' '}
+                <LocalizedLink to="/kayit" className="font-semibold text-sky-600 hover:underline">
+                  {t('auth.goRegister')}
+                </LocalizedLink>
               </p>
             </form>
 

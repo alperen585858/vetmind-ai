@@ -4,6 +4,7 @@ import { KB_SOURCES, USERS } from '../data/mock'
 import {
   demoEmailForRole,
   loadSession,
+  purgeLegacyLocalAccounts,
   logout as clearAuthSession,
   userFromSession,
   type DemoSession,
@@ -88,6 +89,7 @@ const DEFAULT_AUTH_MODE: BackendAuthMode = {
 const Ctx = createContext<AppState | null>(null)
 
 function initialSession(): DemoSession | null {
+  purgeLegacyLocalAccounts()
   return loadSession()
 }
 
