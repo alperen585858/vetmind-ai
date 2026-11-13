@@ -7,7 +7,7 @@ import re
 import struct
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -38,6 +38,8 @@ _FONT_NAME = "Helvetica"
 _MAX_REPORT_IMAGES = 4
 _IMAGE_MAX_EDGE_PX = 512
 _CITATION_ALIAS_RE = re.compile(r"\b([FS]\d+)\b")
+
+_T = TypeVar("_T")
 
 
 def _resolve_font() -> str:
@@ -123,7 +125,7 @@ def _image_flowable(data: bytes, max_edge_mm: float = 78) -> Image | None:
     return img
 
 
-def _sample_items[T](items: list[T], limit: int = _MAX_REPORT_IMAGES) -> list[T]:
+def _sample_items(items: list[_T], limit: int = _MAX_REPORT_IMAGES) -> list[_T]:
     return evenly_sample(items, limit)
 
 
