@@ -103,12 +103,55 @@ describe('backend session refresh (issue #31 step 3)', () => {
     expect(events).toEqual([])
   })
 
-  it('does not try to refresh when no refresh token is stored', async () => {
+  it('signs out a pre-refresh-token session instead of leaving it half signed in', async () => {
     setBackendTokens({ access_token: 'only-access', refresh_token: null })
     const fetchMock = vi.fn(async () => json({ detail: 'nope' }, 401))
     vi.stubGlobal('fetch', fetchMock)
     await expect(listBackendCases()).rejects.toThrow('nope')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // no refresh call without a refresh token
+    expect(getBackendAccessToken()).toBeNull()
+    expect(events).toEqual([AUTH_EXPIRED_EVENT])
+  })
+
+  it('keeps the session when another tab rotated the refresh token first', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) {
+        // The other tab won the race and already wrote its new pair to shared storage.
+        setBackendTokens({ access_token: 'tab-a-access', refresh_token: 'tab-a-refresh' })
+        return json({ detail: 'Session expired. Please sign in again.' }, 401)
+      }
+      const auth = new Headers(init?.headers).get('Authorization')
+      return auth === 'Bearer tab-a-access' ? json([]) : json({ detail: 'expired' }, 401)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listBackendCases()).resolves.toEqual([])
+    expect(getBackendRefreshToken()).toBe('tab-a-refresh')
+    expect(events).toEqual([])
+  })
+
+  it('retries with a token renewed meanwhile without calling refresh again', async () => {
+    let refreshCalls = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls += 1
+        return json({ access_token: 'x', refresh_token: 'y' })
+      }
+      const auth = new Headers(init?.headers).get('Authorization')
+      if (auth === 'Bearer old-access') {
+        // While this request was in flight, another tab renewed the session.
+        setBackendTokens({ access_token: 'renewed-access', refresh_token: 'refresh-2' })
+        return json({ detail: 'expired' }, 401)
+      }
+      return json([])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listBackendCases()).resolves.toEqual([])
+    expect(refreshCalls).toBe(0)
+    expect(getBackendAccessToken()).toBe('renewed-access')
   })
 
   it('logout revokes the stored refresh token on the backend', async () => {

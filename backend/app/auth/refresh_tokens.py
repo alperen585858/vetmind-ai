@@ -5,7 +5,9 @@
 - Every refresh rotates: the presented token is revoked and a new one is issued in
   the same *family* (one family per sign-in).
 - Presenting an already-rotated token is treated as theft: the whole family is
-  revoked, so both the attacker and the victim must sign in again.
+  revoked, so both the attacker and the victim must sign in again. Exception: within
+  ``CONCURRENT_GRACE_SECONDS`` of the rotation the request is only refused, because two
+  browser tabs sharing localStorage routinely refresh with the same token at once.
 - A refresh is refused when the user is gone/inactive or their ``token_version``
   changed (password change) since the family was issued.
 """
@@ -22,6 +24,11 @@ from pathlib import Path
 from typing import Callable, Optional, Protocol
 
 from app.auth.security import DemoUserRecord
+
+# A rotated token presented again this soon is a racing tab, not a thief.
+CONCURRENT_GRACE_SECONDS = 20
+# Expired rows are deleted at most this often (they can no longer be used anyway).
+PURGE_INTERVAL_SECONDS = 60 * 60
 
 
 class RefreshTokenError(Exception):
@@ -57,6 +64,8 @@ class RefreshTokenStore(Protocol):
 
     def revoke_subject(self, subject: str, at: float) -> int: ...
 
+    def purge_expired(self, now: float) -> int: ...
+
 
 class InMemoryRefreshTokenStore:
     def __init__(self) -> None:
@@ -82,6 +91,12 @@ class InMemoryRefreshTokenStore:
     def revoke_subject(self, subject: str, at: float) -> int:
         return self._revoke_where(lambda r: r.subject == subject, at)
 
+    def purge_expired(self, now: float) -> int:
+        dead = [k for k, r in self._rows.items() if r.expires_at < now]
+        for k in dead:
+            del self._rows[k]
+        return len(dead)
+
 
 class SqliteRefreshTokenStore:
     def __init__(self, db_path: Path | str) -> None:
@@ -89,6 +104,8 @@ class SqliteRefreshTokenStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        # One connection shared by request threads: serialise access to it.
+        self._db_lock = threading.Lock()
         self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.executescript(
             """
@@ -109,6 +126,10 @@ class SqliteRefreshTokenStore:
         self._conn.commit()
 
     def save(self, rec: RefreshRecord) -> None:
+        with self._db_lock:
+            self._save(rec)
+
+    def _save(self, rec: RefreshRecord) -> None:
         self._conn.execute(
             """
             INSERT INTO refresh_tokens
@@ -131,26 +152,32 @@ class SqliteRefreshTokenStore:
         self._conn.commit()
 
     def get(self, token_hash: str) -> Optional[RefreshRecord]:
-        row = self._conn.execute(
-            "SELECT * FROM refresh_tokens WHERE token_hash=?", (token_hash,)
-        ).fetchone()
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT * FROM refresh_tokens WHERE token_hash=?", (token_hash,)
+            ).fetchone()
         return RefreshRecord(**dict(row)) if row else None
 
+    def _write(self, sql: str, params: tuple) -> int:
+        with self._db_lock:
+            cur = self._conn.execute(sql, params)
+            self._conn.commit()
+            return cur.rowcount
+
     def revoke_family(self, family_id: str, at: float) -> int:
-        cur = self._conn.execute(
+        return self._write(
             "UPDATE refresh_tokens SET revoked_at=? WHERE family_id=? AND revoked_at IS NULL",
             (at, family_id),
         )
-        self._conn.commit()
-        return cur.rowcount
 
     def revoke_subject(self, subject: str, at: float) -> int:
-        cur = self._conn.execute(
+        return self._write(
             "UPDATE refresh_tokens SET revoked_at=? WHERE subject=? AND revoked_at IS NULL",
             (at, subject),
         )
-        self._conn.commit()
-        return cur.rowcount
+
+    def purge_expired(self, now: float) -> int:
+        return self._write("DELETE FROM refresh_tokens WHERE expires_at < ?", (now,))
 
 
 def build_refresh_token_store(settings) -> RefreshTokenStore:
@@ -175,14 +202,21 @@ class RefreshTokenService:
         self._directory = directory
         self._clock = clock
         self._lock = threading.Lock()
+        self._last_purge = float("-inf")
 
     @property
     def ttl_seconds(self) -> int:
         return self._ttl
 
+    def _maybe_purge(self, now: float) -> None:
+        if now - self._last_purge >= PURGE_INTERVAL_SECONDS:
+            self._last_purge = now
+            self._store.purge_expired(now)
+
     def issue(self, subject: str, *, token_version: int, family_id: str | None = None) -> str:
         raw = secrets.token_urlsafe(32)
         now = self._clock()
+        self._maybe_purge(now)
         self._store.save(
             RefreshRecord(
                 token_hash=hash_refresh_token(raw),
@@ -205,6 +239,9 @@ class RefreshTokenService:
             if rec is None:
                 raise RefreshTokenError("unknown")
             if rec.revoked_at is not None:
+                if rec.replaced_by and now - rec.revoked_at <= CONCURRENT_GRACE_SECONDS:
+                    # Another tab just rotated it; that tab stored the new pair.
+                    raise RefreshTokenError("rotated_concurrently")
                 # A rotated/revoked token came back: assume it was stolen.
                 self._store.revoke_family(rec.family_id, now)
                 raise RefreshTokenError("reused")

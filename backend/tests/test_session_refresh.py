@@ -10,6 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth.refresh_tokens import (
+    CONCURRENT_GRACE_SECONDS,
+    PURGE_INTERVAL_SECONDS,
     InMemoryRefreshTokenStore,
     RefreshTokenError,
     RefreshTokenService,
@@ -41,6 +43,20 @@ def _settings(tmp_path: Path, **overrides) -> Settings:
 def _app(tmp_path: Path, **overrides) -> tuple[TestClient, AppContainer]:
     container = AppContainer(repo=InMemoryCaseRepository(), settings=_settings(tmp_path, **overrides))
     return TestClient(create_app(container)), container
+
+
+class _Clock:
+    def __init__(self, start: float = 1_000_000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _with_clock(container: AppContainer) -> _Clock:
+    clock = _Clock()
+    container.refresh_tokens._clock = clock
+    return clock
 
 
 def _login(client: TestClient, email: str = "vet@demo.local", password: str = "demo1234"):
@@ -109,8 +125,10 @@ def test_refresh_rotates_and_issues_working_access_token(tmp_path: Path) -> None
 
 def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
+    clock = _with_clock(container)
     first = _login(client)
     second = _refresh(client, first["refresh_token"]).json()
+    clock.now += CONCURRENT_GRACE_SECONDS + 1
 
     stolen = _refresh(client, first["refresh_token"])  # replay of the old token
     assert stolen.status_code == 401
@@ -125,10 +143,12 @@ def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(tmp_path: Path
 
 
 def test_other_sign_ins_survive_a_revoked_family(tmp_path: Path) -> None:
-    client, _ = _app(tmp_path)
+    client, container = _app(tmp_path)
+    clock = _with_clock(container)
     laptop = _login(client)
     phone = _login(client)
     _refresh(client, laptop["refresh_token"])
+    clock.now += CONCURRENT_GRACE_SECONDS + 1
     _refresh(client, laptop["refresh_token"])  # reuse → laptop family revoked
     assert _refresh(client, phone["refresh_token"]).status_code == 200
 
@@ -263,3 +283,72 @@ def test_sqlite_store_persists_only_hashes_across_restart(tmp_path: Path) -> Non
     # A new process (container) over the same files still honours the token.
     client2, _ = _app(tmp_path, storage_backend="sqlite")
     assert _refresh(client2, session["refresh_token"]).status_code == 200
+
+
+# --- concurrent tabs / housekeeping ----------------------------------------
+
+
+def test_two_tabs_refreshing_at_once_do_not_kill_the_session(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    clock = _with_clock(container)
+    session = _login(client)
+    tab_a = _refresh(client, session["refresh_token"])
+    clock.now += 2
+    tab_b = _refresh(client, session["refresh_token"])  # same token, a moment later
+    assert tab_a.status_code == 200
+    assert tab_b.status_code == 401
+    # Tab B then picks up tab A's pair from shared storage; the session is alive.
+    assert _refresh(client, tab_a.json()["refresh_token"]).status_code == 200
+    reasons = [e["detail"] for e in container.audit.list_events(limit=50) if e["event_type"] == "auth.refresh"]
+    assert "rotated_concurrently" in reasons and "reused" not in reasons
+
+
+def test_replay_after_grace_window_is_still_treated_as_theft() -> None:
+    clock = [0.0]
+    svc = _service(clock)
+    raw = svc.issue("a@b.co", token_version=0)
+    _, _, new_raw = svc.rotate(raw)
+    clock[0] += CONCURRENT_GRACE_SECONDS
+    with pytest.raises(RefreshTokenError) as exc:
+        svc.rotate(raw)
+    assert exc.value.reason == "rotated_concurrently"
+    clock[0] += 1
+    with pytest.raises(RefreshTokenError) as exc:
+        svc.rotate(raw)
+    assert exc.value.reason == "reused"
+    with pytest.raises(RefreshTokenError):
+        svc.rotate(new_raw)  # family revoked
+
+
+def test_logged_out_token_reuse_is_never_graced() -> None:
+    clock = [0.0]
+    svc = _service(clock)
+    raw = svc.issue("a@b.co", token_version=0)
+    svc.revoke(raw)
+    with pytest.raises(RefreshTokenError) as exc:
+        svc.rotate(raw)
+    assert exc.value.reason == "reused"
+
+
+def test_expired_rows_are_purged_periodically() -> None:
+    clock = [0.0]
+    store = InMemoryRefreshTokenStore()
+    svc = RefreshTokenService(
+        store, ttl_seconds=100, directory={"a@b.co": DemoUserRecord("h", "owner")}, clock=lambda: clock[0]
+    )
+    for _ in range(3):
+        svc.issue("a@b.co", token_version=0)
+    assert len(store._rows) == 3
+    clock[0] += PURGE_INTERVAL_SECONDS + 1  # all three expired long ago
+    svc.issue("a@b.co", token_version=0)
+    assert len(store._rows) == 1
+
+
+def test_sqlite_store_purge(tmp_path: Path) -> None:
+    from app.auth.refresh_tokens import RefreshRecord, SqliteRefreshTokenStore
+
+    store = SqliteRefreshTokenStore(tmp_path / "auth.sqlite3")
+    store.save(RefreshRecord("old", "a@b.co", "f1", 0, 0.0, 10.0))
+    store.save(RefreshRecord("new", "a@b.co", "f2", 0, 0.0, 1000.0))
+    assert store.purge_expired(500.0) == 1
+    assert store.get("old") is None and store.get("new") is not None

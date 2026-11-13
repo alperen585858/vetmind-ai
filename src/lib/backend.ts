@@ -88,15 +88,26 @@ export const AUTH_EXPIRED_EVENT = 'vetmind:auth-expired'
 
 let refreshInFlight: Promise<boolean> | null = null
 
+function endBackendSession() {
+  setBackendAccessToken(null)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+}
+
 /**
- * Exchange the stored refresh token for a new token pair. Concurrent callers share one
- * request: refresh tokens are single-use, so two parallel refreshes would look like reuse.
- * Returns false when there is nothing to refresh or the backend refused (tokens are then cleared).
+ * Exchange the stored refresh token for a new token pair. Concurrent callers in this tab
+ * share one request: refresh tokens are single-use, so two parallel refreshes would look
+ * like reuse. Other tabs share localStorage, so a refusal is checked against storage first.
+ * Returns false when the session cannot be renewed (tokens are then cleared and
+ * AUTH_EXPIRED_EVENT fires) or on a network error (tokens are kept).
  */
 export function refreshBackendSession(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight
   const refreshToken = getBackendRefreshToken()
-  if (!refreshToken) return Promise.resolve(false)
+  if (!refreshToken) {
+    // Signed in before refresh tokens existed (or storage was cleared): nothing can renew it.
+    endBackendSession()
+    return Promise.resolve(false)
+  }
   refreshInFlight = (async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
@@ -105,8 +116,10 @@ export function refreshBackendSession(): Promise<boolean> {
         body: JSON.stringify({ refresh_token: refreshToken }),
       })
       if (!res.ok) {
-        setBackendAccessToken(null)
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+        // Another tab rotated the token meanwhile and stored the new pair: use that.
+        const current = getBackendRefreshToken()
+        if (current && current !== refreshToken) return true
+        endBackendSession()
         return false
       }
       setBackendTokens((await res.json()) as { access_token: string; refresh_token: string })
@@ -123,7 +136,7 @@ export function refreshBackendSession(): Promise<boolean> {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
-  let sentStoredToken = false
+  let sentToken: string | null = null
 
   const send = async (): Promise<Response> => {
     const headers = new Headers(init?.headers)
@@ -131,10 +144,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers.set('Content-Type', 'application/json')
     }
     const token = getBackendAccessToken()
-    sentStoredToken = false
+    sentToken = null
     if (token && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`)
-      sentStoredToken = true
+      sentToken = token
     }
     // When auth is disabled, attribute support messages to the active demo session.
     const session = loadSession()
@@ -156,8 +169,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   let res = await send()
   // Expired access token: renew once with the refresh token and retry the same request.
-  if (res.status === 401 && sentStoredToken && !path.startsWith('/auth/')) {
-    if (await refreshBackendSession()) res = await send()
+  if (res.status === 401 && sentToken && !path.startsWith('/auth/')) {
+    const current = getBackendAccessToken()
+    if (current && current !== sentToken) {
+      // Renewed meanwhile (another request or tab): just retry with the newer token.
+      res = await send()
+    } else if (await refreshBackendSession()) {
+      res = await send()
+    }
   }
   if (!res.ok) {
     let detail = res.statusText
