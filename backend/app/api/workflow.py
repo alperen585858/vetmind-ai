@@ -21,8 +21,8 @@ from app.schemas.workflow import (
     ClinicStaffStats,
     ImagingSubmission,
     InfoRequestReply,
-    ManagedUser,
     ManagedUserCreate,
+    ManagedUserPublic,
     ManagedUserUpdate,
     PetCreate,
     PetMedicalHistory,
@@ -225,11 +225,11 @@ def clinic_stats(
     return service.clinic_stats(principal=principal)
 
 
-@router.get("/admin/users", response_model=list[ManagedUser])
+@router.get("/admin/users", response_model=list[ManagedUserPublic])
 def list_users(
     principal: AuthPrincipal = Depends(require_auth),
     service=Depends(_workflow),
-) -> list[ManagedUser]:
+) -> list[ManagedUserPublic]:
     if not (principal.can(CAP_USERS_ADMIN) or principal.can(CAP_CLINIC_MANAGE) or principal.can(CAP_ADMIN)):
         # clinic_owner can list staff via clinic:manage
         if not principal.can(CAP_CLINIC_MANAGE):
@@ -237,20 +237,20 @@ def list_users(
     return service.list_users(principal=principal)
 
 
-@router.post("/admin/users", response_model=ManagedUser, status_code=status.HTTP_201_CREATED)
+@router.post("/admin/users", response_model=ManagedUserPublic, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: ManagedUserCreate,
     principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
     service=Depends(_workflow),
-) -> ManagedUser:
+) -> ManagedUserPublic:
     return service.create_user(payload, principal=principal)
 
 
-@router.patch("/admin/users/{email}", response_model=ManagedUser)
+@router.patch("/admin/users/{email}", response_model=ManagedUserPublic)
 def update_user(
     email: str,
     payload: ManagedUserUpdate,
     principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
     service=Depends(_workflow),
-) -> ManagedUser:
+) -> ManagedUserPublic:
     return service.update_user(email, payload, principal=principal)

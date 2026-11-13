@@ -11,7 +11,11 @@ import hmac
 import json
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
+
+from app.auth.passwords import hash_password
+from app.auth.passwords import verify_password as _verify_password
 
 
 DEFAULT_JWT_SECRET = "vetmind-demo-secret-change-me"
@@ -29,6 +33,13 @@ JWT_FORBIDDEN_ROLES: frozenset[str] = frozenset({"demo", "service"})
 
 @dataclass(frozen=True)
 class DemoUserRecord:
+    """Login directory entry.
+
+    ``password`` is a scrypt hash (``app.auth.passwords``) for every entry the
+    WorkflowService directory builds. Only the public ``DEMO_USERS`` seed below holds
+    plaintext, and it is hashed before it is persisted or put into the directory.
+    """
+
     password: str
     role: str
     clinic_id: str | None = None
@@ -67,8 +78,15 @@ def _b64url_decode(data: str) -> bytes:
 
 
 def verify_password(provided: str, expected: str) -> bool:
-    """Constant-time string compare for demo plaintext passwords."""
-    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+    """Check a password against a stored scrypt hash (or the plaintext demo seed)."""
+    return _verify_password(provided, expected)
+
+
+@lru_cache(maxsize=None)
+def demo_password_hash(email: str) -> str | None:
+    """Hash of a ``DEMO_USERS`` seed password, computed once per process."""
+    rec = DEMO_USERS.get(email.lower())
+    return hash_password(rec.password) if rec else None
 
 
 def create_access_token(

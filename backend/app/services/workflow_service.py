@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 
+from app.auth.passwords import hash_password, is_password_hash
 from app.auth.principal import AuthPrincipal
-from app.auth.security import DEMO_USERS, DemoUserRecord
+from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
 from app.auth.tenancy import assert_case_access, can_access_owned
 from app.schemas.case import CaseCreate, CaseRecord
 from app.schemas.dicom import ConfirmClassificationRequest
@@ -22,6 +23,7 @@ from app.schemas.workflow import (
     InfoRequestReply,
     ManagedUser,
     ManagedUserCreate,
+    ManagedUserPublic,
     ManagedUserUpdate,
     PetCreate,
     PetHistoryEntry,
@@ -67,6 +69,7 @@ class WorkflowService:
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
         self._payments = payments
         self._seed_managed_from_demo()
+        self._migrate_plaintext_passwords()
 
     def bind_payments(self, payments: PaymentService) -> None:
         self._payments = payments
@@ -82,23 +85,52 @@ class WorkflowService:
                     clinic_id=rec.clinic_id,
                     display_name=email.split("@")[0],
                     active=True,
-                    password=rec.password,
+                    password_hash=demo_password_hash(email),
                 )
             )
 
-    def sync_auth_directory(self) -> dict[str, DemoUserRecord]:
-        """Rebuild login directory from managed users + seed fallbacks."""
-        directory: dict[str, DemoUserRecord] = {}
+    def _migrate_plaintext_passwords(self) -> int:
+        """Hash any plaintext password left by rows written before hashing existed."""
+        migrated = 0
         for u in self._store.list_users():
+            if u.password is None:
+                continue
+            new_hash = u.password_hash
+            if not is_password_hash(new_hash):
+                new_hash = (
+                    u.password if is_password_hash(u.password) else hash_password(u.password)
+                )
+            self._store.save_user(u.model_copy(update={"password": None, "password_hash": new_hash}))
+            migrated += 1
+        return migrated
+
+    @staticmethod
+    def _directory_hash(user: ManagedUser) -> str | None:
+        if is_password_hash(user.password_hash):
+            return user.password_hash
+        # Seed rows that were saved without a credential fall back to the demo password.
+        return demo_password_hash(user.email)
+
+    def sync_auth_directory(self) -> dict[str, DemoUserRecord]:
+        """Rebuild the login directory (hashed credentials only) from stored users."""
+        directory: dict[str, DemoUserRecord] = {}
+        stored_emails: set[str] = set()
+        for u in self._store.list_users():
+            email = u.email.lower()
+            stored_emails.add(email)
             if not u.active:
                 continue
-            pwd = u.password or (DEMO_USERS.get(u.email.lower()).password if u.email.lower() in DEMO_USERS else None)
-            if not pwd:
+            pwd_hash = self._directory_hash(u)
+            if not pwd_hash:
                 continue
-            directory[u.email.lower()] = DemoUserRecord(pwd, u.role, u.clinic_id)
-        # Keep seed users that were never overridden
+            directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id)
+        # Seed users that were never stored. A stored (e.g. deactivated) seed user is
+        # not re-added, so deactivating a demo account really blocks its login.
         for email, rec in DEMO_USERS.items():
-            directory.setdefault(email, rec)
+            if email not in stored_emails:
+                directory[email] = DemoUserRecord(
+                    demo_password_hash(email) or "", rec.role, rec.clinic_id
+                )
         self._auth_users.clear()
         self._auth_users.update(directory)
         return self._auth_users
@@ -903,35 +935,33 @@ class WorkflowService:
 
     # --- Admin users / clinic ---
 
-    def list_users(self, *, principal: AuthPrincipal) -> list[ManagedUser]:
+    def list_users(self, *, principal: AuthPrincipal) -> list[ManagedUserPublic]:
         if principal.role not in {"admin", "clinic_owner", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Not allowed.")
         users = self._store.list_users()
         if principal.role == "clinic_owner" and principal.via == "jwt":
             users = [u for u in users if u.clinic_id == principal.clinic_id]
-        # Never expose passwords
-        return [u.model_copy(update={"password": None}) for u in users]
+        # Never expose passwords or hashes
+        return [u.to_public() for u in users]
 
-    def create_user(self, payload: ManagedUserCreate, *, principal: AuthPrincipal) -> ManagedUser:
+    def create_user(self, payload: ManagedUserCreate, *, principal: AuthPrincipal) -> ManagedUserPublic:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         email = payload.email.strip().lower()
-        if self._store.get_user(email) or email in DEMO_USERS:
-            # Allow overwrite of seed via managed store
-            pass
+        # An existing (or seed) email is overwritten via the managed store.
         user = ManagedUser(
             email=email,
             role=payload.role,
             clinic_id=payload.clinic_id,
             display_name=payload.display_name or email.split("@")[0],
             active=True,
-            password=payload.password,
+            password_hash=hash_password(payload.password),
         )
         self._store.save_user(user)
         self.sync_auth_directory()
-        return user.model_copy(update={"password": None})
+        return user.to_public()
 
-    def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUser:
+    def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUserPublic:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         existing = self._store.get_user(email.lower())
@@ -941,16 +971,19 @@ class WorkflowService:
                 email=email.lower(),
                 role=rec.role,  # type: ignore[arg-type]
                 clinic_id=rec.clinic_id,
-                password=rec.password,
+                password_hash=demo_password_hash(email),
                 display_name=email.split("@")[0],
             )
         if existing is None:
             raise HTTPException(status_code=404, detail="User not found.")
         data = payload.model_dump(exclude_unset=True)
+        new_password = data.pop("password", None)
+        if new_password:
+            data["password_hash"] = hash_password(new_password)
         user = existing.model_copy(update=data)
         self._store.save_user(user)
         self.sync_auth_directory()
-        return user.model_copy(update={"password": None})
+        return user.to_public()
 
     def clinic_stats(self, *, principal: AuthPrincipal) -> ClinicStaffStats:
         if principal.role not in {"clinic_owner", "vet", "admin", "demo", "service"} and principal.via != "disabled":

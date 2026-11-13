@@ -199,7 +199,9 @@ class SubmissionVetAction(BaseModel):
     run_analyze: bool = False
 
 
-class ManagedUser(BaseModel):
+class ManagedUserPublic(BaseModel):
+    """User as returned by the API: never carries a password or hash."""
+
     model_config = ConfigDict(extra="forbid")
 
     email: str
@@ -207,8 +209,21 @@ class ManagedUser(BaseModel):
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
     active: bool = True
-    # Password only set on create/reset; never returned in list responses.
+
+
+class ManagedUser(ManagedUserPublic):
+    """Stored user record. Not an API response model; use :meth:`to_public`."""
+
+    # scrypt hash from app.auth.passwords. The only credential that is persisted.
+    password_hash: Optional[str] = None
+    # Legacy plaintext from rows written before password hashing. Read only so
+    # WorkflowService can migrate it to ``password_hash`` at startup; never written.
     password: Optional[str] = None
+
+    def to_public(self) -> ManagedUserPublic:
+        return ManagedUserPublic.model_validate(
+            self.model_dump(exclude={"password", "password_hash"})
+        )
 
 
 class ManagedUserCreate(BaseModel):
@@ -239,7 +254,7 @@ class ClinicStaffStats(BaseModel):
     awaiting_review: int = 0
     approved: int = 0
     pending_submissions: int = 0
-    staff: list[ManagedUser] = Field(default_factory=list)
+    staff: list[ManagedUserPublic] = Field(default_factory=list)
 
 
 class PetHistoryEntry(BaseModel):
