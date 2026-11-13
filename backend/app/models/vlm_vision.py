@@ -37,6 +37,7 @@ from app.models.model_input_builder import require_model_input
 from app.models.study_inventory import InventoryFrame, build_study_inventory
 from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
+from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
@@ -55,13 +56,43 @@ from app.storage.quarantine import QuarantineStore
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
 _VLM_MAX_EDGE = 1024
 
+# Merge keeps the *more uncertain* status (never upgrade certainty across batches).
+_STATUS_UNCERTAINTY_RANK = {
+    FindingStatus.SUSPECTED: 0,
+    FindingStatus.POSSIBLE: 1,
+    FindingStatus.NOT_ASSESSED: 2,
+    FindingStatus.UNCERTAIN: 3,
+}
+
+
+def _normalize_vlm_code(raw: str) -> tuple[str, bool]:
+    """Return (canonical_code, was_unknown). Unknown free-form → VLM-UNSPECIFIED."""
+    code = canonicalize_finding_code(raw)
+    if is_known_finding_code(code) or is_technique_code(code):
+        return code, False
+    # Keep structured clinical-ish tokens not yet in ontology; reject free prose codes.
+    upper = (raw or "").strip().upper().replace("_", "-")
+    if re.search(
+        r"(MASS|LESION|TUMOR|TUMOUR|HEMOR|EDEMA|INFARCT|HERNIA|FRACTURE|NODULE|CYST|"
+        r"VENTRICLE|HYDROCEPHAL|PARENCHYM|IVDD|MENINGIOMA)",
+        upper,
+    ):
+        return canonicalize_finding_code(raw) if raw.strip() else "VLM-UNSPECIFIED", False
+    return "VLM-UNSPECIFIED", True
+
 
 def _dedupe_findings(findings: list[Finding]) -> list[Finding]:
-    """Merge duplicate code+location across batches; keep evidence refs."""
+    """Merge duplicate code+location across batches; keep evidence refs.
+
+    Technique codes (e.g. IMAGE-QUALITY) collapse to a single entry regardless of
+    location. Status merge never upgrades certainty.
+    """
     by_key: dict[tuple[str, str], Finding] = {}
     order: list[tuple[str, str]] = []
     for f in findings:
-        key = (f.finding_code.strip().upper(), (f.anatomical_location or "").strip().lower())
+        code_key = f.finding_code.strip().upper()
+        loc_key = "" if is_technique_code(f.finding_code) else (f.anatomical_location or "").strip().lower()
+        key = (code_key, loc_key)
         if key not in by_key:
             by_key[key] = f
             order.append(key)
@@ -70,13 +101,19 @@ def _dedupe_findings(findings: list[Finding]) -> list[Finding]:
         refs = list(prev.evidence_references) + [
             r for r in f.evidence_references if r.evidence_id not in {x.evidence_id for x in prev.evidence_references}
         ]
-        # Prefer more specific / longer description; keep stronger status ranking lightly.
         desc = prev.description if len(prev.description) >= len(f.description) else f.description
+        prev_rank = _STATUS_UNCERTAINTY_RANK.get(prev.finding_status, 0)
+        new_rank = _STATUS_UNCERTAINTY_RANK.get(f.finding_status, 0)
+        status = f.finding_status if new_rank > prev_rank else prev.finding_status
+        note = prev.uncertainty_note or f.uncertainty_note
+        if new_rank > prev_rank and f.uncertainty_note:
+            note = f.uncertainty_note
         by_key[key] = prev.model_copy(
             update={
                 "description": desc,
                 "evidence_references": refs[:8],
-                "uncertainty_note": prev.uncertainty_note or f.uncertainty_note,
+                "finding_status": status,
+                "uncertainty_note": note,
             }
         )
     return [by_key[k] for k in order]
@@ -1033,7 +1070,9 @@ class OpenAiCompatibleVlmVisionModel:
                 modality=str(case.modality.value if hasattr(case.modality, "value") else case.modality),
             )
             fid = str(item.get("finding_id") or f"{case.case_id}-vlm-b{batch_index + 1}-{i + 1}")
-            code = str(item.get("finding_code") or "VLM-FINDING").strip() or "VLM-FINDING"
+            raw_code = str(item.get("finding_code") or "VLM-FINDING").strip() or "VLM-FINDING"
+            code, code_unknown = _normalize_vlm_code(raw_code)
+            item["finding_code"] = code
             desc = str(item.get("description") or "").strip()
             if not desc:
                 continue
@@ -1045,6 +1084,16 @@ class OpenAiCompatibleVlmVisionModel:
             st_raw = str(item.get("finding_status") or "uncertain").strip().lower()
             if st_raw not in _VALID_FINDING_STATUS:
                 st_raw = FindingStatus.UNCERTAIN.value
+            unc = str(
+                item.get("uncertainty_note")
+                or "Genel VLM tahmini; veteriner radyolog onayı zorunlu."
+            )
+            if code_unknown:
+                st_raw = FindingStatus.UNCERTAIN.value
+                unc = (
+                    (unc + " " if unc else "")
+                    + f"Serbest bulgu kodu ({raw_code}) allowlist dışında; VLM-UNSPECIFIED."
+                ).strip()
             conf = item.get("model_confidence")
             confidence: float | None = None
             if conf is not None:
@@ -1070,12 +1119,10 @@ class OpenAiCompatibleVlmVisionModel:
                             frame=frame,
                             item=item,
                             image_count=image_count,
+                            finding_code=code,
                         )
                     ],
-                    uncertainty_note=str(
-                        item.get("uncertainty_note")
-                        or "Genel VLM tahmini; veteriner radyolog onayı zorunlu."
-                    ),
+                    uncertainty_note=unc,
                     synthetic=False,
                     model_confidence=confidence,
                 )

@@ -1440,11 +1440,41 @@ function isDisclaimerWarning(text: string): boolean {
   )
 }
 
+/** Normalize so IMAGE_QUALITY and IMAGE-QUALITY match the same rules. */
+export function normalizeFindingCode(code: string): string {
+  return (code || '').trim().toUpperCase().replace(/_/g, '-')
+}
+
+/**
+ * Technique + descriptive anatomy (not a lesion claim).
+ * These must never show as clinical "Yüksek" in the attention list.
+ */
+const NON_LESION_FINDING_CODE =
+  /^(IMAGE-QUALITY|REGION-APPEARANCE|ANATOMIC-STRUCTURE|SIGNAL-UNSPECIFIED|VLM-UNSPECIFIED|VLM-FINDING|TECHNIQUE|VISIBLE-ANATOMY|VENTRICLE-VIEW|VENTRICLE-VISUAL|VENTRICLE-STRUCTURE|VENTRICLE-SHAPE|VENTRICULAR-SYSTEM|BRAIN-PARENCHYMA|BRAIN-VENTRICLE|BRAIN-VENTRICLES|BRAIN-STRUCTURE)(-|$)/i
+
+export function isTechnicalFindingCode(code: string): boolean {
+  return NON_LESION_FINDING_CODE.test(normalizeFindingCode(code))
+}
+
+/** Map epistemic status → display severity; non-lesion codes always Düşük. */
+export function assessmentSeverityForFinding(
+  code: string,
+  status: string,
+): AIAssessment['findings'][number]['severity'] {
+  if (isTechnicalFindingCode(code)) return 'Düşük'
+  if (status === 'suspected') return 'Yüksek'
+  if (status === 'possible') return 'Orta'
+  return 'Düşük'
+}
+
 export function pipelineToAssessment(findings: BackendFindings, report: BackendDraftReport): AIAssessment {
-  const mapped = findings.findings.map((f) => ({
-    text: `[${f.finding_code}] ${f.description}`,
-    severity: (f.finding_status === 'suspected' ? 'Yüksek' : f.finding_status === 'possible' ? 'Orta' : 'Düşük') as AIAssessment['findings'][number]['severity'],
-  }))
+  const mapped = findings.findings.map((f) => {
+    const code = normalizeFindingCode(f.finding_code)
+    return {
+      text: `[${code}] (${f.finding_status}) ${f.description}`,
+      severity: assessmentSeverityForFinding(code, f.finding_status),
+    }
+  })
   return {
     summary: report.impression.text,
     findings: mapped.length

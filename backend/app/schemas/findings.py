@@ -35,8 +35,10 @@ class ConflictReasonCode(str, Enum):
     CROSS_FAMILY = "cross_family"
     OPPOSING_STATUS = "opposing_status"
     OPPOSING_LATERALITY = "opposing_laterality"
+    OPPOSING_CODES = "opposing_codes"
     SAME_SOP_DIVERGENT = "same_sop_divergent"
     MULTI_MODEL = "multi_model"
+    SINGLE_MODEL = "single_model"
 
 
 BBOX_COORD_LIMIT = 100_000.0

@@ -99,6 +99,8 @@ class LLMGenerationInput(BaseModel):
     frames_visually_analyzed: Optional[int] = None
     series_total: Optional[int] = None
     dicom_files_total: Optional[int] = None
+    # Short conflict reasons from fusion; never auto-resolved — hedge both sides.
+    conflict_notes: list[str] = Field(default_factory=list, max_length=8)
     rag_passages: list[RagPassage] = Field(default_factory=list)
     rag_is_clinical_validation: bool = False
     # Expert revision lessons from similar past cases (app/llm/lessons.py): guidance only.
