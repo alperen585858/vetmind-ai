@@ -272,13 +272,15 @@ export default function RadiologistWorkspace() {
       </Card>
     )
   }
+  // Backend "analyzing" maps to ai_analizi; isleniyor = documents still being processed.
+  const isAnalyzing = c.status === 'ai_analizi' || c.status === 'isleniyor'
   const needsManualInit =
     !text &&
     (c.status === 'manuel_inceleme' ||
       c.status === 'analiz_basarisiz' ||
       c.backendOutcome === 'unsupported' ||
       c.backendOutcome === 'failed' ||
-      (!c.backendDraft && c.status !== 'analiz_ediliyor'))
+      (!c.backendDraft && !isAnalyzing))
 
   if (!text) {
     return (
@@ -287,7 +289,7 @@ export default function RadiologistWorkspace() {
           icon={<AlertTriangle className="h-6 w-6" />}
           title={t('review.workspace.noDraftTitle')}
           text={
-            c.status === 'analiz_ediliyor'
+            isAnalyzing
               ? t('review.workspace.noDraftAnalyzing')
               : needsManualInit
                 ? t('review.workspace.noDraftManual')
