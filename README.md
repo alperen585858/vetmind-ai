@@ -65,7 +65,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 
 | Alan | Durum |
 |------|--------|
-| **Frontend** | Landing, giriş/kayıt, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
+| **Frontend** | Landing, giriş/kayıt, şifremi unuttum / şifre sıfırlama, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
 | **Backend API** | Case / Job / Findings / Report / Review / DICOM / Documents / Auth / RAG / Health |
 | **Quarantine** | Yerel disk `backend/data/quarantine/{ingest_id}/` + SHA256 + `manifest.json`; path sanitization |
 | **DICOM** | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma önerisi + onay; demo fixture: Brain MRI, Cervical MRI, Brain CT, Thorax XR |
@@ -75,7 +75,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **Async analyze** | Thread (varsayılan) veya RQ+Redis; job poll, timeout alanları, cooperative cancel |
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
 | **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
-| **Auth** | Opsiyonel JWT (HS256) + API key + RBAC + klinik/owner izolasyon; protected deployment mode |
+| **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (sahip hemen, veteriner admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik/owner izolasyon; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
 | **Kalıcılık** | memory / SQLite / PostgreSQL JSON(B) — CaseRecord, jobs, ingestions |
 | **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
 | **Remote Vision** | `HttpRemoteVisionModel` + `scripts/mock_vision_server.py` iskeleti |
@@ -92,7 +92,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | PACS / DICOMweb | Yok |
 | OCR | Doküman metin stub |
 | sentence-transformers / Qdrant | Hash embedding + JSON indeks |
-| OAuth / SSO | Demo localStorage + opsiyonel JWT |
+| OAuth / SSO / e-posta doğrulama | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz) |
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
@@ -1198,4 +1198,4 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 ---
 
-*Son güncelleme: 2026-11-02 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5) · DICOM sınıflandırıcı (Türkçe kurallar + LLM) · örnek vakalar*
+*Son güncelleme: 2026-11-13 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5) · DICOM sınıflandırıcı (Türkçe kurallar + LLM) · örnek vakalar · gerçek kullanıcı sistemi (#31) · 404 sayfası (#28)*
