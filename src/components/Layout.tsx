@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { SourcePanel } from './SourcePanel'
+import { PageLoader } from './PageLoader'
 
 const COLLAPSE_KEY = 'vetmind.sidebar.collapsed'
 
@@ -74,7 +75,10 @@ export function Layout() {
           tabIndex={-1}
           className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 print:p-0"
         >
-          <Outlet />
+          {/* Keeps the sidebar and top bar on screen while a page chunk loads. */}
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       <SourcePanel />
