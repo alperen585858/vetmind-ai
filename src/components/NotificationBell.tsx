@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { safeInternalPath } from '../lib/safePath'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Bell, CheckCheck, Loader2, Trash2 } from 'lucide-react'
 import {
@@ -62,7 +63,7 @@ export function NotificationBell() {
       /* ignore */
     }
     setOpen(false)
-    nav(n.link_path || '/')
+    nav(safeInternalPath(n.link_path))
     refresh()
   }
 

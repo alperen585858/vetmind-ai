@@ -1,4 +1,6 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import NotFound from './pages/NotFound'
+import { isKnownAppPath } from './i18n/paths'
 import type { ReactNode } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useApp } from './context/AppContext'
@@ -65,6 +67,18 @@ function dualRoutes(tr: string, en: string, element: ReactNode) {
   ]
 }
 
+/** Signed out: app pages (e.g. a shared case link) still go to the landing page; unknown URLs get a 404. */
+function PublicFallback() {
+  const { pathname } = useLocation()
+  return isKnownAppPath(pathname) ? <Navigate to="/" replace /> : <NotFound variant="public" />
+}
+
+/** Signed in: login/register links (known but public) go to the dashboard; unknown URLs get a 404. */
+function AppFallback() {
+  const { pathname } = useLocation()
+  return isKnownAppPath(pathname) ? <Navigate to="/" replace /> : <NotFound variant="app" />
+}
+
 export default function App() {
   const { role } = useApp()
   return (
@@ -79,7 +93,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           {dualRoutes('/sifremi-unuttum', '/forgot-password', <ForgotPassword />)}
           {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<PublicFallback />} />
         </Routes>
       ) : (
         <Routes>
@@ -159,7 +173,7 @@ export default function App() {
             <Route path="login" element={<Navigate to="/" replace />} />
             <Route path="kayit" element={<Navigate to="/" replace />} />
             <Route path="register" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<AppFallback />} />
           </Route>
         </Routes>
       )}

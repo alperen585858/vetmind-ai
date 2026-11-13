@@ -1,3 +1,4 @@
+import { matchPath } from 'react-router-dom'
 import type { Locale } from './types'
 
 /**
@@ -100,4 +101,17 @@ export const APP_ROUTE_PAIRS: { tr: string; en: string }[] = [
 export const PUBLIC_ROUTE_PAIRS: { tr: string; en: string }[] = [
   { tr: '/giris', en: '/login' },
   { tr: '/kayit', en: '/register' },
+  { tr: '/sifremi-unuttum', en: '/forgot-password' },
+  { tr: '/sifre-sifirla', en: '/reset-password' },
 ]
+
+/** True if ``pathname`` is one of the app's routes (TR or EN), e.g. "/vakalar/case-1". */
+export function isKnownAppPath(pathname: string): boolean {
+  const clean = pathname.split(/[?#]/)[0] || '/'
+  if (clean === '/') return true
+  const patterns = [
+    ...APP_ROUTE_PAIRS.flatMap((p) => [`/${p.tr}`, `/${p.en}`]),
+    ...PUBLIC_ROUTE_PAIRS.flatMap((p) => [p.tr, p.en]),
+  ]
+  return patterns.some((pattern) => matchPath({ path: pattern, end: true }, clean) !== null)
+}
