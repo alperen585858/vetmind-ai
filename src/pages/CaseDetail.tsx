@@ -171,7 +171,9 @@ export default function CaseDetail() {
       setLoadError(null)
       return
     }
-    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak' || c.modality)) {
+    // A list/worklist summary also has modality but no findings: only skip the fetch when the
+    // detail data is already here (otherwise the AI tab stayed on "AI çalışıyor…" forever).
+    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak')) {
       setLoading(false)
       setLoadError(null)
       return
