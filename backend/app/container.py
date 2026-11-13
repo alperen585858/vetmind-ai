@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from app.auth.mailer import build_mailer
+from app.security.rate_limit import RateLimiter
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
@@ -379,3 +380,4 @@ class AppContainer:
             ttl_seconds=self.settings.password_reset_ttl_seconds,
         )
         self.mailer = build_mailer(self.settings)
+        self.rate_limiter = RateLimiter(enabled=self.settings.auth_rate_limit_enabled)

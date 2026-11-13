@@ -111,6 +111,11 @@ class Settings:
     smtp_password: str | None = None
     smtp_from: str = "VetMind <no-reply@vetmind.local>"
     smtp_starttls: bool = True
+    # Issue #31 step 5 — attempt limits on auth endpoints (in-process).
+    auth_rate_limit_enabled: bool = True
+    # Use the first X-Forwarded-For hop as the client IP. Only behind a trusted proxy:
+    # otherwise clients can spoof it to dodge per-IP limits.
+    trust_proxy_headers: bool = False
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
     # Phase 5 — security / privacy / performance
@@ -402,6 +407,8 @@ def load_settings() -> Settings:
     smtp_password = os.getenv("VETMIND_SMTP_PASSWORD") or None
     smtp_from = (os.getenv("VETMIND_SMTP_FROM") or "").strip() or "VetMind <no-reply@vetmind.local>"
     smtp_starttls = _env_bool("VETMIND_SMTP_STARTTLS", True)
+    auth_rate_limit_enabled = _env_bool("VETMIND_AUTH_RATE_LIMIT", True)
+    trust_proxy_headers = _env_bool("VETMIND_TRUST_PROXY_HEADERS", False)
 
     job_backend = os.getenv("VETMIND_JOB_BACKEND", "thread").strip().lower()
     if job_backend not in {"thread", "rq"}:
@@ -556,6 +563,8 @@ def load_settings() -> Settings:
         smtp_password=smtp_password,
         smtp_from=smtp_from,
         smtp_starttls=smtp_starttls,
+        auth_rate_limit_enabled=auth_rate_limit_enabled,
+        trust_proxy_headers=trust_proxy_headers,
         job_backend=job_backend,
         redis_url=redis_url,
         deployment_mode=deployment_mode,
@@ -583,6 +592,9 @@ def load_settings() -> Settings:
     )
 
 
+MIN_PROTECTED_JWT_SECRET_LENGTH = 32
+
+
 def validate_security_settings(settings: Settings) -> None:
     """Fail closed for protected / auth-enabled deployments with insecure defaults."""
     if settings.deployment_mode == "protected" and not settings.auth_enabled:
@@ -599,6 +611,11 @@ def validate_security_settings(settings: Settings) -> None:
     if settings.deployment_mode == "protected" and insecure_secret:
         raise RuntimeError(
             "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
+        )
+    if settings.deployment_mode == "protected" and len(settings.jwt_secret) < MIN_PROTECTED_JWT_SECRET_LENGTH:
+        raise RuntimeError(
+            f"Protected deployment requires VETMIND_JWT_SECRET of at least "
+            f"{MIN_PROTECTED_JWT_SECRET_LENGTH} characters (HS256 key strength)."
         )
     # Refuse fake "encryption enabled" claims — NullEncryptor is passthrough only.
     enc = (settings.encryption_at_rest or "none").strip().lower()

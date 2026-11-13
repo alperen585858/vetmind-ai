@@ -1,6 +1,7 @@
+import math
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
@@ -12,6 +13,16 @@ from app.auth.refresh_tokens import RefreshTokenError
 from app.auth.security import DEMO_USERS, DemoUserRecord, create_access_token, verify_password
 from app.container import AppContainer
 from app.security.audit import AuditOutcome
+from app.security.rate_limit import (
+    FORGOT_PER_EMAIL,
+    FORGOT_PER_IP,
+    LOGIN_PER_EMAIL,
+    LOGIN_PER_IP,
+    PASSWORD_CHANGE_PER_USER,
+    REGISTER_PER_IP,
+    RESET_PER_IP,
+    Limit,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -100,6 +111,45 @@ class MeResponse(BaseModel):
     tenant_isolation: bool = False
 
 
+def _client_ip(request: Request, container: AppContainer) -> str:
+    if container.settings.trust_proxy_headers:
+        first_hop = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if first_hop:
+            return first_hop
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_limits(
+    container: AppContainer,
+    request: Request,
+    actor: str,
+    checks: list[tuple[str, str, Limit]],
+) -> None:
+    """Raise 429 (with Retry-After) if any (scope, key, limit) is already used up."""
+    for scope, key, limit in checks:
+        wait = container.rate_limiter.retry_after(scope, key, limit)
+        if wait is None:
+            continue
+        container.audit.record(
+            event_type="auth.rate_limited",
+            actor=actor or "anonymous",
+            resource=str(request.url.path),
+            outcome=AuditOutcome.DENIED,
+            detail=scope,
+        )
+        minutes = max(1, math.ceil(wait / 60))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many attempts. Try again in {minutes} min.",
+            headers={"Retry-After": str(wait)},
+        )
+
+
+def _hit(container: AppContainer, checks: list[tuple[str, str, Limit]]) -> None:
+    for scope, key, limit in checks:
+        container.rate_limiter.hit(scope, key, limit)
+
+
 @router.get("/status")
 def auth_status(container: AppContainer = Depends(get_container)) -> dict[str, object]:
     return {
@@ -117,11 +167,21 @@ def auth_status(container: AppContainer = Depends(get_container)) -> dict[str, o
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, container: AppContainer = Depends(get_container)) -> TokenResponse:
+def login(
+    payload: LoginRequest,
+    request: Request,
+    container: AppContainer = Depends(get_container),
+) -> TokenResponse:
     users = container.auth.users or DEMO_USERS
     email = payload.email.strip().lower()
+    limits = [
+        ("login_email", email, LOGIN_PER_EMAIL),
+        ("login_ip", _client_ip(request, container), LOGIN_PER_IP),
+    ]
+    _enforce_limits(container, request, email, limits)
     entry = users.get(email)
     if entry is None or not verify_password(payload.password, entry.password):
+        _hit(container, limits)
         container.audit.record(
             event_type="auth.login",
             actor=email,
@@ -137,6 +197,7 @@ def login(payload: LoginRequest, container: AppContainer = Depends(get_container
         outcome=AuditOutcome.SUCCESS,
         clinic_id=entry.clinic_id,
     )
+    container.rate_limiter.reset("login_email", email)
     return _issue_token(container, email=email, entry=entry)
 
 
@@ -218,9 +279,16 @@ def logout(payload: RefreshRequest, container: AppContainer = Depends(get_contai
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, container: AppContainer = Depends(get_container)) -> RegisterResponse:
+def register(
+    payload: RegisterRequest,
+    request: Request,
+    container: AppContainer = Depends(get_container),
+) -> RegisterResponse:
     """Self-service sign-up. Owners get a session at once; vets wait for admin activation."""
     email = payload.email.strip().lower()
+    limits = [("register_ip", _client_ip(request, container), REGISTER_PER_IP)]
+    _enforce_limits(container, request, email, limits)
+    _hit(container, limits)
 
     def _audit(outcome: AuditOutcome, detail: str, clinic_id: str | None = None) -> None:
         container.audit.record(
@@ -280,6 +348,7 @@ _FORGOT_ACCEPTED = "If an account exists for this email, we've sent a link to re
 @router.post("/password/change", response_model=TokenResponse)
 def change_password(
     payload: PasswordChangeRequest,
+    request: Request,
     principal: AuthPrincipal = Depends(require_auth),
     container: AppContainer = Depends(get_container),
 ) -> TokenResponse:
@@ -287,8 +356,11 @@ def change_password(
     if principal.via != "jwt":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sign in with a user account first.")
     email = principal.subject
+    limits = [("password_change_user", email, PASSWORD_CHANGE_PER_USER)]
+    _enforce_limits(container, request, email, limits)
     entry = container.auth.users.get(email) if container.auth.users else None
     if entry is None or not verify_password(payload.current_password, entry.password):
+        _hit(container, limits)
         container.audit.record(
             event_type="auth.password_change",
             actor=email,
@@ -312,10 +384,18 @@ def change_password(
 @router.post("/password/forgot", status_code=status.HTTP_202_ACCEPTED)
 def forgot_password(
     payload: PasswordForgotRequest,
+    request: Request,
     container: AppContainer = Depends(get_container),
 ) -> dict[str, str]:
     """Email a single-use reset link. Same answer whether or not the account exists."""
     email = payload.email.strip().lower()
+    # Applied to every address alike, so a 429 says nothing about whether it is registered.
+    limits = [
+        ("forgot_email", email, FORGOT_PER_EMAIL),
+        ("forgot_ip", _client_ip(request, container), FORGOT_PER_IP),
+    ]
+    _enforce_limits(container, request, email, limits)
+    _hit(container, limits)
     entry = container.auth.users.get(email) if container.auth.users else None
     if entry is not None:
         raw = container.password_resets.issue(email)
@@ -348,9 +428,12 @@ def forgot_password(
 @router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
 def reset_password(
     payload: PasswordResetRequest,
+    request: Request,
     container: AppContainer = Depends(get_container),
 ) -> Response:
     """Set a new password with an emailed token. Ends every existing session."""
+    limits = [("reset_ip", _client_ip(request, container), RESET_PER_IP)]
+    _enforce_limits(container, request, "anonymous", limits)
     weak = password_policy_error(payload.new_password)
     if weak:
         # Checked before the token is consumed, so a weak attempt does not burn the link.
@@ -360,6 +443,7 @@ def reset_password(
         user = container.workflow.set_password(email, payload.new_password)
     except (PasswordResetError, HTTPException) as exc:
         reason = exc.reason if isinstance(exc, PasswordResetError) else "user_inactive"
+        _hit(container, limits)
         container.audit.record(
             event_type="auth.password_reset",
             actor="anonymous",
