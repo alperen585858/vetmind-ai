@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
-import NotFound from './pages/NotFound'
 import { isKnownAppPath } from './i18n/paths'
-import type { ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useApp } from './context/AppContext'
 import { useLocale } from './context/LocaleContext'
@@ -12,33 +11,38 @@ import { Card } from './components/Card'
 import { EmptyState } from './components/EmptyState'
 import { localizePath } from './i18n/paths'
 import type { Role } from './types'
-import Landing from './pages/Landing'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import ForgotPassword from './pages/ForgotPassword'
-import ResetPassword from './pages/ResetPassword'
-import Dashboard from './pages/Dashboard'
-import CaseList from './pages/CaseList'
-import NewCase from './pages/NewCase'
-import DicomUpload from './pages/DicomUpload'
-import Processing from './pages/Processing'
-import CaseDetail from './pages/CaseDetail'
-import RadiologistWorkspace from './pages/RadiologistWorkspace'
-import ExpertAiResend from './pages/ExpertAiResend'
-import ReviewQueue from './pages/ReviewQueue'
-import ReportList from './pages/ReportList'
-import ApprovedReport from './pages/ApprovedReport'
-import Modules from './pages/Modules'
-import KnowledgeBase from './pages/KnowledgeBase'
-import SystemStatus from './pages/SystemStatus'
-import ModelPerformance from './pages/ModelPerformance'
-import AiLessons from './pages/AiLessons'
-import OwnerPets from './pages/OwnerPets'
-import Submissions from './pages/Submissions'
-import Messages from './pages/Messages'
-import AdminUsers from './pages/AdminUsers'
-import AdminRadiologists from './pages/AdminRadiologists'
-import Settings from './pages/Settings'
+import { lazyPage } from './lib/lazyPage'
+import { PageLoader } from './components/PageLoader'
+
+// Each page is its own chunk (issue #25); only the visited page is downloaded.
+const NotFound = lazyPage(() => import('./pages/NotFound'))
+const Landing = lazyPage(() => import('./pages/Landing'))
+const Login = lazyPage(() => import('./pages/Login'))
+const Register = lazyPage(() => import('./pages/Register'))
+const ForgotPassword = lazyPage(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazyPage(() => import('./pages/ResetPassword'))
+const Dashboard = lazyPage(() => import('./pages/Dashboard'))
+const CaseList = lazyPage(() => import('./pages/CaseList'))
+const NewCase = lazyPage(() => import('./pages/NewCase'))
+const DicomUpload = lazyPage(() => import('./pages/DicomUpload'))
+const Processing = lazyPage(() => import('./pages/Processing'))
+const CaseDetail = lazyPage(() => import('./pages/CaseDetail'))
+const RadiologistWorkspace = lazyPage(() => import('./pages/RadiologistWorkspace'))
+const ExpertAiResend = lazyPage(() => import('./pages/ExpertAiResend'))
+const ReviewQueue = lazyPage(() => import('./pages/ReviewQueue'))
+const ReportList = lazyPage(() => import('./pages/ReportList'))
+const ApprovedReport = lazyPage(() => import('./pages/ApprovedReport'))
+const Modules = lazyPage(() => import('./pages/Modules'))
+const KnowledgeBase = lazyPage(() => import('./pages/KnowledgeBase'))
+const SystemStatus = lazyPage(() => import('./pages/SystemStatus'))
+const ModelPerformance = lazyPage(() => import('./pages/ModelPerformance'))
+const AiLessons = lazyPage(() => import('./pages/AiLessons'))
+const OwnerPets = lazyPage(() => import('./pages/OwnerPets'))
+const Submissions = lazyPage(() => import('./pages/Submissions'))
+const Messages = lazyPage(() => import('./pages/Messages'))
+const AdminUsers = lazyPage(() => import('./pages/AdminUsers'))
+const AdminRadiologists = lazyPage(() => import('./pages/AdminRadiologists'))
+const Settings = lazyPage(() => import('./pages/Settings'))
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { role, authMode } = useApp()
@@ -85,6 +89,7 @@ export default function App() {
     <>
       <LocalePathSync />
       {!role ? (
+        <Suspense fallback={<PageLoader fullScreen />}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/giris" element={<Login />} />
@@ -95,7 +100,9 @@ export default function App() {
           {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
           <Route path="*" element={<PublicFallback />} />
         </Routes>
+        </Suspense>
       ) : (
+        <Suspense fallback={<PageLoader fullScreen />}>
         <Routes>
           {/* Emailed reset links work even when this browser is still signed in. */}
           {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
@@ -176,6 +183,7 @@ export default function App() {
             <Route path="*" element={<AppFallback />} />
           </Route>
         </Routes>
+        </Suspense>
       )}
       <Toasts />
     </>
