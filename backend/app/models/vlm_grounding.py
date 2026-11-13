@@ -46,9 +46,19 @@ _SIGNAL_WORDS = re.compile(
 
 _LESION_CODES = re.compile(
     r"(MASS|LESION|TUMOR|TUMOUR|HEMOR|HAEMOR|EDEMA|OEDEMA|INFARCT|HERNIA|"
-    r"FRACTURE|LUXAT|METAST|NODULE|CYST|ABSCESS)",
+    r"FRACTURE|LUXAT|METAST|NODULE|CYST|ABSCESS|"
+    r"VENTRICLE.?DILAT|VENTRICULOMEGAL|HYDROCEPHAL)",
     re.IGNORECASE,
 )
+
+_TECHNIQUE_CODES = re.compile(
+    r"^(IMAGE-QUALITY|REGION-APPEARANCE|ANATOMIC-STRUCTURE|SIGNAL-UNSPECIFIED|"
+    r"VLM-UNSPECIFIED|VLM-FINDING|TECHNIQUE)",
+    re.IGNORECASE,
+)
+
+# Normalized PNG-space area above this is "near full frame" — not a focal lesion locus.
+_NEAR_FULL_BBOX_AREA = 0.85
 
 _ENGLISH_SYSTEM_NOISE = re.compile(
     r"(?im)^\s*(execution_status|source_kind|adapter|chat_model_id|timeout_s|"
@@ -146,6 +156,14 @@ def study_inventory_metadata(
     }
 
 
+def is_technique_finding_code(code: str) -> bool:
+    return bool(_TECHNIQUE_CODES.search((code or "").strip()))
+
+
+def _normalized_bbox_area(x0: float, y0: float, x1: float, y1: float, width: int, height: int) -> float:
+    return max(0.0, (x1 - x0) / width) * max(0.0, (y1 - y0) / height)
+
+
 def _parse_bbox_norm(
     raw: Any,
     *,
@@ -153,10 +171,13 @@ def _parse_bbox_norm(
     height: int | None,
     native_width: int | None = None,
     native_height: int | None = None,
+    reject_near_full: bool = False,
 ) -> BoundingBoxEvidence | None:
     """Parse VLM bbox in PNG space and map to verified native DICOM pixels.
 
     Returns None when transform cannot be verified — callers must not overlay.
+    When ``reject_near_full`` is True, boxes covering ≥85% of the PNG are dropped
+    (pathology must not use full-frame boxes as focal evidence).
     """
     if raw is None or width is None or height is None or width <= 0 or height <= 0:
         return None
@@ -182,6 +203,8 @@ def _parse_bbox_norm(
     # Ignore tiny / empty boxes.
     if (x1 - x0) < 2 or (y1 - y0) < 2:
         return None
+    if reject_near_full and _normalized_bbox_area(x0, y0, x1, y1, width, height) >= _NEAR_FULL_BBOX_AREA:
+        return None
     from app.imaging.vlm_display_transform import native_bbox_from_vlm_png, should_draw_overlay
 
     nw = native_width if native_width is not None else width
@@ -200,6 +223,38 @@ def _parse_bbox_norm(
         return None
     assert verified is not None
     return verified.bbox
+
+
+def bbox_is_near_full_frame(
+    raw: Any,
+    *,
+    width: int | None,
+    height: int | None,
+) -> bool:
+    """True when raw bbox would cover ≥85% of the sent PNG (before native map)."""
+    if raw is None or width is None or height is None or width <= 0 or height <= 0:
+        return False
+    try:
+        if isinstance(raw, dict):
+            keys = ("x_min", "y_min", "x_max", "y_max")
+            if not all(k in raw for k in keys):
+                return False
+            vals = [float(raw[k]) for k in keys]
+        elif isinstance(raw, (list, tuple)) and len(raw) == 4:
+            vals = [float(x) for x in raw]
+        else:
+            return False
+        if all(0.0 <= v <= 1.0 for v in vals):
+            x0, y0, x1, y1 = vals[0] * width, vals[1] * height, vals[2] * width, vals[3] * height
+        else:
+            x0, y0, x1, y1 = vals
+        if x1 < x0:
+            x0, x1 = x1, x0
+        if y1 < y0:
+            y0, y1 = y1, y0
+        return _normalized_bbox_area(x0, y0, x1, y1, width, height) >= _NEAR_FULL_BBOX_AREA
+    except (TypeError, ValueError):
+        return False
 
 
 def resolve_source_frame(item: dict[str, Any], frames: Sequence[SentFrame]) -> SentFrame | None:
@@ -231,6 +286,7 @@ def evidence_for_frame(
     frame: SentFrame | None,
     item: dict[str, Any],
     image_count: int,
+    finding_code: str | None = None,
 ) -> EvidenceReference:
     if frame is None:
         return EvidenceReference(
@@ -242,12 +298,19 @@ def evidence_for_frame(
             evidence_type="overlay",
             note="Ungrounded VLM claim: no verified IMG index.",
         )
+    code = finding_code or str(item.get("finding_code") or "")
+    reject_near_full = not is_technique_finding_code(code)
+    raw_bbox = item.get("bbox_norm") or item.get("bbox")
+    near_full = reject_near_full and bbox_is_near_full_frame(
+        raw_bbox, width=frame.width, height=frame.height
+    )
     bbox = _parse_bbox_norm(
-        item.get("bbox_norm") or item.get("bbox"),
+        raw_bbox,
         width=frame.width,
         height=frame.height,
         native_width=frame.native_width,
         native_height=frame.native_height,
+        reject_near_full=reject_near_full,
     )
     desc_bits = [
         f"IMG-{frame.index}",
@@ -267,7 +330,9 @@ def evidence_for_frame(
         desc_bits.append(
             f"bbox=({bbox.x_min:.0f},{bbox.y_min:.0f})-({bbox.x_max:.0f},{bbox.y_max:.0f}) native-px"
         )
-    elif item.get("bbox_norm") or item.get("bbox"):
+    elif near_full:
+        desc_bits.append("bbox omitted (near-full frame — not focal evidence)")
+    elif raw_bbox:
         desc_bits.append("bbox omitted (transform unverified — no overlay)")
     return EvidenceReference(
         evidence_id=f"{finding_id}-ev-1",
@@ -345,6 +410,36 @@ def harden_finding_fields(
                     + " (MR sekansı katalogda doğrulanamadığı için patolojik yorum belirsiz.)"
                 )
 
+    # Sequence-blind MR: demote dilation/lesion claims even without signal words.
+    if (
+        modality.upper() in {"MR", "MRI"}
+        and _LESION_CODES.search(code)
+        and not is_technique_finding_code(code)
+        and (frame is None or not mr_sequence_known(frame.series_description))
+    ):
+        out["finding_status"] = "uncertain"
+        note = str(out.get("uncertainty_note") or "").strip()
+        if "sekans" not in note.lower():
+            out["uncertainty_note"] = (
+                (note + " " if note else "")
+                + "MR sekansı bilinmeden patoloji iddiası belirsiz bırakıldı."
+            ).strip()
+
+    # Near-full-frame bbox is not focal lesion evidence.
+    raw_bbox = out.get("bbox_norm") or out.get("bbox")
+    if (
+        frame is not None
+        and raw_bbox is not None
+        and not is_technique_finding_code(code)
+        and bbox_is_near_full_frame(raw_bbox, width=frame.width, height=frame.height)
+    ):
+        out["finding_status"] = "uncertain"
+        note = str(out.get("uncertainty_note") or "").strip()
+        out["uncertainty_note"] = (
+            (note + " " if note else "")
+            + "Bbox neredeyse tüm kareyi kaplıyor; odak kanıtı olarak kullanılmadı."
+        ).strip()
+
     # Technique items may omit bbox; pathology without frame stays uncertain.
     if frame is None and status in {"suspected", "possible"} and _LESION_CODES.search(code):
         out["finding_status"] = "uncertain"
@@ -357,7 +452,12 @@ def sanitize_report_prose(text: str) -> str:
     if not text:
         return text
     cleaned = _ENGLISH_SYSTEM_NOISE.sub("", text)
-    # Drop standalone English pipeline crumbs often pasted by models.
+    # Prompt-echoed English boilerplate that leaks into Turkish reports.
+    cleaned = re.sub(
+        r"(?i)\s*AI-suspected highlight\s*\(\s*pending radiologist review\s*\)\s*",
+        " AI şüpheli bulgu (radyolog incelemesi bekliyor) ",
+        cleaned,
+    )
     cleaned = re.sub(
         r"(?i)\b(supportive evidence only|not a final diagnosis|execution_status|"
         r"source_kind\s*=\s*\w+|clinically_validated\s*=\s*\w+)\b[.\s]*",

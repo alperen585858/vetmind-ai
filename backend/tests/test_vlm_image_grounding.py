@@ -294,8 +294,11 @@ def test_sanitize_report_prose_strips_english_labels() -> None:
         "execution_status: success\n"
         "Bulgu mevcut [F1].\n"
         "Supportive evidence only. Değerlendirme belirsiz."
+        " AI-suspected highlight (pending radiologist review) izlendi."
     )
     out = sanitize_report_prose(raw)
     assert "execution_status" not in out.lower()
+    assert "AI-suspected highlight" not in out
+    assert "radyolog incelemesi" in out.lower()
     assert "supportive evidence" not in out.lower()
     assert out.count("Bulgu mevcut") == 1

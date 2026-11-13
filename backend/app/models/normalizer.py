@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from app.models.evidence_validation import validate_evidence_references
 from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
-from app.models.ontology import code_family
+from app.models.ontology import code_family, codes_oppose, is_technique_code
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import ConflictReasonCode, Finding, PotentialConflict, StructuredFindings
 from app.schemas.model_input import ImagingModelInput
@@ -65,75 +65,147 @@ def _conflict_group_key(finding: Finding) -> str:
     return f"loc:{_location_key(finding.anatomical_location)}"
 
 
+def _series_or_location_key(finding: Finding) -> str:
+    """Broader key so opposing codes on different SOPs in one series still meet."""
+    series = _primary_series_uid(finding)
+    if series:
+        return f"series:{series}"
+    return f"loc:{_location_key(finding.anatomical_location)}"
+
+
 def _laterality_opposes(a: str, b: str) -> bool:
     pair = frozenset({a, b})
     return pair in _OPPOSING_LATERALITY
 
 
+def _pathology_findings(group: list[Finding]) -> list[Finding]:
+    return [f for f in group if not is_technique_code(f.finding_code)]
+
+
+def _opposing_code_pairs(group: list[Finding]) -> list[tuple[Finding, Finding]]:
+    pairs: list[tuple[Finding, Finding]] = []
+    for i, a in enumerate(group):
+        for b in group[i + 1 :]:
+            if codes_oppose(a.finding_code, b.finding_code):
+                pairs.append((a, b))
+    return pairs
+
+
+def _append_conflict(
+    conflicts: list[PotentialConflict],
+    *,
+    conflict_id: str,
+    group: list[Finding],
+    group_key: str,
+    reason_codes: list[str],
+    reason_parts: list[str],
+) -> None:
+    reason_codes = list(dict.fromkeys(reason_codes))
+    for finding in group:
+        finding.conflict_group_id = conflict_id
+    loc_key = _location_key(group[0].anatomical_location)
+    conflicts.append(
+        PotentialConflict(
+            conflict_id=conflict_id,
+            finding_ids=[f.finding_id for f in group],
+            anatomical_location_key=loc_key if group_key == f"loc:{loc_key}" else group_key,
+            reason="OLASI ÇELİŞKİ KORUNDU: " + "; ".join(reason_parts),
+            reason_codes=reason_codes,
+            group_key=group_key,
+        )
+    )
+
+
 def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflict]:
     """Generic conflict flags. Findings are never dropped or auto-resolved.
 
-    Grouping uses SOP → series+family → location. Laterality LEFT vs RIGHT is a
-    hard conflict within a group. Cross-family codes conflict; same-family code
-    differences alone are soft (status-driven).
+    Grouping uses SOP → series → location. Laterality LEFT vs RIGHT is a hard
+    conflict. Cross-family pathology codes conflict; TECHNIQUE-only groups do not.
+    Single-adapter opposing ontology pairs are flagged (including across SOPs in
+    the same series).
     """
     by_key: dict[str, list[Finding]] = defaultdict(list)
     for finding in findings:
         by_key[_conflict_group_key(finding)].append(finding)
 
     conflicts: list[PotentialConflict] = []
-    for idx, (group_key, group) in enumerate(sorted(by_key.items())):
+    conflict_idx = 0
+    covered_pairs: set[frozenset[str]] = set()
+
+    for group_key, group in sorted(by_key.items()):
         if len(group) < 2:
             continue
         models = {f.source_model for f in group}
-        codes = {f.finding_code for f in group}
-        families = {code_family(f.finding_code) for f in group}
+        multi = len(models) >= 2
+        pathology = _pathology_findings(group)
+        codes = {f.finding_code for f in pathology} if pathology else {f.finding_code for f in group}
+        families = {code_family(f.finding_code) for f in pathology} if pathology else set()
         statuses = {f.finding_status for f in group}
         lateralities = {f.laterality for f in group}
 
-        if len(models) < 2:
-            # Single-model duplicates are not multi-adapter conflicts.
-            # Exception: opposing laterality still deserves a flag.
-            laterality_clash = any(
-                _laterality_opposes(a.laterality, b.laterality)
-                for i, a in enumerate(group)
-                for b in group[i + 1 :]
-            )
-            if not laterality_clash:
-                continue
-
-        cross_family = len(families) >= 2
-        incompatible_codes = len(codes) >= 2 and cross_family
-        same_family_diff = len(codes) >= 2 and not cross_family
-        opposing_status = FindingStatus.SUSPECTED in statuses and FindingStatus.UNCERTAIN in statuses
-        soft_status = len(statuses) >= 2 and (incompatible_codes or same_family_diff)
         laterality_clash = any(
             _laterality_opposes(a.laterality, b.laterality)
             for i, a in enumerate(group)
             for b in group[i + 1 :]
         )
+        opposing_pairs = _opposing_code_pairs(pathology or group)
+        opposing_codes = bool(opposing_pairs)
+
+        cross_family = len(families) >= 2
+        incompatible_codes = len(codes) >= 2 and cross_family
+        same_family_diff = len(codes) >= 2 and not cross_family and len(families) == 1
+        opposing_status = FindingStatus.SUSPECTED in statuses and FindingStatus.UNCERTAIN in statuses
+        soft_status = multi and len(statuses) >= 2 and (incompatible_codes or same_family_diff)
         same_sop = group_key.startswith("sop:")
 
-        if not (incompatible_codes or opposing_status or soft_status or laterality_clash):
+        # Technique-only groups: only laterality can flag.
+        technique_only = len(pathology) < 2 and not laterality_clash
+        if technique_only and not opposing_codes:
             continue
 
-        conflict_id = f"conflict-{idx + 1}"
-        reason_codes: list[str] = [ConflictReasonCode.MULTI_MODEL.value]
+        if not multi:
+            # Single adapter: laterality, opposing pairs, or cross-family pathology.
+            if not (laterality_clash or opposing_codes or (len(pathology) >= 2 and cross_family)):
+                continue
+
+        if multi and not (
+            incompatible_codes or opposing_status or soft_status or laterality_clash or opposing_codes
+        ):
+            continue
+
+        conflict_idx += 1
+        conflict_id = f"conflict-{conflict_idx}"
+        reason_codes: list[str] = []
         reason_parts: list[str] = []
-        if incompatible_codes:
+        if multi:
+            reason_codes.append(ConflictReasonCode.MULTI_MODEL.value)
+        else:
+            reason_codes.append(ConflictReasonCode.SINGLE_MODEL.value)
+
+        if opposing_codes:
+            reason_codes.append(ConflictReasonCode.OPPOSING_CODES.value)
+            pair_labels = sorted(
+                {f"{a.finding_code}↔{b.finding_code}" for a, b in opposing_pairs}
+            )
+            reason_parts.append(f"zıt kod çiftleri={pair_labels}")
+            for a, b in opposing_pairs:
+                covered_pairs.add(frozenset({a.finding_id, b.finding_id}))
+        if incompatible_codes or (not multi and cross_family and len(pathology) >= 2):
             reason_codes.append(ConflictReasonCode.CROSS_FAMILY.value)
             reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
-            reason_parts.append(f"farklı bulgu kodları={sorted(codes)} aileler={sorted(families)}")
-        elif same_family_diff and (opposing_status or soft_status):
+            reason_parts.append(
+                f"farklı bulgu kodları={sorted(codes)} aileler={sorted(families)}"
+            )
+        elif same_family_diff and (opposing_status or soft_status or opposing_codes):
             reason_codes.append(ConflictReasonCode.DISTINCT_CODES.value)
             reason_parts.append(f"aynı ailede farklı kodlar={sorted(codes)}")
-        if opposing_status or soft_status:
+        if multi and (opposing_status or soft_status):
             reason_codes.append(ConflictReasonCode.OPPOSING_STATUS.value)
             reason_parts.append(f"farklı durumlar={[s.value for s in statuses]}")
         if laterality_clash:
             reason_codes.append(ConflictReasonCode.OPPOSING_LATERALITY.value)
             reason_parts.append(f"zıt taraf (lateralite)={sorted(lateralities)}")
-        if same_sop:
+        if same_sop and multi:
             reason_codes.append(ConflictReasonCode.SAME_SOP_DIVERGENT.value)
         reason_parts.append(f"modeller={sorted(models)}")
         reason_parts.append(f"grup={group_key}")
@@ -141,23 +213,55 @@ def detect_potential_conflicts(findings: list[Finding]) -> list[PotentialConflic
         if series_uids:
             reason_parts.append(f"seriler={sorted(series_uids)}")
 
-        # Deduplicate reason codes while preserving order
-        reason_codes = list(dict.fromkeys(reason_codes))
-
-        for finding in group:
-            finding.conflict_group_id = conflict_id
-
-        loc_key = _location_key(group[0].anatomical_location)
-        conflicts.append(
-            PotentialConflict(
-                conflict_id=conflict_id,
-                finding_ids=[f.finding_id for f in group],
-                anatomical_location_key=loc_key if group_key == f"loc:{loc_key}" else group_key,
-                reason="OLASI ÇELİŞKİ KORUNDU: " + "; ".join(reason_parts),
-                reason_codes=reason_codes,
-                group_key=group_key,
-            )
+        members = pathology if (opposing_codes or cross_family) and pathology else group
+        _append_conflict(
+            conflicts,
+            conflict_id=conflict_id,
+            group=members,
+            group_key=group_key,
+            reason_codes=reason_codes,
+            reason_parts=reason_parts,
         )
+
+    # Second pass: opposing ontology pairs across different SOPs in the same series/location.
+    by_series: dict[str, list[Finding]] = defaultdict(list)
+    for finding in findings:
+        if is_technique_code(finding.finding_code):
+            continue
+        by_series[_series_or_location_key(finding)].append(finding)
+
+    for series_key, group in sorted(by_series.items()):
+        if len(group) < 2:
+            continue
+        for a, b in _opposing_code_pairs(group):
+            pair_ids = frozenset({a.finding_id, b.finding_id})
+            if pair_ids in covered_pairs:
+                continue
+            covered_pairs.add(pair_ids)
+            conflict_idx += 1
+            conflict_id = f"conflict-{conflict_idx}"
+            models = {a.source_model, b.source_model}
+            reason_codes = [
+                ConflictReasonCode.SINGLE_MODEL.value
+                if len(models) == 1
+                else ConflictReasonCode.MULTI_MODEL.value,
+                ConflictReasonCode.OPPOSING_CODES.value,
+                ConflictReasonCode.DISTINCT_CODES.value,
+            ]
+            reason_parts = [
+                f"zıt kod çiftleri={[f'{a.finding_code}↔{b.finding_code}']}",
+                f"modeller={sorted(models)}",
+                f"grup={series_key}",
+            ]
+            _append_conflict(
+                conflicts,
+                conflict_id=conflict_id,
+                group=[a, b],
+                group_key=series_key,
+                reason_codes=reason_codes,
+                reason_parts=reason_parts,
+            )
+
     return conflicts
 
 

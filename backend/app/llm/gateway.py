@@ -128,6 +128,11 @@ def build_generation_input(
         frames_visually_analyzed=(cov.frames_visually_analyzed if cov is not None else None),
         series_total=(cov.series_total if cov is not None else None),
         dicom_files_total=(cov.dicom_files_total if cov is not None else None),
+        conflict_notes=[
+            (c.reason or "").strip()
+            for c in (findings.potential_conflicts or [])
+            if (c.reason or "").strip()
+        ][:6],
         rag_passages=list(rag_passages or []),
         rag_is_clinical_validation=False,
         language=lang,
