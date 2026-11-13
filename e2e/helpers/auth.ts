@@ -24,6 +24,7 @@ export async function loginAsOwner(page: Page) {
 /** Switch demo role via Topbar (also refreshes JWT when backend auth is on). */
 export async function switchRole(page: Page, roleLabel: RegExp | string) {
   await page.getByRole('button', { name: /Rol değiştir/i }).click()
-  await page.getByRole('button', { name: roleLabel }).click()
+  // Role menu entries are listbox options (Topbar), not buttons.
+  await page.getByRole('option', { name: roleLabel }).click()
   await page.waitForURL('/', { timeout: 15_000 })
 }

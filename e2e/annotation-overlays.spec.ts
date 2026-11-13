@@ -72,10 +72,10 @@ test.describe('Annotation overlays (P1.6–P1.9)', () => {
     }
 
     // Verify UI (expert) + export count
-    const verifyBtn = page.getByRole('button', { name: /Verify \(export\)/i }).first()
+    const verifyBtn = page.getByRole('button', { name: /Eğitim için doğrula|Verify for training/i }).first()
     await expect(verifyBtn).toBeVisible({ timeout: 15_000 })
     await verifyBtn.click()
-    await expect(page.getByText(/^Verified/i).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/^(Doğrulandı|Verified)/i).first()).toBeVisible({ timeout: 15_000 })
 
     // Ensure at least one evidence verified via API for deterministic export assert
     await verifyEvidenceViaApi(request, seeded.caseId, seeded.evidenceIds[0]!)

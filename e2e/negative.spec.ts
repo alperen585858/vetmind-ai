@@ -68,7 +68,8 @@ test.describe('Negative browser scenarios', () => {
     await expect(page.getByText(/Veteriner Radyoloji Değerlendirme Raporu/i)).toBeVisible({
       timeout: 25_000,
     })
-    await expect(page.locator('article').getByText(/DEMO\s*\/\s*SENTETİK VERİ/i)).toBeVisible()
+    // The DEMO badge was removed on purpose (f887f85); the synthetic disclaimer lives in the report text.
+    await expect(page.locator('article').getByText(/SENTETİK TASLAK RAPOR/i).first()).toBeVisible()
     await expect(page.locator('article').getByText(new RegExp(patient, 'i'))).toBeVisible()
   })
 
@@ -97,7 +98,7 @@ test.describe('Negative browser scenarios', () => {
     await openDicomUpload(page)
     await loadBrainMriDemo(page)
     await page.getByLabel(/Hasta adı/i).fill(`Timeout-${Date.now().toString(36)}`)
-    await page.locator('label').filter({ hasText: /DICOM verisinin klinik ön değerlendirme/i }).locator('input').check()
+    await page.getByRole('checkbox', { name: /ön değerlendirme/i }).check()
 
     // Allow upload/confirm; stall job polling
     await page.route('**/api/v1/jobs/**', async (route) => {
@@ -120,7 +121,7 @@ test.describe('Negative browser scenarios', () => {
       await route.continue()
     })
 
-    await page.getByRole('button', { name: 'Demo analize devam et' }).click()
+    await page.getByRole('button', { name: /Analize gönder|Demo analize devam et/i }).click()
     await expect(
       page.getByText(/zaman aşımı|timed out|başlatılamadı|timeout|hata/i).first(),
     ).toBeVisible({ timeout: 45_000 })
@@ -191,11 +192,15 @@ test.describe('Expert review reason codes', () => {
     await loginAsExpert(page)
     await openExpertReviewForCase(page, caseId)
     await page.getByRole('button', { name: /^Reddet$/i }).click()
-    await page.getByRole('button', { name: /^Gönder$/i }).click()
-    await expect(page.getByText(/10 karakter|kod/i).first()).toBeVisible({ timeout: 5_000 })
-    await page.getByRole('button', { name: 'Yanlış bulgu' }).click()
-    await page.locator('textarea').last().fill('E2E red gerekçesi — lateralite uyumsuz.')
-    await page.getByRole('button', { name: /^Gönder$/i }).click()
+    // Modal: the confirm button ("Reddet") stays disabled until a reason code + 10 chars.
+    const dialog = page.getByRole('dialog')
+    const confirm = dialog.getByRole('button', { name: /^Reddet$/i })
+    await expect(confirm).toBeDisabled()
+    await expect(dialog.getByText(/10 karakter/i).first()).toBeVisible({ timeout: 5_000 })
+    await dialog.getByRole('button', { name: 'Yanlış bulgu' }).click()
+    await dialog.locator('textarea').last().fill('E2E red gerekçesi — lateralite uyumsuz.')
+    await expect(confirm).toBeEnabled()
+    await confirm.click()
     await expect(page).toHaveURL(/\/kuyruk/, { timeout: 20_000 })
   })
 })
@@ -207,7 +212,7 @@ test.describe('Expert authz', () => {
     await loadBrainMriDemo(page)
     // Ensure classification preview so analyze CTA enables under all layouts
     await page.getByLabel(/Hasta adı/i).fill(`ExpertOK-${Date.now().toString(36)}`)
-    await page.locator('label').filter({ hasText: /DICOM verisinin klinik ön değerlendirme/i }).locator('input').check()
+    await page.getByRole('checkbox', { name: /ön değerlendirme/i }).check()
     const meta = page.getByRole('button', { name: /Demo metadata önizle|Metadata önizle/i }).first()
     if (await meta.isEnabled().catch(() => false)) {
       await meta.click()

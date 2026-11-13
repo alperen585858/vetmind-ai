@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test'
 
 export async function openDicomUpload(page: Page) {
   await page.goto('/dicom-yukle')
-  await expect(page.getByRole('heading', { name: /DICOM Yükleme/i })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: /^DICOM Yükle/i })).toBeVisible({ timeout: 15_000 })
 }
 
 /** Load Brain MRI synthetic fixtures into the viewer (does not analyze yet). */
@@ -28,8 +28,8 @@ export async function navigateSlices(page: Page) {
 
 export async function fillConsentAndPatient(page: Page, patientName: string) {
   await page.getByLabel(/Hasta adı/i).fill(patientName)
-  const consent = page.locator('label').filter({ hasText: /DICOM verisinin klinik ön değerlendirme/i })
-  await consent.locator('input[type="checkbox"]').check()
+  // Consent checkbox by accessible name (wording changed over time; "ön değerlendirme" stays).
+  await page.getByRole('checkbox', { name: /ön değerlendirme/i }).check()
 }
 
 /** Metadata preview → accept suggestion → run mock analysis → land on processing. */
@@ -51,7 +51,7 @@ export async function confirmAndRunDemoAnalysis(page: Page, patientName: string)
     else await page.locator('label').filter({ hasText: 'Öneriyi kabul et' }).locator('input').check()
   }
 
-  const analyzeBtn = page.getByRole('button', { name: 'Demo analize devam et' })
+  const analyzeBtn = page.getByRole('button', { name: /Analize gönder|Demo analize devam et/i })
   await expect(analyzeBtn).toBeEnabled({ timeout: 20_000 })
   await analyzeBtn.click()
   // Deterministic readiness: navigate to processing OR surface a toast error (no sleep).
@@ -69,8 +69,10 @@ export async function confirmAndRunDemoAnalysis(page: Page, patientName: string)
   return caseId
 }
 
+/** Processing page reached its terminal state. (The "DEMO / MOCK ANALYSIS" badge was removed
+ * on purpose in f887f85; demo provenance is checked on the case page instead.) */
 export async function expectMockProcessing(page: Page) {
-  await expect(page.getByText(/DEMO\s*\/\s*MOCK ANALYSIS/i)).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(/Analiz tamamlandı|Analysis complete/i).first()).toBeVisible({ timeout: 20_000 })
 }
 
 /** Canonical expert path: RadiologistWorkspace (/calisma). /inceleme redirects here. */

@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
 test.describe('Demo login and navigation', () => {
   test('login page renders brand and demo credentials', async ({ page }) => {
     await page.goto('/giris')
-    await expect(page.getByRole('heading', { name: 'Hesaba giriş' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('heading', { name: /^Giriş yap$/i })).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('body')).toContainText(/Demo hesaplar|DICOM/i)
   })
 
@@ -39,13 +39,14 @@ test.describe('Logout cleanup signal', () => {
       await email.fill('vet@demo.local')
       await page.getByLabel(/Şifre|Password/i).fill('demo1234')
       await page.getByRole('button', { name: /Giriş|Login|Devam/i }).click()
-      await page.waitForTimeout(800)
+      await page.waitForURL((url) => !url.pathname.endsWith('/giris'), { timeout: 20_000 })
     }
-    // Best-effort logout control
-    const logout = page.getByRole('button', { name: /Çıkış|Logout|Oturumu/i })
-    if (await logout.count()) {
-      await logout.first().click()
-      await expect(page).toHaveURL(/giris|\/$/, { timeout: 10_000 })
-    }
+    // On narrow screens the sidebar (with "Çıkış yap") sits behind the menu button.
+    const menu = page.getByRole('button', { name: /Menüyü aç|Open menu/i })
+    if (await menu.isVisible()) await menu.click()
+    const logout = page.getByRole('button', { name: /Çıkış|Logout|Oturumu/i }).first()
+    await expect(logout).toBeVisible({ timeout: 10_000 })
+    await logout.click()
+    await expect(page).toHaveURL(/giris|\/$/, { timeout: 10_000 })
   })
 })

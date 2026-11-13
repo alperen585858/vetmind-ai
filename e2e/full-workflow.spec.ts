@@ -44,7 +44,7 @@ test.describe('Full clinical workflow (synthetic)', () => {
       timeout: 20_000,
     })
     // Open findings / overview content from backend hydrate
-    await page.getByRole('button', { name: 'Bulgular' }).click()
+    await page.getByRole('tab', { name: /AI Bulguları|Bulgular/i }).or(page.getByRole('button', { name: /^AI Bulguları$/i })).first().click()
     await expect(page.getByText(/mock|SYNTHETIC|sentetik|source_kind/i).first()).toBeVisible({
       timeout: 15_000,
     })
@@ -52,7 +52,8 @@ test.describe('Full clinical workflow (synthetic)', () => {
     // 11. Authorized expert review
     await switchRole(page, 'Uzman Hekim (VRM)')
     await openExpertReviewForCase(page, caseId)
-    await expect(page.getByText(/source_kind=mock|klinik sertifikasyon değildir/i)).toBeVisible()
+    // Demo provenance banner (wording: "Demo çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.")
+    await expect(page.getByText(/Demo çıktı|sertifikasyon iddiası|source_kind=mock/i).first()).toBeVisible()
     await approveReport(page)
 
     // 12. Report version persistence
@@ -69,25 +70,26 @@ test.describe('Full clinical workflow (synthetic)', () => {
     })
     await expect(page.getByText(/DEMO|SENTETİK|SYNTHETIC|MOCK/i).first()).toBeVisible()
     await expect(page.getByText(new RegExp(patientName, 'i')).first()).toBeVisible()
-    await expect(page.getByText(/Sürüm|version|v\d+/i).first()).toBeVisible()
+    // Version picker only appears with >1 version and the "Sürüm:" / DEMO badge lines were
+    // removed on purpose (45da3ec, f887f85): check the report number + synthetic disclaimer instead.
+    await expect(page.getByText(/Rapor No/i).first()).toBeVisible()
 
-    const printBtn = page.getByRole('button', { name: /PDF olarak indir/i })
+    const printBtn = page.getByRole('button', { name: /PDF indir|PDF olarak indir/i })
     await expect(printBtn).toBeEnabled({ timeout: 20_000 })
 
     // Report article provenance (not sidebar "mock veri")
     const article = page.locator('article')
     await expect(article.getByText(/Veteriner Radyoloji Değerlendirme Raporu/i)).toBeVisible()
-    await expect(article.getByText(/Sürüm:/i)).toBeVisible()
-    await expect(article.getByText(/DEMO\s*\/\s*SENTETİK VERİ/i)).toBeVisible()
+    await expect(article.getByText(/Rapor No/i).first()).toBeVisible()
+    await expect(article.getByText(/SENTETİK TASLAK RAPOR/i).first()).toBeVisible()
     await expect(article.getByText(/onay|approved|Review/i).first()).toBeVisible()
 
     // Chromium print stylesheet + PDF generation (window.print stack preserved).
     // Content assertions use the print media DOM; PDF binary may compress text streams.
     await page.emulateMedia({ media: 'print' })
     await expect(article.getByText(/Veteriner Radyoloji Değerlendirme Raporu/i)).toBeVisible()
-    await expect(article.getByText(/DEMO\s*\/\s*SENTETİK VERİ/i)).toBeVisible()
-    await expect(article.getByText(new RegExp(patientName, 'i'))).toBeVisible()
-    await expect(article.getByText(/Sürüm:/i)).toBeVisible()
+    await expect(article.getByText(/SENTETİK TASLAK RAPOR/i).first()).toBeVisible()
+    await expect(article.getByText(new RegExp(patientName, 'i')).first()).toBeVisible()
     const pdf = await page.pdf({ printBackground: true, format: 'A4' })
     expect(pdf.byteLength).toBeGreaterThan(2_000)
     expect(pdf.subarray(0, 5).toString('utf8')).toBe('%PDF-')
