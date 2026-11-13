@@ -1111,6 +1111,24 @@ export async function markReportViewed(caseId: string): Promise<BackendCaseRecor
   return request(`/cases/${caseId}/report/viewed`, { method: 'POST' })
 }
 
+/** Append workspace evidence overlays onto an approved report package (figures only). */
+export async function appendReportFigures(
+  caseId: string,
+  evidenceIds: string[],
+): Promise<BackendCaseRecord> {
+  return request(`/cases/${caseId}/report/figures`, {
+    method: 'POST',
+    body: JSON.stringify({ evidence_ids: evidenceIds }),
+  })
+}
+
+export async function getCaseFindings(
+  caseId: string,
+  signal?: AbortSignal,
+): Promise<BackendFindings | null> {
+  return request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal })
+}
+
 /** Bootstrap blank radiologist draft for failed / unsupported cases (no AI draft). */
 export async function initManualReport(caseId: string): Promise<BackendDraftReport> {
   return request(`/cases/${caseId}/report/manual-init`, { method: 'POST' })
@@ -1851,8 +1869,7 @@ export async function downloadApprovedReportPdf(caseId: string, version?: number
   return res.blob()
 }
 
-/** Working-store overlay PNG for an evidence id (auth required). Caller must revokeObjectURL. */
-export async function fetchEvidenceOverlayObjectUrl(caseId: string, evidenceId: string): Promise<string> {
+function evidenceAuthHeaders(): Headers {
   const headers = new Headers()
   const token = getBackendAccessToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -1861,16 +1878,45 @@ export async function fetchEvidenceOverlayObjectUrl(caseId: string, evidenceId: 
     headers.set('X-VetMind-Demo-Role', session.role)
     headers.set('X-VetMind-Demo-Subject', session.email)
   }
+  return headers
+}
+
+/** Working-store overlay PNG for an evidence id (auth required). Caller must revokeObjectURL. */
+export async function fetchEvidenceOverlayObjectUrl(caseId: string, evidenceId: string): Promise<string> {
   let res: Response
   try {
     res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}`, {
-      headers,
+      headers: evidenceAuthHeaders(),
     })
   } catch {
     throw new BackendUnavailableError()
   }
   if (!res.ok) {
     throw new Error(res.status === 404 ? 'Evidence overlay not found' : `Evidence overlay failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
+/** Immutable approved-report package overlay. Caller must revokeObjectURL. */
+export async function fetchApprovedEvidenceOverlayObjectUrl(
+  caseId: string,
+  version: number,
+  evidenceId: string,
+): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch(
+      `${API_BASE}/cases/${encodeURIComponent(caseId)}/reports/${version}/evidence/${encodeURIComponent(evidenceId)}`,
+      { headers: evidenceAuthHeaders() },
+    )
+  } catch {
+    throw new BackendUnavailableError()
+  }
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404 ? 'Approved evidence overlay not found' : `Approved evidence overlay failed (${res.status})`,
+    )
   }
   const blob = await res.blob()
   return URL.createObjectURL(blob)

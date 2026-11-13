@@ -111,6 +111,12 @@ class RegenerateRequest(BaseModel):
     note: str = Field(min_length=10, max_length=2000, description="What the expert wants changed.")
 
 
+class AppendReportFiguresRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_ids: list[str] = Field(min_length=1, max_length=40)
+
+
 @router.post("/cases/{case_id}/report/regenerate", response_model=CaseRecord)
 def regenerate_report(
     case_id: str,
@@ -120,6 +126,20 @@ def regenerate_report(
 ) -> CaseRecord:
     """Rewrite the AI draft from the expert's revision request (new version, awaiting review)."""
     return service.regenerate_report(case_id, payload.note, payload.reviewer_id, principal=principal)
+
+
+@router.post("/cases/{case_id}/report/figures", response_model=CaseRecord)
+def append_report_figures(
+    case_id: str,
+    payload: AppendReportFiguresRequest,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_REVIEW)),
+) -> CaseRecord:
+    """Append selected evidence overlays to an approved report (additive; text stays frozen)."""
+    return case_for_principal(
+        service.append_report_figures(case_id, payload.evidence_ids, principal=principal),
+        principal,
+    )
 
 
 @router.get("/cases/{case_id}/report/pdf")

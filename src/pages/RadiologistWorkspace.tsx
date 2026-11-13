@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
+import { localizePath } from '../i18n/paths'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -75,7 +76,7 @@ export default function RadiologistWorkspace() {
   const id = canonicalizeCaseId(routeId)
   const nav = useLocalizedNavigate()
   const { getCase, hydrateBackendCase, pushToast, updateCase, removeCase, role } = useApp()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const reasonCodeOptions = useMemo(
     () => [
       { id: 'wrong_finding', label: t('review.workspace.wrongFinding') },
@@ -124,6 +125,8 @@ export default function RadiologistWorkspace() {
   }, [c?.backendFindings?.findings, activeViewerFrame, evidenceFocus, overlaysVisible])
 
   useEffect(() => {
+    // Drop previous case's editor text immediately so Approve can't hit a case with no draft.
+    setText(undefined)
     if (!isBackendCaseId(id)) {
       setHydrating(false)
       return
@@ -132,7 +135,7 @@ export default function RadiologistWorkspace() {
     setHydrating(true)
     void hydrateBackendCase(id).then((mapped) => {
       if (cancelled) return
-      if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
+      setText(mapped?.report ?? mapped?.aiDraft)
       setHydrating(false)
     })
     return () => {
@@ -271,7 +274,11 @@ export default function RadiologistWorkspace() {
   }
   const needsManualInit =
     !text &&
-    (c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz' || c.backendOutcome === 'unsupported' || c.backendOutcome === 'failed')
+    (c.status === 'manuel_inceleme' ||
+      c.status === 'analiz_basarisiz' ||
+      c.backendOutcome === 'unsupported' ||
+      c.backendOutcome === 'failed' ||
+      (!c.backendDraft && c.status !== 'analiz_ediliyor'))
 
   if (!text) {
     return (
@@ -280,9 +287,11 @@ export default function RadiologistWorkspace() {
           icon={<AlertTriangle className="h-6 w-6" />}
           title={t('review.workspace.noDraftTitle')}
           text={
-            needsManualInit
-              ? t('review.workspace.noDraftManual')
-              : t('review.workspace.noDraftDefault')
+            c.status === 'analiz_ediliyor'
+              ? t('review.workspace.noDraftAnalyzing')
+              : needsManualInit
+                ? t('review.workspace.noDraftManual')
+                : t('review.workspace.noDraftDefault')
           }
           action={
             needsManualInit && (c.backendCaseId || c.id).startsWith('case-') ? (
@@ -328,8 +337,14 @@ export default function RadiologistWorkspace() {
   }
 
   const caseRow = c
-  const caseKey = caseRow.backendCaseId || caseRow.id
+  const caseKey = canonicalizeCaseId(caseRow.backendCaseId || caseRow.id)
   const immutable = Boolean(caseRow.backendDraft?.immutable) || caseRow.status === 'onaylandi'
+
+  /** Hard navigate so approve never leaves the user on the worklist/workspace. */
+  function goToApprovedReport(id: string) {
+    const target = localizePath(`/raporlar/${canonicalizeCaseId(id)}`, locale)
+    window.location.assign(target)
+  }
   const validationFailed =
     caseRow.backendDraft?.status === 'validation_failed' ||
     String(caseRow.backendDraft?.status || '').toLowerCase() === 'validation_failed'
@@ -379,51 +394,89 @@ export default function RadiologistWorkspace() {
   async function decide(action: 'approve' | 'reject' | 'request_revision') {
     if (!text || !caseRow) return
     try {
-      if (caseKey.startsWith('case-')) {
+      if (!caseKey.startsWith('case-')) {
+        pushToast({
+          tone: 'error',
+          title: t('review.workspace.toastOpFailed'),
+          body: t('review.workspace.approveNeedsDraft'),
+        })
+        setModal(null)
+        return
+      }
+
+      if (action === 'approve') {
+        const fresh = await hydrateBackendCase(caseKey)
+        if (fresh?.status === 'onaylandi' || fresh?.backendDraft?.immutable) {
+          setModal(null)
+          goToApprovedReport(caseKey)
+          return
+        }
+        if (!fresh?.backendDraft) {
+          setText(fresh?.report ?? fresh?.aiDraft)
+          pushToast({
+            tone: 'error',
+            title: t('review.workspace.toastOpFailed'),
+            body: t('review.workspace.approveNeedsDraft'),
+          })
+          setModal(null)
+          return
+        }
+        const saved = await onSaveDraft({ silent: true })
+        if (!saved) {
+          setModal(null)
+          return
+        }
         await submitBackendReview(caseKey, {
-          action,
+          action: 'approve',
           comment: reason || undefined,
-          reason_codes:
-            action !== 'approve' && reasonCodes.length ? reasonCodes : undefined,
           edited_technique: text.klinikOzet,
           edited_findings: text.bulgular,
           edited_impression: text.degerlendirme,
           edited_recommendations: text.oneriler,
         })
-        const mapped = await hydrateBackendCase(caseKey)
-        if (action === 'request_revision') {
-          await maybeSaveLesson(reason, reasonCodes)
-          if (mapped?.report || mapped?.aiDraft) setText(mapped.report ?? mapped.aiDraft)
-          const history = await listReportVersions(caseKey)
-          setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
-        }
+        await hydrateBackendCase(caseKey)
+        setModal(null)
+        setReason('')
+        setReasonCodes([])
+        // Hard navigation — do not use SPA nav (was leaving users on the worklist).
+        goToApprovedReport(caseKey)
+        return
       }
-      const nextCase = action === 'approve' ? worklistNav.next : null
-      pushToast({
-        tone: action === 'approve' ? 'success' : 'info',
-        title:
-          action === 'approve'
-            ? t('review.workspace.toastApproved')
-            : action === 'reject'
-              ? t('review.workspace.toastRejected')
-              : immutable
-                ? t('review.workspace.toastNewVersionOpened')
-                : t('review.workspace.toastRevisionRequested'),
-        body:
-          action === 'approve' && nextCase
-            ? t('review.workspace.nextCaseOpening')
-            : action === 'request_revision' && immutable
-              ? t('review.workspace.toastApprovedStaysLocked')
-              : undefined,
+
+      await submitBackendReview(caseKey, {
+        action,
+        comment: reason || undefined,
+        reason_codes: reasonCodes.length ? reasonCodes : undefined,
+        edited_technique: text.klinikOzet,
+        edited_findings: text.bulgular,
+        edited_impression: text.degerlendirme,
+        edited_recommendations: text.oneriler,
       })
+      const mapped = await hydrateBackendCase(caseKey)
+      if (action === 'request_revision') {
+        await maybeSaveLesson(reason, reasonCodes)
+        setText(mapped?.report ?? mapped?.aiDraft)
+        const history = await listReportVersions(caseKey)
+        setVersions(history.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status })))
+      }
       setModal(null)
       setReason('')
       setReasonCodes([])
-      if (action === 'approve') {
-        if (nextCase) nav(`/vakalar/${nextCase.case_id}/calisma`)
-        else nav('/kuyruk')
-      } else if (action === 'reject') nav('/kuyruk')
-      // request_revision: stay in workspace so the expert can edit the new mutable version
+      pushToast({
+        tone: 'info',
+        title:
+          action === 'reject'
+            ? t('review.workspace.toastRejected')
+            : immutable
+              ? t('review.workspace.toastNewVersionOpened')
+              : t('review.workspace.toastRevisionRequested'),
+        body:
+          action === 'request_revision' && immutable
+            ? t('review.workspace.toastApprovedStaysLocked')
+            : undefined,
+      })
+      if (action === 'reject') nav('/kuyruk')
+      // request_revision: stay in workspace
     } catch (err) {
       pushToast({
         tone: 'error',
