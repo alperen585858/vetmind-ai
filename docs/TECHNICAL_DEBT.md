@@ -41,7 +41,7 @@
 | TD-32 | KMS encryption at rest | Goal B |
 | TD-33 | Real malware signatures | Goal B |
 | TD-34 | OIDC / SSO | Goal B |
-| TD-35 | App Dockerfile / K8s deploy | After CI stabilizes |
+| TD-35 | App Dockerfile / K8s deploy | Dockerfiles + root `docker compose up` done (#29); K8s / registry publishing still open |
 | TD-36 | Prometheus / OpenTelemetry | Observability backlog |
 
 ## Explicit non-debt (do not “rebuild”)
@@ -64,3 +64,4 @@ Working modules that must not be duplicated:
 | 2026-11-09 | Phase 1: CI + Register/provenance/mock honesty mitigations |
 | 2026-11-09 | Phase 2–4: export ops, CPU train contract, protected-demo runbook |
 | 2026-11-13 | #31: server-side accounts (scrypt), refresh rotation, password reset, rate limits; TD-03 resolved, TD-01 note updated |
+| 2026-11-13 | #29: backend/web Dockerfiles and root docker-compose.yml (TD-35 partly) |
