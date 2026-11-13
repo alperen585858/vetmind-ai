@@ -188,7 +188,10 @@ def test_vlm_maps_response_and_reads_dicom(tmp_path: Path, monkeypatch: pytest.M
     assert out.source_model_id == "vlm-vision-v1"
     assert out.execution_status == ModelExecutionStatus.SUCCESS
     assert len(out.findings) == 1
-    assert out.findings[0].finding_status == FindingStatus.SUSPECTED
+    # The test DICOM has no T1/T2 series description: the sequence-blind MR rule
+    # (vlm_grounding, 4eb4d96) demotes the model's "suspected" lesion to uncertain.
+    assert out.findings[0].finding_status == FindingStatus.UNCERTAIN
+    assert "sekans" in (out.findings[0].uncertainty_note or "").lower()
     assert out.findings[0].synthetic is False
     assert out.processing_metadata["images_sent"] == "1"
 
