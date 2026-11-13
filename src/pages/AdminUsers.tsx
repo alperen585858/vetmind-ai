@@ -8,6 +8,14 @@ import { useLocale } from '../context/LocaleContext'
 import { createManagedUser, listManagedUsers, updateManagedUser } from '../lib/backend'
 import type { BackendManagedUser } from '../types'
 
+/** Active accounts in these roles must belong to a clinic (the backend enforces it). */
+const CLINIC_REQUIRED_ROLES = new Set(['vet', 'expert', 'clinic_owner'])
+const DEFAULT_CLINIC = 'clinic-demo-a'
+
+function needsClinicToActivate(u: BackendManagedUser): boolean {
+  return !u.active && CLINIC_REQUIRED_ROLES.has(u.role) && !u.clinic_id
+}
+
 export default function AdminUsers() {
   const { t } = useLocale()
   const [users, setUsers] = useState<BackendManagedUser[]>([])
@@ -16,8 +24,11 @@ export default function AdminUsers() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('demo1234')
   const [role, setRole] = useState('vet')
-  const [clinic, setClinic] = useState('clinic-demo-a')
+  const [clinic, setClinic] = useState(DEFAULT_CLINIC)
   const [saving, setSaving] = useState(false)
+  // Clinic typed per pending row (self-registered vets have none until an admin assigns it).
+  const [activationClinic, setActivationClinic] = useState<Record<string, string>>({})
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -49,6 +60,24 @@ export default function AdminUsers() {
       setError(e instanceof Error ? e.message : t('admin.createFail'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const onToggleActive = async (u: BackendManagedUser) => {
+    setUpdating(u.email)
+    setError(null)
+    try {
+      if (needsClinicToActivate(u)) {
+        const clinicId = (activationClinic[u.email] ?? DEFAULT_CLINIC).trim()
+        await updateManagedUser(u.email, { active: true, clinic_id: clinicId })
+      } else {
+        await updateManagedUser(u.email, { active: !u.active })
+      }
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.updateFail'))
+    } finally {
+      setUpdating(null)
     }
   }
 
@@ -118,15 +147,41 @@ export default function AdminUsers() {
                     <tr key={u.email}>
                       <td className="td text-sm">{u.email}</td>
                       <td className="td text-xs font-mono">{u.role}</td>
-                      <td className="td text-xs">{u.clinic_id || t('common.dash')}</td>
-                      <td className="td text-xs">{u.active ? t('admin.activeStaff') : t('admin.inactiveStaff')}</td>
+                      <td className="td text-xs">
+                        {needsClinicToActivate(u) ? (
+                          <input
+                            className="input h-8 w-36 text-xs"
+                            aria-label={`${t('admin.clinicToActivate')}: ${u.email}`}
+                            placeholder={DEFAULT_CLINIC}
+                            value={activationClinic[u.email] ?? DEFAULT_CLINIC}
+                            onChange={(e) =>
+                              setActivationClinic((prev) => ({ ...prev, [u.email]: e.target.value }))
+                            }
+                          />
+                        ) : (
+                          u.clinic_id || t('common.dash')
+                        )}
+                      </td>
+                      <td className="td text-xs">
+                        {needsClinicToActivate(u) ? (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+                            {t('admin.pendingApproval')}
+                          </span>
+                        ) : u.active ? (
+                          t('admin.activeStaff')
+                        ) : (
+                          t('admin.inactiveStaff')
+                        )}
+                      </td>
                       <td className="td">
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() =>
-                            void updateManagedUser(u.email, { active: !u.active }).then(load)
+                          disabled={
+                            updating === u.email ||
+                            (needsClinicToActivate(u) && !(activationClinic[u.email] ?? DEFAULT_CLINIC).trim())
                           }
+                          onClick={() => void onToggleActive(u)}
                         >
                           {u.active ? t('admin.deactivate') : t('admin.activate')}
                         </Button>

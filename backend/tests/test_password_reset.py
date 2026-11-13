@@ -273,3 +273,38 @@ def test_smtp_failure_does_not_raise() -> None:
     )
     mailer.send(OutgoingMail("a@b.co", "Reset", "body"))  # connection refused → logged, not raised
     assert len(mailer.outbox) == 1
+
+
+def test_forgot_does_the_same_work_before_answering_for_any_address(tmp_path: Path) -> None:
+    """Timing: account lookup, token and email all run after the response is sent."""
+    from fastapi import BackgroundTasks
+    from starlette.requests import Request
+
+    from app.api.auth import PasswordForgotRequest, _send_reset_link, forgot_password
+
+    _, container = _app(tmp_path)
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/auth/password/forgot",
+            "headers": [],
+            "query_string": b"",
+            "client": ("192.0.2.10", 5000),
+            "server": ("test", 80),
+            "scheme": "http",
+        }
+    )
+    scheduled = {}
+    for email in ("vet@demo.local", "nobody@nowhere.test"):
+        background = BackgroundTasks()
+        body = forgot_password(PasswordForgotRequest(email=email), request, background, container)
+        assert len(container.mailer.outbox) == 0  # nothing sent before the response
+        assert [t.func for t in background.tasks] == [_send_reset_link]
+        scheduled[email] = (body, background)
+    assert scheduled["vet@demo.local"][0] == scheduled["nobody@nowhere.test"][0]
+
+    for _, background in scheduled.values():
+        for task in background.tasks:
+            task.func(*task.args, **task.kwargs)
+    assert [m.to for m in container.mailer.outbox] == ["vet@demo.local"]

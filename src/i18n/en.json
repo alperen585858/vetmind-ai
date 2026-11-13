@@ -1712,7 +1712,10 @@
     "activeStaff": "active",
     "inactiveStaff": "inactive",
     "evalCasesSubtitle": "{set} · {n} cases{repeats} · prompt {prompt} · {file}",
-    "evalRepeats": " × {r} repeats"
+    "evalRepeats": " × {r} repeats",
+    "pendingApproval": "Awaiting approval",
+    "clinicToActivate": "Clinic to activate",
+    "updateFail": "Could not update"
   },
   "notifications": {
     "title": "Notifications",

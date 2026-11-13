@@ -1,7 +1,7 @@
 import math
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
@@ -385,9 +385,12 @@ def change_password(
 def forgot_password(
     payload: PasswordForgotRequest,
     request: Request,
+    background: BackgroundTasks,
     container: AppContainer = Depends(get_container),
 ) -> dict[str, str]:
-    """Email a single-use reset link. Same answer whether or not the account exists."""
+    """Email a single-use reset link. Same answer, and same work before answering, whether
+    or not the account exists: the lookup and the (possibly slow) email run after the
+    response is sent, so response time does not reveal registered addresses."""
     email = payload.email.strip().lower()
     # Applied to every address alike, so a 429 says nothing about whether it is registered.
     limits = [
@@ -396,6 +399,11 @@ def forgot_password(
     ]
     _enforce_limits(container, request, email, limits)
     _hit(container, limits)
+    background.add_task(_send_reset_link, container, email)
+    return {"detail": _FORGOT_ACCEPTED}
+
+
+def _send_reset_link(container: AppContainer, email: str) -> None:
     entry = container.auth.users.get(email) if container.auth.users else None
     if entry is not None:
         raw = container.password_resets.issue(email)
@@ -422,7 +430,6 @@ def forgot_password(
         outcome=AuditOutcome.INFO,
         detail="link_sent" if entry is not None else "no_active_account",
     )
-    return {"detail": _FORGOT_ACCEPTED}
 
 
 @router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
