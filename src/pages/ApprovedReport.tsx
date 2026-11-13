@@ -22,6 +22,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
 import { Logo } from '../components/Logo'
+import { ApprovedReportFigures } from '../components/ApprovedReportFigures'
 import { ReportRevisionSimple } from '../components/ReportRevisionSimple'
 import {
   downloadApprovedReportPdf,
@@ -73,8 +74,9 @@ export default function ApprovedReport() {
     setLoading(true)
     setLoadError(null)
     void (async () => {
-      const mapped =
-        base?.fromBackend && canExportApprovedReport(base) ? base : await hydrateBackendCase(id)
+      // Always re-fetch after approve navigation so we don't flash "not approved yet"
+      // from a stale in-memory case row.
+      const mapped = await hydrateBackendCase(id)
       if (cancelled) return
       if (!mapped) {
         setLoadError(t('reports.loadFailedHint'))
@@ -576,6 +578,35 @@ export default function ApprovedReport() {
             ))
           )}
         </section>
+
+        <ApprovedReportFigures
+          caseId={c.backendCaseId || c.id}
+          version={Number(c.backendDraft?.version ?? currentVer ?? 1)}
+          figures={c.backendDraft?.evidence_figures}
+          canAdd={
+            Boolean(c.fromBackend) &&
+            (role === 'expert' || role === 'admin') &&
+            (selectedVersion == null ||
+              selectedVersion === (base?.currentReportVersion ?? base?.backendDraft?.version))
+          }
+          onFiguresAdded={async () => {
+            const mapped = await hydrateBackendCase(id)
+            if (mapped) updateCase(mapped.id, mapped)
+            if (selectedVersion != null && Number.isFinite(selectedVersion)) {
+              try {
+                const snap = await getReportVersion(id, selectedVersion)
+                setVersionDraft(snap.content)
+              } catch {
+                /* keep prior draft */
+              }
+            }
+            pushToast({
+              tone: 'success',
+              title: 'Fotoğraflar eklendi',
+              body: 'Seçilen kanıt görselleri onaylı rapora eklendi. PDF’i yeniden indirin.',
+            })
+          }}
+        />
 
         <footer className="border-t border-slate-200 bg-slate-50/70 px-8 py-5 print:bg-white">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

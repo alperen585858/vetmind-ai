@@ -519,6 +519,20 @@ export interface BackendDraftReport {
   immutable?: boolean
   revision_notes?: string | null
   reviewed_by?: string | null
+  /** Frozen at approve: selected overlays embedded in the approved PDF package. */
+  evidence_figures?: BackendReportEvidenceFigure[]
+}
+
+export interface BackendReportEvidenceFigure {
+  finding_id: string
+  evidence_id: string
+  origin?: 'ai_proposed' | 'vet_manual'
+  overlay_ref: string
+  overlay_content_sha256?: string
+  caption?: string
+  disclaimer?: string
+  sop_instance_uid?: string | null
+  frame_index?: number | null
 }
 
 export interface BackendReportVersionSummary {

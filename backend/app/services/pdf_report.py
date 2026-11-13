@@ -133,11 +133,34 @@ def _is_raster_bytes(data: bytes) -> bool:
     return data[:8] == b"\x89PNG\r\n\x1a\n" or data[:2] == b"\xff\xd8"
 
 
+# Match ApprovedReport / caseMapper display labels (not classifier lowercase maps).
+_SPECIES_UI = {Species.CANINE: "Köpek", Species.FELINE: "Kedi", Species.OTHER: "Diğer"}
+_REGION_UI = {
+    AnatomicalRegion.BRAIN: "Beyin",
+    AnatomicalRegion.CERVICAL: "Servikal",
+    AnatomicalRegion.THORAX: "Toraks",
+    AnatomicalRegion.OTHER: "Diğer",
+    AnatomicalRegion.UNKNOWN: "Bilinmiyor",
+}
+
+# Same strings as src/i18n/tr.json → reports / sections (keep PDF ↔ screen in sync).
+_SECTION_LABELS = (
+    ("technique", "Teknik / Klinik özet"),
+    ("findings", "Bulgular (Findings)"),
+    ("impression", "Yorum / İzlenim (Interpretation & Impression)"),
+    ("recommendations", "Öneriler (Recommendations)"),
+)
+_DISCLAIMER_TR = (
+    "Bu rapor AI destekli taslak içerir; nihai klinik sorumluluk onaylayan uzmana aittir."
+)
+_PARTNER_TR = "VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle"
+
+
 def _species_label(case: CaseRecord) -> str:
     raw = case.species
     try:
         sp = raw if isinstance(raw, Species) else Species(str(raw).strip().lower())
-        return SPECIES_TR.get(sp, str(getattr(raw, "value", raw)))
+        return _SPECIES_UI.get(sp, SPECIES_TR.get(sp, str(getattr(raw, "value", raw))))
     except Exception:
         return str(getattr(raw, "value", raw))
 
@@ -146,7 +169,7 @@ def _region_label(case: CaseRecord) -> str:
     raw = case.anatomical_region
     try:
         reg = raw if isinstance(raw, AnatomicalRegion) else AnatomicalRegion(str(raw).strip().lower())
-        return REGION_TR.get(reg, str(getattr(raw, "value", raw)))
+        return _REGION_UI.get(reg, REGION_TR.get(reg, str(getattr(raw, "value", raw))))
     except Exception:
         return str(getattr(raw, "value", raw))
 
@@ -288,6 +311,25 @@ def collect_report_image_pngs(
     return out
 
 
+def _fmt_dt(value: Any) -> str:
+    if value is None:
+        return "—"
+    try:
+        return value.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return str(value)
+
+
+def _delivery_label(case: CaseRecord) -> str:
+    if case.report_viewed_at:
+        return f"Görüldü · {_fmt_dt(case.report_viewed_at)}"
+    if case.report_delivered_at:
+        return f"İletildi · {_fmt_dt(case.report_delivered_at)}"
+    if case.report_available_at:
+        return "Hazır"
+    return "—"
+
+
 def build_approved_report_pdf(
     case: CaseRecord,
     report: DraftReport | ReportVersionSnapshot,
@@ -295,7 +337,10 @@ def build_approved_report_pdf(
     quarantine: Any | None = None,
     evidence_root: Path | None = None,
 ) -> bytes:
-    """Build a PDF that reads like a clinical radiology report, with study images when available."""
+    """Build a PDF that mirrors the ApprovedReport page (same sections + rapor görselleri)."""
+    # quarantine retained for API compatibility; study mosaic is intentionally omitted
+    # so downloaded PDF matches the on-screen approved report.
+    _ = quarantine
     font = _resolve_font()
     buf = BytesIO()
     doc = SimpleDocTemplate(
@@ -315,48 +360,37 @@ def build_approved_report_pdf(
         fontSize=15,
         alignment=TA_CENTER,
         textColor=colors.HexColor("#0f172a"),
-        spaceAfter=4,
+        spaceAfter=2,
     )
-    clinic = ParagraphStyle(
-        "Clinic",
+    sub = ParagraphStyle(
+        "Sub",
         parent=styles["Normal"],
         fontName=font,
         fontSize=9,
         alignment=TA_CENTER,
-        textColor=colors.HexColor("#475569"),
-        spaceAfter=10,
+        textColor=colors.HexColor("#64748b"),
+        spaceAfter=2,
     )
     h2 = ParagraphStyle(
         "H2",
         parent=styles["Heading2"],
         fontName=font,
-        fontSize=11,
+        fontSize=10,
         textColor=colors.HexColor("#0f766e"),
-        spaceBefore=6,
+        spaceBefore=8,
         spaceAfter=3,
     )
-    body = ParagraphStyle("B", parent=styles["Normal"], fontName=font, fontSize=10, leading=14, alignment=TA_LEFT)
-    caption = ParagraphStyle("Cap", parent=styles["Normal"], fontName=font, fontSize=8, alignment=TA_CENTER, textColor=colors.HexColor("#64748b"))
-
-    if isinstance(report, ReportVersionSnapshot):
-        content = report.content
-        reviewed_by = report.reviewed_by or content.reviewed_by
-        approved_at = report.updated_at or report.created_at
-        report_no = f"{case.case_id.replace('case-', 'VMR-').upper()}"
-    else:
-        content = report
-        reviewed_by = report.reviewed_by
-        approved_at = report.updated_at
-        report_no = f"{case.case_id.replace('case-', 'VMR-').upper()}"
-
-    referring = case.referring_clinic or case.clinic_id or "Veteriner Radyoloji"
-    story: list = [
-        Paragraph("Veteriner Radyoloji Değerlendirme Raporu", title),
-        Paragraph(_esc(referring), clinic),
-    ]
-
-    clinically_validated = bool(getattr(content, "clinically_validated", False))
-    approver = _approver_display(reviewed_by, clinically_validated=clinically_validated)
+    body = ParagraphStyle(
+        "B", parent=styles["Normal"], fontName=font, fontSize=10, leading=14, alignment=TA_LEFT
+    )
+    caption = ParagraphStyle(
+        "Cap",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=8,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#64748b"),
+    )
     meta_label = ParagraphStyle(
         "MetaLabel",
         parent=styles["Normal"],
@@ -373,14 +407,54 @@ def build_approved_report_pdf(
         textColor=colors.HexColor("#0f172a"),
         leading=12,
     )
+    section_head = ParagraphStyle(
+        "SecHead",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=9,
+        textColor=colors.HexColor("#0f766e"),
+        spaceBefore=2,
+        spaceAfter=2,
+    )
+
+    if isinstance(report, ReportVersionSnapshot):
+        content = report.content
+        reviewed_by = report.reviewed_by or content.reviewed_by
+        approved_at = report.updated_at or report.created_at
+        version = int(report.version)
+    else:
+        content = report
+        reviewed_by = report.reviewed_by
+        approved_at = report.updated_at
+        version = int(report.version)
+
+    report_no = case.case_id.replace("case-", "VMR-").upper()
+    case_no = case.case_id.replace("case-", "VM-").upper()
+    # Match screen: plain reviewer name (no demo suffix) in the printable document.
+    approver = (reviewed_by or "").strip() or "—"
+    clinic = case.referring_clinic or case.clinic_id or "—"
+    breed = (case.breed or "").strip() or "—"
+    species_breed = f"{_species_label(case)} · {breed}"
+    review_status = f"Onaylandı · {approver}" if reviewed_by else "Onaylandı"
+
+    story: list = [
+        Paragraph("Veteriner Radyoloji Değerlendirme Raporu", title),
+        Paragraph(_esc(f"Rapor No: {report_no}"), sub),
+        Paragraph(_esc(f"Vaka No: {case_no} · v{version}"), sub),
+        Spacer(1, 6),
+    ]
+
     info_rows = [
-        ["Hasta", _patient_line(case)],
-        ["Tür", _species_label(case)],
-        ["Modalite / Bölge", f"{case.modality.value} · {_region_label(case)}"],
-        ["Rapor No", report_no],
-        ["Vaka No", case.case_id.replace("case-", "VM-").upper()],
-        ["Onaylayan", approver],
-        ["Onay tarihi", approved_at.strftime("%d.%m.%Y %H:%M") if approved_at else "—"],
+        ["Ad", case.patient_name or "—"],
+        ["Tür / Irk", species_breed],
+        ["Klinik", clinic],
+        ["Modalite", str(getattr(case.modality, "value", case.modality) or "—")],
+        ["Bölge", _region_label(case)],
+        ["Başvuru", _fmt_dt(case.created_at)],
+        ["İnceleme", review_status],
+        ["Radyolog", approver],
+        ["Onay tarihi", _fmt_dt(approved_at)],
+        ["Teslimat", _delivery_label(case)],
     ]
     info = [
         [Paragraph(_esc(label), meta_label), Paragraph(_esc(value), meta_value)]
@@ -398,109 +472,41 @@ def build_approved_report_pdf(
         )
     )
     story.append(table)
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
 
-    coverage = getattr(getattr(case, "structured_findings", None), "analysis_coverage", None)
-    if coverage is not None:
-        if hasattr(coverage, "finalize"):
-            coverage = coverage.finalize()
-        if hasattr(coverage, "summary_lines_tr"):
-            cov_lines = list(coverage.summary_lines_tr())
+    # Same four sections as printSectionsForCase — skip empty bodies.
+    rendered_any = False
+    for attr, label in _SECTION_LABELS:
+        section = getattr(content, attr, None)
+        text = (getattr(section, "text", None) or "").strip()
+        if not text:
+            continue
+        rendered_any = True
+        # Match ApprovedReport section titles (screen uses CSS uppercase).
+        heading = Paragraph(_esc(label), section_head)
+        body_para = Paragraph(_esc(text).replace("\n", "<br/>"), body)
+        if len(text) < 700:
+            story.append(KeepTogether([heading, body_para]))
         else:
-            cov_lines = [
-                (
-                    f"tespit {getattr(coverage, 'frames_detected', 0)} · "
-                    f"decode {getattr(coverage, 'frames_decoded', 0)} · "
-                    f"görsel analiz {getattr(coverage, 'frames_visually_analyzed', 0)}"
-                )
-            ]
-        skipped_files = list(getattr(coverage, "skipped_files", None) or [])
-        if skipped_files:
-            sample = "; ".join(
-                f"{getattr(s, 'path', s)} ({getattr(s, 'reason', '')})"
-                for s in skipped_files[:5]
-            )
-            cov_lines.append(f"Atlanan dosyalar: {sample}")
-        story.append(Paragraph("Analiz kapsamı", h2))
-        story.append(
-            Paragraph(
-                "<br/>".join(_esc(line) for line in cov_lines),
-                body,
-            )
-        )
-        story.append(Spacer(1, 4))
-
-    images = collect_report_image_pngs(case, quarantine)
-    if images:
-        story.append(Paragraph("Görüntüler", h2))
-        flowables: list[tuple[Image, Paragraph]] = []
-        for label, png in images:
-            img = _image_flowable(png, max_edge_mm=64)
-            if img is None:
-                continue
-            flowables.append((img, Paragraph(_esc(label), caption)))
-        for i in range(0, len(flowables), 2):
-            chunk = flowables[i : i + 2]
-            if len(chunk) == 2:
-                story.append(
-                    Table(
-                        [[chunk[0][0], chunk[1][0]], [chunk[0][1], chunk[1][1]]],
-                        colWidths=[85 * mm, 85 * mm],
-                    )
-                )
-            else:
-                story.append(
-                    KeepTogether([chunk[0][0], Spacer(1, 2), chunk[0][1]])
-                )
-            story.append(Spacer(1, 3))
-
-    sections = [
-        ("Teknik", content.technique.text),
-        ("Bulgular", content.findings.text),
-        ("Yorum / Değerlendirme", content.impression.text),
-        ("Öneriler", content.recommendations.text),
-    ]
-    for label, text in sections:
-        body_para = Paragraph(_esc(text).replace("\n", "<br/>") or "—", body)
-        # Keep heading with body only when short — long KeepTogether causes large page gaps.
-        if len(text or "") < 700:
-            story.append(KeepTogether([Paragraph(label, h2), body_para]))
-        else:
-            story.append(Paragraph(label, h2))
+            story.append(heading)
             story.append(body_para)
+    if not rendered_any:
+        story.append(Paragraph(_esc("Rapor gövdesi boş."), body))
 
-    legend = _citation_legend_lines(content)
-    if legend:
-        story.append(Paragraph("Atıf açıklaması (F# / S#)", h2))
-        story.append(
-            Paragraph(
-                _esc(
-                    "Rapor metnindeki [F#] görüntüleme bulgularına, [S#] literatür pasajlarına "
-                    "atıftır. Bunlar kesin tanı değildir."
-                ),
-                caption,
-            )
-        )
-        story.append(Paragraph("<br/>".join(_esc(line) for line in legend), body))
-
-    # Immutable AI / vet evidence figures (only those frozen into the report package).
     figures = list(getattr(content, "evidence_figures", None) or [])
-    if figures:
-        story.append(Paragraph("Görüntü kanıtı (AI önerisi)", h2))
+    story.append(Paragraph("Rapor görselleri", h2))
+    if not figures:
         story.append(
             Paragraph(
                 _esc(
-                    "Uzman radyoloğun seçtiği yerelleştirme katmanları. "
-                    "Destekleyici kanıttır; kesin tanı değildir. "
-                    "AI işaretleri radyolog onayına kadar şüpheli kabul edilir."
+                    "Onay öncesi workspace’te kabul edilip PDF’e eklenen kanıt görselleri burada görünür."
                 ),
                 caption,
             )
         )
+    else:
         root = evidence_root
-        if root is None and quarantine is not None:
-            root = quarantine.root
-        for fig in figures[:8]:
+        for fig in figures:
             fig_bits: list = []
             png: bytes | None = None
             if root is not None and fig.overlay_ref:
@@ -517,17 +523,20 @@ def build_approved_report_pdf(
                 and hashlib.sha256(png).hexdigest() != fig.overlay_content_sha256
             )
             if tampered:
-                # The frozen figure no longer matches what the radiologist approved.
                 png = None
                 fig_bits.append(
-                    Paragraph(_esc("Kanıt görseli bütünlük kontrolünden geçmedi; gösterilmiyor."), caption)
+                    Paragraph(
+                        _esc("Kanıt görseli bütünlük kontrolünden geçmedi; gösterilmiyor."),
+                        caption,
+                    )
                 )
             if png:
                 img = _image_flowable(png)
                 if img is not None:
                     fig_bits.append(img)
             fig_bits.append(Paragraph(_esc(fig.caption or fig.evidence_id), caption))
-            fig_bits.append(Paragraph(_esc(fig.disclaimer), caption))
+            if fig.disclaimer:
+                fig_bits.append(Paragraph(_esc(fig.disclaimer), caption))
             fig_bits.append(Spacer(1, 4))
             story.append(KeepTogether(fig_bits))
 
@@ -537,7 +546,7 @@ def build_approved_report_pdf(
             [
                 Paragraph(f"<b>Onaylayan uzman</b><br/>{_esc(approver)}", body),
                 Paragraph(
-                    f"<b>Onay tarihi</b><br/>{_esc(approved_at.strftime('%d.%m.%Y %H:%M') if approved_at else '—')}",
+                    f"<b>Onay tarihi</b><br/>{_esc(_fmt_dt(approved_at))}",
                     ParagraphStyle("Right", parent=body, alignment=TA_RIGHT),
                 ),
             ]
@@ -555,8 +564,8 @@ def build_approved_report_pdf(
     )
     story.append(sign)
 
-    collab = ParagraphStyle(
-        "Collab",
+    footer = ParagraphStyle(
+        "Footer",
         parent=styles["Normal"],
         fontName=font,
         fontSize=7.5,
@@ -565,12 +574,8 @@ def build_approved_report_pdf(
         spaceBefore=2,
     )
     story.append(Spacer(1, 6))
-    story.append(
-        Paragraph(
-            "VRM Görüntüleme ve Veteriner Sağlık Hizmetleri Tic. A.Ş. işbirliğiyle",
-            collab,
-        )
-    )
+    story.append(Paragraph(_esc(_DISCLAIMER_TR), footer))
+    story.append(Paragraph(_esc(_PARTNER_TR), footer))
 
     doc.build(story)
     return buf.getvalue()

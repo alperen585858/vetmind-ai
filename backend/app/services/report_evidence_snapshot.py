@@ -75,3 +75,73 @@ def freeze_evidence_into_report(
         )
     draft.evidence_figures = figures
     return draft
+
+
+def append_evidence_figures(
+    case: CaseRecord,
+    draft: DraftReport,
+    *,
+    store: EvidenceArtifactStore,
+    evidence_ids: list[str],
+    findings: StructuredFindings | None = None,
+) -> DraftReport:
+    """Append selected overlays into an already-approved report package (additive only).
+
+    Existing figures are kept. Missing overlays are skipped with a validation warning.
+    Callers must mark evidence accepted + include_in_report and ensure overlay_ref first.
+    """
+    sf = findings if findings is not None else case.structured_findings
+    if sf is None:
+        return draft
+    wanted = {eid.strip() for eid in evidence_ids if eid and str(eid).strip()}
+    if not wanted:
+        return draft
+
+    existing_ids = {f.evidence_id for f in (draft.evidence_figures or [])}
+    version = int(draft.version)
+    figures = list(draft.evidence_figures or [])
+
+    for finding in sf.findings:
+        for ev in finding.evidence_references:
+            if ev.evidence_id not in wanted:
+                continue
+            if ev.evidence_id in existing_ids:
+                continue
+            if not ev.overlay_ref:
+                draft.validation_warnings = [
+                    *draft.validation_warnings,
+                    f"Evidence {ev.evidence_id} has no overlay image; skipped.",
+                ]
+                continue
+            try:
+                art = store.copy_into_report_package(
+                    case_id=case.case_id,
+                    version=version,
+                    evidence_id=ev.evidence_id,
+                    source_relative=str(ev.overlay_ref),
+                    dest_filename="overlay.png",
+                )
+            except (FileNotFoundError, ValueError, OSError):
+                draft.validation_warnings = [
+                    *draft.validation_warnings,
+                    f"Evidence {ev.evidence_id} overlay missing on disk; skipped.",
+                ]
+                continue
+            caption = f"{finding.finding_id}: {ev.description or 'AI-supported imaging evidence'}"
+            figures.append(
+                ReportEvidenceFigure(
+                    finding_id=finding.finding_id,
+                    evidence_id=ev.evidence_id,
+                    origin=ev.origin,
+                    overlay_ref=art.relative_path,
+                    overlay_content_sha256=art.content_sha256,
+                    caption=caption.strip(),
+                    disclaimer=EVIDENCE_DISCLAIMER,
+                    sop_instance_uid=ev.sop_instance_uid,
+                    frame_index=ev.frame_index,
+                )
+            )
+            existing_ids.add(ev.evidence_id)
+
+    draft.evidence_figures = figures
+    return draft

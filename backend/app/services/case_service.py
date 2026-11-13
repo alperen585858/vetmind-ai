@@ -1461,6 +1461,95 @@ class CaseService:
         case.structured_findings = rendered
         return rendered
 
+    def append_report_figures(
+        self,
+        case_id: str,
+        evidence_ids: list[str],
+        *,
+        principal: AuthPrincipal,
+    ) -> CaseRecord:
+        """Add selected evidence overlays to an approved report package (figures only).
+
+        Does not rewrite report text. Marks evidence accepted + include_in_report, renders
+        overlays when missing, then copies into the immutable report package.
+        """
+        from app.models.evidence_store import EvidenceArtifactStore
+        from app.services.report_evidence_snapshot import append_evidence_figures
+
+        ids = [str(x).strip() for x in evidence_ids if str(x).strip()]
+        if not ids:
+            raise HTTPException(status_code=400, detail="evidence_ids required")
+        if not isinstance(self._evidence_store, EvidenceArtifactStore):
+            raise HTTPException(status_code=503, detail="Evidence store unavailable.")
+
+        with self._lock:
+            case = self.get_case(case_id, principal=principal)
+            draft = case.draft_report
+            if (
+                case.status != CaseLifecycleStatus.APPROVED
+                or draft is None
+                or not draft.immutable
+                or draft.status != ReportStatus.APPROVED
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Figures can only be appended to an approved immutable report.",
+                )
+            sf = case.structured_findings
+            if sf is None:
+                raise HTTPException(status_code=404, detail="No findings on case.")
+
+            by_id = {
+                ev.evidence_id: ev
+                for finding in sf.findings
+                for ev in finding.evidence_references
+            }
+            missing = [eid for eid in ids if eid not in by_id]
+            if missing:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Unknown evidence_id(s): {', '.join(missing[:5])}",
+                )
+            for eid in ids:
+                ev = by_id[eid]
+                ev.review_status = "accepted"
+                ev.include_in_report = True
+                if ev.reviewed_by is None:
+                    ev.reviewed_by = principal.subject
+
+            sf = self._render_missing_overlays(case, sf)
+            before = {f.evidence_id for f in (draft.evidence_figures or [])}
+            draft = append_evidence_figures(
+                case,
+                draft.model_copy(deep=True),
+                store=self._evidence_store,
+                evidence_ids=ids,
+                findings=sf,
+            )
+            case.draft_report = draft
+            # Additive patch on immutable snapshot figures only (text stays frozen).
+            now = _now()
+            for idx, existing in enumerate(case.report_versions):
+                if existing.version != int(draft.version):
+                    continue
+                content = existing.content.model_copy(deep=True)
+                content.evidence_figures = list(draft.evidence_figures)
+                case.report_versions[idx] = existing.model_copy(
+                    update={"content": content, "updated_at": now}
+                )
+                break
+            added = len({f.evidence_id for f in (draft.evidence_figures or [])} - before)
+            append_activity(
+                case,
+                kind="report_figures_appended",
+                actor_subject=principal.subject,
+                detail=f"v{draft.version} +{added}",
+            )
+            case.updated_at = now
+            saved = self._repo.save_case(case)
+        self._emit_audit("report.figures.append", principal=principal, resource=case_id)
+        return saved
+
     @staticmethod
     def _assert_evidence_editable(case: CaseRecord) -> None:
         """Approved reports are frozen with their evidence; changing it needs a revision first."""
