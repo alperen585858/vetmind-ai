@@ -151,7 +151,7 @@ class WorkflowService:
             pwd_hash = self._directory_hash(u)
             if not pwd_hash:
                 continue
-            directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id)
+            directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id, u.token_version)
         # Seed users that were never stored. A stored (e.g. deactivated) seed user is
         # not re-added, so deactivating a demo account really blocks its login.
         for email, rec in DEMO_USERS.items():
@@ -977,8 +977,11 @@ class WorkflowService:
             raise HTTPException(status_code=403, detail="Admin only.")
         email = payload.email.strip().lower()
         _assert_password_allowed(payload.password)
-        # An existing (or seed) email is overwritten via the managed store.
+        # An existing (or seed) email is overwritten via the managed store. Bump the
+        # token version past the old record so its sessions cannot come back.
+        previous = self._store.get_user(email)
         user = ManagedUser(
+            token_version=(previous.token_version + 1) if previous else 0,
             email=email,
             role=payload.role,
             clinic_id=(payload.clinic_id or "").strip() or None,
@@ -1047,6 +1050,8 @@ class WorkflowService:
         if new_password:
             _assert_password_allowed(new_password)
             data["password_hash"] = hash_password(new_password)
+            # Sign out every existing session of this user.
+            data["token_version"] = existing.token_version + 1
         if "clinic_id" in data:
             data["clinic_id"] = (data["clinic_id"] or "").strip() or None
         user = existing.model_copy(update=data)

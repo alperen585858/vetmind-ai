@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.dicom.llm_classifier import build_metadata_classifier
@@ -365,4 +366,9 @@ class AppContainer:
             users=self._auth_users,
             tenant_isolation=self.settings.tenant_isolation,
             deployment_mode=self.settings.deployment_mode,
+        )
+        self.refresh_tokens = RefreshTokenService(
+            build_refresh_token_store(self.settings),
+            ttl_seconds=self.settings.refresh_ttl_seconds,
+            directory=self._auth_users,
         )

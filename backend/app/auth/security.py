@@ -43,6 +43,9 @@ class DemoUserRecord:
     password: str
     role: str
     clinic_id: str | None = None
+    # Bumped when the password changes; access tokens carry it as ``tv`` and refresh
+    # families record it, so older sessions stop working.
+    token_version: int = 0
 
 
 @dataclass(frozen=True)
@@ -96,6 +99,7 @@ def create_access_token(
     secret: str,
     ttl_seconds: int,
     clinic_id: str | None = None,
+    token_version: int = 0,
 ) -> str:
     if role in JWT_FORBIDDEN_ROLES or role not in JWT_ISSUABLE_ROLES:
         raise ValueError(f"Role '{role}' cannot be issued in a VetMind JWT.")
@@ -108,6 +112,7 @@ def create_access_token(
         "exp": now + ttl_seconds,
         "iss": JWT_ISSUER,
         "aud": JWT_AUDIENCE,
+        "tv": int(token_version),
     }
     if clinic_id:
         payload_obj["clinic_id"] = clinic_id
@@ -168,6 +173,12 @@ def resolve_jwt_identity(
         raise ValueError("Unknown token subject.")
     if record.role not in JWT_ISSUABLE_ROLES or record.role in JWT_FORBIDDEN_ROLES:
         raise ValueError("Seed user role is not JWT-issuable.")
+    try:
+        token_version = int(payload.get("tv", 0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Malformed token version.") from exc
+    if token_version != record.token_version:
+        raise ValueError("Token revoked (password changed).")
     return subject, record.role, record.clinic_id
 
 

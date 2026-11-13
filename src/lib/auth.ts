@@ -106,63 +106,88 @@ export function loadSession(): DemoSession | null {
 }
 
 const PROTECTED_TOKEN_KEY = 'vetmind.backend.jwt.session'
+const BACKEND_REFRESH_KEY = 'vetmind.backend.refresh'
+const PROTECTED_REFRESH_KEY = 'vetmind.backend.refresh.session'
 
-/** When true, JWT is kept in sessionStorage (cleared when the tab/browser session ends). */
+/** [localStorage key, sessionStorage key] per token kind. */
+const ACCESS_KEYS = [BACKEND_TOKEN_KEY, PROTECTED_TOKEN_KEY] as const
+const REFRESH_KEYS = [BACKEND_REFRESH_KEY, PROTECTED_REFRESH_KEY] as const
+type TokenKeys = readonly [string, string]
+
+/** When true, tokens are kept in sessionStorage (cleared when the tab/browser session ends). */
 let preferSessionToken = false
+
+function readToken([localKey, sessionKey]: TokenKeys): string | null {
+  try {
+    if (preferSessionToken) {
+      return sessionStorage.getItem(sessionKey) || localStorage.getItem(localKey)
+    }
+    return localStorage.getItem(localKey) || sessionStorage.getItem(sessionKey)
+  } catch {
+    return null
+  }
+}
+
+function writeToken([localKey, sessionKey]: TokenKeys, token: string | null) {
+  try {
+    if (!token) {
+      localStorage.removeItem(localKey)
+      sessionStorage.removeItem(sessionKey)
+      return
+    }
+    if (preferSessionToken) {
+      sessionStorage.setItem(sessionKey, token)
+      localStorage.removeItem(localKey)
+    } else {
+      localStorage.setItem(localKey, token)
+      sessionStorage.removeItem(sessionKey)
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 export function setProtectedTokenMode(enabled: boolean) {
   preferSessionToken = enabled
   if (enabled) {
-    try {
-      const existing = localStorage.getItem(BACKEND_TOKEN_KEY)
-      if (existing) {
-        sessionStorage.setItem(PROTECTED_TOKEN_KEY, existing)
-        localStorage.removeItem(BACKEND_TOKEN_KEY)
+    for (const [localKey, sessionKey] of [ACCESS_KEYS, REFRESH_KEYS]) {
+      try {
+        const existing = localStorage.getItem(localKey)
+        if (existing) {
+          sessionStorage.setItem(sessionKey, existing)
+          localStorage.removeItem(localKey)
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
     }
   }
 }
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(BACKEND_TOKEN_KEY)
-  try {
-    sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
-  } catch {
-    /* ignore */
-  }
+  writeToken(ACCESS_KEYS, null)
+  writeToken(REFRESH_KEYS, null)
 }
 
 export function getBackendAccessToken(): string | null {
-  try {
-    if (preferSessionToken) {
-      return sessionStorage.getItem(PROTECTED_TOKEN_KEY) || localStorage.getItem(BACKEND_TOKEN_KEY)
-    }
-    return localStorage.getItem(BACKEND_TOKEN_KEY) || sessionStorage.getItem(PROTECTED_TOKEN_KEY)
-  } catch {
-    return null
-  }
+  return readToken(ACCESS_KEYS)
 }
 
+export function getBackendRefreshToken(): string | null {
+  return readToken(REFRESH_KEYS)
+}
+
+/** Clearing the access token (``null``) also drops the refresh token: the backend session ends. */
 export function setBackendAccessToken(token: string | null) {
-  try {
-    if (!token) {
-      localStorage.removeItem(BACKEND_TOKEN_KEY)
-      sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
-      return
-    }
-    if (preferSessionToken) {
-      sessionStorage.setItem(PROTECTED_TOKEN_KEY, token)
-      localStorage.removeItem(BACKEND_TOKEN_KEY)
-    } else {
-      localStorage.setItem(BACKEND_TOKEN_KEY, token)
-      sessionStorage.removeItem(PROTECTED_TOKEN_KEY)
-    }
-  } catch {
-    /* ignore */
-  }
+  writeToken(ACCESS_KEYS, token)
+  if (!token) writeToken(REFRESH_KEYS, null)
+}
+
+/** Store the pair returned by /auth/login, /auth/register or /auth/refresh. */
+export function setBackendTokens(tokens: { access_token: string; refresh_token?: string | null }) {
+  writeToken(ACCESS_KEYS, tokens.access_token)
+  writeToken(REFRESH_KEYS, tokens.refresh_token ?? null)
 }
 
 function saveSession(session: DemoSession) {

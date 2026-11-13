@@ -93,7 +93,9 @@ class Settings:
     auth_enabled: bool = False
     auth_api_key: str | None = None
     jwt_secret: str = DEFAULT_JWT_SECRET
-    jwt_ttl_seconds: int = 60 * 60 * 12
+    # Access JWT lifetime. Short on purpose: the frontend renews it with a refresh token.
+    jwt_ttl_seconds: int = 15 * 60
+    refresh_ttl_seconds: int = 7 * 24 * 60 * 60
     # Issue #31 — public sign-up (POST /api/v1/auth/register).
     self_registration_enabled: bool = True
     # Clinic that self-registered pet owners' imaging requests are routed to.
@@ -364,9 +366,13 @@ def load_settings() -> Settings:
     auth_api_key = os.getenv("VETMIND_API_KEY") or None
     jwt_secret = os.getenv("VETMIND_JWT_SECRET", DEFAULT_JWT_SECRET)
     try:
-        jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(60 * 60 * 12)))
+        jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(15 * 60)))
     except ValueError:
-        jwt_ttl = 60 * 60 * 12
+        jwt_ttl = 15 * 60
+    try:
+        refresh_ttl = int(os.getenv("VETMIND_REFRESH_TTL_SECONDS", str(7 * 24 * 60 * 60)))
+    except ValueError:
+        refresh_ttl = 7 * 24 * 60 * 60
     self_registration_enabled = _env_bool("VETMIND_SELF_REGISTRATION", True)
     self_registration_owner_clinic_id = (
         os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", "clinic-demo-a").strip() or None
@@ -514,6 +520,7 @@ def load_settings() -> Settings:
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,
         jwt_ttl_seconds=max(60, jwt_ttl),
+        refresh_ttl_seconds=max(300, refresh_ttl),
         self_registration_enabled=self_registration_enabled,
         self_registration_owner_clinic_id=self_registration_owner_clinic_id,
         job_backend=job_backend,

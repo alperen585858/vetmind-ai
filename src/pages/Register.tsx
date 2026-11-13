@@ -7,7 +7,7 @@ import { useLocale } from '../context/LocaleContext'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
-import { postLoginPath, register, setBackendAccessToken } from '../lib/auth'
+import { postLoginPath, register, setBackendAccessToken, setBackendTokens } from '../lib/auth'
 import { backendLogin } from '../lib/backend'
 import type { Role } from '../types'
 
@@ -33,7 +33,7 @@ export default function Register() {
       const session = register({ name, email, password, role })
       try {
         const tokenRes = await backendLogin(email, password)
-        setBackendAccessToken(tokenRes.access_token)
+        setBackendTokens(tokenRes)
       } catch {
         // Seed demo emails match backend; custom emails may only get UI session.
         setBackendAccessToken(null)
