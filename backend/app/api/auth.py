@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,6 +31,26 @@ class TokenResponse(BaseModel):
     deployment_mode: str = "demo"
     tenant_isolation: bool = False
     note: str = "Demo JWT. Not a production IdP."
+
+
+class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=120)
+    # Length/strength is checked by the password policy so the error message is specific.
+    password: str = Field(min_length=1, max_length=200)
+    role: Literal["owner", "vet"] = "owner"
+    display_name: str | None = Field(default=None, max_length=80)
+
+
+class RegisterResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str
+    role: str
+    # active: signed in (``session`` set). pending_approval: an admin must activate the account.
+    status: Literal["active", "pending_approval"]
+    session: TokenResponse | None = None
 
 
 class MeResponse(BaseModel):
@@ -73,13 +95,6 @@ def login(payload: LoginRequest, container: AppContainer = Depends(get_container
             detail="invalid_credentials",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
-    token = create_access_token(
-        subject=email,
-        role=entry.role,
-        secret=container.auth.jwt_secret,
-        ttl_seconds=container.auth.jwt_ttl_seconds,
-        clinic_id=entry.clinic_id,
-    )
     container.audit.record(
         event_type="auth.login",
         actor=email,
@@ -87,15 +102,63 @@ def login(payload: LoginRequest, container: AppContainer = Depends(get_container
         outcome=AuditOutcome.SUCCESS,
         clinic_id=entry.clinic_id,
     )
+    return _issue_token(container, email=email, role=entry.role, clinic_id=entry.clinic_id)
+
+
+def _issue_token(container: AppContainer, *, email: str, role: str, clinic_id: str | None) -> TokenResponse:
+    token = create_access_token(
+        subject=email,
+        role=role,
+        secret=container.auth.jwt_secret,
+        ttl_seconds=container.auth.jwt_ttl_seconds,
+        clinic_id=clinic_id,
+    )
     return TokenResponse(
         access_token=token,
-        role=entry.role,
+        role=role,
         email=email,
-        clinic_id=entry.clinic_id,
+        clinic_id=clinic_id,
         auth_enabled=container.auth.enabled,
         deployment_mode=container.auth.deployment_mode,
         tenant_isolation=container.auth.tenant_isolation,
     )
+
+
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest, container: AppContainer = Depends(get_container)) -> RegisterResponse:
+    """Self-service sign-up. Owners get a session at once; vets wait for admin activation."""
+    email = payload.email.strip().lower()
+
+    def _audit(outcome: AuditOutcome, detail: str, clinic_id: str | None = None) -> None:
+        container.audit.record(
+            event_type="auth.register",
+            actor=email,
+            resource="/api/v1/auth/register",
+            outcome=outcome,
+            detail=detail,
+            clinic_id=clinic_id,
+        )
+
+    if not container.settings.self_registration_enabled:
+        _audit(AuditOutcome.DENIED, "self_registration_disabled")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Self-registration is disabled.")
+    try:
+        user = container.workflow.register_user(
+            email=email,
+            password=payload.password,
+            role=payload.role,
+            display_name=payload.display_name,
+            owner_clinic_id=container.settings.self_registration_owner_clinic_id,
+        )
+    except HTTPException as exc:
+        _audit(AuditOutcome.DENIED, f"rejected_{exc.status_code}")
+        raise
+    if not user.active:
+        _audit(AuditOutcome.SUCCESS, "pending_approval")
+        return RegisterResponse(email=user.email, role=user.role, status="pending_approval")
+    _audit(AuditOutcome.SUCCESS, "active", clinic_id=user.clinic_id)
+    session = _issue_token(container, email=user.email, role=user.role, clinic_id=user.clinic_id)
+    return RegisterResponse(email=user.email, role=user.role, status="active", session=session)
 
 
 @router.get("/me", response_model=MeResponse)

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
+import threading
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import HTTPException, status
 
-from app.auth.passwords import hash_password, is_password_hash
+from app.auth.passwords import hash_password, is_password_hash, password_policy_error
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
 from app.auth.tenancy import assert_case_access, can_access_owned
@@ -49,6 +51,13 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Roles anyone may sign up for. Vets start inactive (admin assigns a clinic and activates):
+# an active vet account sees its clinic's cases, so it must not be self-service.
+SelfRegisterRole = Literal["owner", "vet"]
+
+
 class WorkflowService:
     def __init__(
         self,
@@ -68,6 +77,7 @@ class WorkflowService:
         self._tenant_isolation = tenant_isolation
         self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
         self._payments = payments
+        self._user_write_lock = threading.Lock()
         self._seed_managed_from_demo()
         self._migrate_plaintext_passwords()
 
@@ -960,6 +970,44 @@ class WorkflowService:
         self._store.save_user(user)
         self.sync_auth_directory()
         return user.to_public()
+
+    def register_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: SelfRegisterRole,
+        display_name: str | None = None,
+        owner_clinic_id: str | None = None,
+    ) -> ManagedUser:
+        """Public sign-up. Owners are active at once; vets wait for admin activation."""
+        email = email.strip().lower()
+        if not _EMAIL_RE.match(email):
+            raise HTTPException(status_code=422, detail="Enter a valid email address.")
+        if role not in ("owner", "vet"):
+            raise HTTPException(status_code=422, detail="This role cannot be self-registered.")
+        weak = password_policy_error(password)
+        if weak:
+            raise HTTPException(status_code=422, detail=weak)
+        name = (display_name or "").strip() or email.split("@")[0]
+        user = ManagedUser(
+            email=email,
+            role=role,
+            # Never let the client pick a clinic: an active clinic member sees its cases.
+            clinic_id=owner_clinic_id if role == "owner" else None,
+            display_name=name[:80],
+            active=role == "owner",
+            password_hash=hash_password(password),
+        )
+        with self._user_write_lock:
+            if self._store.get_user(email) is not None or email in DEMO_USERS:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="An account with this email already exists.",
+                )
+            self._store.save_user(user)
+            self.sync_auth_directory()
+        return user
 
     def update_user(self, email: str, payload: ManagedUserUpdate, *, principal: AuthPrincipal) -> ManagedUserPublic:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":

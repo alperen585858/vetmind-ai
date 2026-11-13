@@ -94,6 +94,10 @@ class Settings:
     auth_api_key: str | None = None
     jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_ttl_seconds: int = 60 * 60 * 12
+    # Issue #31 — public sign-up (POST /api/v1/auth/register).
+    self_registration_enabled: bool = True
+    # Clinic that self-registered pet owners' imaging requests are routed to.
+    self_registration_owner_clinic_id: str | None = "clinic-demo-a"
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
     # Phase 5 — security / privacy / performance
@@ -363,6 +367,10 @@ def load_settings() -> Settings:
         jwt_ttl = int(os.getenv("VETMIND_JWT_TTL_SECONDS", str(60 * 60 * 12)))
     except ValueError:
         jwt_ttl = 60 * 60 * 12
+    self_registration_enabled = _env_bool("VETMIND_SELF_REGISTRATION", True)
+    self_registration_owner_clinic_id = (
+        os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", "clinic-demo-a").strip() or None
+    )
 
     job_backend = os.getenv("VETMIND_JOB_BACKEND", "thread").strip().lower()
     if job_backend not in {"thread", "rq"}:
@@ -506,6 +514,8 @@ def load_settings() -> Settings:
         auth_api_key=auth_api_key,
         jwt_secret=jwt_secret,
         jwt_ttl_seconds=max(60, jwt_ttl),
+        self_registration_enabled=self_registration_enabled,
+        self_registration_owner_clinic_id=self_registration_owner_clinic_id,
         job_backend=job_backend,
         redis_url=redis_url,
         deployment_mode=deployment_mode,
