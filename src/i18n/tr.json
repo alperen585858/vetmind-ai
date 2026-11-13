@@ -1896,5 +1896,14 @@
     "loadFailed": "Dersler yüklenemedi",
     "updateFailed": "Ders güncellenemedi",
     "count": "{active} açık · {total} toplam"
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "textApp": "Aradığınız sayfa yok ya da taşınmış. Bağlantı eski olabilir veya vaka silinmiş olabilir.",
+    "textPublic": "Bu adreste bir sayfa yok. Bağlantıyı kontrol edin ya da ana sayfadan devam edin.",
+    "backToDashboard": "Panele dön",
+    "goBack": "Geri git",
+    "backToHome": "Ana sayfaya dön",
+    "login": "Giriş yap"
   }
 }

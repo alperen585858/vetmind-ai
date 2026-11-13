@@ -1896,5 +1896,14 @@
     "loadFailed": "Could not load lessons",
     "updateFailed": "Could not update lesson",
     "count": "{active} on · {total} total"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "textApp": "The page you are looking for does not exist or has moved. The link may be outdated or the case may have been deleted.",
+    "textPublic": "There is no page at this address. Check the link or continue from the home page.",
+    "backToDashboard": "Back to dashboard",
+    "goBack": "Go back",
+    "backToHome": "Back to home",
+    "login": "Sign in"
   }
 }
