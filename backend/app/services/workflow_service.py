@@ -57,6 +57,24 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # an active vet account sees its clinic's cases, so it must not be self-service.
 SelfRegisterRole = Literal["owner", "vet"]
 
+# Clinic-scoped staff roles. Several access checks skip the clinic comparison when the
+# principal has no clinic_id, so an *active* account in one of these roles must have one.
+CLINIC_REQUIRED_ROLES = frozenset({"vet", "expert", "clinic_owner"})
+
+
+def _assert_user_state_allowed(user: ManagedUser) -> None:
+    if user.active and user.role in CLINIC_REQUIRED_ROLES and not (user.clinic_id or "").strip():
+        raise HTTPException(
+            status_code=422,
+            detail=f"Assign a clinic before activating a '{user.role}' account.",
+        )
+
+
+def _assert_password_allowed(password: str) -> None:
+    weak = password_policy_error(password)
+    if weak:
+        raise HTTPException(status_code=422, detail=weak)
+
 
 class WorkflowService:
     def __init__(
@@ -958,15 +976,17 @@ class WorkflowService:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         email = payload.email.strip().lower()
+        _assert_password_allowed(payload.password)
         # An existing (or seed) email is overwritten via the managed store.
         user = ManagedUser(
             email=email,
             role=payload.role,
-            clinic_id=payload.clinic_id,
+            clinic_id=(payload.clinic_id or "").strip() or None,
             display_name=payload.display_name or email.split("@")[0],
             active=True,
             password_hash=hash_password(payload.password),
         )
+        _assert_user_state_allowed(user)
         self._store.save_user(user)
         self.sync_auth_directory()
         return user.to_public()
@@ -986,9 +1006,7 @@ class WorkflowService:
             raise HTTPException(status_code=422, detail="Enter a valid email address.")
         if role not in ("owner", "vet"):
             raise HTTPException(status_code=422, detail="This role cannot be self-registered.")
-        weak = password_policy_error(password)
-        if weak:
-            raise HTTPException(status_code=422, detail=weak)
+        _assert_password_allowed(password)
         name = (display_name or "").strip() or email.split("@")[0]
         user = ManagedUser(
             email=email,
@@ -1027,8 +1045,12 @@ class WorkflowService:
         data = payload.model_dump(exclude_unset=True)
         new_password = data.pop("password", None)
         if new_password:
+            _assert_password_allowed(new_password)
             data["password_hash"] = hash_password(new_password)
+        if "clinic_id" in data:
+            data["clinic_id"] = (data["clinic_id"] or "").strip() or None
         user = existing.model_copy(update=data)
+        _assert_user_state_allowed(user)
         self._store.save_user(user)
         self.sync_auth_directory()
         return user.to_public()

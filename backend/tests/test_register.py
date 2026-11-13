@@ -244,3 +244,68 @@ def test_register_is_audited(tmp_path: Path) -> None:
     assert ("success", "active") in outcomes
     assert ("denied", "rejected_409") in outcomes
     assert all(GOOD_PASSWORD not in str(e) for e in events)
+
+
+# --- admin guards (clinic required, same password policy) --------------------
+
+
+def test_admin_cannot_activate_pending_vet_without_clinic(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client, email="vet.pending@clinic.test", role="vet")
+    admin = _admin(client)
+    res = client.patch("/api/v1/admin/users/vet.pending@clinic.test", json={"active": True}, headers=admin)
+    assert res.status_code == 422
+    assert "Assign a clinic" in res.json()["detail"]
+    assert container.workflow_store.get_user("vet.pending@clinic.test").active is False
+    assert _login(client, "vet.pending@clinic.test", GOOD_PASSWORD).status_code == 401
+
+
+@pytest.mark.parametrize("role", ["vet", "expert", "clinic_owner"])
+def test_admin_cannot_create_clinic_staff_without_clinic(tmp_path: Path, role: str) -> None:
+    client, container = _app(tmp_path)
+    admin = _admin(client)
+    for clinic in (None, "", "   "):
+        body = {"email": f"{role}@clinic.test", "password": GOOD_PASSWORD, "role": role}
+        if clinic is not None:
+            body["clinic_id"] = clinic
+        res = client.post("/api/v1/admin/users", json=body, headers=admin)
+        assert res.status_code == 422, (clinic, res.text)
+    assert container.workflow_store.get_user(f"{role}@clinic.test") is None
+
+
+def test_admin_cannot_clear_clinic_of_active_vet(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    admin = _admin(client)
+    res = client.patch("/api/v1/admin/users/vet@demo.local", json={"clinic_id": ""}, headers=admin)
+    assert res.status_code == 422
+    assert container.workflow_store.get_user("vet@demo.local").clinic_id == "clinic-demo-a"
+
+
+def test_admin_and_owner_without_clinic_are_allowed(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    admin = _admin(client)
+    for role in ("admin", "owner"):
+        res = client.post(
+            "/api/v1/admin/users",
+            json={"email": f"{role}2@clinic.test", "password": GOOD_PASSWORD, "role": role},
+            headers=admin,
+        )
+        assert res.status_code == 201, res.text
+
+
+@pytest.mark.parametrize("password", ["kisa1", "sadeceharf", "12345678"])
+def test_admin_create_and_reset_use_same_password_policy(tmp_path: Path, password: str) -> None:
+    client, container = _app(tmp_path)
+    admin = _admin(client)
+    created = client.post(
+        "/api/v1/admin/users",
+        json={"email": "weak@clinic.test", "password": password, "role": "owner"},
+        headers=admin,
+    )
+    assert created.status_code == 422
+    assert "Password must" in created.json()["detail"]
+    assert container.workflow_store.get_user("weak@clinic.test") is None
+
+    reset = client.patch("/api/v1/admin/users/vet@demo.local", json={"password": password}, headers=admin)
+    assert reset.status_code == 422
+    assert _login(client, "vet@demo.local", "demo1234").status_code == 200

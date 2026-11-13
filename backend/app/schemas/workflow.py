@@ -230,7 +230,8 @@ class ManagedUserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: str = Field(min_length=3, max_length=120)
-    password: str = Field(min_length=6, max_length=120)
+    # Strength is enforced by app.auth.passwords.password_policy_error (specific message).
+    password: str = Field(min_length=1, max_length=200)
     role: ManagedRole
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
@@ -243,7 +244,7 @@ class ManagedUserUpdate(BaseModel):
     clinic_id: Optional[str] = None
     display_name: Optional[str] = None
     active: Optional[bool] = None
-    password: Optional[str] = Field(default=None, min_length=6, max_length=120)
+    password: Optional[str] = Field(default=None, min_length=1, max_length=200)
 
 
 class ClinicStaffStats(BaseModel):
