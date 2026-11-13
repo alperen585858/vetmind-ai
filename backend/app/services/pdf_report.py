@@ -123,7 +123,11 @@ def _image_flowable(data: bytes, max_edge_mm: float = 78) -> Image | None:
     return img
 
 
-def _sample_items[T](items: list[T], limit: int = _MAX_REPORT_IMAGES) -> list[T]:
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def _sample_items(items: list[T], limit: int = _MAX_REPORT_IMAGES) -> list[T]:
     return evenly_sample(items, limit)
 
 
