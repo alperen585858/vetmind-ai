@@ -164,6 +164,7 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 |--------|----------|
 | `npm run dev` | Vite UI (`--open`) |
 | `npm run build` | `tsc` + üretim build |
+| `npm run check:bundle` | `build` sonrası ilk yükleme JS bütçesi (gzip ≤ 160 KB, grafik parçası ilk açılışta yüklenemez). Henüz CI'da değil |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest |
 | `npm run backend:dev` | uvicorn (`.venv`), sahte (mock) LLM |
@@ -840,6 +841,8 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 
 | Dosya | Amaç |
 |-------|------|
+| `lib/lazyPage.ts` + `components/PageLoader.tsx` | Sayfalar `React.lazy` ile ayrı parçalarda yüklenir. Yeni sürümden sonra eski parça bulunamazsa sayfa bir kez yenilenir |
+| `vite.config.ts` (`manualChunks`) | `react-vendor`, `icons`, `charts` (sadece grafikli sayfalar), `dicom` kütüphane parçaları |
 | `components/DicomViewer.tsx` + `lib/dicomPreview.ts` | Tarayıcı viewer (klinik PACS değil) |
 | `components/RagCitations.tsx` | `rag_citations` paneli |
 | `components/AIDisclaimer.tsx` | Klinik olmayan çıktı uyarısı |

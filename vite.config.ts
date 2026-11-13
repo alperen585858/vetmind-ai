@@ -23,7 +23,8 @@ function libraryChunk(id: string): string | undefined {
 export default defineConfig({
   plugins: [react()],
   build: {
-    chunkSizeWarningLimit: 1000,
+    // No chunkSizeWarningLimit override: the default 500 KB warning is meaningful again.
+    // First-load size is enforced by scripts/check-bundle.mjs (npm run check:bundle).
     rollupOptions: {
       output: { manualChunks: libraryChunk },
     },
