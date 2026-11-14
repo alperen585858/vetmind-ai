@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -71,6 +72,9 @@ class SqliteRadiologistPayoutStore:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        # One connection is shared by FastAPI's threadpool: serialize every use of it
+        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+        self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.executescript(
@@ -102,76 +106,83 @@ class SqliteRadiologistPayoutStore:
             self._conn.commit()
 
     def save_payout(self, payout: RadiologistCasePayout) -> RadiologistCasePayout:
-        self._conn.execute(
-            """
-            INSERT INTO radiologist_payouts
-                (payout_id, case_id, radiologist_subject, approved_at, payload)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(payout_id) DO UPDATE SET
-                case_id=excluded.case_id,
-                radiologist_subject=excluded.radiologist_subject,
-                approved_at=excluded.approved_at,
-                payload=excluded.payload
-            """,
-            (
-                payout.payout_id,
-                payout.case_id,
-                payout.radiologist_subject,
-                payout.approved_at.isoformat(),
-                payout.model_dump_json(),
-            ),
-        )
-        self._conn.commit()
-        return payout
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO radiologist_payouts
+                    (payout_id, case_id, radiologist_subject, approved_at, payload)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(payout_id) DO UPDATE SET
+                    case_id=excluded.case_id,
+                    radiologist_subject=excluded.radiologist_subject,
+                    approved_at=excluded.approved_at,
+                    payload=excluded.payload
+                """,
+                (
+                    payout.payout_id,
+                    payout.case_id,
+                    payout.radiologist_subject,
+                    payout.approved_at.isoformat(),
+                    payout.model_dump_json(),
+                ),
+            )
+            self._conn.commit()
+            return payout
 
     def get_payout(self, payout_id: str) -> Optional[RadiologistCasePayout]:
-        row = self._conn.execute(
-            "SELECT payload FROM radiologist_payouts WHERE payout_id=?", (payout_id,)
-        ).fetchone()
-        return RadiologistCasePayout.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM radiologist_payouts WHERE payout_id=?", (payout_id,)
+            ).fetchone()
+            return RadiologistCasePayout.model_validate_json(row["payload"]) if row else None
 
     def get_by_case(self, case_id: str) -> Optional[RadiologistCasePayout]:
-        row = self._conn.execute(
-            "SELECT payload FROM radiologist_payouts WHERE case_id=?", (case_id,)
-        ).fetchone()
-        return RadiologistCasePayout.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM radiologist_payouts WHERE case_id=?", (case_id,)
+            ).fetchone()
+            return RadiologistCasePayout.model_validate_json(row["payload"]) if row else None
 
     def list_payouts(self) -> list[RadiologistCasePayout]:
-        rows = self._conn.execute(
-            "SELECT payload FROM radiologist_payouts ORDER BY approved_at DESC"
-        ).fetchall()
-        return [RadiologistCasePayout.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM radiologist_payouts ORDER BY approved_at DESC"
+            ).fetchall()
+            return [RadiologistCasePayout.model_validate_json(r["payload"]) for r in rows]
 
     def list_by_radiologist(self, radiologist_subject: str) -> list[RadiologistCasePayout]:
-        rows = self._conn.execute(
-            """
-            SELECT payload FROM radiologist_payouts
-            WHERE lower(radiologist_subject)=lower(?)
-            ORDER BY approved_at DESC
-            """,
-            (radiologist_subject,),
-        ).fetchall()
-        return [RadiologistCasePayout.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT payload FROM radiologist_payouts
+                WHERE lower(radiologist_subject)=lower(?)
+                ORDER BY approved_at DESC
+                """,
+                (radiologist_subject,),
+            ).fetchall()
+            return [RadiologistCasePayout.model_validate_json(r["payload"]) for r in rows]
 
     def get_settings(self) -> RadiologistPayoutSettings:
-        row = self._conn.execute(
-            "SELECT payload FROM radiologist_payout_settings WHERE id=1"
-        ).fetchone()
-        if row is None:
-            return RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
-        return RadiologistPayoutSettings.model_validate_json(row["payload"])
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM radiologist_payout_settings WHERE id=1"
+            ).fetchone()
+            if row is None:
+                return RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
+            return RadiologistPayoutSettings.model_validate_json(row["payload"])
 
     def save_settings(self, settings: RadiologistPayoutSettings) -> RadiologistPayoutSettings:
-        self._conn.execute(
-            """
-            INSERT INTO radiologist_payout_settings (id, payload)
-            VALUES (1, ?)
-            ON CONFLICT(id) DO UPDATE SET payload=excluded.payload
-            """,
-            (settings.model_dump_json(),),
-        )
-        self._conn.commit()
-        return settings
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO radiologist_payout_settings (id, payload)
+                VALUES (1, ?)
+                ON CONFLICT(id) DO UPDATE SET payload=excluded.payload
+                """,
+                (settings.model_dump_json(),),
+            )
+            self._conn.commit()
+            return settings
 
 
 def build_radiologist_payout_store(settings) -> RadiologistPayoutStore:

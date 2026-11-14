@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -42,6 +43,9 @@ class SqliteMessagingStore:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        # One connection is shared by FastAPI's threadpool: serialize every use of it
+        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+        self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.executescript(
@@ -56,34 +60,38 @@ class SqliteMessagingStore:
         self._conn.commit()
 
     def save_thread(self, thread: SupportThread) -> SupportThread:
-        self._conn.execute(
-            """
-            INSERT INTO support_threads (thread_id, updated_at, payload) VALUES (?, ?, ?)
-            ON CONFLICT(thread_id) DO UPDATE SET
-                updated_at=excluded.updated_at,
-                payload=excluded.payload
-            """,
-            (thread.thread_id, thread.updated_at.isoformat(), thread.model_dump_json()),
-        )
-        self._conn.commit()
-        return thread
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO support_threads (thread_id, updated_at, payload) VALUES (?, ?, ?)
+                ON CONFLICT(thread_id) DO UPDATE SET
+                    updated_at=excluded.updated_at,
+                    payload=excluded.payload
+                """,
+                (thread.thread_id, thread.updated_at.isoformat(), thread.model_dump_json()),
+            )
+            self._conn.commit()
+            return thread
 
     def get_thread(self, thread_id: str) -> Optional[SupportThread]:
-        row = self._conn.execute(
-            "SELECT payload FROM support_threads WHERE thread_id=?", (thread_id,)
-        ).fetchone()
-        return SupportThread.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM support_threads WHERE thread_id=?", (thread_id,)
+            ).fetchone()
+            return SupportThread.model_validate_json(row["payload"]) if row else None
 
     def list_threads(self) -> list[SupportThread]:
-        rows = self._conn.execute(
-            "SELECT payload FROM support_threads ORDER BY updated_at DESC"
-        ).fetchall()
-        return [SupportThread.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM support_threads ORDER BY updated_at DESC"
+            ).fetchall()
+            return [SupportThread.model_validate_json(r["payload"]) for r in rows]
 
     def delete_thread(self, thread_id: str) -> bool:
-        cur = self._conn.execute("DELETE FROM support_threads WHERE thread_id=?", (thread_id,))
-        self._conn.commit()
-        return cur.rowcount > 0
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM support_threads WHERE thread_id=?", (thread_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
 
 
 def build_messaging_store(settings) -> MessagingStore:

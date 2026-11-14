@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -87,6 +88,9 @@ class SqliteWorkflowStore:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        # One connection is shared by FastAPI's threadpool: serialize every use of it
+        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+        self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.executescript(
@@ -110,80 +114,92 @@ class SqliteWorkflowStore:
         self._conn.commit()
 
     def save_pet(self, pet: PetRecord) -> PetRecord:
-        self._conn.execute(
-            """
-            INSERT INTO pets (pet_id, created_at, payload) VALUES (?, ?, ?)
-            ON CONFLICT(pet_id) DO UPDATE SET created_at=excluded.created_at, payload=excluded.payload
-            """,
-            (pet.pet_id, pet.created_at.isoformat(), pet.model_dump_json()),
-        )
-        self._conn.commit()
-        return pet
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO pets (pet_id, created_at, payload) VALUES (?, ?, ?)
+                ON CONFLICT(pet_id) DO UPDATE SET created_at=excluded.created_at, payload=excluded.payload
+                """,
+                (pet.pet_id, pet.created_at.isoformat(), pet.model_dump_json()),
+            )
+            self._conn.commit()
+            return pet
 
     def get_pet(self, pet_id: str) -> Optional[PetRecord]:
-        row = self._conn.execute("SELECT payload FROM pets WHERE pet_id=?", (pet_id,)).fetchone()
-        return PetRecord.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute("SELECT payload FROM pets WHERE pet_id=?", (pet_id,)).fetchone()
+            return PetRecord.model_validate_json(row["payload"]) if row else None
 
     def list_pets(self) -> list[PetRecord]:
-        rows = self._conn.execute("SELECT payload FROM pets ORDER BY created_at DESC").fetchall()
-        return [PetRecord.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute("SELECT payload FROM pets ORDER BY created_at DESC").fetchall()
+            return [PetRecord.model_validate_json(r["payload"]) for r in rows]
 
     def delete_pet(self, pet_id: str) -> bool:
-        cur = self._conn.execute("DELETE FROM pets WHERE pet_id=?", (pet_id,))
-        self._conn.commit()
-        return cur.rowcount > 0
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM pets WHERE pet_id=?", (pet_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
 
     def save_submission(self, sub: ImagingSubmission) -> ImagingSubmission:
-        self._conn.execute(
-            """
-            INSERT INTO submissions (submission_id, created_at, payload) VALUES (?, ?, ?)
-            ON CONFLICT(submission_id) DO UPDATE SET created_at=excluded.created_at, payload=excluded.payload
-            """,
-            (sub.submission_id, sub.created_at.isoformat(), sub.model_dump_json()),
-        )
-        self._conn.commit()
-        return sub
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO submissions (submission_id, created_at, payload) VALUES (?, ?, ?)
+                ON CONFLICT(submission_id) DO UPDATE SET created_at=excluded.created_at, payload=excluded.payload
+                """,
+                (sub.submission_id, sub.created_at.isoformat(), sub.model_dump_json()),
+            )
+            self._conn.commit()
+            return sub
 
     def get_submission(self, submission_id: str) -> Optional[ImagingSubmission]:
-        row = self._conn.execute(
-            "SELECT payload FROM submissions WHERE submission_id=?", (submission_id,)
-        ).fetchone()
-        return ImagingSubmission.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM submissions WHERE submission_id=?", (submission_id,)
+            ).fetchone()
+            return ImagingSubmission.model_validate_json(row["payload"]) if row else None
 
     def list_submissions(self) -> list[ImagingSubmission]:
-        rows = self._conn.execute("SELECT payload FROM submissions ORDER BY created_at DESC").fetchall()
-        return [ImagingSubmission.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute("SELECT payload FROM submissions ORDER BY created_at DESC").fetchall()
+            return [ImagingSubmission.model_validate_json(r["payload"]) for r in rows]
 
     def delete_submission(self, submission_id: str) -> bool:
-        cur = self._conn.execute("DELETE FROM submissions WHERE submission_id=?", (submission_id,))
-        self._conn.commit()
-        return cur.rowcount > 0
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM submissions WHERE submission_id=?", (submission_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
 
     def save_user(self, user: ManagedUser) -> ManagedUser:
-        self._conn.execute(
-            """
-            INSERT INTO managed_users (email, payload) VALUES (?, ?)
-            ON CONFLICT(email) DO UPDATE SET payload=excluded.payload
-            """,
-            (user.email.lower(), user.model_dump_json()),
-        )
-        self._conn.commit()
-        return user
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO managed_users (email, payload) VALUES (?, ?)
+                ON CONFLICT(email) DO UPDATE SET payload=excluded.payload
+                """,
+                (user.email.lower(), user.model_dump_json()),
+            )
+            self._conn.commit()
+            return user
 
     def get_user(self, email: str) -> Optional[ManagedUser]:
-        row = self._conn.execute(
-            "SELECT payload FROM managed_users WHERE email=?", (email.lower(),)
-        ).fetchone()
-        return ManagedUser.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM managed_users WHERE email=?", (email.lower(),)
+            ).fetchone()
+            return ManagedUser.model_validate_json(row["payload"]) if row else None
 
     def list_users(self) -> list[ManagedUser]:
-        rows = self._conn.execute("SELECT payload FROM managed_users ORDER BY email").fetchall()
-        return [ManagedUser.model_validate_json(r["payload"]) for r in rows]
+        with self._lock:
+            rows = self._conn.execute("SELECT payload FROM managed_users ORDER BY email").fetchall()
+            return [ManagedUser.model_validate_json(r["payload"]) for r in rows]
 
     def delete_user(self, email: str) -> bool:
-        cur = self._conn.execute("DELETE FROM managed_users WHERE email=?", (email.lower(),))
-        self._conn.commit()
-        return cur.rowcount > 0
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM managed_users WHERE email=?", (email.lower(),))
+            self._conn.commit()
+            return cur.rowcount > 0
 
 
 def build_workflow_store(settings) -> WorkflowStore:

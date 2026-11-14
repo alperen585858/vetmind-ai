@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Protocol
 
@@ -55,6 +56,9 @@ class SqliteUserSettingsStore:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        # One connection is shared by FastAPI's threadpool: serialize every use of it
+        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+        self._lock = threading.RLock()
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=DELETE;")
         self._conn.executescript(
@@ -69,37 +73,40 @@ class SqliteUserSettingsStore:
         self._conn.commit()
 
     def get(self, subject: str) -> UserSettings:
-        key = subject.strip().lower()
-        row = self._conn.execute(
-            "SELECT payload FROM user_settings WHERE subject=?",
-            (key,),
-        ).fetchone()
-        if not row:
-            return _defaults(key)
-        return UserSettings.model_validate_json(row["payload"])
+        with self._lock:
+            key = subject.strip().lower()
+            row = self._conn.execute(
+                "SELECT payload FROM user_settings WHERE subject=?",
+                (key,),
+            ).fetchone()
+            if not row:
+                return _defaults(key)
+            return UserSettings.model_validate_json(row["payload"])
 
     def get_stored(self, subject: str) -> UserSettings | None:
-        row = self._conn.execute(
-            "SELECT payload FROM user_settings WHERE subject=?",
-            (subject.strip().lower(),),
-        ).fetchone()
-        return UserSettings.model_validate_json(row["payload"]) if row else None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM user_settings WHERE subject=?",
+                (subject.strip().lower(),),
+            ).fetchone()
+            return UserSettings.model_validate_json(row["payload"]) if row else None
 
     def update(self, subject: str, patch: UserSettingsUpdate) -> UserSettings:
-        key = subject.strip().lower()
-        updated = _apply(self.get(key), patch)
-        self._conn.execute(
-            """
-            INSERT INTO user_settings (subject, payload, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(subject) DO UPDATE SET
-              payload=excluded.payload,
-              updated_at=excluded.updated_at
-            """,
-            (key, updated.model_dump_json(), updated.updated_at.isoformat()),
-        )
-        self._conn.commit()
-        return updated
+        with self._lock:
+            key = subject.strip().lower()
+            updated = _apply(self.get(key), patch)
+            self._conn.execute(
+                """
+                INSERT INTO user_settings (subject, payload, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(subject) DO UPDATE SET
+                  payload=excluded.payload,
+                  updated_at=excluded.updated_at
+                """,
+                (key, updated.model_dump_json(), updated.updated_at.isoformat()),
+            )
+            self._conn.commit()
+            return updated
 
 
 def build_user_settings_store(settings) -> UserSettingsStore:
