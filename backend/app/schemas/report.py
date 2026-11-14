@@ -37,6 +37,8 @@ class ReportAnatomyTerminology(BaseModel):
     dictionary: AnatomyDictionaryVersion
     # Keys are finding IDs, which also link the draft to its source images.
     matches: dict[str, AnatomyTermMatch]
+    # Finding IDs retain the link to original location and source images.
+    unresolved: dict[str, str] = Field(default_factory=dict)
 
 
 class GenerationMetadata(BaseModel):

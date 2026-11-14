@@ -269,3 +269,64 @@ def test_only_approved_terms_can_be_used_for_live_findings(
     approvals_path.write_text(json.dumps(approvals), encoding="utf-8")
     with pytest.raises(ValueError, match="do not match"):
         application()
+
+
+@pytest.mark.parametrize("location,reason", [
+    ("bulla", "ambiguous"),
+    ("unknown-region-99", "unknown"),
+    ("Sol frontal lob", "unknown"),
+    ("edema", "not_anatomy"),
+])
+def test_unresolved_reason_survives_report_storage(application, location, reason):
+    _, report = _run(application(), location)
+    restored = DraftReport.model_validate_json(report.model_dump_json())
+    assert restored.generation.anatomy_terminology.unresolved == {"sample-finding": reason}
+
+
+def test_left_and_right_survive_deduplication_and_report(application):
+    from app.models.vlm_vision import _dedupe_findings
+    from app.models.normalizer import normalize_outputs
+
+    container = application()
+    case, _ = _run(container, "brain")
+    source = case.structured_findings
+    left = source.findings[0]
+    right = left.model_copy(deep=True)
+    right.finding_id = "right-finding"
+    right.laterality = "RIGHT"
+    right.evidence_references[0].evidence_id = "right-frame"
+    right.evidence_references[0].description = "Seri T2, kare 8"
+    right.evidence_references[0].frame_index = 8
+    separate = _dedupe_findings([left, right])
+    assert len(separate) == 2
+    merged = normalize_outputs([source.model_copy(update={"findings": separate})])
+    report = container.llm.generate_draft(case, merged)
+    assert "taraf: sol" in report.findings.text
+    assert "taraf: sağ" in report.findings.text
+    assert report.findings.text.count("beyinde ödem şüphesi") == 2
+    assert "kare 7" in report.findings.text and "kare 8" in report.findings.text
+    assert set(report.findings.cited_finding_ids) == {"sample-finding", "right-finding"}
+    assert set(report.generation.anatomy_terminology.matches) == {"sample-finding", "right-finding"}
+    assert {f.laterality for f in merged.findings} == {"LEFT", "RIGHT"}
+    assert all(f.finding_status == "suspected" for f in merged.findings)
+
+
+def test_collision_never_selected_even_when_one_candidate_is_anatomy(tmp_path):
+    from app.llm.anatomy_dictionary import AnatomyDictionary
+
+    path = tmp_path / "collision.json"
+    terms = []
+    for term_id, category in [("anatomy", "A"), ("finding", "C")]:
+        terms.append({
+            "Term_ID": term_id, "Turkish_Term": "örnek",
+            "Search_Labels": ["same location"], "Category": [category],
+            "Species": "Her ikisi", "Uncertain": False,
+            "Source_Locations": [{"pdf_page": 1}], "External_Sources": [],
+        })
+    path.write_text(json.dumps({
+        "metadata": {"Schema_Version": VERSION, "Count": 2, "Ambiguous_Query_Candidates": {}},
+        "terms": terms,
+    }), encoding="utf-8")
+    dictionary = AnatomyDictionary(path)
+    assert dictionary.resolve("same location", species=Species.CANINE) is None
+    assert dictionary.unresolved_reason("same location", species=Species.CANINE) == "ambiguous"

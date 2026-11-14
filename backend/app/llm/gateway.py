@@ -233,6 +233,15 @@ class LLMGateway:
         if generation.anatomy_dictionary is not None:
             report.generation.anatomy_terminology = ReportAnatomyTerminology(
                 dictionary=generation.anatomy_dictionary,
+                unresolved={
+                    f.finding_id: (
+                        self._anatomy_dictionary.unresolved_reason(
+                            f.anatomical_location, species=generation.species,
+                        ) or "ineligible_finding"
+                    )
+                    for f in generation.findings
+                    if f.anatomy_term is None
+                },
                 matches={
                     f.finding_id: f.anatomy_term
                     for f in generation.findings

@@ -97,6 +97,7 @@ class AnatomyDictionary:
                 if key := location_key(label):
                     index[key].add(term.Term_ID)
         ambiguous = {location_key(query) for query in source.metadata.Ambiguous_Query_Candidates}
+        self._ambiguous = ambiguous | {key for key, ids in index.items() if len(ids) > 1}
         self._terms = {
             key: by_id[next(iter(ids))]
             for key, ids in index.items()
@@ -107,10 +108,32 @@ class AnatomyDictionary:
             approvals_sha256=approvals_digest,
         )
 
+    def unresolved_reason(self, location: str, *, species: Species) -> str | None:
+        """Explain conservative matching without selecting an ambiguous candidate."""
+        key = location_key(location)
+        if key in self._ambiguous:
+            return "ambiguous"
+        term = self._terms.get(key)
+        if term is None:
+            return "unknown"
+        if "A" not in term.Category:
+            return "not_anatomy"
+        if term.Uncertain:
+            return "uncertain_term"
+        if not term.Source_Locations and not term.External_Sources:
+            return "missing_source"
+        if species not in _SPECIES.get(term.Species, set()):
+            return "species_mismatch"
+        if not term.Turkish_Term.strip():
+            return "missing_label"
+        if self.version.mode == "reviewed" and term.Term_ID not in self._approved_locatives:
+            return "pending_review"
+        return None
+
     def resolve(self, location: str, *, species: Species) -> AnatomyTermMatch | None:
-        term = self._terms.get(location_key(location))
-        if term is None or not term.eligible or species not in _SPECIES[term.Species]:
+        if self.unresolved_reason(location, species=species) is not None:
             return None
+        term = self._terms[location_key(location)]
         label = term.Turkish_Term
         if self.version.mode == "reviewed":
             locative = self._approved_locatives.get(term.Term_ID)

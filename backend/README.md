@@ -208,3 +208,12 @@ VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind pytest 
 2. Sentence-transformers + Qdrant/pgvector.
 3. OAuth/SSO IdP.
 4. K8s / managed queue.
+
+Eşleşmeyen bulguların nedenleri raporun
+`generation.anatomy_terminology.unresolved` alanında bulgu kimliğiyle saklanır.
+`ambiguous` birden fazla anlamı, `unknown` tam eşleşme bulunamadığını,
+`not_anatomy` anatomi dışındaki bir kaydı, `pending_review` uzman onayı
+bekleyen bir kaydı gösterir. Diğer nedenler tür uyumsuzluğu, belirsiz terim,
+eksik kaynak/etiket veya eşleştirmeye uygun olmayan bulgudur.
+Bu alan, özgün konumları ve görüntü referanslarını taşıyan bulgularla birlikte
+incelenerek sözlükte hangi kayıtların tamamlanacağına karar vermek için kullanılabilir.
