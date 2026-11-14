@@ -263,15 +263,15 @@ class AppContainer:
         # Fails fast on a bad config (like the report LLM); runtime errors fall back to rules.
         self.metadata_classifier = build_metadata_classifier(self.settings)
         self.lessons = LessonStore(self.settings.lessons_path)
-        anatomy_path = self.settings.report_anatomy_dictionary_path
+        anatomy_path = self.settings.report_anatomy_dictionary_path or (
+            Path(__file__).resolve().parent / "llm" / "data" / "VetMind_AI_Search_Dictionary.json"
+        )
         approvals_path = self.settings.report_anatomy_approvals_path
-        if approvals_path is not None and anatomy_path is None:
-            raise ValueError("Report anatomy approvals require a dictionary path.")
         self.llm = LLMGateway(
             self.llm_provider,
             rag=self.rag,
             lessons=self.lessons,
-            anatomy_dictionary=AnatomyDictionary(anatomy_path, approvals_path) if anatomy_path else None,
+            anatomy_dictionary=AnatomyDictionary(anatomy_path, approvals_path),
         )
         self.validator = ReportValidator()
         evidence_root = (

@@ -91,11 +91,12 @@ Offline training lives under repo-root `ml/` (never imported by FastAPI by defau
 
 ### Türkçe rapor taslağında anatomi sözlüğü
 
-`VETMIND_REPORT_ANATOMY_DICTIONARY_PATH` değişkenine sağlanan
-`VetMind_AI_Search_Dictionary.json` dosyasının tam yolunu verin. Uygulama sözlüğü
-başlangıçta yükler. Bu ayar tek başına kedi ve köpeklerin beyin/servikal MR
+`backend/app/llm/data/VetMind_AI_Search_Dictionary.json` depo içinde sürümlenir
+ve uygulama açılışında varsayılan olarak yüklenir. İsteğe bağlı olarak
+`VETMIND_REPORT_ANATOMY_DICTIONARY_PATH` değişkeniyle farklı bir JSON dosyasının
+tam yolunu verebilirsiniz. Bu kurulum kedi ve köpeklerin beyin/servikal MR
 vakalarında yalnızca sentetik bulgularla gösterim yapar. Sözlük yolu
-tanımlanmadığında mevcut rapor akışı kullanılır.
+tanımlanmadan da depo içindeki sürüm kullanılır.
 
 Görüntü modelinin konumu sözlükteki bir arama etiketiyle bütün olarak
 eşleşmelidir. Eşleştirme büyük/küçük harf ve boşluk farklarını tolere eder.
