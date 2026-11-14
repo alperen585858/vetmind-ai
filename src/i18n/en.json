@@ -1975,5 +1975,32 @@
     "goBack": "Go back",
     "backToHome": "Back to home",
     "login": "Sign in"
+  },
+  "vhs": {
+    "toolTitle": "Measure vertebral heart score (VHS)",
+    "step": {
+      "longStart": "Long axis start: ventral edge of the left mainstem bronchus (below the carina)",
+      "longEnd": "Long axis end: cardiac apex",
+      "shortStart": "Short axis start: widest part of the heart, perpendicular to the long axis",
+      "shortEnd": "Short axis end: opposite border",
+      "spineStart": "Spine scale: cranial edge of T4",
+      "spineEnd": "Spine scale: cranial edge of T8 (4 vertebrae)"
+    },
+    "category": {
+      "small": "below the reference",
+      "normal": "within the reference",
+      "large": "above the reference (supports cardiomegaly)",
+      "unknown": "no reference for this species"
+    },
+    "reference": "reference {min}–{max}",
+    "axes": "long {long} v + short {short} v",
+    "notPerpendicular": "short axis not perpendicular ({deg}°)",
+    "undo": "Undo",
+    "clear": "Clear",
+    "addToReport": "Add to report",
+    "reportLine": "VHS (vertebral heart score): {vhs} v — {category}{reference}. Long axis {long} v, short axis {short} v (mean vertebral length T4–T8; radiologist measurement, breed-dependent).",
+    "reportReference": "; reference {min}–{max} v",
+    "added": "VHS added to the report",
+    "addedBody": "Appended to the Findings section; remember to save."
   }
 }

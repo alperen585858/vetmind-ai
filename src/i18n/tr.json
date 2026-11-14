@@ -1975,5 +1975,32 @@
     "goBack": "Geri git",
     "backToHome": "Ana sayfaya dön",
     "login": "Giriş yap"
+  },
+  "vhs": {
+    "toolTitle": "Vertebral kalp skoru (VHS) ölç",
+    "step": {
+      "longStart": "Uzun eksen başı: sol ana bronşun ventral kenarı (karina altı)",
+      "longEnd": "Uzun eksen sonu: kalbin apeksi",
+      "shortStart": "Kısa eksen başı: kalbin en geniş yeri, uzun eksene dik",
+      "shortEnd": "Kısa eksen sonu: karşı kenar",
+      "spineStart": "Omur cetveli: T4'ün kranial kenarı",
+      "spineEnd": "Omur cetveli: T8'in kranial kenarı (4 omur)"
+    },
+    "category": {
+      "small": "referansın altında",
+      "normal": "referans aralığında",
+      "large": "referansın üzerinde (kardiyomegali lehine)",
+      "unknown": "bu tür için referans yok"
+    },
+    "reference": "referans {min}–{max}",
+    "axes": "uzun {long} v + kısa {short} v",
+    "notPerpendicular": "kısa eksen dik değil ({deg}°)",
+    "undo": "Geri al",
+    "clear": "Temizle",
+    "addToReport": "Rapora ekle",
+    "reportLine": "VHS (vertebral kalp skoru): {vhs} v — {category}{reference}. Uzun eksen {long} v, kısa eksen {short} v (T4–T8 ortalama omur boyuna göre; radyolog ölçümü, ırka göre değişir).",
+    "reportReference": "; referans {min}–{max} v",
+    "added": "VHS rapora eklendi",
+    "addedBody": "Bulgular bölümünün sonuna yazıldı; kaydetmeyi unutmayın."
   }
 }

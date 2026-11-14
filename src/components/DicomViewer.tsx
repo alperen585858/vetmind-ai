@@ -25,8 +25,10 @@ import {
   Play,
   RotateCcw,
   RotateCw,
+  HeartPulse,
   Ruler,
   Square,
+  Undo2,
   Triangle,
   ZoomIn,
 } from 'lucide-react'
@@ -39,6 +41,7 @@ import {
 } from '../lib/dicomPreview'
 import { useLocale } from '../context/LocaleContext'
 import { modalityLabel } from '../lib/displayClean'
+import { computeVhs, VHS_POINT_COUNT, VHS_STEP_KEYS, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../lib/vhs'
 import {
   applyHandleDrag,
   assertAnnotateViewAllowed,
@@ -51,7 +54,7 @@ import {
   type NativeBBox,
 } from '../lib/viewerCoords'
 
-type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi' | 'annotate'
+type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi' | 'annotate' | 'vhs'
 
 export type AnnotateCommitPayload = {
   mode: 'create' | 'edit'
@@ -113,6 +116,51 @@ function formatDistance(
   return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false }
 }
 
+const VHS_LABELS = ['1', '2', '3', '4', 'T4', 'T8']
+
+/** Long axis (1→2), short axis (3→4) and the T4→T8 spine scale with one tick per vertebra. */
+function VhsOverlay({ points, stroke }: { points: VhsPoint[]; stroke: number }) {
+  const [a, b, c, d, t4, t8] = points
+  const line = (p: VhsPoint | undefined, q: VhsPoint | undefined, color: string) =>
+    p && q ? <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={color} strokeWidth={stroke} /> : null
+  const ticks =
+    t4 && t8
+      ? [1, 2, 3].map((k) => (
+          <circle
+            key={k}
+            cx={t4.x + ((t8.x - t4.x) * k) / 4}
+            cy={t4.y + ((t8.y - t4.y) * k) / 4}
+            r={stroke * 1.6}
+            fill="#38bdf8"
+          />
+        ))
+      : null
+  return (
+    <g>
+      {line(a, b, '#fb7185')}
+      {line(c, d, '#fda4af')}
+      {line(t4, t8, '#38bdf8')}
+      {ticks}
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle
+            data-vhs-point={VHS_LABELS[i]}
+            cx={p.x}
+            cy={p.y}
+            r={stroke * 2.4}
+            fill={i >= 4 ? '#38bdf8' : '#fb7185'}
+            stroke="#0b1727"
+            strokeWidth={stroke / 2}
+          />
+          <text x={p.x + stroke * 3} y={p.y - stroke * 3} fill="#fff" fontSize={stroke * 9} fontFamily="monospace">
+            {VHS_LABELS[i]}
+          </text>
+        </g>
+      ))}
+    </g>
+  )
+}
+
 export function DicomViewer({
   frames,
   loading = false,
@@ -127,6 +175,9 @@ export function DicomViewer({
   annotateEnabled = false,
   selectedEvidenceId = null,
   onAnnotateCommit,
+  vhsEnabled = false,
+  vhsSpecies = 'other',
+  onVhsCommit,
 }: {
   frames: DicomFramePreview[]
   loading?: boolean
@@ -150,6 +201,11 @@ export function DicomViewer({
   annotateEnabled?: boolean
   selectedEvidenceId?: string | null
   onAnnotateCommit?: (payload: AnnotateCommitPayload) => void | Promise<void>
+  /** VHS (vertebral heart score) tool for lateral thoracic radiographs. */
+  vhsEnabled?: boolean
+  vhsSpecies?: VhsSpecies
+  /** "Add to report" for a finished VHS measurement; button hidden when absent. */
+  onVhsCommit?: (result: VhsResult) => void
 }) {
   const { t } = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -198,6 +254,7 @@ export function DicomViewer({
   const [angleLabel, setAngleLabel] = useState<string | null>(null)
   const [roiPts, setRoiPts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
   const [roiLabel, setRoiLabel] = useState<string | null>(null)
+  const [vhsPts, setVhsPts] = useState<VhsPoint[]>([])
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
   const measureStartRef = useRef<{ x: number; y: number } | null>(null)
   const roiStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -443,6 +500,11 @@ export function DicomViewer({
       })
       return
     }
+    if (tool === 'vhs') {
+      const pt = canvasLocalPoint(e)
+      setVhsPts((prev) => (prev.length >= VHS_POINT_COUNT ? [pt] : [...prev, pt]))
+      return
+    }
     if (tool === 'measure') {
       const pt = canvasLocalPoint(e)
       measureStartRef.current = pt
@@ -607,6 +669,7 @@ export function DicomViewer({
     setAngleLabel(null)
     setRoiPts(null)
     setRoiLabel(null)
+    setVhsPts([])
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -639,6 +702,7 @@ export function DicomViewer({
     else if (e.key === 'a' || e.key === 'A') setTool('angle')
     else if (e.key === 'o' || e.key === 'O') setTool('roi')
     else if ((e.key === 'b' || e.key === 'B') && annotateEnabled) setTool('annotate')
+    else if ((e.key === 'h' || e.key === 'H') && vhsEnabled) setTool('vhs')
     else if (e.key === 'f' || e.key === 'F') {
       e.preventDefault()
       void toggleFullscreen()
@@ -696,6 +760,7 @@ export function DicomViewer({
   }
 
   const statusBits = [measureLabel, angleLabel, roiLabel].filter(Boolean).join(' · ')
+  const vhsResult = vhsEnabled ? computeVhs(vhsPts, vhsSpecies, frame?.pixelSpacingMm) : null
 
   return (
     <div
@@ -766,6 +831,11 @@ export function DicomViewer({
             onClick={() => setTool('annotate')}
           >
             <PenLine className="h-3.5 w-3.5" /> BBox
+          </ToolButton>
+        ) : null}
+        {vhsEnabled ? (
+          <ToolButton active={tool === 'vhs'} title={`${t('vhs.toolTitle')} (H)`} onClick={() => setTool('vhs')}>
+            <HeartPulse className="h-3.5 w-3.5" /> VHS
           </ToolButton>
         ) : null}
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
@@ -839,6 +909,64 @@ export function DicomViewer({
         </span>
       </div>
 
+      {vhsEnabled && (tool === 'vhs' || vhsPts.length > 0) && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#0b1727] px-3 py-1.5 text-[11px] text-slate-200"
+          role="status"
+          aria-live="polite"
+        >
+          <HeartPulse className="h-3.5 w-3.5 text-rose-300" aria-hidden />
+          {vhsResult ? (
+            <span>
+              <strong className="text-white">VHS {vhsResult.vhs.toFixed(1)} v</strong>
+              {' · '}
+              {t(`vhs.category.${vhsResult.category}`)}
+              {vhsResult.reference
+                ? ` (${t('vhs.reference', { min: vhsResult.reference.min, max: vhsResult.reference.max })})`
+                : ''}
+              {` · ${t('vhs.axes', { long: vhsResult.longV.toFixed(1), short: vhsResult.shortV.toFixed(1) })}`}
+              {vhsResult.notPerpendicular ? (
+                <span className="ml-1 text-amber-300">· {t('vhs.notPerpendicular', { deg: vhsResult.axisAngleDeg })}</span>
+              ) : null}
+            </span>
+          ) : (
+            <span>
+              <span className="font-mono text-rose-200">
+                {Math.min(vhsPts.length + 1, VHS_POINT_COUNT)}/{VHS_POINT_COUNT}
+              </span>{' '}
+              {t(`vhs.step.${VHS_STEP_KEYS[Math.min(vhsPts.length, VHS_POINT_COUNT - 1)]}`)}
+            </span>
+          )}
+          <span className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+              disabled={!vhsPts.length}
+              onClick={() => setVhsPts((p) => p.slice(0, -1))}
+            >
+              <Undo2 className="h-3 w-3" aria-hidden /> {t('vhs.undo')}
+            </button>
+            <button
+              type="button"
+              className="rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+              disabled={!vhsPts.length}
+              onClick={() => setVhsPts([])}
+            >
+              {t('vhs.clear')}
+            </button>
+            {vhsResult && onVhsCommit ? (
+              <button
+                type="button"
+                className="rounded bg-[#0D827B] px-2 py-0.5 font-semibold text-white hover:bg-[#0b6f69]"
+                onClick={() => onVhsCommit(vhsResult)}
+              >
+                {t('vhs.addToReport')}
+              </button>
+            ) : null}
+          </span>
+        </div>
+      )}
+
       <div
         className={`relative flex min-h-[min(62vh,640px)] flex-1 cursor-crosshair items-center justify-center overflow-hidden bg-black select-none ${compare ? 'gap-1' : ''}`}
         onWheel={onWheel}
@@ -902,6 +1030,9 @@ export function DicomViewer({
                   stroke="#5eead4"
                   strokeWidth={Math.max(1, frame.cols / 400)}
                 />
+              )}
+              {vhsPts.length > 0 && (
+                <VhsOverlay points={vhsPts} stroke={Math.max(1.5, frame.cols / 350)} />
               )}
               {draftAnnotate && (
                 <rect

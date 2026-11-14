@@ -24,6 +24,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { currentActorId } from '../lib/auth'
+import { vhsSpeciesFrom, type VhsResult } from '../lib/vhs'
 import { canonicalizeCaseId, isBackendCaseId } from '../lib/caseId'
 import { AIFindingsPanel, type EvidenceFocus } from '../components/AIFindingsPanel'
 import { Button } from '../components/Button'
@@ -378,6 +379,23 @@ export default function RadiologistWorkspace() {
     nav(`/vakalar/${target.case_id}/calisma`)
   }
 
+  /** VHS measurement → one line at the end of the Findings section (radiologist edits/saves). */
+  function appendVhsToReport(r: VhsResult) {
+    const line = t('vhs.reportLine', {
+      vhs: r.vhs.toFixed(1),
+      category: t(`vhs.category.${r.category}`),
+      reference: r.reference ? t('vhs.reportReference', { min: r.reference.min, max: r.reference.max }) : '',
+      long: r.longV.toFixed(1),
+      short: r.shortV.toFixed(1),
+    })
+    setText((prev) => {
+      if (!prev) return prev
+      const current = prev.bulgular.trimEnd()
+      return { ...prev, bulgular: current ? `${current}\n${line}` : line }
+    })
+    pushToast({ tone: 'success', title: t('vhs.added'), body: t('vhs.addedBody') })
+  }
+
   /** Save the revision reason as a lesson for similar cases; never blocks the revision itself. */
   async function maybeSaveLesson(note: string, codes: string[]) {
     if (!rememberLesson || !caseKey.startsWith('case-')) return
@@ -709,6 +727,9 @@ export default function RadiologistWorkspace() {
               focusRequestId={focusRequestId}
               overlays={viewerOverlays}
               onActiveFrameChange={(fr) => setActiveViewerFrame(fr)}
+              vhsEnabled={c.modality === 'XR'}
+              vhsSpecies={vhsSpeciesFrom(c.patient.species)}
+              onVhsCommit={immutable ? undefined : appendVhsToReport}
               annotateEnabled={Boolean(c.backendCaseId && !immutable && c.backendFindings?.findings?.length)}
               selectedEvidenceId={evidenceFocus?.evidenceId ?? null}
               onAnnotateCommit={async (payload) => {

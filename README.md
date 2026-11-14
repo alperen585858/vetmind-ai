@@ -65,7 +65,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 
 | Alan | Durum |
 |------|--------|
-| **Frontend** | Landing, giriş/kayıt, şifremi unuttum / şifre sıfırlama, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
+| **Frontend** | Landing, giriş/kayıt, şifremi unuttum / şifre sıfırlama, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan, mesafe/açı/ROI, röntgende **VHS kalp ölçümü**), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
 | **Backend API** | Case / Job / Findings / Report / Review / DICOM / Documents / Auth / RAG / Health |
 | **Quarantine** | Yerel disk `backend/data/quarantine/{ingest_id}/` + SHA256 + `manifest.json`; path sanitization |
 | **DICOM** | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma önerisi + onay; demo fixture: Brain MRI, Cervical MRI, Brain CT, Thorax XR |
@@ -737,6 +737,10 @@ Radyolog revizyon isterken **"Bu düzeltmeyi benzer vakalar için hatırla"** ku
 | Dersli | 2/5 | 5/5 |
 
 Küçük bir duman testi; model dersi her seferinde uygulamıyor. Son karar yine radyologda.
+
+### 8.6 VHS ölçüm aracı (vertebral kalp skoru)
+
+Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir.
 
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).
 
