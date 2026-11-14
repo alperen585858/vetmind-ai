@@ -136,7 +136,7 @@
     "clinicCases": "Klinik Vakalar",
     "newCase": "Yeni Vaka",
     "approvedReports": "Onaylı Raporlar",
-    "expertApproved": "Onaylananlar",
+    "expertApproved": "Onaylı Raporlar",
     "myReports": "Raporlarım",
     "worklist": "İş Listesi",
     "expertWorklist": "İş Listem",
@@ -1289,7 +1289,8 @@
       "delivered": "İletildi",
       "ready": "Hazır",
       "ageWeightValue": "{age} yaş · {weight} kg"
-    }
+    },
+    "radiologyReportTitle": "Radyoloji Değerlendirme Raporu"
   },
   "messages": {
     "title": "İletişim",

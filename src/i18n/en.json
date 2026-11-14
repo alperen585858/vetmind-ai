@@ -136,7 +136,7 @@
     "clinicCases": "Clinic Cases",
     "newCase": "New Case",
     "approvedReports": "Approved Reports",
-    "expertApproved": "Approved",
+    "expertApproved": "Approved Reports",
     "myReports": "My Reports",
     "worklist": "Worklist",
     "expertWorklist": "My worklist",
@@ -1289,7 +1289,8 @@
       "delivered": "Delivered",
       "ready": "Ready",
       "ageWeightValue": "{age} y · {weight} kg"
-    }
+    },
+    "radiologyReportTitle": "Radiology assessment report"
   },
   "messages": {
     "title": "Messages",

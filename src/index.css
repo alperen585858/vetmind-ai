@@ -234,12 +234,17 @@ body {
   color: #12233a;
 }
 
-.input {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20;
-  min-height: 44px;
-}
-.label {
-  @apply mb-1.5 block text-sm font-medium text-navy-800;
+/* In the components layer so utilities on the element win (e.g. `input pl-9` next to a search
+   icon). Outside any layer, .input's px-3 came after the utilities and overrode pl-9, so the
+   icon sat on top of the placeholder text. */
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20;
+    min-height: 44px;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-navy-800;
+  }
 }
 
 .text-display {

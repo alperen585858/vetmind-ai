@@ -408,7 +408,7 @@ export default function ReportList() {
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 font-semibold text-navy-900">
                       <SpeciesIcon species={c.patient.species} /> {c.patient.name} —{' '}
-                      {t('reports.neuroReportTitle')}
+                      {t('reports.radiologyReportTitle')}
                       {revised ? (
                         <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800 ring-1 ring-inset ring-violet-200">
                           {t('reports.revisedBadge', { version })}
