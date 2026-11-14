@@ -188,7 +188,7 @@ Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
 | `npm run backend:dev:ai` | uvicorn + **gerçek model**: Ollama `qwen2.5:7b`, prompt v5, hakem açık (§4.4) |
 | `npm run backend:dev:vision` | `backend:dev:ai` + **gerçek röntgen modeli** (§4.5) |
 | `npm run backend:test` | pytest |
-| `npm run e2e` | Playwright (sistem Chrome; browser indirmez) |
+| `npm run e2e` | Playwright (sistem Chrome; browser indirmez; Windows'ta da çalışır) |
 | `npm run e2e:ui` | Playwright UI mode |
 | `npm run build:share` | Paylaşım build (`dist-share`) |
 
@@ -1036,8 +1036,9 @@ npm run build
 npm run backend:test
 # veya: cd backend && pytest
 
-npm run e2e
-# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 — sistem Google Chrome (channel: chrome)
+npm run e2e                                          # demo modu (masaüstü + mobil), Windows/macOS/Linux
+E2E_PROTECTED=1 npx playwright test --project=e2e-protected   # korumalı mod (auth açık)
+# Sistem Google Chrome kullanılır (channel: chrome); tarayıcı indirmez.
 
 # Postgres entegrasyonu (opsiyonel):
 VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind \
@@ -1052,7 +1053,11 @@ VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind \
 | `e2e/negative.spec.ts` | Geçersiz DICOM, yetkisiz inceleme, refresh kalıcılık, timeout, cancel, backend down |
 | `e2e/demo-journey.spec.ts` | Login / logout (desktop + mobil viewport) |
 
-Playwright izole sqlite kullanır (`e2e/.data/`); üretim `backend/data/` dokunulmaz.
+Playwright izole sqlite kullanır (`e2e/.data/`); üretim `backend/data/` dokunulmaz. Backend'i
+`scripts/e2e-backend.mjs` başlatır (her işletim sisteminde; her çalıştırmada veri sıfırlanır, gerçek
+LLM çağrılmaz). CI'da (`.github/workflows/ci.yml` → **E2E** işi) her push ve PR'da çalışır; hata
+olursa Playwright raporu ve trace'ler `playwright-report` artifact'i olarak indirilebilir.
+Trace açmak için: `npx playwright show-trace <trace.zip>`.
 
 ### Backend test odakları (örnek)
 
