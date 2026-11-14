@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Protocol, runtime_checkable
+from typing import ClassVar, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,8 +11,9 @@ from app.schemas.enums import (
     SourceKind,
     Species,
 )
+from app.schemas.findings import Laterality
 from app.schemas.rag import RagPassage
-from app.schemas.report import DraftReport
+from app.schemas.report import AnatomyDictionaryVersion, AnatomyTermMatch, DraftReport
 
 
 class LLMErrorKind(str, Enum):
@@ -65,6 +66,25 @@ class LLMFindingRef(BaseModel):
     # Radiologist-verifiable locus from EvidenceReference (series/SOP/instance/frame/bbox).
     evidence_locus: Optional[str] = None
     uncertainty_note: Optional[str] = None
+    laterality: Optional[Laterality] = None
+    anatomy_term: Optional[AnatomyTermMatch] = None
+
+    _sides_tr: ClassVar[dict[str, str]] = {"LEFT": "sol", "RIGHT": "sağ", "MIDLINE": "orta hat"}
+
+    def side_label(self, language: str) -> str | None:
+        if self.laterality in (None, "UNKNOWN"):
+            return None
+        if language == "tr":
+            return self._sides_tr[self.laterality]
+        return self.laterality.lower()
+
+    def findings_phrase(self, language: str) -> str:
+        term = self.anatomy_term if language == "tr" else None
+        if term is None:
+            return f"{self.anatomical_location}: {self.description}"
+        if term.turkish_locative:
+            return f"{term.turkish_locative} {self.description}"
+        return f"{term.turkish_label}: {self.description}"
 
 
 class LLMGenerationInput(BaseModel):
@@ -107,6 +127,7 @@ class LLMGenerationInput(BaseModel):
     expert_lessons: list[str] = Field(default_factory=list)
     # UI / UserSettings language (tr|en); providers fall back to env default when unset by caller.
     language: str = "tr"
+    anatomy_dictionary: Optional[AnatomyDictionaryVersion] = None
     note: str = (
         "Minimal LLM generation input. Opaque case_id for traceability only. "
         "findings_source_kind traces imaging provenance separately from rag_passages. "

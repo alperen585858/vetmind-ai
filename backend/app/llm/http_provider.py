@@ -23,6 +23,7 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
+from app.llm.prompts import ANATOMY_WORDING_INSTRUCTIONS
 from app.llm.rag_grounding import apply_used_passages_to_report
 from app.schemas.enums import ReportStatus, SourceKind
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
@@ -77,12 +78,22 @@ class HttpLLMProvider:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
+        generation = request.generation.model_dump(mode="json")
+        instructions = request.instructions
+        if generation["anatomy_dictionary"] is None:
+            del generation["anatomy_dictionary"]
+        else:
+            instructions += "\n" + ANATOMY_WORDING_INSTRUCTIONS
+        for finding in generation["findings"]:
+            for field in ("anatomy_term", "laterality"):
+                if finding[field] is None:
+                    del finding[field]
         payload = {
             "provider_id": self.provider_id,
             "model_id": self.model_id,
             "model_version": self.model_version,
-            "instructions": request.instructions,
-            "generation": request.generation.model_dump(mode="json"),
+            "instructions": instructions,
+            "generation": generation,
             "note": (
                 "Generic VetMind HTTP LLM wire format. "
                 "Not a guarantee of OpenAI/Anthropic/etc. compatibility."

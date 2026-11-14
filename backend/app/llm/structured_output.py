@@ -173,7 +173,9 @@ def auto_findings_text(gen: LLMGenerationInput, aliases: CitationAliases, langua
         f = by_id[finding_id]
         status = _STATUS_LABEL[lang].get(f.finding_status.value, f.finding_status.value)
         locus = f" — {f.evidence_locus}" if f.evidence_locus else ""
-        lines.append(f"- {f.anatomical_location}: {f.description} ({status}){locus} [{alias}]")
+        if side := f.side_label(lang):
+            status += f", {'taraf' if lang == 'tr' else 'side'}: {side}"
+        lines.append(f"- {f.findings_phrase(lang)} ({status}){locus} [{alias}]")
     return "\n".join(lines)
 
 

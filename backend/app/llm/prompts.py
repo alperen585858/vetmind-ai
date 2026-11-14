@@ -35,6 +35,14 @@ def has_example(version: str) -> bool:
 
 LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
 
+ANATOMY_WORDING_INSTRUCTIONS = (
+    "For Turkish findings, use the supplied Turkish anatomy label and its locative form "
+    "when provided (e.g. beyin → beyinde; beyin sapı → beyin sapında). If no Turkish label is "
+    "provided, quote the original location verbatim, including any qualifiers. Retain the "
+    "reported laterality, certainty and evidence. Never infer or broaden a location. "
+    "Anatomy labels are wording aids only and do not validate the imaging findings."
+)
+
 MAX_HISTORY_CHARS = 4000
 MAX_PASSAGE_CHARS = 1200
 
@@ -140,13 +148,21 @@ def _findings_block(gen: LLMGenerationInput, aliases: CitationAliases) -> str:
         )
     by_id = {f.finding_id: f for f in gen.findings}
     lines = ["IMAGING FINDINGS (cite as [F#]; include evidence locus when present):"]
+    if gen.language == "tr" and gen.anatomy_dictionary is not None:
+        lines.append(ANATOMY_WORDING_INSTRUCTIONS)
     for alias, finding_id in aliases.findings.items():
         f = by_id[finding_id]
         locus = f" | evidence={f.evidence_locus}" if f.evidence_locus else " | evidence=(ungrounded)"
         unc = f" | uncertainty={f.uncertainty_note}" if f.uncertainty_note else ""
+        side = f" | laterality={f.laterality}" if f.laterality else ""
+        wording = ""
+        if gen.language == "tr" and f.anatomy_term is not None:
+            wording = f" | Turkish location={f.anatomy_term.turkish_label}"
+            if f.anatomy_term.turkish_locative:
+                wording += f" | Turkish locative={f.anatomy_term.turkish_locative}"
         lines.append(
             f"[{alias}] code={f.finding_code} | status={f.finding_status.value} | "
-            f"location={f.anatomical_location} | {f.description}{locus}{unc}"
+            f"location={f.anatomical_location}{wording}{side} | {f.description}{locus}{unc}"
         )
     return "\n".join(lines)
 

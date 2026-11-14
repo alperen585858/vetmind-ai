@@ -86,9 +86,13 @@ def _evidence_lines(
     for alias in markers:
         if alias in aliases.findings and aliases.findings[alias] in findings:
             f = findings[aliases.findings[alias]]
+            location = f.anatomical_location
+            if f.anatomy_term is not None:
+                location += f" ({f.anatomy_term.turkish_label})"
+            side = f"; laterality={f.laterality}" if f.laterality else ""
             lines.append(
                 f"[{alias}] imaging finding — status={f.finding_status.value}; "
-                f"location={f.anatomical_location}; {f.description}"
+                f"location={location}{side}; {f.description}"
             )
         elif alias in aliases.sources and aliases.sources[alias] in passages:
             p = passages[aliases.sources[alias]]

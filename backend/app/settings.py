@@ -84,6 +84,8 @@ class Settings:
     llm_api_key: str | None = None
     llm_timeout_s: float = 30.0
     llm_report_language: str = "tr"  # tr | en — language of generated report text
+    report_anatomy_dictionary_path: Path | None = None
+    report_anatomy_approvals_path: Path | None = None
     llm_temperature: float | None = 0.2
     llm_max_tokens: int = 2048
     llm_json_mode: str = "schema"  # schema | object | none (OpenAI-compatible only)
@@ -364,6 +366,8 @@ def load_settings() -> Settings:
     except ValueError:
         llm_timeout_s = 30.0
     llm_report_language = os.getenv("VETMIND_LLM_REPORT_LANGUAGE", "tr").strip().lower() or "tr"
+    anatomy_dictionary_path = os.getenv("VETMIND_REPORT_ANATOMY_DICTIONARY_PATH", "").strip()
+    anatomy_approvals_path = os.getenv("VETMIND_REPORT_ANATOMY_APPROVALS_PATH", "").strip()
     llm_temperature_raw = os.getenv("VETMIND_LLM_TEMPERATURE", "0.2").strip().lower()
     try:
         llm_temperature = None if llm_temperature_raw in {"", "none"} else float(llm_temperature_raw)
@@ -542,6 +546,8 @@ def load_settings() -> Settings:
         llm_api_key=llm_api_key,
         llm_timeout_s=llm_timeout_s,
         llm_report_language=llm_report_language,
+        report_anatomy_dictionary_path=Path(anatomy_dictionary_path) if anatomy_dictionary_path else None,
+        report_anatomy_approvals_path=Path(anatomy_approvals_path) if anatomy_approvals_path else None,
         llm_temperature=llm_temperature,
         llm_max_tokens=max(256, llm_max_tokens),
         llm_json_mode=llm_json_mode,

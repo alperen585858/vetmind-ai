@@ -1,3 +1,4 @@
+from app.llm.anatomy_dictionary import AnatomyDictionary
 from app.llm.interfaces import (
     LLMFindingRef,
     LLMGenerationInput,
@@ -9,11 +10,15 @@ from app.llm.interfaces import (
 )
 from app.llm.lessons import LessonContext, LessonStore
 from app.llm.privacy import redact_personal_data
+from app.models.ontology import is_technique_code
 from app.rag.relevance import RagFilter, build_retrieval_query
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
+from app.schemas.enums import (
+    AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species,
+)
 from app.schemas.findings import StructuredFindings
-from app.schemas.report import DraftReport
+from app.schemas.report import DraftReport, ReportAnatomyTerminology
 
 
 def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
@@ -79,6 +84,7 @@ def build_generation_input(
     *,
     rag_passages: list | None = None,
     language: str = "tr",
+    anatomy_dictionary: AnatomyDictionary | None = None,
 ) -> LLMGenerationInput:
     """Project case/findings into a minimal outbound DTO (no quarantine/credentials/PII names)."""
     doc_count = 0
@@ -91,6 +97,21 @@ def build_generation_input(
     lang = (language or "tr").strip().lower() or "tr"
     if lang not in {"tr", "en"}:
         lang = "tr"
+    if (
+        lang != "tr"
+        or case.modality != Modality.MR
+        or case.anatomical_region not in {AnatomicalRegion.BRAIN, AnatomicalRegion.CERVICAL}
+        or case.species not in {Species.CANINE, Species.FELINE}
+        or findings.execution_status not in {ModelExecutionStatus.SUCCESS, ModelExecutionStatus.PARTIAL}
+        or findings.no_findings_returned
+        or not findings.findings
+        or (
+            anatomy_dictionary is not None
+            and anatomy_dictionary.version.mode == "demo"
+            and findings.source_kind != SourceKind.MOCK
+        )
+    ):
+        anatomy_dictionary = None
     cov = findings.analysis_coverage
     return LLMGenerationInput(
         case_id=case.case_id,
@@ -113,6 +134,21 @@ def build_generation_input(
                     (f.evidence_references[0].description if f.evidence_references else None)
                 ),
                 uncertainty_note=f.uncertainty_note,
+                laterality=f.laterality if f.laterality != "UNKNOWN" else None,
+                anatomy_term=(
+                    anatomy_dictionary.resolve(f.anatomical_location, species=case.species)
+                    if anatomy_dictionary is not None
+                    and (anatomy_dictionary.version.mode == "reviewed" or f.synthetic)
+                    and (
+                        f.anatomical_location_reported
+                        if f.anatomical_location_reported is not None
+                        # Legacy adapters fill missing locations with the case's uppercase enum.
+                        else f.anatomical_location != findings.anatomical_region.value
+                    )
+                    and f.finding_status != FindingStatus.NOT_ASSESSED
+                    and not is_technique_code(f.finding_code)
+                    else None
+                ),
             )
             for f in findings.findings
         ],
@@ -136,6 +172,7 @@ def build_generation_input(
         rag_passages=list(rag_passages or []),
         rag_is_clinical_validation=False,
         language=lang,
+        anatomy_dictionary=anatomy_dictionary.version if anatomy_dictionary is not None else None,
     )
 
 
@@ -149,11 +186,13 @@ class LLMGateway:
         *,
         rag_top_k: int = 4,
         lessons: LessonStore | None = None,
+        anatomy_dictionary: AnatomyDictionary | None = None,
     ) -> None:
         self._provider = provider
         self._rag = rag
         self._rag_top_k = rag_top_k
         self._lessons = lessons
+        self._anatomy_dictionary = anatomy_dictionary
 
     @property
     def provider_id(self) -> str:
@@ -183,13 +222,35 @@ class LLMGateway:
         updated = generation.model_copy(update={"expert_lessons": [m.instruction for m in matched]})
         return updated, [m.lesson_id for m in matched]
 
-    def _record_lessons(self, report: DraftReport, lesson_ids: list[str]) -> DraftReport:
+    def _record_generation_metadata(
+        self, report: DraftReport, lesson_ids: list[str], generation: LLMGenerationInput,
+    ) -> DraftReport:
         # Template providers (mock/stub) never read the prompt, so they did not "apply" anything.
         if lesson_ids and report.generation.prompt_version is not None:
             report.generation.applied_lesson_ids = list(lesson_ids)
             if self._lessons is not None:
                 self._lessons.mark_applied(lesson_ids)
+        if generation.anatomy_dictionary is not None:
+            report.generation.anatomy_terminology = ReportAnatomyTerminology(
+                dictionary=generation.anatomy_dictionary,
+                matches={
+                    f.finding_id: f.anatomy_term
+                    for f in generation.findings
+                    if f.anatomy_term is not None
+                },
+            )
         return report
+
+    def _draft_input(
+        self, case: CaseRecord, findings: StructuredFindings, language: str,
+    ) -> LLMGenerationInput:
+        return build_generation_input(
+            case,
+            findings,
+            rag_passages=self._retrieve(case, findings) if self._rag is not None else None,
+            language=language,
+            anatomy_dictionary=self._anatomy_dictionary,
+        )
 
     def generate_draft(
         self,
@@ -198,10 +259,7 @@ class LLMGateway:
         *,
         language: str = "tr",
     ) -> DraftReport:
-        passages = []
-        if self._rag is not None:
-            passages = self._retrieve(case, findings)
-        generation = build_generation_input(case, findings, rag_passages=passages, language=language)
+        generation = self._draft_input(case, findings, language)
         generation, lesson_ids = self._with_lessons(case, findings, generation)
         try:
             response: LLMResponse = self._provider.generate(
@@ -210,7 +268,7 @@ class LLMGateway:
         except LLMProviderError:
             # Do not fall back to a mock draft after a real provider failure.
             raise
-        return self._record_lessons(response.report, lesson_ids)
+        return self._record_generation_metadata(response.report, lesson_ids, generation)
 
     def revise_draft(
         self,
@@ -222,10 +280,7 @@ class LLMGateway:
         language: str = "tr",
     ) -> DraftReport:
         """Regenerate the draft with the expert's revision request; same findings, fresh retrieval."""
-        passages = []
-        if self._rag is not None:
-            passages = self._retrieve(case, findings)
-        generation = build_generation_input(case, findings, rag_passages=passages, language=language)
+        generation = self._draft_input(case, findings, language)
         generation, lesson_ids = self._with_lessons(case, findings, generation)
         known = [(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")]
         revision = RevisionContext(
@@ -236,4 +291,4 @@ class LLMGateway:
             expert_note=redact_personal_data(expert_note, known=known).text,
         )
         response = self._provider.generate(LLMRequest(generation=generation, revision=revision))
-        return self._record_lessons(response.report, lesson_ids)
+        return self._record_generation_metadata(response.report, lesson_ids, generation)

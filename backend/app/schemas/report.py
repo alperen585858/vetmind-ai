@@ -13,6 +13,32 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class AnatomyTermMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    term_id: str
+    original_location: str
+    turkish_label: str
+    turkish_locative: str | None = None
+
+
+class AnatomyDictionaryVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: str
+    sha256: str
+    mode: Literal["demo", "reviewed"]
+    approvals_sha256: str | None = None
+
+
+class ReportAnatomyTerminology(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dictionary: AnatomyDictionaryVersion
+    # Keys are finding IDs, which also link the draft to its source images.
+    matches: dict[str, AnatomyTermMatch]
+
+
 class GenerationMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -29,6 +55,7 @@ class GenerationMetadata(BaseModel):
     pipeline_steps: list[str] = Field(default_factory=list)
     # Expert revision lessons that were put in this draft's prompt (app/llm/lessons.py).
     applied_lesson_ids: list[str] = Field(default_factory=list)
+    anatomy_terminology: Optional[ReportAnatomyTerminology] = None
 
 
 class DifferentialDiagnosis(BaseModel):
