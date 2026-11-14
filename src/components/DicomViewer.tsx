@@ -849,7 +849,11 @@ export function DicomViewer({
         onClick={() => viewportRef.current?.focus()}
       >
         <div className={`relative flex items-center justify-center ${compare ? 'w-1/2' : 'w-full'}`} style={transformStyle}>
-          <canvas ref={canvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
+          {/* Wrapper hugs the canvas so the SVG layer (measure/angle/ROI/bbox draft/VHS) is drawn in
+              exactly the canvas box. Spanning the wider container stretched it horizontally and
+              drew marks away from where the user clicked on narrow/portrait images. */}
+          <div className="relative inline-block max-w-full leading-[0]">
+          <canvas ref={canvasRef} className="block max-h-[min(58vh,600px)] max-w-full" />
           {frame?.cols && frame.rows && (
             <svg
               className="pointer-events-none absolute inset-0 h-full w-full"
@@ -913,6 +917,7 @@ export function DicomViewer({
               )}
             </svg>
           )}
+          </div>
         </div>
         {compare && (
           <div className="flex w-1/2 flex-col items-center justify-center border-l border-white/10">
