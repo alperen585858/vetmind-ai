@@ -11,6 +11,8 @@ backend/.pytest_tmp
 *.pyc
 *.sqlite3
 e2e-report
+e2e-report-protected
+test-results-protected
 test-results
 playwright-report
 e2e/.data

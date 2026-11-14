@@ -1,17 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const root = path.dirname(fileURLToPath(import.meta.url))
-const e2eData = path.join(root, 'e2e', '.data')
-const sqlitePath = path.join(e2eData, 'e2e.sqlite3')
-const quarantineRoot = path.join(e2eData, 'quarantine')
-const auditPath = path.join(e2eData, 'audit.jsonl')
 const protectedE2e = process.env.E2E_PROTECTED === '1'
-const sqliteProtected = path.join(e2eData, 'e2e-protected.sqlite3')
-const quarantineProtected = path.join(e2eData, 'quarantine-protected')
-const activeSqlite = protectedE2e ? sqliteProtected : sqlitePath
-const activeQuarantine = protectedE2e ? quarantineProtected : quarantineRoot
 
 /**
  * Browser E2E — system Google Chrome (channel: chrome).
@@ -21,9 +10,12 @@ export default defineConfig({
   testDir: 'e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // One retry on CI absorbs rare network/startup hiccups; a broken test still fails.
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e-report' }]],
+  // Protected runs get their own folders so a later run never wipes an earlier failure's traces.
+  outputDir: protectedE2e ? 'test-results-protected' : 'test-results',
+  reporter: [['list'], ['html', { open: 'never', outputFolder: protectedE2e ? 'e2e-report-protected' : 'e2e-report' }]],
   timeout: 120_000,
   expect: { timeout: 15_000 },
   use: {
@@ -58,33 +50,9 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: [
-            // Fresh isolated storage each run — stale sqlite was a flaky root cause.
-            'rm -f',
-            JSON.stringify(activeSqlite),
-            JSON.stringify(auditPath),
-            '&&',
-            'rm -rf',
-            JSON.stringify(activeQuarantine),
-            '&&',
-            'mkdir -p',
-            JSON.stringify(e2eData),
-            JSON.stringify(activeQuarantine),
-            '&&',
-            'cd backend &&',
-            `VETMIND_STORAGE=sqlite`,
-            `VETMIND_SQLITE_PATH=${JSON.stringify(activeSqlite)}`,
-            `VETMIND_QUARANTINE_ROOT=${JSON.stringify(activeQuarantine)}`,
-            `VETMIND_AUDIT_LOG_PATH=${JSON.stringify(auditPath)}`,
-            `VETMIND_ANALYZE_GATE_PATH=${JSON.stringify(path.join(e2eData, 'analyze_gate.count'))}`,
-            `VETMIND_AUTH_ENABLED=${protectedE2e ? '1' : '0'}`,
-            `VETMIND_DEPLOYMENT_MODE=${protectedE2e ? 'protected' : 'demo'}`,
-            `VETMIND_JWT_SECRET=${protectedE2e ? 'e2e-protected-jwt-secret-min-32-chars!!' : 'vetmind-demo-secret-change-me'}`,
-            // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
-            `VETMIND_ASYNC_DELAY_MS=50`,
-            `VETMIND_RAG=lexical`,
-            '.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000',
-          ].join(' '),
+          // Cross-platform (Windows/macOS/Linux/CI): wipes e2e/.data and starts uvicorn from
+          // backend/.venv; E2E_PROTECTED=1 switches to auth-on protected mode.
+          command: 'node scripts/e2e-backend.mjs',
           url: 'http://127.0.0.1:8000/api/v1/health',
           // Prefer a process we control so storage wipe always applies.
           reuseExistingServer: false,

@@ -14,8 +14,8 @@
     "backend:dev:ai": "node scripts/backend.mjs ai",
     "backend:dev:vision": "node scripts/backend.mjs vision",
     "backend:test": "node scripts/backend.mjs test",
-    "e2e": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test",
-    "e2e:ui": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 playwright test --ui",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
     "build:share": "tsc --noEmit && vite build --mode share --outDir dist-share && node scripts/build-share.mjs"
   },
   "dependencies": {
