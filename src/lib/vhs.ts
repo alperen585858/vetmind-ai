@@ -85,14 +85,15 @@ export function computeVhs(points: Point[], species: VhsSpecies, spacingMm?: [nu
   const [a, b, c, d, t4, t8] = points as [Point, Point, Point, Point, Point, Point]
   const vertebra = distance(t4, t8, spacingMm) / VHS_VERTEBRAE_SPAN
   if (vertebra < 1e-6) return null
-  const longV = distance(a, b, spacingMm) / vertebra
-  const shortV = distance(c, d, spacingMm) / vertebra
+  const longV = round1(distance(a, b, spacingMm) / vertebra)
+  const shortV = round1(distance(c, d, spacingMm) / vertebra)
+  // Sum of the displayed (rounded) parts, so "long + short" always adds up on screen.
   const vhs = round1(longV + shortV)
   const angle = axisAngleDeg(a, b, c, d)
   return {
     vhs,
-    longV: round1(longV),
-    shortV: round1(shortV),
+    longV,
+    shortV,
     category: classifyVhs(vhs, species),
     reference: species === 'canine' || species === 'feline' ? VHS_REFERENCE[species] : null,
     axisAngleDeg: Math.round(angle),

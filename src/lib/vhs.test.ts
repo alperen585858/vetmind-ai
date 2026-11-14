@@ -18,6 +18,12 @@ function points(longPx: number, shortPx: number): Point[] {
 }
 
 describe('computeVhs', () => {
+  it('VHS equals the sum of the displayed (rounded) axes', () => {
+    // 266 px + 286 px with 100 px vertebrae: 2.66 + 2.86 = 5.52 would show "5.5" next to "2.7 + 2.9".
+    const r = computeVhs(points(266, 286), 'canine')!
+    expect([r.longV, r.shortV, r.vhs]).toEqual([2.7, 2.9, 5.6])
+  })
+
   it('needs all six points', () => {
     expect(computeVhs(points(550, 450).slice(0, 5), 'canine')).toBeNull()
   })
