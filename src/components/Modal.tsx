@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 export function Modal({
@@ -66,7 +67,11 @@ export function Modal({
   }, [open])
 
   if (!open) return null
-  return (
+  // Portal to <body>: rendered inside a page section, positioned siblings with their own
+  // stacking context (e.g. viewer/provenance badges) could paint over the dialog.
+  // In browser fullscreen only the fullscreen element is shown, so stay in place there.
+  const host = typeof document !== 'undefined' ? (document.fullscreenElement ?? document.body) : null
+  const dialog = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
       <div className="absolute inset-0 bg-navy-950/40" onClick={() => onCloseRef.current()} aria-hidden />
       <div
@@ -94,4 +99,5 @@ export function Modal({
       </div>
     </div>
   )
+  return host ? createPortal(dialog, host) : dialog
 }
