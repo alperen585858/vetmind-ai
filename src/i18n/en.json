@@ -2001,6 +2001,26 @@
     "reportLine": "VHS (vertebral heart score): {vhs} v — {category}{reference}. Long axis {long} v, short axis {short} v (mean vertebral length T4–T8; radiologist measurement, breed-dependent).",
     "reportReference": "; reference {min}–{max} v",
     "added": "VHS added to the report",
-    "addedBody": "Appended to the Findings section; remember to save."
+    "addedBody": "Appended to the Findings section; remember to save.",
+    "guide": {
+      "title": "VHS — Vertebral Heart Score",
+      "whatTitle": "What is it?",
+      "what": "The standard way to measure heart size on a lateral chest radiograph. The heart's length and width are measured and compared with the length of the vertebrae on the spine. The result is given in \"vertebrae\" (e.g. 9.8 v). Because the spine is the ruler, the same scale works for small and large dogs.",
+      "whyTitle": "Why does it matter?",
+      "why": "An enlarged heart (cardiomegaly) is one of the early signs of heart disease. Normal VHS is about 8.5–10.5 in dogs and 6.9–8.1 in cats; higher values suggest an enlarged heart. Values vary by breed (e.g. higher in short-nosed breeds).",
+      "howTitle": "How to measure (6 clicks on the image, in order)",
+      "diagramAlt": "Schematic lateral chest radiograph showing where the 6 VHS points go: spine on top, heart below",
+      "s1": "Long axis start: base of the heart, just below where the windpipe splits (carina).",
+      "s2": "Long axis end: the tip of the heart (apex). 1 to 2 is the heart's length.",
+      "s3": "Short axis start: one edge at the widest part of the heart, perpendicular to the long axis.",
+      "s4": "Short axis end: the opposite edge. 3 to 4 is the heart's width.",
+      "s5": "Spine ruler start: front edge of the 4th thoracic vertebra (T4).",
+      "s6": "Spine ruler end: front edge of the 8th thoracic vertebra (T8). That spans 4 vertebrae; the mean vertebral length comes from here.",
+      "tips": "Tip: clicked the wrong place? Use \"Undo\". A warning appears if the short axis is not perpendicular. \"Add to report\" writes the result into Findings (on an unapproved draft). Reopen this guide with \"?\" in the strip.",
+      "disclaimer": "VHS is a measurement aid, not a diagnosis on its own; the final call is the veterinary radiologist's.",
+      "dontShow": "Got it, don't show again ({days} days)",
+      "ok": "OK",
+      "help": "How to measure VHS?"
+    }
   }
 }

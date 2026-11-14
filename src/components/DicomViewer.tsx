@@ -41,6 +41,8 @@ import {
 } from '../lib/dicomPreview'
 import { useLocale } from '../context/LocaleContext'
 import { modalityLabel } from '../lib/displayClean'
+import { VhsGuideModal } from './VhsGuideModal'
+import { shouldShowVhsGuide } from '../lib/vhsGuidePref'
 import { computeVhs, VHS_POINT_COUNT, VHS_STEP_KEYS, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../lib/vhs'
 import {
   applyHandleDrag,
@@ -255,6 +257,12 @@ export function DicomViewer({
   const [roiPts, setRoiPts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
   const [roiLabel, setRoiLabel] = useState<string | null>(null)
   const [vhsPts, setVhsPts] = useState<VhsPoint[]>([])
+  const [vhsGuideOpen, setVhsGuideOpen] = useState(false)
+  /** Pick the VHS tool; first explain it unless the user snoozed the guide. */
+  const selectVhsTool = () => {
+    setTool('vhs')
+    if (shouldShowVhsGuide()) setVhsGuideOpen(true)
+  }
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
   const measureStartRef = useRef<{ x: number; y: number } | null>(null)
   const roiStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -702,7 +710,7 @@ export function DicomViewer({
     else if (e.key === 'a' || e.key === 'A') setTool('angle')
     else if (e.key === 'o' || e.key === 'O') setTool('roi')
     else if ((e.key === 'b' || e.key === 'B') && annotateEnabled) setTool('annotate')
-    else if ((e.key === 'h' || e.key === 'H') && vhsEnabled) setTool('vhs')
+    else if ((e.key === 'h' || e.key === 'H') && vhsEnabled) selectVhsTool()
     else if (e.key === 'f' || e.key === 'F') {
       e.preventDefault()
       void toggleFullscreen()
@@ -763,6 +771,7 @@ export function DicomViewer({
   const vhsResult = vhsEnabled ? computeVhs(vhsPts, vhsSpecies, frame?.pixelSpacingMm) : null
 
   return (
+    <>
     <div
       className={`flex flex-col overflow-hidden rounded-xl border border-[#12233a] bg-[#071B30] shadow-soft ${fullscreen ? 'h-full' : ''} ${className}`}
       tabIndex={0}
@@ -834,7 +843,7 @@ export function DicomViewer({
           </ToolButton>
         ) : null}
         {vhsEnabled ? (
-          <ToolButton active={tool === 'vhs'} title={`${t('vhs.toolTitle')} (H)`} onClick={() => setTool('vhs')}>
+          <ToolButton active={tool === 'vhs'} title={`${t('vhs.toolTitle')} (H)`} onClick={selectVhsTool}>
             <HeartPulse className="h-3.5 w-3.5" /> VHS
           </ToolButton>
         ) : null}
@@ -938,6 +947,15 @@ export function DicomViewer({
             </span>
           )}
           <span className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-white/20 font-bold text-slate-200 hover:bg-white/10"
+              title={t('vhs.guide.help')}
+              aria-label={t('vhs.guide.help')}
+              onClick={() => setVhsGuideOpen(true)}
+            >
+              ?
+            </button>
             <button
               type="button"
               className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
@@ -1266,5 +1284,7 @@ export function DicomViewer({
         )}
       </div>
     </div>
+    {vhsEnabled ? <VhsGuideModal open={vhsGuideOpen} onClose={() => setVhsGuideOpen(false)} /> : null}
+    </>
   )
 }

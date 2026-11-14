@@ -40,6 +40,8 @@ test.describe('VHS measurement tool (radiologist workspace)', () => {
     await expect(canvas).toBeVisible({ timeout: 30_000 })
 
     await viewer.getByRole('button', { name: /VHS/ }).click()
+    // First use explains the tool; plain OK closes it.
+    await page.getByRole('dialog', { name: /VHS — Vertebral Kalp Skoru/ }).getByRole('button', { name: 'Tamam' }).click()
     const guide = viewer.getByRole('status').filter({ hasText: /\/6/ })
     await expect(guide).toContainText('1/6')
 
@@ -71,5 +73,40 @@ test.describe('VHS measurement tool (radiologist workspace)', () => {
     // Undo removes the last point; the guide is back to step 6.
     await result.getByRole('button', { name: /Geri al/ }).click()
     await expect(guide).toContainText('6/6')
+  })
+
+  test('guide pops up on VHS; OK shows it again, "do not show again" hides it, "?" reopens it', async ({ page, request }) => {
+    const caseId = await seedThoraxXrCase(request)
+    await loginAsExpert(page)
+    await openExpertReviewForCase(page, caseId)
+    const viewer = page.getByRole('application', { name: 'DICOM görüntüleyici' })
+    await expect(viewer.locator('canvas').first()).toBeVisible({ timeout: 30_000 })
+    const vhs = viewer.getByRole('button', { name: /VHS/ })
+    const dialog = page.getByRole('dialog', { name: /VHS — Vertebral Kalp Skoru/ })
+
+    // Explains what VHS is and how to measure it, with the labelled diagram.
+    await vhs.click()
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText(/kalbin büyüklüğünü ölçmenin standart yöntemi/)).toBeVisible()
+    await expect(dialog.getByRole('img', { name: /6 noktanın yerini/ })).toBeVisible()
+
+    // Plain OK → shown again next time.
+    await dialog.getByRole('button', { name: 'Tamam' }).click()
+    await expect(dialog).toBeHidden()
+    await viewer.getByRole('button', { name: /Window \/ Level/ }).click()
+    await vhs.click()
+    await expect(dialog).toBeVisible()
+
+    // Ticked "don't show again" + OK → not shown on the next VHS click.
+    await dialog.getByRole('checkbox', { name: /bir daha gösterme/ }).check()
+    await dialog.getByRole('button', { name: 'Tamam' }).click()
+    await viewer.getByRole('button', { name: /Window \/ Level/ }).click()
+    await vhs.click()
+    await expect(viewer.getByRole('status').filter({ hasText: /1\/6/ })).toBeVisible()
+    await expect(dialog).toBeHidden()
+
+    // "?" in the strip still opens it.
+    await viewer.getByRole('button', { name: 'VHS nasıl ölçülür?' }).click()
+    await expect(dialog).toBeVisible()
   })
 })

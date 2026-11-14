@@ -740,7 +740,7 @@ Küçük bir duman testi; model dersi her seferinde uygulamıyor. Son karar yine
 
 ### 8.6 VHS ölçüm aracı (vertebral kalp skoru)
 
-Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir.
+Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir. İlk kullanımda bir **rehber penceresi** VHS'nin ne olduğunu ve 6 noktanın yerini şemayla anlatır (veteriner olmayanlar ve jüri için de); "Anladım, bir daha gösterme" işaretlenirse 30 gün çıkmaz, şeritteki **?** ile her zaman açılır.
 
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).
 

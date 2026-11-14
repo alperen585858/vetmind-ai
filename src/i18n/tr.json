@@ -2001,6 +2001,26 @@
     "reportLine": "VHS (vertebral kalp skoru): {vhs} v — {category}{reference}. Uzun eksen {long} v, kısa eksen {short} v (T4–T8 ortalama omur boyuna göre; radyolog ölçümü, ırka göre değişir).",
     "reportReference": "; referans {min}–{max} v",
     "added": "VHS rapora eklendi",
-    "addedBody": "Bulgular bölümünün sonuna yazıldı; kaydetmeyi unutmayın."
+    "addedBody": "Bulgular bölümünün sonuna yazıldı; kaydetmeyi unutmayın.",
+    "guide": {
+      "title": "VHS — Vertebral Kalp Skoru",
+      "whatTitle": "Nedir?",
+      "what": "Yan (lateral) göğüs röntgeninde kalbin büyüklüğünü ölçmenin standart yöntemi. Kalbin uzunluğu ve genişliği ölçülür, sonra omurganın üzerindeki omur boyuyla karşılaştırılır. Sonuç \"kaç omur\" olarak verilir (ör. 9.8 v). Omur boyunu cetvel olarak kullandığı için küçük ve büyük köpekte aynı ölçek geçerlidir.",
+      "whyTitle": "Neden önemli?",
+      "why": "Kalp büyümesi (kardiyomegali) kalp hastalıklarının erken işaretlerinden biridir. Normal köpekte VHS yaklaşık 8.5–10.5, kedide 6.9–8.1'dir; üstü kalbin büyük olduğunu düşündürür. Değerler ırka göre değişir (ör. kısa burunlu ırklarda daha yüksek).",
+      "howTitle": "Nasıl ölçülür? (görüntü üzerinde sırayla 6 tıklama)",
+      "diagramAlt": "VHS için 6 noktanın yerini gösteren şematik yan göğüs röntgeni: üstte omurga, altta kalp",
+      "s1": "Uzun eksen başı: kalbin tabanı, soluk borusunun ikiye ayrıldığı yerin (karina) hemen altı.",
+      "s2": "Uzun eksen sonu: kalbin en uç noktası (apeks). 1 ile 2 arası kalbin boyu.",
+      "s3": "Kısa eksen başı: kalbin en geniş yerinde bir kenar; uzun eksene dik olmalı.",
+      "s4": "Kısa eksen sonu: karşı kenar. 3 ile 4 arası kalbin eni.",
+      "s5": "Omur cetveli başı: 4. göğüs omurunun (T4) ön kenarı.",
+      "s6": "Omur cetveli sonu: 8. göğüs omurunun (T8) ön kenarı. Arada 4 omur var; ortalama omur boyu buradan hesaplanır.",
+      "tips": "İpucu: Yanlış yere tıkladıysanız \"Geri al\". Kısa eksen dik değilse uyarı çıkar. Sonucu \"Rapora ekle\" ile Bulgular bölümüne yazabilirsiniz (onaylanmamış taslakta). Bu rehberi şeritteki \"?\" ile tekrar açabilirsiniz.",
+      "disclaimer": "VHS bir ölçüm yardımıdır, tek başına tanı değildir; son değerlendirme veteriner radyoloğa aittir.",
+      "dontShow": "Anladım, bir daha gösterme ({days} gün)",
+      "ok": "Tamam",
+      "help": "VHS nasıl ölçülür?"
+    }
   }
 }
