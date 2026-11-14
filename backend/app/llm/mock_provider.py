@@ -180,12 +180,20 @@ class MockLLMProvider:
         else:
             status_l = "status" if en else "durum"
             loc_l = "location" if en else "konum"
-            bullets = "\n".join(
-                f"- [{f.finding_code}] {f.description} "
-                f"({status_l}: {status_map.get(f.finding_status.value, f.finding_status.value)}, "
-                f"{loc_l}: {f.anatomical_location})"
-                for f in gen.findings
-            )
+            side_l = "side" if en else "taraf"
+            lines = []
+            for f in gen.findings:
+                details = [f"{status_l}: {status_map.get(f.finding_status.value, f.finding_status.value)}"]
+                phrase = f.description
+                if not en and f.anatomy_term is not None:
+                    phrase = f.findings_phrase(lang)
+                else:
+                    details.append(f"{loc_l}: {f.anatomical_location}")
+                if side := f.side_label(lang):
+                    details.append(f"{side_l}: {side}")
+                locus = f" — {f.evidence_locus}" if gen.anatomy_dictionary and f.evidence_locus else ""
+                lines.append(f"- [{f.finding_code}] {phrase} ({', '.join(details)}){locus}")
+            bullets = "\n".join(lines)
             if en:
                 findings_text = f"{banner}\n\nReported demo findings:\n{bullets}"
                 impression_text = (

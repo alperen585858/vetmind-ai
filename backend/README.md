@@ -89,6 +89,57 @@ Offline training lives under repo-root `ml/` (never imported by FastAPI by defau
 | `VETMIND_REDIS_URL` | RQ için Redis URL |
 | `VETMIND_RAG_INDEX_PATH` | JSON vektör indeks dosyası |
 
+### Türkçe rapor taslağında anatomi sözlüğü
+
+`backend/app/llm/data/VetMind_AI_Search_Dictionary.json` depo içinde sürümlenir
+ve uygulama açılışında varsayılan olarak yüklenir. İsteğe bağlı olarak
+`VETMIND_REPORT_ANATOMY_DICTIONARY_PATH` değişkeniyle farklı bir JSON dosyasının
+tam yolunu verebilirsiniz. Bu kurulum kedi ve köpeklerin beyin/servikal MR
+vakalarında yalnızca sentetik bulgularla gösterim yapar. Sözlük yolu
+tanımlanmadan da depo içindeki sürüm kullanılır.
+
+Görüntü modelinin konumu sözlükteki bir arama etiketiyle bütün olarak
+eşleşmelidir. Eşleştirme büyük/küçük harf ve boşluk farklarını tolere eder.
+Belirsiz adaylar, birden fazla kayda giden etiketler ve eşleşmeyen ayrıntılı
+konumlar özgün konum olarak kalır. Türkçe taslağa çıkan doğrulanabilir
+eşleşmeler, raporun `generation.anatomy_terminology` alanında bulgu kimliği,
+özgün konum, Türkçe etiket, varsa bulunma hâli ve sözlük sürümüyle kaydedilir.
+Raporun bulgu atfı, kaynak görüntüye bağlı olan yapılandırılmış bulguyu gösterir.
+Metin üreten sağlayıcı Türkçe etiketi ve varsa bulunma hâlini girdi olarak
+alır. Genel HTTP rapor sağlayıcısı kullanılıyorsa, uzak servisin ilgili
+bulgudaki `anatomy_term` alanını ve rapor talimatını kullanması gerekir.
+
+**Uzman incelemesinden sonra canlı taslaklar.** Veteriner radyolog, her
+kayıt için tercih edilen Türkçe etiketi, arama biçimlerini ve bulunma hâlini
+inceler. Onaylanan kimlikler ve cümle içindeki biçimleri, aşağıdaki yapıya
+sahip bir JSON dosyasına yazılır. Örnekteki kimlik ve ifade biçimi göstermek
+içindir. Değerleri gerçek incelemeden sonra girin.
+
+```json
+{
+  "dictionary_sha256": "<sözlük dosyasının SHA-256 özeti>",
+  "reviewed_by": "<inceleyen veteriner radyoloğun kimliği>",
+  "terms": {
+    "VM-BBBF7A6412D6": "beyinde"
+  }
+}
+```
+
+PowerShell'de dosyanın SHA-256 özetini alın ve onay dosyasının yolunu ortam
+değişkenine yazın. Sözlüğü ve onay dosyasını yeniden yüklemek için sunucuyu ve
+varsa ayrı rapor işleyicisini yeniden başlatın.
+
+```powershell
+$env:VETMIND_REPORT_ANATOMY_DICTIONARY_PATH = 'C:/VetMind/VetMind_AI_Search_Dictionary.json'
+(Get-FileHash -Algorithm SHA256 $env:VETMIND_REPORT_ANATOMY_DICTIONARY_PATH).Hash.ToLowerInvariant()
+$env:VETMIND_REPORT_ANATOMY_APPROVALS_PATH = 'C:/VetMind/approved_anatomy.json'
+```
+
+Canlı eşleştirme yalnızca onay dosyasındaki uygun anatomi kayıtlarını kullanır.
+Bir sözlük güncellemesi dosya özetini değiştirir ve yeni sürüm için onay
+dosyası gerekir. Üretilen rapor veteriner radyolog incelemesine sunulan bir
+taslaktır.
+
 ### PostgreSQL + Redis (opsiyonel)
 
 ```bash
@@ -158,3 +209,12 @@ VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind pytest 
 2. Sentence-transformers + Qdrant/pgvector.
 3. OAuth/SSO IdP.
 4. K8s / managed queue.
+
+Eşleşmeyen bulguların nedenleri raporun
+`generation.anatomy_terminology.unresolved` alanında bulgu kimliğiyle saklanır.
+`ambiguous` birden fazla anlamı, `unknown` tam eşleşme bulunamadığını,
+`not_anatomy` anatomi dışındaki bir kaydı, `pending_review` uzman onayı
+bekleyen bir kaydı gösterir. Diğer nedenler tür uyumsuzluğu, belirsiz terim,
+eksik kaynak/etiket veya eşleştirmeye uygun olmayan bulgudur.
+Bu alan, özgün konumları ve görüntü referanslarını taşıyan bulgularla birlikte
+incelenerek sözlükte hangi kayıtların tamamlanacağına karar vermek için kullanılabilir.

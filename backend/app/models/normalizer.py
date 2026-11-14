@@ -1,10 +1,11 @@
 from collections import defaultdict
+from typing import cast
 
 from app.models.evidence_validation import validate_evidence_references
 from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
 from app.models.ontology import code_family, codes_oppose, is_technique_code
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
-from app.schemas.findings import ConflictReasonCode, Finding, PotentialConflict, StructuredFindings
+from app.schemas.findings import ConflictReasonCode, Finding, Laterality, PotentialConflict, StructuredFindings
 from app.schemas.model_input import ImagingModelInput
 
 AGREEMENT_NOTE = (
@@ -26,8 +27,14 @@ def _resolve_source_kind(kinds: list[SourceKind]) -> SourceKind:
     return SourceKind.MIXED
 
 
-def _location_key(location: str) -> str:
+def location_key(location: str) -> str:
+    """Normalize case and whitespace without removing location qualifiers."""
     return " ".join(location.strip().lower().split())
+
+
+def normalize_laterality(value: object) -> Laterality:
+    side = str(value or "").strip().upper()
+    return cast(Laterality, side) if side in {"LEFT", "RIGHT", "MIDLINE"} else "UNKNOWN"
 
 
 def _primary_series_uid(finding: Finding) -> str | None:
@@ -62,7 +69,7 @@ def _conflict_group_key(finding: Finding) -> str:
     if series:
         return f"series:{series}"
 
-    return f"loc:{_location_key(finding.anatomical_location)}"
+    return f"loc:{location_key(finding.anatomical_location)}"
 
 
 def _series_or_location_key(finding: Finding) -> str:
@@ -70,7 +77,7 @@ def _series_or_location_key(finding: Finding) -> str:
     series = _primary_series_uid(finding)
     if series:
         return f"series:{series}"
-    return f"loc:{_location_key(finding.anatomical_location)}"
+    return f"loc:{location_key(finding.anatomical_location)}"
 
 
 def _laterality_opposes(a: str, b: str) -> bool:
@@ -103,7 +110,7 @@ def _append_conflict(
     reason_codes = list(dict.fromkeys(reason_codes))
     for finding in group:
         finding.conflict_group_id = conflict_id
-    loc_key = _location_key(group[0].anatomical_location)
+    loc_key = location_key(group[0].anatomical_location)
     conflicts.append(
         PotentialConflict(
             conflict_id=conflict_id,
@@ -313,7 +320,7 @@ def normalize_outputs(
     # Same location + same code from multiple models: agreement is not clinical proof.
     loc_code_models: dict[tuple[str, str], set[str]] = defaultdict(set)
     for finding in merged_findings:
-        loc_code_models[(_location_key(finding.anatomical_location), finding.finding_code)].add(
+        loc_code_models[(location_key(finding.anatomical_location), finding.finding_code)].add(
             finding.source_model
         )
     if any(len(models) >= 2 for models in loc_code_models.values()):

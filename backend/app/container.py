@@ -7,6 +7,7 @@ from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_sto
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.dicom.llm_classifier import build_metadata_classifier
+from app.llm.anatomy_dictionary import AnatomyDictionary
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
 from app.models.bridge_resources import ResourceLimits
@@ -262,7 +263,16 @@ class AppContainer:
         # Fails fast on a bad config (like the report LLM); runtime errors fall back to rules.
         self.metadata_classifier = build_metadata_classifier(self.settings)
         self.lessons = LessonStore(self.settings.lessons_path)
-        self.llm = LLMGateway(self.llm_provider, rag=self.rag, lessons=self.lessons)
+        anatomy_path = self.settings.report_anatomy_dictionary_path or (
+            Path(__file__).resolve().parent / "llm" / "data" / "VetMind_AI_Search_Dictionary.json"
+        )
+        approvals_path = self.settings.report_anatomy_approvals_path
+        self.llm = LLMGateway(
+            self.llm_provider,
+            rag=self.rag,
+            lessons=self.lessons,
+            anatomy_dictionary=AnatomyDictionary(anatomy_path, approvals_path),
+        )
         self.validator = ReportValidator()
         evidence_root = (
             Path(self.settings.vision_artifact_root)
