@@ -1,8 +1,10 @@
 """Exact lookup for report wording in the supplied VetMind search dictionary."""
 
 from collections import defaultdict
+from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from threading import RLock
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -67,6 +69,20 @@ class _Approvals(BaseModel):
 
 class AnatomyDictionary:
     def __init__(self, path: Path, approvals_path: Path | None = None) -> None:
+        # Lookup tables are private and read-only after loading. Copy public
+        # metadata so callers cannot change another instance's version.
+        with _CACHE_LOCK:
+            path = path.resolve()
+            approvals_path = approvals_path.resolve() if approvals_path is not None else None
+            cached = _load_cached(
+                path, _file_signature(path), approvals_path, _file_signature(approvals_path),
+            )
+            self._approved_locatives = cached._approved_locatives
+            self._ambiguous = cached._ambiguous
+            self._terms = cached._terms
+            self.version = cached.version.model_copy(deep=True)
+
+    def _load(self, path: Path, approvals_path: Path | None) -> None:
         raw = path.read_bytes()
         source = _SearchDictionary.model_validate_json(raw)
         by_id = {term.Term_ID: term for term in source.terms}
@@ -147,3 +163,31 @@ class AnatomyDictionary:
             turkish_label=label,
             turkish_locative=locative,
         )
+
+
+_CACHE_LOCK = RLock()
+
+
+def _file_signature(path: Path | None) -> tuple[int, ...] | None:
+    if path is None:
+        return None
+    stat = path.stat()
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+@lru_cache(maxsize=8)
+def _load_cached(
+    path: Path,
+    signature: tuple[int, ...] | None,
+    approvals_path: Path | None,
+    approvals_signature: tuple[int, ...] | None,
+) -> AnatomyDictionary:
+    # Exceptions are not cached. Never fall back to stale data on invalid files.
+    dictionary = AnatomyDictionary.__new__(AnatomyDictionary)
+    dictionary._load(path, approvals_path)
+    if (
+        _file_signature(path) != signature
+        or _file_signature(approvals_path) != approvals_signature
+    ):
+        raise ValueError("Report anatomy files changed during loading; retry with stable files.")
+    return dictionary

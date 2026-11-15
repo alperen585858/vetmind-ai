@@ -330,3 +330,95 @@ def test_collision_never_selected_even_when_one_candidate_is_anatomy(tmp_path):
     dictionary = AnatomyDictionary(path)
     assert dictionary.resolve("same location", species=Species.CANINE) is None
     assert dictionary.unresolved_reason("same location", species=Species.CANINE) == "ambiguous"
+
+
+def test_cache_reuses_reads_across_threads(dictionary_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.llm.anatomy_dictionary import AnatomyDictionary, _load_cached
+
+    _load_cached.cache_clear()
+    original = Path.read_bytes
+    reads = []
+
+    def counted(path):
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counted)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        copies = list(pool.map(lambda _: AnatomyDictionary(dictionary_path), range(8)))
+    assert reads == [dictionary_path.resolve()]
+    copies[0].version = copies[0].version.model_copy(update={"version": "changed"})
+    assert copies[1].version.version == VERSION
+    assert copies[1].resolve("brain", species=Species.CANINE).turkish_label == "beyin"
+
+
+def test_cache_reloads_dictionary_and_rejects_bad_files(dictionary_path, tmp_path):
+    from app.llm.anatomy_dictionary import AnatomyDictionary
+
+    path = tmp_path / "local.json"
+    path.write_bytes(dictionary_path.read_bytes())
+    before = AnatomyDictionary(path)
+    data = json.loads(path.read_bytes())
+    next(t for t in data["terms"] if t["Term_ID"] == BRAIN_ID)["Turkish_Term"] = "yeni beyin"
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text(json.dumps(data), encoding="utf-8")
+    replacement.replace(path)
+    after = AnatomyDictionary(path)
+    assert after.resolve("brain", species=Species.CANINE).turkish_label == "yeni beyin"
+    assert before.resolve("brain", species=Species.CANINE).turkish_label == "beyin"
+    assert after.version.sha256 != before.version.sha256
+    path.write_text("invalid json")
+    with pytest.raises(ValueError):
+        AnatomyDictionary(path)
+    path.unlink()
+    with pytest.raises(FileNotFoundError):
+        AnatomyDictionary(path)
+    path.write_bytes(dictionary_path.read_bytes())
+    assert AnatomyDictionary(path).resolve("brain", species=Species.CANINE) is not None
+
+
+def test_cache_reloads_approvals_and_separates_demo(dictionary_path, tmp_path):
+    from app.llm.anatomy_dictionary import AnatomyDictionary
+
+    path = tmp_path / "approvals.json"
+    data = {
+        "dictionary_sha256": sha256(dictionary_path.read_bytes()).hexdigest(),
+        "reviewed_by": "test reviewer",
+        "terms": {BRAIN_ID: "beyinde"},
+    }
+    path.write_text(json.dumps(data), encoding="utf-8")
+    reviewed = AnatomyDictionary(dictionary_path, path)
+    assert AnatomyDictionary(dictionary_path).version.mode == "demo"
+    assert reviewed.version.mode == "reviewed"
+    data["terms"] = {}
+    path.write_text(json.dumps(data), encoding="utf-8")
+    changed = AnatomyDictionary(dictionary_path, path)
+    assert changed.unresolved_reason("brain", species=Species.CANINE) == "pending_review"
+    assert reviewed.resolve("brain", species=Species.CANINE) is not None
+    assert changed.version.approvals_sha256 != reviewed.version.approvals_sha256
+    data["dictionary_sha256"] = "wrong"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="SHA-256"):
+        AnatomyDictionary(dictionary_path, path)
+    path.unlink()
+    with pytest.raises(FileNotFoundError):
+        AnatomyDictionary(dictionary_path, path)
+
+
+def test_cache_rejects_files_changed_during_load(dictionary_path, tmp_path, monkeypatch):
+    from app.llm.anatomy_dictionary import AnatomyDictionary
+
+    path = tmp_path / "local.json"
+    path.write_bytes(dictionary_path.read_bytes())
+    original = Path.read_bytes
+
+    def changing_read(file):
+        raw = original(file)
+        if file == path:
+            file.write_bytes(raw + b" ")
+        return raw
+
+    monkeypatch.setattr(Path, "read_bytes", changing_read)
+    with pytest.raises(ValueError, match="changed during loading"):
+        AnatomyDictionary(path)

@@ -137,6 +137,14 @@ PowerShell'de dosyanın SHA-256 özetini alın ve onay dosyasının yolunu ortam
 değişkenine yazın. Sözlüğü ve onay dosyasını yeniden yüklemek için sunucuyu ve
 varsa ayrı rapor işleyicisini yeniden başlatın.
 
+Sözlükten hazırlanan arama tabloları süreç başına en fazla 8 dosya/onay sürümü
+için ön bellekte tutulur. Yeni bir `AppContainer` oluşturulduğunda dosya yolları
+ve dosya bilgileri (boyut, değişiklik zamanı ve dosya kimliği) kontrol edilir;
+değişmeyen dosyalar tekrar okunmaz. Sözlük veya onay dosyası değişirse yeniden
+yüklenip doğrulanır; geçersiz veya silinmiş dosyada eski veriye dönülmez.
+Mevcut container kendi yüklediği sürümü kullanmaya devam eder.
+Ön bellek ayrı sunucu/işleyici süreçleri arasında paylaşılmaz.
+
 ```powershell
 $env:VETMIND_REPORT_ANATOMY_DICTIONARY_PATH = 'C:/VetMind/VetMind_AI_Search_Dictionary.json'
 (Get-FileHash -Algorithm SHA256 $env:VETMIND_REPORT_ANATOMY_DICTIONARY_PATH).Hash.ToLowerInvariant()
