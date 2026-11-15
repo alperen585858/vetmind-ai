@@ -98,6 +98,14 @@ tam yolunu verebilirsiniz. Bu kurulum kedi ve köpeklerin beyin/servikal MR
 vakalarında yalnızca sentetik bulgularla gösterim yapar. Sözlük yolu
 tanımlanmadan da depo içindeki sürüm kullanılır.
 
+Uygulama sözlüğünü tam editoryal sözlükten yeniden üretmek için depo kökünde
+aşağıdaki komutu çalıştırın. Çıktı bütün terim kimliklerini ve arama etiketlerini
+korur. Kaynak konumlarını ve bağlantılarını saklar.
+
+```powershell
+python backend/scripts/compact_anatomy_dictionary.py 'C:/VetMind/full_dictionary.json' backend/app/llm/data/VetMind_AI_Search_Dictionary.json
+```
+
 Görüntü modelinin konumu sözlükteki bir arama etiketiyle bütün olarak
 eşleşmelidir. Eşleştirme büyük/küçük harf ve boşluk farklarını tolere eder.
 Belirsiz adaylar, birden fazla kayda giden etiketler ve eşleşmeyen ayrıntılı
