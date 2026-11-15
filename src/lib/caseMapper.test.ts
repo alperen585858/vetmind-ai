@@ -3,6 +3,7 @@ import {
   analysisStatusLabel,
   caseBelongsToOwner,
   caseStatusFromLifecycle,
+  clinicalModuleFromStudy,
   expertReviewLabel,
   recordToVetCase,
   summaryToVetCase,
@@ -77,7 +78,10 @@ describe('caseMapper list/detail helpers', () => {
     expect(mapped.patient.breed).toBe('Golden')
     expect(mapped.modality).toBe('MR')
     expect(mapped.anatomicalRegion).toBe('BRAIN')
+    expect(mapped.module).toBe('Nöroloji')
     expect(mapped.studyInstanceUid).toBe('1.2.3')
+    expect(clinicalModuleFromStudy('THORAX', 'XR')).toBe('Toraks')
+    expect(clinicalModuleFromStudy('CERVICAL', 'MR')).toBe('Nöroloji')
     expect(mapped.seriesCount).toBe(2)
     expect(mapped.status).toBe('uzman_incelemesinde')
     expect(analysisStatusLabel(mapped.status)).toMatch(/Tamamlandı|mock|analiz/i)

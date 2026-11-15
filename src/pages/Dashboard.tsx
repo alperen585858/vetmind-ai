@@ -61,7 +61,6 @@ import { Button } from '../components/Button'
 import { SpeciesIcon } from '../components/CaseTable'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import { DEPLOYMENTS, GPU_SERIES } from '../data/mock'
 import {
   BackendUnavailableError,
   fetchBackendHealth,
@@ -1285,23 +1284,17 @@ function OwnerDashboard() {
   )
 }
 
+/** Placeholder — synthetic GPU curves were removed to avoid implying live telemetry. */
 export function GpuChart({ height = 180 }: { height?: number }) {
   const { t } = useLocale()
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={GPU_SERIES} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-        <defs>
-          <linearGradient id="gpuFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#12a096" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#12a096" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <XAxis dataKey="t" tick={{ fontSize: 11, fill: '#64748b' }} interval={11} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
-        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
-        <Tooltip formatter={(v: number) => [`%${v}`, t('dashboard.gpuUsage')]} labelStyle={{ color: '#12233a' }} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
-        <Area type="monotone" dataKey="gpu" stroke="#0b807a" strokeWidth={2} fill="url(#gpuFill)" />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div
+      className="flex flex-col items-center justify-center rounded-lg border border-dashed border-amber-200 bg-amber-50/40 px-4 text-center"
+      style={{ height }}
+    >
+      <p className="text-sm font-medium text-amber-950">{t('dashboard.gpuTelemetryUnavailable')}</p>
+      <p className="mt-1 text-xs text-amber-800/80">{t('dashboard.gpuTelemetryHint')}</p>
+    </div>
   )
 }
 
@@ -2104,21 +2097,6 @@ function AdminDashboard() {
           <div className="p-3">
             <GpuChart height={140} />
           </div>
-          <ul className="divide-y divide-amber-100/80 border-t border-amber-100/80">
-            {DEPLOYMENTS.slice(0, 3).map((d) => (
-              <li key={d.version} className="flex items-center justify-between px-4 py-2.5">
-                <div>
-                  <p className="text-sm font-medium text-[color:var(--vm-text,#172b4d)]">{d.version}</p>
-                  <p className="text-xs text-slate-500">
-                    {d.kind} · {fmtDate(d.date, locale)}
-                  </p>
-                </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                  {t('dashboard.adminDemoBadge')}
-                </span>
-              </li>
-            ))}
-          </ul>
           <div className="border-t border-amber-100/80 px-4 py-3">
             <LocalizedLink to="/sistem" className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-800">
               {t('dashboard.adminOpenLiveStatus')}

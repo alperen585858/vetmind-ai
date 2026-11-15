@@ -295,7 +295,7 @@ export default function NewCase() {
 
   const previewDicomMetadata = async (kind?: DicomDemoKind) => {
     if (!patient.name.trim()) {
-      pushToast({ tone: 'warning', title: 'Hasta adı gerekli', body: 'DICOM yüklemeden önce hasta adını girin.' })
+      pushToast({ tone: 'warning', title: t('newCase.patientNameRequired'), body: t('newCase.patientNameRequiredBody') })
       return
     }
     setSubmitting(true)
@@ -686,17 +686,39 @@ export default function NewCase() {
           <div className="animate-fade-up">
             <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepPatient')}</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Hasta adı *"><input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder="ör. Paşa" /></Field>
-              <Field label="Tür"><Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} /></Field>
-              <Field label="Irk *"><input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder="ör. Dachshund" /></Field>
-              <Field label="Cinsiyet"><Pills options={['Erkek', 'Dişi'] as const} value={patient.sex} onChange={(v) => P('sex', v)} /></Field>
-              <Field label="Kısırlaştırma durumu"><Pills options={['Kısırlaştırılmış', 'Kısırlaştırılmamış'] as const} value={patient.neutered ? 'Kısırlaştırılmış' : 'Kısırlaştırılmamış'} onChange={(v) => P('neutered', v === 'Kısırlaştırılmış')} /></Field>
+              <Field label={`${t('newCase.patientName')} *`}>
+                <input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder={t('newCase.patientNamePlaceholder')} />
+              </Field>
+              <Field label={t('newCase.species')}>
+                <Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} />
+              </Field>
+              <Field label={`${t('newCase.breed')} *`}>
+                <input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder={t('newCase.breedPlaceholder')} />
+              </Field>
+              <Field label={t('newCase.sex')}>
+                <Pills options={['Erkek', 'Dişi'] as const} value={patient.sex} onChange={(v) => P('sex', v)} />
+              </Field>
+              <Field label={t('newCase.neutered')}>
+                <Pills
+                  options={['Kısırlaştırılmış', 'Kısırlaştırılmamış'] as const}
+                  value={patient.neutered ? 'Kısırlaştırılmış' : 'Kısırlaştırılmamış'}
+                  onChange={(v) => P('neutered', v === 'Kısırlaştırılmış')}
+                />
+              </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Yaş (yıl)"><input type="number" min={0} className="input" value={patient.age || ''} onChange={(e) => P('age', Number(e.target.value))} /></Field>
-                <Field label="Kilo (kg)"><input type="number" min={0} step="0.1" className="input" value={patient.weight || ''} onChange={(e) => P('weight', Number(e.target.value))} /></Field>
+                <Field label={t('newCase.ageYears')}>
+                  <input type="number" min={0} className="input" value={patient.age || ''} onChange={(e) => P('age', Number(e.target.value))} />
+                </Field>
+                <Field label={t('newCase.weightKg')}>
+                  <input type="number" min={0} step="0.1" className="input" value={patient.weight || ''} onChange={(e) => P('weight', Number(e.target.value))} />
+                </Field>
               </div>
-              <Field label="Sahip adı soyadı *"><input className="input" value={patient.ownerName} onChange={(e) => P('ownerName', e.target.value)} placeholder="ör. Mehmet Yılmaz" /></Field>
-              <Field label="Sahip telefon"><input className="input" value={patient.ownerPhone} onChange={(e) => P('ownerPhone', e.target.value)} placeholder="05xx xxx xx xx" /></Field>
+              <Field label={`${t('newCase.ownerName')} *`}>
+                <input className="input" value={patient.ownerName} onChange={(e) => P('ownerName', e.target.value)} placeholder={t('newCase.ownerNamePlaceholder')} />
+              </Field>
+              <Field label={t('newCase.ownerPhone')}>
+                <input className="input" value={patient.ownerPhone} onChange={(e) => P('ownerPhone', e.target.value)} placeholder={t('newCase.ownerPhonePlaceholder')} />
+              </Field>
             </div>
           </div>
         )}
@@ -705,11 +727,21 @@ export default function NewCase() {
           <div className="animate-fade-up">
             <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepClinical')}</h2>
             <div className="grid gap-5 md:grid-cols-2">
-              <Field label="Başvuru şikâyeti" className="md:col-span-2"><textarea rows={3} className="input" value={clinical.complaint} onChange={(e) => C('complaint', e.target.value)} placeholder="Sahibin bildirdiği ana şikâyet" /></Field>
-              <Field label="Belirtilerin başlangıcı"><Pills options={['Akut', 'Kronik'] as const} value={clinical.onset} onChange={(v) => C('onset', v)} /></Field>
-              <Field label="Seyir"><Pills options={['Progresif', 'Stabil', 'İyileşen'] as const} value={clinical.course} onChange={(v) => C('course', v)} /></Field>
-              <Field label="Klinik geçmiş"><textarea rows={3} className="input" value={clinical.history} onChange={(e) => C('history', e.target.value)} /></Field>
-              <Field label="Mevcut ilaçlar"><textarea rows={3} className="input" value={clinical.medications} onChange={(e) => C('medications', e.target.value)} /></Field>
+              <Field label={t('newCase.complaint')} className="md:col-span-2">
+                <textarea rows={3} className="input" value={clinical.complaint} onChange={(e) => C('complaint', e.target.value)} placeholder={t('newCase.complaintPlaceholder')} />
+              </Field>
+              <Field label={t('newCase.onset')}>
+                <Pills options={['Akut', 'Kronik'] as const} value={clinical.onset} onChange={(v) => C('onset', v)} />
+              </Field>
+              <Field label={t('newCase.course')}>
+                <Pills options={['Progresif', 'Stabil', 'İyileşen'] as const} value={clinical.course} onChange={(v) => C('course', v)} />
+              </Field>
+              <Field label={t('newCase.history')}>
+                <textarea rows={3} className="input" value={clinical.history} onChange={(e) => C('history', e.target.value)} />
+              </Field>
+              <Field label={t('newCase.medications')}>
+                <textarea rows={3} className="input" value={clinical.medications} onChange={(e) => C('medications', e.target.value)} />
+              </Field>
             </div>
           </div>
         )}

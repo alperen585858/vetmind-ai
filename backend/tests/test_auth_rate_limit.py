@@ -19,6 +19,7 @@ from app.security.rate_limit import (
     RESET_PER_IP,
     Limit,
     RateLimiter,
+    build_rate_limiter,
 )
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings, validate_security_settings
@@ -184,14 +185,16 @@ def test_password_change_wrong_current_password_is_limited(tmp_path: Path) -> No
 # --- protected mode secret --------------------------------------------------
 
 
-def _protected(tmp_path: Path, secret: str) -> Settings:
-    return _settings(
-        tmp_path,
+def _protected(tmp_path: Path, secret: str, **overrides) -> Settings:
+    base = dict(
         deployment_mode="protected",
         jwt_secret=secret,
         malware_scan_required=True,
         dicom_identity_scrub=True,
+        self_registration_enabled=False,
     )
+    base.update(overrides)
+    return _settings(tmp_path, **base)
 
 
 def test_protected_mode_rejects_short_jwt_secret(tmp_path: Path) -> None:
@@ -201,3 +204,36 @@ def test_protected_mode_rejects_short_jwt_secret(tmp_path: Path) -> None:
 
 def test_protected_mode_accepts_long_jwt_secret(tmp_path: Path) -> None:
     validate_security_settings(_protected(tmp_path, "k" * 32))
+
+
+def test_protected_mode_rejects_demo_self_registration_clinic(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="SELF_REGISTRATION_OWNER_CLINIC"):
+        validate_security_settings(
+            _protected(
+                tmp_path,
+                "k" * 32,
+                self_registration_enabled=True,
+                self_registration_owner_clinic_id="clinic-demo-a",
+            )
+        )
+
+
+def test_protected_mode_allows_self_reg_disabled(tmp_path: Path) -> None:
+    validate_security_settings(
+        _protected(
+            tmp_path,
+            "k" * 32,
+            self_registration_enabled=False,
+            self_registration_owner_clinic_id="clinic-demo-a",
+        )
+    )
+
+
+def test_build_rate_limiter_falls_back_to_memory_without_redis() -> None:
+    limiter = build_rate_limiter(enabled=True, redis_url=None)
+    assert limiter.backend == "memory"
+
+
+def test_build_rate_limiter_falls_back_on_bad_redis_url() -> None:
+    limiter = build_rate_limiter(enabled=True, redis_url="redis://127.0.0.1:1/0")
+    assert limiter.backend == "memory"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import get_container
+from app.api.deps import get_container, require_demo_deployment
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_SUBMISSIONS
 from app.container import AppContainer
@@ -15,7 +15,11 @@ from app.schemas.payment import (
     DemoPaymentIntentCreate,
 )
 
-router = APIRouter(prefix="/api/v1/payments", tags=["payments"], dependencies=[Depends(require_auth)])
+router = APIRouter(
+    prefix="/api/v1/payments",
+    tags=["payments"],
+    dependencies=[Depends(require_auth), Depends(require_demo_deployment)],
+)
 
 
 def _payments(container: AppContainer = Depends(get_container)):

@@ -1,18 +1,21 @@
 """Sliding-window attempt limiter for the auth endpoints (issue #31 step 5).
 
-In-process memory: limits apply per backend process. That matches the default single
-uvicorn worker; several workers each keep their own counters (a shared store such as
-Redis would be needed to make the limit global).
+Default: in-process memory (per uvicorn worker).
+Optional: Redis when ``VETMIND_REDIS_URL`` is set and the ``redis`` package is installed
+(see requirements-optional.txt) so multi-worker limits stay coherent.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,17 @@ RESET_PER_IP = Limit(10, 15 * 60)
 REGISTER_PER_IP = Limit(10, 60 * 60)
 
 
+class RateLimiterProtocol(Protocol):
+    enabled: bool
+    backend: str
+
+    def retry_after(self, scope: str, key: str, limit: Limit) -> int | None: ...
+
+    def hit(self, scope: str, key: str, limit: Limit) -> None: ...
+
+    def reset(self, scope: str, key: str) -> None: ...
+
+
 class RateLimiter:
     def __init__(
         self,
@@ -44,6 +58,7 @@ class RateLimiter:
         max_keys: int = 20_000,
     ) -> None:
         self.enabled = enabled
+        self.backend = "memory"
         self._clock = clock
         self._max_keys = max_keys
         self._hits: OrderedDict[tuple[str, str], deque[float]] = OrderedDict()
@@ -84,3 +99,62 @@ class RateLimiter:
     def reset(self, scope: str, key: str) -> None:
         with self._lock:
             self._hits.pop((scope, key), None)
+
+
+class RedisRateLimiter:
+    """Shared sliding window via Redis sorted sets (optional dependency)."""
+
+    def __init__(self, redis_url: str, *, enabled: bool = True) -> None:
+        import redis  # type: ignore[import-untyped]
+
+        self.enabled = enabled
+        self.backend = "redis"
+        self._r = redis.Redis.from_url(redis_url, decode_responses=True)
+        self._prefix = "vetmind:rl:"
+
+    def _key(self, scope: str, key: str) -> str:
+        return f"{self._prefix}{scope}:{key}"
+
+    def retry_after(self, scope: str, key: str, limit: Limit) -> int | None:
+        if not self.enabled or not key:
+            return None
+        now = time.time()
+        k = self._key(scope, key)
+        pipe = self._r.pipeline()
+        pipe.zremrangebyscore(k, 0, now - limit.window_seconds)
+        pipe.zcard(k)
+        pipe.zrange(k, 0, 0, withscores=True)
+        _, count, oldest = pipe.execute()
+        if int(count) < limit.attempts:
+            return None
+        if not oldest:
+            return 1
+        return max(1, math.ceil(oldest[0][1] + limit.window_seconds - now))
+
+    def hit(self, scope: str, key: str, limit: Limit) -> None:
+        if not self.enabled or not key:
+            return
+        now = time.time()
+        k = self._key(scope, key)
+        member = f"{now}:{threading.get_ident()}"
+        pipe = self._r.pipeline()
+        pipe.zadd(k, {member: now})
+        pipe.zremrangebyscore(k, 0, now - limit.window_seconds)
+        pipe.expire(k, limit.window_seconds + 5)
+        pipe.execute()
+
+    def reset(self, scope: str, key: str) -> None:
+        self._r.delete(self._key(scope, key))
+
+
+def build_rate_limiter(*, enabled: bool, redis_url: str | None) -> RateLimiterProtocol:
+    if enabled and redis_url:
+        try:
+            limiter = RedisRateLimiter(redis_url, enabled=enabled)
+            # Ping once so a bad URL falls back immediately.
+            limiter._r.ping()  # noqa: SLF001 — startup probe
+            log.info("Auth rate limiter using Redis at %s", redis_url.split("@")[-1])
+            return limiter
+        except Exception as exc:  # noqa: BLE001 — optional path must not block startup
+            log.warning("Redis rate limiter unavailable (%s); using in-memory limiter.", exc)
+    return RateLimiter(enabled=enabled)

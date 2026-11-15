@@ -1,0 +1,36 @@
+# Protected deployment overlay (copy / merge with docker-compose.yml).
+#
+#   cp docker-compose.protected.example.yml docker-compose.protected.yml
+#   # edit secrets, then:
+#   docker compose -f docker-compose.yml -f docker-compose.protected.yml up --build
+#
+# Requirements enforced at backend startup (validate_security_settings):
+#   - VETMIND_AUTH_ENABLED=1
+#   - VETMIND_JWT_SECRET ≠ demo default, length ≥ 32
+#   - VETMIND_MALWARE_SCAN_REQUIRED=1 (fail-closed until a real scanner is wired)
+#   - VETMIND_DICOM_IDENTITY_SCRUB=1
+#
+# Demo-only APIs (fixture DICOM, demo card payments) return 403 in this mode.
+
+services:
+  backend:
+    environment:
+      VETMIND_DEPLOYMENT_MODE: protected
+      VETMIND_AUTH_ENABLED: "1"
+      VETMIND_JWT_SECRET: ${VETMIND_JWT_SECRET:?set a strong secret ≥32 chars}
+      VETMIND_ALLOW_INSECURE_DEMO: "0"
+      VETMIND_MALWARE_SCAN_REQUIRED: "1"
+      VETMIND_DICOM_IDENTITY_SCRUB: "1"
+      VETMIND_TENANT_ISOLATION: "1"
+      VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-https://vetmind.example}
+      # Password reset: without SMTP, tokens are not minted (forgot still returns 202).
+      VETMIND_SMTP_HOST: ${VETMIND_SMTP_HOST:-}
+      VETMIND_SMTP_PORT: ${VETMIND_SMTP_PORT:-587}
+      VETMIND_SMTP_USERNAME: ${VETMIND_SMTP_USERNAME:-}
+      VETMIND_SMTP_PASSWORD: ${VETMIND_SMTP_PASSWORD:-}
+      VETMIND_SMTP_FROM: ${VETMIND_SMTP_FROM:-VetMind <no-reply@vetmind.example>}
+      # Real AI (optional — omit to keep mock LLM but still run protected auth)
+      VETMIND_LLM_PROVIDER: ${VETMIND_LLM_PROVIDER:-openai}
+      VETMIND_LLM_API_KEY: ${VETMIND_LLM_API_KEY:-}
+      VETMIND_LLM_MODEL_ID: ${VETMIND_LLM_MODEL_ID:-}
+      VETMIND_VLM_ENABLED: ${VETMIND_VLM_ENABLED:-0}

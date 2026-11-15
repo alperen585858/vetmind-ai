@@ -145,11 +145,11 @@ export default function App() {
               'submissions/:submissionId',
               <Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>,
             )}
-            {dualRoutes('mesajlar', 'messages', <Gate roles={['owner', 'expert', 'admin']}><Messages /></Gate>)}
+            {dualRoutes('mesajlar', 'messages', <Gate roles={['owner', 'expert', 'admin', 'vet']}><Messages /></Gate>)}
             {dualRoutes(
               'mesajlar/:threadId',
               'messages/:threadId',
-              <Gate roles={['owner', 'expert', 'admin']}><Messages /></Gate>,
+              <Gate roles={['owner', 'expert', 'admin', 'vet']}><Messages /></Gate>,
             )}
             {dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>)}
             {dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>)}

@@ -95,7 +95,23 @@ export function caseStatusFromLifecycle(status: string): CaseStatus {
 function regionLabel(region: BackendAnatomicalRegion | string | undefined): string {
   if (region === 'CERVICAL') return 'Servikal'
   if (region === 'BRAIN') return 'Beyin'
-  return region || 'Nöroloji'
+  if (region === 'THORAX') return 'Toraks'
+  if (region === 'OTHER') return 'Diğer'
+  if (region === 'UNKNOWN') return 'Bilinmiyor'
+  return region || '—'
+}
+
+/** Clinical product module label from imaging context (not a hardcoded specialty). */
+export function clinicalModuleFromStudy(
+  region?: BackendAnatomicalRegion | string | null,
+  modality?: BackendModality | string | null,
+): string {
+  const r = String(region || '').toUpperCase()
+  const m = String(modality || '').toUpperCase()
+  if (r === 'THORAX' || m === 'XR') return 'Toraks'
+  if (r === 'BRAIN' || r === 'CERVICAL') return 'Nöroloji'
+  if (r === 'OTHER' || r === 'UNKNOWN') return 'Genel'
+  return 'Nöroloji'
 }
 
 function modalityNote(modality: BackendModality | string | undefined, region: string): string {
@@ -197,7 +213,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     neuro: { ...UNKNOWN_NEURO },
     documents: [],
     status,
-    module: 'Nöroloji',
+    module: clinicalModuleFromStudy(s.anatomical_region, s.modality),
     priority: priorityFromBackend(s.priority),
     createdAt: created,
     clinic: displayClinic(s.referring_clinic) || displayClinic(s.clinic_id) || '',
@@ -328,7 +344,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     neuro,
     documents: docs,
     status,
-    module: 'Nöroloji',
+    module: clinicalModuleFromStudy(r.anatomical_region, r.modality),
     priority: priorityFromBackend(r.priority),
     createdAt: created,
     clinic: displayClinic(r.referring_clinic) || '',

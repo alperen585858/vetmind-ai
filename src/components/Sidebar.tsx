@@ -73,6 +73,7 @@ export function Sidebar({
       { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
       { to: '/vakalar/yeni', label: t('nav.newCase'), icon: <FilePlus2 className={ic} /> },
       { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
+      { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
     ],
     expert: [
       { to: '/', label: t('nav.expertOverview'), icon: <LayoutDashboard className={ic} /> },
@@ -94,6 +95,7 @@ export function Sidebar({
       { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
       { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
+      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
     ],
     admin: [
       { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },

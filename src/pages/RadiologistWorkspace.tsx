@@ -255,6 +255,18 @@ export default function RadiologistWorkspace() {
     }
   }, [worklist, c?.backendCaseId, c?.id, id])
 
+  const reportableEvidenceCount = useMemo(() => {
+    let n = 0
+    for (const f of c?.backendFindings?.findings ?? []) {
+      for (const ev of f.evidence_references ?? []) {
+        if (!ev.include_in_report) continue
+        if (ev.review_status !== 'accepted' && ev.review_status !== 'edited') continue
+        n += 1
+      }
+    }
+    return n
+  }, [c?.backendFindings?.findings])
+
   if (hydrating) {
     return (
       <Card>
@@ -1130,7 +1142,18 @@ export default function RadiologistWorkspace() {
         }
       >
         {modal === 'approve' ? (
-          <p className="text-sm text-slate-600">{t('review.workspace.approveBody')}</p>
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>{t('review.workspace.approveBody')}</p>
+            {reportableEvidenceCount === 0 ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+                {t('review.workspace.approveNoEvidence')}
+              </p>
+            ) : (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-950">
+                {t('review.workspace.approveEvidenceCount', { count: reportableEvidenceCount })}
+              </p>
+            )}
+          </div>
         ) : (
           <>
             {modal === 'revizyon' && immutable && (

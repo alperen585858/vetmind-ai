@@ -102,6 +102,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             pipeline_mode = "partial_remote"
         else:
             pipeline_mode = "mock"
+        rate_backend = getattr(c.rate_limiter, "backend", "memory")
         return {
             "status": "ok",
             "mode": pipeline_mode,
@@ -119,6 +120,10 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "vlm_enabled": vlm_enabled,
             "vision_execution_policy": c.settings.vision_execution_policy,
             "llm_provider": c.settings.llm_provider,
+            "smtp_configured": bool(c.settings.smtp_host),
+            "demo_apis_enabled": c.settings.deployment_mode == "demo",
+            "self_registration_enabled": bool(c.settings.self_registration_enabled),
+            "rate_limit_backend": rate_backend,
             "note": "Not a clinical system. Optional Postgres/auth/remote Vision/RQ via env.",
         }
 

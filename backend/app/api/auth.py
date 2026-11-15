@@ -406,30 +406,36 @@ def forgot_password(
 
 def _send_reset_link(container: AppContainer, email: str) -> None:
     entry = container.auth.users.get(email) if container.auth.users else None
+    detail = "no_active_account"
     if entry is not None:
-        raw = container.password_resets.issue(email)
-        link = f"{container.settings.public_base_url}/sifre-sifirla?token={raw}"
-        minutes = container.password_resets.ttl_seconds // 60
-        container.mailer.send(
-            OutgoingMail(
-                to=email,
-                subject="VetMind şifre sıfırlama / password reset",
-                body=(
-                    "Merhaba,\n\n"
-                    f"VetMind şifrenizi sıfırlamak için bu bağlantıyı {minutes} dakika içinde açın:\n"
-                    f"{link}\n\n"
-                    "Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.\n\n"
-                    f"To reset your VetMind password, open the link above within {minutes} minutes. "
-                    "If you didn't ask for this, ignore this email.\n"
-                ),
+        # Protected / auth-on without SMTP: never mint a live reset token (nothing safe to deliver).
+        if not container.settings.smtp_host and container.settings.deployment_mode == "protected":
+            detail = "smtp_required"
+        else:
+            raw = container.password_resets.issue(email)
+            link = f"{container.settings.public_base_url}/sifre-sifirla?token={raw}"
+            minutes = container.password_resets.ttl_seconds // 60
+            container.mailer.send(
+                OutgoingMail(
+                    to=email,
+                    subject="VetMind şifre sıfırlama / password reset",
+                    body=(
+                        "Merhaba,\n\n"
+                        f"VetMind şifrenizi sıfırlamak için bu bağlantıyı {minutes} dakika içinde açın:\n"
+                        f"{link}\n\n"
+                        "Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; şifreniz değişmez.\n\n"
+                        f"To reset your VetMind password, open the link above within {minutes} minutes. "
+                        "If you didn't ask for this, ignore this email.\n"
+                    ),
+                )
             )
-        )
+            detail = "link_sent"
     container.audit.record(
         event_type="auth.password_forgot",
         actor=email,
         resource="/api/v1/auth/password/forgot",
         outcome=AuditOutcome.INFO,
-        detail="link_sent" if entry is not None else "no_active_account",
+        detail=detail,
     )
 
 

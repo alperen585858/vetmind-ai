@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Activity, CheckCircle2, Cpu, Gauge, Rocket, Thermometer, Timer, Zap, AlertTriangle, ListOrdered, Server, RefreshCw, BrainCircuit } from 'lucide-react'
+import { CheckCircle2, Cpu, Gauge, Rocket, Timer, Zap, AlertTriangle, ListOrdered, Server, RefreshCw, BrainCircuit } from 'lucide-react'
 import { Card, CardHeader, StatCard } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { Modal } from '../components/Modal'
-import { DEPLOYMENTS, SERVICES } from '../data/mock'
+import { SERVICES } from '../data/mock'
 import { useLocale } from '../context/LocaleContext'
-import { fmtDate } from '../lib/format'
-import type { TranslateFn } from '../i18n'
 import {
   BackendUnavailableError,
   applyRetentionPlan,
@@ -18,24 +16,8 @@ import {
   type BackendModelReadiness,
   type RetentionPlanResponse,
 } from '../lib/backend'
-
-function deploymentStatusLabel(status: string, t: TranslateFn) {
-  if (status === 'Başarılı') return t('admin.success')
-  if (status === 'Geri alındı') return t('admin.rolledBack')
-  return status
-}
-
-function deploymentKindLabel(kind: string, t: TranslateFn) {
-  if (kind === 'Model') return t('admin.deployKindModel')
-  if (kind === 'Servis') return t('admin.deployKindService')
-  if (kind === 'Bilgi tabanı') return t('admin.deployKindKb')
-  return kind
-}
-
 export default function SystemStatus() {
   const { t } = useLocale()
-  const vramUsed = 29.4
-  const vramTotal = 48
   const [health, setHealth] = useState<BackendHealth | null>(null)
   const [healthError, setHealthError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -163,6 +145,27 @@ export default function SystemStatus() {
             <div><dt className="text-xs text-slate-500">job_backend</dt><dd className="font-mono font-medium text-navy-900">{health.job_backend}</dd></div>
             <div><dt className="text-xs text-slate-500">auth_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.auth_enabled)}</dd></div>
             <div><dt className="text-xs text-slate-500">vision_endpoint</dt><dd className="font-mono font-medium text-navy-900">{String(health.vision_endpoint)}</dd></div>
+            {health.deployment_mode != null ? (
+              <div><dt className="text-xs text-slate-500">deployment_mode</dt><dd className="font-mono font-medium text-navy-900">{health.deployment_mode}</dd></div>
+            ) : null}
+            {health.smtp_configured != null ? (
+              <div><dt className="text-xs text-slate-500">smtp_configured</dt><dd className="font-mono font-medium text-navy-900">{String(health.smtp_configured)}</dd></div>
+            ) : null}
+            {health.demo_apis_enabled != null ? (
+              <div><dt className="text-xs text-slate-500">demo_apis_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.demo_apis_enabled)}</dd></div>
+            ) : null}
+            {health.self_registration_enabled != null ? (
+              <div><dt className="text-xs text-slate-500">self_registration_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.self_registration_enabled)}</dd></div>
+            ) : null}
+            {health.rate_limit_backend != null ? (
+              <div><dt className="text-xs text-slate-500">rate_limit_backend</dt><dd className="font-mono font-medium text-navy-900">{health.rate_limit_backend}</dd></div>
+            ) : null}
+            {health.vlm_enabled != null ? (
+              <div><dt className="text-xs text-slate-500">vlm_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.vlm_enabled)}</dd></div>
+            ) : null}
+            {health.llm_provider != null ? (
+              <div><dt className="text-xs text-slate-500">llm_provider</dt><dd className="font-mono font-medium text-navy-900">{health.llm_provider}</dd></div>
+            ) : null}
             {health.sqlite_path ? (
               <div className="sm:col-span-2"><dt className="text-xs text-slate-500">sqlite_path</dt><dd className="break-all font-mono text-xs text-navy-800">{health.sqlite_path}</dd></div>
             ) : null}
@@ -284,33 +287,18 @@ export default function SystemStatus() {
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader
-            title="GPU telemetri"
-            subtitle="Temsilî · gerçek ekran kartı ölçümü yok"
+            title={t('admin.gpuTitle')}
+            subtitle={t('admin.gpuSubtitle')}
             icon={<Cpu className="h-5 w-5" />}
           />
-          <div className="grid gap-4 p-5 sm:grid-cols-3">
-            <div className="sm:col-span-2">
-              <p className="mb-1 flex justify-between text-sm">
-                <span className="text-slate-500">VRAM</span>
-                <span className="font-mono font-medium text-slate-500">— / —</span>
-              </p>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full w-0 rounded-full bg-slate-300" />
-              </div>
+          <div className="px-5 pb-5">
+            <div
+              className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-200 bg-amber-50/40 px-4 text-center"
+              style={{ height: 140 }}
+            >
+              <p className="text-sm font-medium text-amber-950">{t('dashboard.gpuTelemetryUnavailable')}</p>
+              <p className="mt-1 text-xs text-amber-800/80">{t('dashboard.gpuTelemetryHint')}</p>
             </div>
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-              <Thermometer className="h-6 w-6 text-slate-400" />
-              <div>
-                <p className="text-xs text-slate-500">Sıcaklık</p>
-                <p className="text-lg font-semibold text-slate-500">—</p>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-dashed border-slate-200 px-5 py-6 text-center text-sm text-slate-500">
-            GpuChart gizlendi — sahte kullanım eğrisi jüri yanılsaması yaratıyordu.
-            <span className="mt-1 block text-xs text-slate-400">
-              (Eski demo değerler: {vramUsed}/{vramTotal} GB — kullanılmıyor)
-            </span>
           </div>
         </Card>
 
@@ -422,48 +410,9 @@ export default function SystemStatus() {
         </div>
       </Modal>
 
-      <Card className="mt-6 border-amber-200/70 bg-amber-50/20">
-        <div className="flex flex-wrap items-center gap-2 border-b border-amber-100 px-5 py-3">
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
-            {t('admin.demoFiction')}
-          </span>
-          <p className="text-xs text-amber-950">{t('admin.deploymentsDemoNote')}</p>
-        </div>
-        <CardHeader title={t('admin.deploymentsTitle')} subtitle={t('admin.deploymentsSub')} icon={<Rocket className="h-5 w-5" />} />
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50/70">
-              <tr>
-                <th className="th">{t('admin.colVersion')}</th>
-                <th className="th">{t('admin.colKind')}</th>
-                <th className="th">{t('common.date')}</th>
-                <th className="th">{t('admin.colDeployedBy')}</th>
-                <th className="th">{t('common.status')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {DEPLOYMENTS.map((d) => (
-                <tr key={d.version}>
-                  <td className="td font-mono text-xs font-medium">{d.version}</td>
-                  <td className="td">{deploymentKindLabel(d.kind, t)}</td>
-                  <td className="td text-slate-500">{fmtDate(d.date)}</td>
-                  <td className="td">{d.by}</td>
-                  <td className="td">
-                    {d.status === 'Başarılı' ? (
-                      <span className="flex items-center gap-1.5 text-emerald-700">
-                        <CheckCircle2 className="h-4 w-4" /> {t('admin.success')}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-orange-700">
-                        <Activity className="h-4 w-4" /> {deploymentStatusLabel(d.status, t)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Card className="mt-6">
+        <CardHeader title={t('admin.deploymentsTitle')} subtitle={t('admin.deploymentsEmptySub')} icon={<Rocket className="h-5 w-5" />} />
+        <p className="px-5 pb-5 text-sm text-slate-500">{t('admin.deploymentsEmptyBody')}</p>
       </Card>
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-400">
         <Gauge className="h-3.5 w-3.5" /> Canlı durum için /health ve model readiness panellerini kullanın.

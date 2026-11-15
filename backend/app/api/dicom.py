@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.deps import get_container, get_dicom_service
+from app.api.deps import get_container, get_dicom_service, require_demo_deployment
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_DICOM
@@ -116,7 +116,12 @@ async def upload_dicom(
     )
 
 
-@router.post("/demo/{kind}", response_model=DicomUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/demo/{kind}",
+    response_model=DicomUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_demo_deployment)],
+)
 def upload_demo_fixture(
     kind: DemoFixtureKind,
     patient_name: str = Form(..., min_length=1, max_length=120),
@@ -140,7 +145,7 @@ def upload_demo_fixture(
     )
 
 
-@router.get("/fixtures/{kind}/{index}")
+@router.get("/fixtures/{kind}/{index}", dependencies=[Depends(require_demo_deployment)])
 def download_demo_fixture(
     kind: DemoFixtureKind,
     index: int,

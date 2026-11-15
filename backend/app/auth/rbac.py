@@ -34,6 +34,7 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_RAG_SEARCH,
             CAP_SUBMISSIONS,
             CAP_CLINIC_MANAGE,
+            CAP_MESSAGES,
         }
     ),
     "expert": frozenset(

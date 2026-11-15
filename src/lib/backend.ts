@@ -340,6 +340,13 @@ export type BackendHealth = {
   job_backend: string
   auth_enabled: boolean
   vision_endpoint: boolean
+  deployment_mode?: string
+  vlm_enabled?: boolean
+  llm_provider?: string
+  smtp_configured?: boolean
+  demo_apis_enabled?: boolean
+  self_registration_enabled?: boolean
+  rate_limit_backend?: string
   note?: string
 }
 

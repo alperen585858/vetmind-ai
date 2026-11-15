@@ -389,9 +389,17 @@ def load_settings() -> Settings:
         refresh_ttl = int(os.getenv("VETMIND_REFRESH_TTL_SECONDS", str(7 * 24 * 60 * 60)))
     except ValueError:
         refresh_ttl = 7 * 24 * 60 * 60
-    self_registration_enabled = _env_bool("VETMIND_SELF_REGISTRATION", True)
+    deployment_mode = os.getenv("VETMIND_DEPLOYMENT_MODE", "demo").strip().lower() or "demo"
+    if deployment_mode not in {"demo", "protected"}:
+        deployment_mode = "demo"
+    # Protected defaults: registration off unless explicitly enabled with a real clinic id.
+    if deployment_mode == "protected" and os.getenv("VETMIND_SELF_REGISTRATION") is None:
+        self_registration_enabled = False
+    else:
+        self_registration_enabled = _env_bool("VETMIND_SELF_REGISTRATION", True)
+    _default_reg_clinic = "" if deployment_mode == "protected" else "clinic-demo-a"
     self_registration_owner_clinic_id = (
-        os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", "clinic-demo-a").strip() or None
+        os.getenv("VETMIND_SELF_REGISTRATION_OWNER_CLINIC", _default_reg_clinic).strip() or None
     )
     try:
         password_reset_ttl = int(os.getenv("VETMIND_PASSWORD_RESET_TTL_SECONDS", str(30 * 60)))
@@ -414,10 +422,6 @@ def load_settings() -> Settings:
     if job_backend not in {"thread", "rq"}:
         job_backend = "thread"
     redis_url = os.getenv("VETMIND_REDIS_URL") or None
-
-    deployment_mode = os.getenv("VETMIND_DEPLOYMENT_MODE", "demo").strip().lower() or "demo"
-    if deployment_mode not in {"demo", "protected"}:
-        deployment_mode = "demo"
     # Isolation defaults on when auth is enabled unless explicitly overridden.
     if os.getenv("VETMIND_TENANT_ISOLATION") is None:
         tenant_isolation = auth_enabled or deployment_mode == "protected"
@@ -635,6 +639,14 @@ def validate_security_settings(settings: Settings) -> None:
             raise RuntimeError(
                 "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
             )
+        if settings.self_registration_enabled:
+            clinic = (settings.self_registration_owner_clinic_id or "").strip().lower()
+            if not clinic or clinic in {"clinic-demo-a", "clinic-demo", "demo"}:
+                raise RuntimeError(
+                    "Protected deployment with self-registration requires "
+                    "VETMIND_SELF_REGISTRATION_OWNER_CLINIC set to a real clinic id "
+                    "(not clinic-demo-a). Or set VETMIND_SELF_REGISTRATION=0."
+                )
         if enc in {"none", "off", "disabled", ""}:
             # Honesty lock: protected may run for software readiness tests, but
             # must not claim clinical-data-OK without encryption.

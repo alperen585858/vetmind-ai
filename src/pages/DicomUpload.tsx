@@ -532,51 +532,56 @@ export default function DicomUpload() {
     <div className="space-y-5">
       <section className="space-y-3">
         <label className="block text-xs font-semibold text-slate-600">
-          Hasta adı *
+          {t('dicomUpload.patientName')} *
           <input
             className="input mt-1.5"
             value={patientName}
             onChange={(e) => setPatientName(e.target.value)}
             autoComplete="off"
-            placeholder="ör. Pax"
+            placeholder={t('dicomUpload.patientNamePlaceholder')}
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-xs font-semibold text-slate-600">
-            Tür
+            {t('dicomUpload.species')}
             <select
               className="input mt-1.5"
               value={species}
               onChange={(e) => setSpecies(e.target.value as Patient['species'])}
             >
-              <option value="Köpek">Köpek</option>
-              <option value="Kedi">Kedi</option>
-              <option value="Diğer">Diğer</option>
+              <option value="Köpek">{t('species.dog')}</option>
+              <option value="Kedi">{t('species.cat')}</option>
+              <option value="Diğer">{t('species.other')}</option>
             </select>
           </label>
           <label className="block text-xs font-semibold text-slate-600">
-            Irk
-            <input className="input mt-1.5" value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Irk" />
+            {t('dicomUpload.breed')}
+            <input
+              className="input mt-1.5"
+              value={breed}
+              onChange={(e) => setBreed(e.target.value)}
+              placeholder={t('dicomUpload.breedPlaceholder')}
+            />
           </label>
         </div>
         <label className="block text-xs font-semibold text-slate-600">
-          Yaş (yıl)
+          {t('dicomUpload.ageYears')}
           <input
             className="input mt-1.5"
             type="number"
             min={0}
             step={0.1}
-            placeholder="—"
+            placeholder={t('common.dash')}
             value={ageYears}
             onChange={(e) => setAgeYears(e.target.value)}
           />
         </label>
         <label className="block text-xs font-semibold text-slate-600">
-          Klinik notlar
+          {t('dicomUpload.clinicalNotes')}
           <textarea
             className="input mt-1.5"
             rows={hasStudy ? 4 : 3}
-            placeholder="Anamnez, şikayet, klinik gözlemler…"
+            placeholder={t('dicomUpload.clinicalNotesPlaceholder')}
             value={history}
             onChange={(e) => setHistory(e.target.value)}
           />
@@ -585,7 +590,9 @@ export default function DicomUpload() {
 
       {hasStudy && (
         <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">İnceleme bilgileri</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            {t('dicomUpload.studyInfo')}
+          </h3>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
             <div>
               <dt className="text-slate-500">Modalite</dt>
