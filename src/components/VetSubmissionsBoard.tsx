@@ -20,15 +20,6 @@ const STATUS_PILL: Record<string, string> = {
   linked: 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200/80',
 }
 
-const STATUS_ACCENT: Record<string, string> = {
-  draft: 'border-l-slate-200',
-  pending_verification: 'border-l-amber-300',
-  needs_info: 'border-l-orange-300',
-  verified: 'border-l-teal-400',
-  rejected: 'border-l-slate-300',
-  linked: 'border-l-teal-400',
-}
-
 type VetTab = 'all' | 'action' | 'waiting' | 'done'
 type DetailTab = 'genel' | 'dicom' | 'klinik' | 'gecmis'
 
@@ -95,20 +86,16 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function CardSkeleton() {
+function RowSkeleton({ dark = false }: { dark?: boolean }) {
+  const bone = dark ? 'bg-white/10' : 'bg-slate-100'
   return (
-    <div className="animate-pulse rounded-xl border border-slate-200/90 bg-white p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 shrink-0 rounded-xl bg-slate-100" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="h-4 w-24 rounded bg-slate-100" />
-            <div className="h-5 w-20 rounded-full bg-slate-100" />
-          </div>
-          <div className="h-3 w-32 rounded bg-slate-100" />
-          <div className="h-5 w-28 rounded-md bg-slate-100" />
-        </div>
+    <div className="animate-pulse flex items-center gap-3 px-3 py-3">
+      <div className={`h-10 w-10 shrink-0 rounded-xl ${bone}`} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className={`h-3.5 w-28 rounded ${bone}`} />
+        <div className={`h-3 w-40 rounded ${bone}`} />
       </div>
+      <div className={`h-5 w-16 rounded-lg ${bone}`} />
     </div>
   )
 }
@@ -529,51 +516,83 @@ export function VetSubmissionsBoard({
     { id: 'done' as const, label: t('vetBoard.tabDone'), n: counts.done },
   ]
 
-  const renderCard = (s: BackendImagingSubmission) => {
+  const renderRow = (s: BackendImagingSubmission, inRail: boolean) => {
     const active = detailOpen && s.submission_id === selected?.submission_id
     const name = displayName(s)
     const pet = petById.get(s.pet_id)
     const secondary = secondaryLine(s)
+    const feline = pet?.species === 'feline' || pet?.species === 'Kedi'
 
     return (
       <li key={s.submission_id} id={`submission-${s.submission_id}`}>
         <button
           type="button"
           onClick={() => onSelect(s.submission_id)}
-          className={`flex w-full items-start gap-3 rounded-xl border border-l-4 border-slate-200/90 bg-white px-3.5 py-3.5 text-left shadow-soft transition ${
-            STATUS_ACCENT[s.status] || STATUS_ACCENT.draft
-          } ${
-            active
-              ? 'bg-teal-50/40 ring-2 ring-teal-500/30'
-              : 'hover:-translate-y-0.5 hover:border-teal-200/80 hover:shadow-md'
-          }`}
+          className={`flex w-full items-center gap-3 px-3 py-3 text-left transition ${
+            inRail
+              ? active
+                ? 'bg-white/15 ring-1 ring-inset ring-teal-300/40'
+                : 'hover:bg-white/8'
+              : active
+                ? 'bg-teal-50/70 ring-1 ring-inset ring-teal-300/50'
+                : 'hover:bg-slate-50'
+          } ${inRail ? 'rounded-xl' : 'border-b border-slate-100 last:border-0'}`}
         >
-          <PetAvatar name={name} species={pet?.species} t={t} />
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${
+              inRail
+                ? feline
+                  ? 'bg-sky-400/90 text-navy-950'
+                  : 'bg-teal-400 text-navy-950'
+                : feline
+                  ? 'bg-navy-100 text-navy-700'
+                  : 'bg-teal-50 text-teal-800'
+            }`}
+            aria-hidden
+          >
+            {(name || '?').slice(0, 1).toUpperCase()}
+          </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className="truncate text-sm font-semibold text-navy-900">{name}</p>
+            <div className="flex items-baseline justify-between gap-2">
+              <p className={`truncate text-sm font-semibold ${inRail ? 'text-white' : 'text-navy-900'}`}>{name}</p>
+              <span className={`shrink-0 text-[11px] ${inRail ? 'text-slate-400' : 'text-slate-400'}`}>
+                {fmtDate(s.updated_at || s.created_at)}
+              </span>
+            </div>
+            {secondary ? (
+              <p className={`mt-0.5 truncate text-xs ${inRail ? 'text-slate-400' : 'text-slate-500'}`}>{secondary}</p>
+            ) : null}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                  STATUS_PILL[s.status] || STATUS_PILL.draft
+                className={`rounded-lg px-2 py-0.5 text-[10px] font-semibold ${
+                  inRail
+                    ? s.status === 'pending_verification'
+                      ? 'bg-amber-400/20 text-amber-200'
+                      : s.status === 'needs_info'
+                        ? 'bg-orange-400/20 text-orange-200'
+                        : 'bg-white/10 text-slate-300'
+                    : STATUS_PILL[s.status] || STATUS_PILL.draft
                 }`}
               >
                 {vetStatusLabel(s.status, t)}
               </span>
-            </div>
-            {secondary ? (
-              <p className="mt-1 truncate text-xs text-slate-500">{secondary}</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
               {s.dicom_ingest_id ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 px-1.5 py-0.5 font-medium text-teal-800">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] font-semibold ${
+                    inRail ? 'bg-teal-400/20 text-teal-200' : 'bg-teal-50 text-teal-800'
+                  }`}
+                >
                   <FileImage className="h-3 w-3" /> {t('vetBoard.dicomBadge')}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] font-medium ${
+                    inRail ? 'text-slate-500' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
                   {t('vetBoard.noDicomBadge')}
                 </span>
               )}
-              <span className="text-slate-400">{fmtDate(s.updated_at || s.created_at)}</span>
             </div>
           </div>
         </button>
@@ -582,98 +601,142 @@ export function VetSubmissionsBoard({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-navy-900">{t('vetBoard.title')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t('vetBoard.subtitle')}</p>
-        </div>
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            className="input !min-h-10 border-slate-200 bg-white pl-9 text-sm"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t('vetBoard.searchPlaceholder')}
+    <div className="vm-fade-up relative -mx-1 space-y-4">
+      {!detailOpen && (
+        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.32),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(251,191,36,0.14),transparent_45%)]"
           />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100/90 p-1">
-        {filterTabs.map((t) => {
-          const active = tab === t.id
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${
-                active
-                  ? 'bg-white text-navy-900 shadow-sm ring-1 ring-teal-200/70'
-                  : 'text-slate-600 hover:text-navy-800'
-              }`}
-            >
-              {t.label}
-              <span
-                className={`tabular-nums rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                  active ? 'bg-teal-50 text-teal-800' : 'text-slate-400'
-                }`}
-              >
-                {t.n}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">
+                {visible.length} / {rows.length}
+              </p>
+              <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+                {t('vetBoard.title')}
+              </h1>
+              <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('vetBoard.subtitle')}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {filterTabs.map((ft) => {
+                  const active = tab === ft.id
+                  return (
+                    <button
+                      key={ft.id}
+                      type="button"
+                      onClick={() => setTab(ft.id)}
+                      className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                        active
+                          ? ft.id === 'action'
+                            ? 'bg-amber-400 text-amber-950'
+                            : ft.id === 'waiting'
+                              ? 'bg-orange-400 text-orange-950'
+                              : 'bg-teal-400 text-navy-950'
+                          : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                      }`}
+                    >
+                      {ft.label} <span className="opacity-80">{ft.n}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <label className="relative w-full sm:max-w-sm">
+              <span className="sr-only">{t('vetBoard.searchPlaceholder')}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-teal-200/70" aria-hidden />
+              <input
+                className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/20 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-300/50"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('vetBoard.searchPlaceholder')}
+              />
+            </label>
+          </div>
+        </section>
+      )}
 
       <div
-        className={`grid gap-4 ${
-          detailOpen ? 'xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]' : 'grid-cols-1'
-        }`}
+        className={
+          detailOpen
+            ? 'grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.75rem] shadow-[0_20px_50px_-28px_rgba(11,23,40,0.45)] xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]'
+            : 'overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70'
+        }
       >
-        {/* List — separate cards when detail closed; compact queue when open */}
-        <div>
-          {loading ? (
-            <ul
-              className={
-                detailOpen
-                  ? 'flex max-h-[min(72vh,42rem)] flex-col gap-2 overflow-y-auto'
-                  : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'
-              }
-            >
-              {Array.from({ length: detailOpen ? 4 : 6 }).map((_, i) => (
-                <li key={i}>
-                  <CardSkeleton />
-                </li>
-              ))}
-            </ul>
-          ) : visible.length === 0 ? (
-            <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
-              <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title={emptyTabTitle(tab, t)} />
-            </div>
-          ) : (
-            <ul
-              className={
-                detailOpen
-                  ? 'flex max-h-[min(72vh,42rem)] flex-col gap-2 overflow-y-auto'
-                  : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'
-              }
-            >
-              {visible.map((s) => renderCard(s))}
-            </ul>
+        {/* List */}
+        <div
+          className={
+            detailOpen
+              ? 'relative flex min-h-0 flex-col overflow-hidden bg-[color:var(--vm-midnight,#0b1728)] text-white'
+              : 'min-h-0'
+          }
+        >
+          {detailOpen && (
+            <>
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(45,212,191,0.22),transparent_55%)]"
+              />
+              <div className="relative border-b border-white/10 px-4 pb-3 pt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">{t('vetBoard.title')}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {filterTabs.map((ft) => {
+                    const active = tab === ft.id
+                    return (
+                      <button
+                        key={ft.id}
+                        type="button"
+                        onClick={() => setTab(ft.id)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+                          active ? 'bg-teal-400 text-navy-950' : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                        }`}
+                      >
+                        {ft.label} {ft.n}
+                      </button>
+                    )
+                  })}
+                </div>
+                <label className="relative mt-3 block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    className="w-full rounded-xl border-0 bg-white/10 py-2 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/15 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-400/50"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder={t('vetBoard.searchPlaceholder')}
+                  />
+                </label>
+              </div>
+            </>
           )}
+
+          <div className={`relative min-h-0 flex-1 overflow-y-auto ${detailOpen ? 'px-2 pb-3' : ''}`}>
+            {loading ? (
+              <ul className={detailOpen ? 'space-y-0.5' : 'divide-y divide-slate-100'}>
+                {Array.from({ length: detailOpen ? 5 : 6 }).map((_, i) => (
+                  <li key={i}>
+                    <RowSkeleton dark={detailOpen} />
+                  </li>
+                ))}
+              </ul>
+            ) : visible.length === 0 ? (
+              <EmptyState compact icon={<PawPrint className="h-5 w-5" />} title={emptyTabTitle(tab, t)} />
+            ) : (
+              <ul className={detailOpen ? 'space-y-0.5' : ''}>{visible.map((s) => renderRow(s, detailOpen))}</ul>
+            )}
+          </div>
         </div>
 
         {/* Detail — closable; DICOM-first for verification */}
         {detailOpen && selected && (
-          <div className="flex max-h-[min(82vh,52rem)] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-soft">
-            <div className="flex shrink-0 items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+          <div className="relative flex min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,#f0fdfa_0%,#f8fafc_35%,#ffffff_100%)]">
+            <div className="flex shrink-0 items-start gap-3 border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur-sm sm:px-5">
               <PetAvatar name={displayName(selected)} species={selectedPet?.species || detail?.species} size="lg" t={t} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display text-xl font-semibold text-navy-900">{displayName(selected)}</h2>
+                  <h2 className="font-[family-name:var(--vm-font-display)] text-xl font-semibold text-navy-900">
+                    {displayName(selected)}
+                  </h2>
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                    className={`rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${
                       STATUS_PILL[selected.status] || STATUS_PILL.draft
                     }`}
                   >
@@ -693,7 +756,7 @@ export function VetSubmissionsBoard({
               <button
                 type="button"
                 onClick={onCloseDetail}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-navy-800"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-navy-800"
                 aria-label={t('vetBoard.closeDetailAria')}
                 title={t('common.close')}
               >
