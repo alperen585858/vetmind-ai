@@ -42,6 +42,13 @@ const env = {
   VETMIND_AUTH_ENABLED: protectedMode ? '1' : '0',
   VETMIND_DEPLOYMENT_MODE: protectedMode ? 'protected' : 'demo',
   VETMIND_JWT_SECRET: protectedMode ? 'e2e-protected-jwt-secret-min-32-chars!!' : 'vetmind-demo-secret-change-me',
+  // Protected defaults self-reg off; the #31 E2E still needs sign-up with a non-demo clinic.
+  ...(protectedMode
+    ? {
+        VETMIND_SELF_REGISTRATION: '1',
+        VETMIND_SELF_REGISTRATION_OWNER_CLINIC: 'clinic-e2e',
+      }
+    : {}),
   // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
   VETMIND_ASYNC_DELAY_MS: '50',
   VETMIND_RAG: 'lexical',

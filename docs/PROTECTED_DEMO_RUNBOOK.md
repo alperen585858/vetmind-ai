@@ -23,7 +23,7 @@ Effects:
 - API requires Bearer JWT / API key.
 - Seed accounts: `vet@demo.local`, `expert@demo.local`, `owner@demo.local` (and admin seeds per demo credentials) with documented demo passwords.
 - Seed accounts stay active in every mode (this runbook and the protected E2E rely on them). Change their passwords (Ayarlar → Şifre değiştir) or deactivate them before real users join.
-- Sign-up (`/kayit`) creates **server accounts** (#31): pet owners are active at once, vets wait until an admin assigns a clinic and activates them (Admin → Kullanıcılar). Disable with `VETMIND_SELF_REGISTRATION=0`.
+- Sign-up (`/kayit`) creates **server accounts** (#31): pet owners are active at once, vets wait until an admin assigns a clinic and activates them (Admin → Kullanıcılar). In **protected** mode self-registration defaults **off**; enable with `VETMIND_SELF_REGISTRATION=1` and a non-demo `VETMIND_SELF_REGISTRATION_OWNER_CLINIC` (not `clinic-demo-a`). The protected Playwright harness sets `clinic-e2e` for the #31 password-change test.
 - Access tokens last 15 min and are renewed with a rotating refresh token; Ayarlar → Şifre değiştir works only with auth on.
 - Password reset links: without `VETMIND_SMTP_HOST`, demo mode writes them to the backend log and protected mode does not deliver them. An admin can also create a link from Admin → Kullanıcılar → Sıfırlama linki.
 

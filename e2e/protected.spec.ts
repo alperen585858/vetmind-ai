@@ -19,6 +19,7 @@ test.describe('Protected mode accounts (issue #31)', () => {
   test('signed-up owner changes the password in Ayarlar and signs in with it', async ({ page }) => {
     const email = uniqueEmail('prot-owner')
     await fillRegister(page, { email, password: 'Patiler2026' })
+    // Requires VETMIND_SELF_REGISTRATION=1 + clinic-e2e in scripts/e2e-backend.mjs.
     await page.waitForURL((url) => url.pathname === '/', { timeout: 20_000 })
 
     await page.goto('/ayarlar')

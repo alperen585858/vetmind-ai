@@ -22,6 +22,10 @@ services:
       VETMIND_MALWARE_SCAN_REQUIRED: "1"
       VETMIND_DICOM_IDENTITY_SCRUB: "1"
       VETMIND_TENANT_ISOLATION: "1"
+      # Self-registration defaults off in protected; enable only with a real clinic id.
+      VETMIND_SELF_REGISTRATION: "0"
+      # VETMIND_SELF_REGISTRATION: "1"
+      # VETMIND_SELF_REGISTRATION_OWNER_CLINIC: clinic-your-real-id
       VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-https://vetmind.example}
       # Password reset: without SMTP, tokens are not minted (forgot still returns 202).
       VETMIND_SMTP_HOST: ${VETMIND_SMTP_HOST:-}
