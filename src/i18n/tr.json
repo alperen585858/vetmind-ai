@@ -1353,7 +1353,19 @@
     "roleVet": "Veteriner",
     "roleClinicOwner": "Klinik sahibi",
     "roleDemo": "Demo",
-    "roleService": "Servis"
+    "roleService": "Servis",
+    "deleteMessage": "Mesajı sil",
+    "deleteMessageTitle": "Mesajı sil",
+    "deleteMessageConfirm": "Bu mesaj kalıcı olarak silinsin mi?",
+    "deleteMessageFailed": "Mesaj silinemedi",
+    "messageDeleted": "Mesaj silindi",
+    "deleteThread": "Konuşmayı sil",
+    "deleteThreadTitle": "Konuşmayı sil",
+    "deleteThreadConfirm": "Bu konuşma ve tüm mesajları kalıcı olarak silinsin mi?",
+    "deleteThreadFailed": "Konuşma silinemedi",
+    "threadDeleted": "Konuşma silindi",
+    "deleting": "Siliniyor…",
+    "confirmDelete": "Sil"
   },
   "submissions": {
     "title": "Başvurular",

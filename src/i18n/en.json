@@ -1353,7 +1353,19 @@
     "roleVet": "Veterinarian",
     "roleClinicOwner": "Clinic owner",
     "roleDemo": "Demo",
-    "roleService": "Service"
+    "roleService": "Service",
+    "deleteMessage": "Delete message",
+    "deleteMessageTitle": "Delete message",
+    "deleteMessageConfirm": "Permanently delete this message?",
+    "deleteMessageFailed": "Could not delete message",
+    "messageDeleted": "Message deleted",
+    "deleteThread": "Delete conversation",
+    "deleteThreadTitle": "Delete conversation",
+    "deleteThreadConfirm": "Permanently delete this conversation and all its messages?",
+    "deleteThreadFailed": "Could not delete conversation",
+    "threadDeleted": "Conversation deleted",
+    "deleting": "Deleting…",
+    "confirmDelete": "Delete"
   },
   "submissions": {
     "title": "Submissions",

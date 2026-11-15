@@ -106,3 +106,66 @@ def test_owner_admin_channel_isolated_from_expert(tmp_path: Path) -> None:
     roles = {m["author_role"] for m in detail["messages"]}
     assert "admin" in roles
     assert "owner" in roles
+
+
+def test_delete_own_message_and_thread(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    owner = _token(client, "owner@demo.local")
+    expert = _token(client, "expert@demo.local")
+
+    created = client.post(
+        "/api/v1/messages/threads",
+        json={"channel": "radiologist", "subject": "Silinecek", "body": "İlk mesaj"},
+        headers=_hdr(owner),
+    )
+    assert created.status_code == 201, created.text
+    tid = created.json()["thread"]["thread_id"]
+    first_id = created.json()["messages"][0]["message_id"]
+
+    reply = client.post(
+        f"/api/v1/messages/threads/{tid}/messages",
+        json={"body": "Uzman yanıtı"},
+        headers=_hdr(expert),
+    )
+    assert reply.status_code == 200, reply.text
+    reply_id = reply.json()["message_id"]
+
+    # Owner cannot delete expert's message
+    forbidden = client.delete(
+        f"/api/v1/messages/threads/{tid}/messages/{reply_id}",
+        headers=_hdr(owner),
+    )
+    assert forbidden.status_code == 403
+
+    # Expert deletes own reply
+    deleted = client.delete(
+        f"/api/v1/messages/threads/{tid}/messages/{reply_id}",
+        headers=_hdr(expert),
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert len(deleted.json()["messages"]) == 1
+    assert deleted.json()["messages"][0]["message_id"] == first_id
+
+    # Deleting last message removes the thread
+    last = client.delete(
+        f"/api/v1/messages/threads/{tid}/messages/{first_id}",
+        headers=_hdr(owner),
+    )
+    assert last.status_code == 204
+    assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).status_code == 404
+
+
+def test_delete_thread_endpoint(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    owner = _token(client, "owner@demo.local")
+
+    created = client.post(
+        "/api/v1/messages/threads",
+        json={"channel": "admin", "subject": "Konuşma sil", "body": "Merhaba"},
+        headers=_hdr(owner),
+    )
+    tid = created.json()["thread"]["thread_id"]
+
+    gone = client.delete(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner))
+    assert gone.status_code == 204
+    assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).status_code == 404

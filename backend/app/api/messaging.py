@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
@@ -122,3 +122,50 @@ def mark_thread_read(
             principal=AP(subject=subject, role=role, via="disabled", clinic_id=principal.clinic_id),
         )
     return service.mark_read(thread_id, principal=principal)
+
+
+@router.delete(
+    "/threads/{thread_id}/messages/{message_id}",
+    response_model=SupportThreadDetail,
+    responses={204: {"description": "Message deleted and conversation removed (was last message)"}},
+)
+def delete_message(
+    thread_id: str,
+    message_id: str,
+    request: Request,
+    response: Response,
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+    service=Depends(_messaging),
+) -> SupportThreadDetail | Response:
+    subject, role = _demo_actor(request, principal)
+    detail = service.delete_message(
+        thread_id,
+        message_id,
+        principal=principal,
+        actor_subject=subject,
+        actor_role=role,
+    )
+    if detail is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return detail
+
+
+@router.delete(
+    "/threads/{thread_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def delete_thread(
+    thread_id: str,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+    service=Depends(_messaging),
+) -> Response:
+    subject, role = _demo_actor(request, principal)
+    service.delete_thread(
+        thread_id,
+        principal=principal,
+        actor_subject=subject,
+        actor_role=role,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

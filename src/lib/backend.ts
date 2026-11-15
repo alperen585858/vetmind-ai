@@ -1817,6 +1817,18 @@ export async function markSupportThreadRead(threadId: string) {
   })
 }
 
+/** Returns remaining thread detail, or null when the conversation was removed (last message). */
+export async function deleteSupportMessage(threadId: string, messageId: string) {
+  return request<import('../types').BackendSupportThreadDetail | void>(
+    `/messages/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
+    { method: 'DELETE' },
+  ).then((r) => (r ? r : null))
+}
+
+export async function deleteSupportThread(threadId: string) {
+  await request<void>(`/messages/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE' })
+}
+
 export async function listNotifications(unreadOnly = false) {
   const q = unreadOnly ? '?unread_only=true' : ''
   return request<{ items: AppNotification[]; unread_count: number }>(`/notifications${q}`)

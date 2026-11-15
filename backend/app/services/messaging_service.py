@@ -305,3 +305,92 @@ class MessagingService:
             thread=self._summary(thread, viewer=viewer),
             messages=self._views(thread, viewer=viewer),
         )
+
+    def _effective_actor(
+        self,
+        *,
+        principal: AuthPrincipal,
+        actor_subject: str | None,
+        actor_role: str | None,
+        thread: SupportThread,
+    ) -> tuple[str, str, AuthPrincipal]:
+        subject = (actor_subject or principal.subject).strip()
+        role = (actor_role or principal.role).strip()
+        if principal.via == "disabled":
+            access_principal = AuthPrincipal(
+                subject=subject,
+                role=role,
+                via="disabled",
+                clinic_id=principal.clinic_id,
+            )
+            self._assert_access(thread, principal=access_principal)
+            return subject, role, access_principal
+        self._assert_access(thread, principal=principal)
+        return principal.subject, principal.role, principal
+
+    def delete_message(
+        self,
+        thread_id: str,
+        message_id: str,
+        *,
+        principal: AuthPrincipal,
+        actor_subject: str | None = None,
+        actor_role: str | None = None,
+    ) -> SupportThreadDetail | None:
+        """Delete one message. Returns remaining thread detail, or None if the thread was removed."""
+        thread = self._store.get_thread(thread_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        subject, role, _access = self._effective_actor(
+            principal=principal,
+            actor_subject=actor_subject,
+            actor_role=actor_role,
+            thread=thread,
+        )
+        target = next((m for m in thread.messages if m.message_id == message_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Message not found.")
+        is_author = target.author_subject == subject
+        is_admin = role == "admin" or principal.role == "admin"
+        if not is_author and not is_admin:
+            raise HTTPException(status_code=403, detail="Only the author or an admin can delete this message.")
+
+        remaining = [m for m in thread.messages if m.message_id != message_id]
+        if not remaining:
+            self._store.delete_thread(thread_id)
+            return None
+        saved = self._store.save_thread(
+            thread.model_copy(update={"messages": remaining, "updated_at": utcnow()})
+        )
+        return SupportThreadDetail(
+            thread=self._summary(saved, viewer=subject),
+            messages=self._views(saved, viewer=subject),
+        )
+
+    def delete_thread(
+        self,
+        thread_id: str,
+        *,
+        principal: AuthPrincipal,
+        actor_subject: str | None = None,
+        actor_role: str | None = None,
+    ) -> None:
+        thread = self._store.get_thread(thread_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        subject, role, _access = self._effective_actor(
+            principal=principal,
+            actor_subject=actor_subject,
+            actor_role=actor_role,
+            thread=thread,
+        )
+        # Owner of the conversation, staff on the channel, or admin may remove it.
+        allowed = (
+            subject == thread.owner_subject
+            or role in {"admin", "demo", "service"}
+            or (thread.channel == "radiologist" and role == "expert")
+            or (thread.channel == "admin" and role == "admin")
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Not allowed to delete this conversation.")
+        self._store.delete_thread(thread_id)

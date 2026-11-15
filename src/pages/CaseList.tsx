@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
-  ClipboardList,
   FilePlus2,
   FolderOpen,
   Loader2,
@@ -16,8 +15,6 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { Card } from '../components/Card'
-import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { CaseTable } from '../components/CaseTable'
 import { EmptyState } from '../components/EmptyState'
@@ -40,55 +37,6 @@ function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
         </div>
       ))}
     </div>
-  )
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  icon,
-  tone,
-  active,
-  onClick,
-}: {
-  label: string
-  value: number
-  hint: string
-  icon: ReactNode
-  tone: 'slate' | 'amber' | 'emerald' | 'rose'
-  active?: boolean
-  onClick?: () => void
-}) {
-  const tones = {
-    slate: 'from-slate-50 to-white text-navy-800 ring-slate-200',
-    amber: 'from-amber-50 to-white text-amber-950 ring-amber-200',
-    emerald: 'from-emerald-50 to-white text-emerald-950 ring-emerald-200',
-    rose: 'from-rose-50 to-white text-rose-950 ring-rose-200',
-  }
-  const iconTone = {
-    slate: 'bg-slate-100 text-slate-600',
-    amber: 'bg-amber-100 text-amber-700',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    rose: 'bg-rose-100 text-rose-700',
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-2xl bg-gradient-to-br p-4 text-left ring-1 ring-inset transition hover:shadow-sm ${tones[tone]} ${
-        active ? 'ring-2 ring-teal-500/50 shadow-sm' : ''
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight">{value}</p>
-          <p className="mt-1 text-[11px] text-slate-500">{hint}</p>
-        </div>
-        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconTone[tone]}`}>{icon}</span>
-      </div>
-    </button>
   )
 }
 
@@ -241,222 +189,220 @@ export default function CaseList() {
   }
 
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
+  const hasFilters = Boolean(q.trim() || status || species || modality || expert)
+  const filterClass =
+    'rounded-xl border-0 bg-white/90 px-3 py-2.5 text-xs font-medium text-navy-900 outline-none ring-1 ring-white/50 focus:ring-2 focus:ring-white'
 
   return (
     <>
-      <PageHeader
-        title="Vakalar"
-        subtitle="Klinik vaka listesi · filtrele, incele, yönlendir"
-        crumbs={[{ label: 'Kontrol Paneli', to: '/' }, { label: 'Vakalar' }]}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              icon={<RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} />}
-              onClick={() => void onSync()}
-              disabled={backendSyncing}
-            >
-              Yenile
-            </Button>
-            {role === 'vet' && (
-              <>
-                <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
-                  DICOM Yükle
-                </Button>
-                <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
-                  Yeni Vaka
-                </Button>
-              </>
-            )}
-          </div>
-        }
-      />
-
-      {syncError && (
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              <strong>Senkron başarısız.</strong> Yerel kayıtlar gösteriliyor. {syncError}
-            </span>
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => void onSync()} disabled={backendSyncing}>
-            Tekrar dene
-          </Button>
-        </div>
-      )}
-
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Toplam Vaka"
-          value={counts.total}
-          hint={counts.total ? `${counts.pct(counts.total)}% listelenen` : 'Henüz vaka yok'}
-          icon={<ClipboardList className="h-5 w-5" />}
-          tone="slate"
-          active={!status}
-          onClick={() => setStatus('')}
-        />
-        <StatCard
-          label="Uzman İncelemesinde"
-          value={counts.review}
-          hint={counts.total ? `%${counts.pct(counts.review)} aktif` : '—'}
-          icon={<Users className="h-5 w-5" />}
-          tone="amber"
-          active={status === 'uzman_incelemesinde'}
-          onClick={() => setStatus(status === 'uzman_incelemesinde' ? '' : 'uzman_incelemesinde')}
-        />
-        <StatCard
-          label="Onaylandı"
-          value={counts.approved}
-          hint={counts.total ? `%${counts.pct(counts.approved)} tamamlandı` : '—'}
-          icon={<CheckCircle2 className="h-5 w-5" />}
-          tone="emerald"
-          active={status === 'onaylandi'}
-          onClick={() => setStatus(status === 'onaylandi' ? '' : 'onaylandi')}
-        />
-        <StatCard
-          label="Sorunlu Analizler"
-          value={counts.failed}
-          hint={counts.total ? `%${counts.pct(counts.failed)} dikkat` : '—'}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          tone="rose"
-          active={status === 'analiz_basarisiz'}
-          onClick={() => setStatus(status === 'analiz_basarisiz' ? '' : 'analiz_basarisiz')}
-        />
-      </div>
-
-      <Card>
-        <div className="border-b border-slate-100 px-4 pb-1 pt-4 sm:px-5">
-          <h2 className="text-sm font-semibold text-navy-900">{t('cases.listHeading')}</h2>
-          <p className="text-xs text-slate-500">
-            {t('cases.showingCount', { shown: filtered.length, total: cases.length })}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-end sm:px-5">
-          <label className="relative block flex-1">
-            <span className="sr-only">{t('cases.searchCasesAria')}</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-            <input
-              className="input pl-9"
-              placeholder={t('cases.listSearchPlaceholder')}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          <label className="block lg:w-44">
-            <span className="label">{t('common.status')}</span>
-            <select className="input" value={status} onChange={(e) => setStatus(e.target.value as CaseStatus | '')}>
-              <option value="">{t('cases.filterAllStatuses')}</option>
-              {STATUS_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {t(STATUS_META[s].labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block lg:w-32">
-            <span className="label">{t('cases.species')}</span>
-            <select className="input" value={species} onChange={(e) => setSpecies(e.target.value)}>
-              <option value="">{t('cases.filterAllSpecies')}</option>
-              <option>Köpek</option>
-              <option>Kedi</option>
-            </select>
-          </label>
-          <label className="block lg:w-28">
-            <span className="label">{t('cases.modality')}</span>
-            <select
-              className="input"
-              value={modality}
-              onChange={(e) => setModality(e.target.value as BackendModality | '')}
-            >
-              <option value="">{t('common.all')}</option>
-              <option value="MR">MR</option>
-              <option value="CT">CT</option>
-              <option value="XR">XR</option>
-            </select>
-          </label>
-          <label className="block lg:w-40">
-            <span className="label">{t('cases.expert')}</span>
-            <select className="input" value={expert} onChange={(e) => setExpert(e.target.value)}>
-              <option value="">{t('cases.filterAllExperts')}</option>
-              {experts.map((e) => (
-                <option key={e} value={e}>
-                  {e.includes('@') ? e.split('@')[0] : e}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <button
-            type="button"
-            onClick={() => setStatus('')}
-            className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
-              !status ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {t('common.all')} <span className="ml-1 opacity-70">{counts.total}</span>
-          </button>
-          {STATUS_ORDER.map((s) => {
-            const n = counts.byStatus[s] ?? 0
-            const active = status === s
-            return (
+      <div className="vm-fade-up relative -mx-1 space-y-4">
+        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.32),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(56,189,248,0.14),transparent_45%)]"
+          />
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">
+                {t('cases.showingCount', { shown: filtered.length, total: cases.length })}
+              </p>
+              <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+                {t('nav.cases')}
+              </h1>
+              <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('cases.subtitle')}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStatus('')}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    !status ? 'bg-teal-400 text-navy-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                  }`}
+                >
+                  {t('common.all')} {counts.total}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatus(status === 'uzman_incelemesinde' ? '' : 'uzman_incelemesinde')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    status === 'uzman_incelemesinde' ? 'bg-amber-400 text-amber-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                  }`}
+                >
+                  <Users className="h-3.5 w-3.5" aria-hidden />
+                  {t(STATUS_META.uzman_incelemesinde.labelKey)} {counts.review}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatus(status === 'onaylandi' ? '' : 'onaylandi')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    status === 'onaylandi' ? 'bg-emerald-400 text-emerald-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                  }`}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                  {t(STATUS_META.onaylandi.labelKey)} {counts.approved}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatus(status === 'analiz_basarisiz' ? '' : 'analiz_basarisiz')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    status === 'analiz_basarisiz' ? 'bg-rose-400 text-rose-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                  }`}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                  {t(STATUS_META.analiz_basarisiz.labelKey)} {counts.failed}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <button
-                key={s}
                 type="button"
-                onClick={() => setStatus(active ? '' : s)}
-                className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                  active ? STATUS_META[s].cls : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => void onSync()}
+                disabled={backendSyncing}
+                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15 disabled:opacity-50"
               >
-                {t(STATUS_META[s].labelKey)} <span className="ml-1 opacity-70">{n}</span>
+                <RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} aria-hidden />
+                {t('common.refresh')}
               </button>
-            )
-          })}
-        </div>
+              {role === 'vet' && (
+                <>
+                  <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
+                    {t('nav.dicomUpload')}
+                  </Button>
+                  <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
+                    {t('nav.newCase')}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
 
-        {showSkeleton ? (
-          <TableSkeleton loadingLabel={t('cases.loadingCasesAria')} />
-        ) : filtered.length ? (
-          <CaseTable
-            cases={filtered}
-            showPriority={role === 'expert'}
-            onDelete={canDeleteCases ? (c) => setPendingDelete(c) : undefined}
-            onBulkDelete={canDeleteCases ? (list) => setPendingBulk(list) : undefined}
-          />
-        ) : cases.length === 0 ? (
-          <EmptyState
-            icon={<FolderOpen className="h-6 w-6" />}
-            title="Henüz vaka yok"
-            text="DICOM yükleyerek veya Yeni Vaka ile başlayın."
-            action={
-              role === 'vet' ? (
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => nav('/dicom-yukle')}>
-                    DICOM Yükle
-                  </Button>
-                  <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
-                    Yeni Vaka
-                  </Button>
-                </div>
-              ) : undefined
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={<FolderOpen className="h-6 w-6" />}
-            title="Eşleşen vaka bulunamadı"
-            text="Filtreleri temizleyerek tekrar deneyin."
-            action={
-              <Button size="sm" variant="secondary" className="mt-3" onClick={clearFilters}>
-                Filtreleri temizle
-              </Button>
-            }
-          />
+          <div className="relative mt-5 flex flex-col gap-2 lg:flex-row lg:items-center">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">{t('cases.searchCasesAria')}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-teal-200/70" aria-hidden />
+              <input
+                className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/20 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-300/50"
+                placeholder={t('cases.listSearchPlaceholder')}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <select
+                aria-label={t('common.status')}
+                className={filterClass}
+                value={status}
+                onChange={(e) => setStatus(e.target.value as CaseStatus | '')}
+              >
+                <option value="">{t('cases.filterAllStatuses')}</option>
+                {STATUS_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {t(STATUS_META[s].labelKey)}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label={t('cases.species')}
+                className={filterClass}
+                value={species}
+                onChange={(e) => setSpecies(e.target.value)}
+              >
+                <option value="">{t('cases.filterAllSpecies')}</option>
+                <option>Köpek</option>
+                <option>Kedi</option>
+              </select>
+              <select
+                aria-label={t('cases.modality')}
+                className={filterClass}
+                value={modality}
+                onChange={(e) => setModality(e.target.value as BackendModality | '')}
+              >
+                <option value="">{t('common.all')}</option>
+                <option value="MR">MR</option>
+                <option value="CT">CT</option>
+                <option value="XR">XR</option>
+              </select>
+              <select
+                aria-label={t('cases.expert')}
+                className={filterClass}
+                value={expert}
+                onChange={(e) => setExpert(e.target.value)}
+              >
+                <option value="">{t('cases.filterAllExperts')}</option>
+                {experts.map((e) => (
+                  <option key={e} value={e}>
+                    {e.includes('@') ? e.split('@')[0] : e}
+                  </option>
+                ))}
+              </select>
+              {hasFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-teal-100 ring-1 ring-white/20 transition hover:bg-white/20"
+                >
+                  {t('common.clear')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        {syncError && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                <strong>{t('cases.syncFail')}.</strong> {syncError}
+              </span>
+            </p>
+            <Button size="sm" variant="secondary" onClick={() => void onSync()} disabled={backendSyncing}>
+              {t('common.retry')}
+            </Button>
+          </div>
         )}
-      </Card>
+
+        <div className="relative overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70">
+          {showSkeleton ? (
+            <TableSkeleton loadingLabel={t('cases.loadingCasesAria')} />
+          ) : filtered.length ? (
+            <CaseTable
+              cases={filtered}
+              showPriority={role === 'expert'}
+              onDelete={canDeleteCases ? (c) => setPendingDelete(c) : undefined}
+              onBulkDelete={canDeleteCases ? (list) => setPendingBulk(list) : undefined}
+            />
+          ) : cases.length === 0 ? (
+            <EmptyState
+              icon={<FolderOpen className="h-6 w-6" />}
+              title={t('cases.empty')}
+              text={t('cases.emptyHint')}
+              action={
+                role === 'vet' ? (
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => nav('/dicom-yukle')}>
+                      {t('nav.dicomUpload')}
+                    </Button>
+                    <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
+                      {t('nav.newCase')}
+                    </Button>
+                  </div>
+                ) : undefined
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<FolderOpen className="h-6 w-6" />}
+              title={t('cases.empty')}
+              text={t('cases.emptyHint')}
+              action={
+                <Button size="sm" variant="secondary" className="mt-3" onClick={clearFilters}>
+                  {t('common.clear')}
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </div>
 
       <Modal
         open={Boolean(pendingDelete)}
