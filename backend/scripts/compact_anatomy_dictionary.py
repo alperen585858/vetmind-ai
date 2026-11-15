@@ -8,7 +8,8 @@ from pathlib import Path
 
 METADATA_FIELDS = ("Schema_Version", "Count", "Ambiguous_Query_Candidates")
 TERM_FIELDS = (
-    "Term_ID", "English_Term", "Turkish_Term", "Search_Labels",
+    "Term_ID", "English_Term", "Turkish_Term", "Definition_TR",
+    "Aliases", "Search_Labels",
     "Category", "Species", "Uncertain",
 )
 

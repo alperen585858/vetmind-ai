@@ -36,6 +36,7 @@ def has_example(version: str) -> bool:
 LANGUAGE_NAMES = {"tr": "Turkish", "en": "English"}
 
 ANATOMY_WORDING_INSTRUCTIONS = (
+    "Dictionary definitions explain terminology only; they are not evidence of patient findings. "
     "For Turkish findings, use the supplied Turkish anatomy label and its locative form "
     "when provided (e.g. beyin → beyinde; beyin sapı → beyin sapında). If no Turkish label is "
     "provided, quote the original location verbatim, including any qualifiers. Retain the "
@@ -160,6 +161,9 @@ def _findings_block(gen: LLMGenerationInput, aliases: CitationAliases) -> str:
             wording = f" | Turkish location={f.anatomy_term.turkish_label}"
             if f.anatomy_term.turkish_locative:
                 wording += f" | Turkish locative={f.anatomy_term.turkish_locative}"
+            if f.anatomy_term.definition_tr:
+                definition = " ".join(f.anatomy_term.definition_tr.split())[:400]
+                wording += f" | Turkish term definition={definition}"
         lines.append(
             f"[{alias}] code={f.finding_code} | status={f.finding_status.value} | "
             f"location={f.anatomical_location}{wording}{side} | {f.description}{locus}{unc}"

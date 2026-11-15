@@ -20,6 +20,7 @@ class AnatomyTermMatch(BaseModel):
     original_location: str
     turkish_label: str
     turkish_locative: str | None = None
+    definition_tr: str | None = None
 
 
 class AnatomyDictionaryVersion(BaseModel):

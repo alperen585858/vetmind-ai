@@ -41,6 +41,8 @@ def dictionary_path(tmp_path):
         {
             "Term_ID": term_id,
             "Turkish_Term": label,
+            "Definition_TR": "Beyin dokusu." if term_id == BRAIN_ID else None,
+            "Aliases": [{"text": "encephalon", "language": "en"}] if term_id == BRAIN_ID else [],
             "Search_Labels": forms,
             "Category": ["C"] if label in {"bül", "ödem"} else ["A"],
             "Species": "Her ikisi",
@@ -61,6 +63,30 @@ def dictionary_path(tmp_path):
         "terms": terms,
     }), encoding="utf-8")
     return path
+
+
+def test_alias_lookup_and_definition_are_terminology_context(dictionary_path):
+    from types import SimpleNamespace
+
+    from app.llm.anatomy_dictionary import AnatomyDictionary
+    from app.llm.interfaces import LLMFindingRef
+    from app.llm.prompts import CitationAliases, _findings_block
+    from app.schemas.enums import FindingStatus, ModelExecutionStatus
+
+    match = AnatomyDictionary(dictionary_path).resolve("encephalon", species=Species.CANINE)
+    assert match is not None and match.definition_tr == "Beyin dokusu."
+    finding = LLMFindingRef(
+        finding_id="F-1", finding_code="sample", description="şüpheli bulgu",
+        anatomical_location="encephalon", finding_status=FindingStatus.SUSPECTED,
+        source_model="synthetic", anatomy_term=match,
+    )
+    gen = SimpleNamespace(
+        execution_status=ModelExecutionStatus.SUCCESS, no_findings_returned=False,
+        findings=[finding], language="tr", anatomy_dictionary=object(),
+    )
+    prompt = _findings_block(gen, CitationAliases(findings={"F1": "F-1"}))
+    assert "Turkish term definition=Beyin dokusu." in prompt
+    assert "not evidence of patient findings" in prompt
 
 
 class SampleVision(HttpRemoteVisionModel):
@@ -182,6 +208,8 @@ def test_vision_to_turkish_draft(application, dictionary_path, location, wording
         assert match.original_location == location
         assert match.turkish_label == ("beyin sapı" if term_id == BRAINSTEM_ID else "beyin")
         assert match.turkish_locative == wording
+        if term_id == BRAIN_ID:
+            assert match.definition_tr == "Beyin dokusu."
     else:
         assert trace.matches == {}
         assert "beyinde" not in report.findings.text

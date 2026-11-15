@@ -35,6 +35,7 @@ class _Metadata(BaseModel):
 class _Term(BaseModel):
     Term_ID: str = Field(min_length=1)
     Turkish_Term: str = Field(min_length=1)
+    Definition_TR: str | None = None
     Search_Labels: list[str]
     Category: list[str]
     Species: str
@@ -162,6 +163,7 @@ class AnatomyDictionary:
             original_location=location,
             turkish_label=label,
             turkish_locative=locative,
+            definition_tr=term.Definition_TR,
         )
 
 
