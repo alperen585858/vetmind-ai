@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocalizedLink } from '../components/LocalizedLink'
 import {
-  Info,
+  ArrowUpRight,
   LayoutPanelLeft,
   Loader2,
   RefreshCw,
@@ -14,10 +14,8 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { Button } from '../components/Button'
-import { Card, CardHeader } from '../components/Card'
-import { EmptyState } from '../components/EmptyState'
-import { PageHeader } from '../components/PageHeader'
-import { PriorityBadge, StatusBadge } from '../components/StatusBadge'
+import { STATUS_META, statusLabel } from '../components/StatusBadge'
+import type { CaseStatus } from '../types'
 import {
   askCaseAiChat,
   clearCaseAiChat,
@@ -90,10 +88,22 @@ export default function ExpertAiResend() {
     return filtered.map(summaryToVetCase)
   }, [rows])
 
+  // Prefer a selected case so the stage is never a blank white void after load.
+  useEffect(() => {
+    if (loading || display.length === 0) return
+    const stillThere = selectedId && display.some((c) => (c.backendCaseId || c.id) === selectedId)
+    if (!stillThere) {
+      const first = display[0]
+      setSelectedId(first.backendCaseId || first.id)
+    }
+  }, [display, loading, selectedId])
+
   const selected = display.find((c) => (c.backendCaseId || c.id) === selectedId) || null
   // Latest selection, read inside async chat handlers to drop results for a case the user left.
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId
+
+  const sampleQuestions = [t('ai.resend.sampleQ1'), t('ai.resend.sampleQ2'), t('ai.resend.sampleQ3')]
 
   useEffect(() => {
     chatAbortRef.current?.abort()
@@ -125,7 +135,7 @@ export default function ExpertAiResend() {
     return () => {
       cancelled = true
     }
-  }, [selectedId, pushToast])
+  }, [selectedId, pushToast, t])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -190,7 +200,11 @@ export default function ExpertAiResend() {
     } catch (err) {
       if (err instanceof PollingCancelledError) {
         setRunById((prev) => ({ ...prev, [caseId]: { phase: 'idle' } }))
-        pushToast({ tone: 'info', title: t('ai.resend.toastStopped'), body: openRevisionFirst ? t('ai.resend.revisionLeftOpen') : undefined })
+        pushToast({
+          tone: 'info',
+          title: t('ai.resend.toastStopped'),
+          body: openRevisionFirst ? t('ai.resend.revisionLeftOpen') : undefined,
+        })
         await hydrateBackendCase(caseId)
         load()
         return
@@ -266,242 +280,275 @@ export default function ExpertAiResend() {
     }
   }
 
+  const selectedBusy = selectedId ? runById[selectedId]?.phase === 'running' : false
+  const selectedAnalyzing = selected?.status === 'ai_analizi'
+  const selectedMeta = selected ? STATUS_META[selected.status as CaseStatus] ?? STATUS_META.taslak : null
+
   return (
-    <>
-      <PageHeader
-        title={t('ai.resend.title')}
-        subtitle={t('ai.resend.subtitle')}
-        crumbs={[{ label: t('ai.resend.crumbDashboard'), to: '/' }, { label: t('ai.resend.title') }]}
-        actions={
-          <Button variant="secondary" size="sm" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={load} disabled={loading}>
-            {t('common.refresh')}
-          </Button>
-        }
-      />
-
-      <Card className="mb-4 p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <label className="label" htmlFor="ai-resend-q">
-            {t('common.search')}
-            <div className="relative mt-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-              <input
-                id="ai-resend-q"
-                className="input pl-9"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && load()}
-                placeholder={t('ai.resend.searchPlaceholder')}
-              />
-            </div>
-          </label>
-          <label className="label" htmlFor="ai-resend-status">
-            {t('common.status')}
-            <select id="ai-resend-status" className="input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">{t('ai.resend.filterResendable')}</option>
-              <option value="awaiting_review">{t('ai.resend.filterAwaitingReview')}</option>
-              <option value="approved">{t('ai.resend.filterApproved')}</option>
-              <option value="revision_requested">{t('ai.resend.filterRevision')}</option>
-              <option value="failed">{t('ai.resend.filterFailed')}</option>
-              <option value="rejected">{t('ai.resend.filterRejected')}</option>
-              <option value="manual_review">{t('ai.resend.filterManual')}</option>
-            </select>
-          </label>
-          <label className="label" htmlFor="ai-resend-modality">
-            {t('cases.modality')}
-            <select id="ai-resend-modality" className="input mt-1" value={modality} onChange={(e) => setModality(e.target.value)}>
-              <option value="">{t('common.all')}</option>
-              <option value="MR">MR</option>
-              <option value="CT">CT</option>
-              <option value="XR">XR</option>
-              <option value="CR">CR</option>
-            </select>
-          </label>
-          <div className="flex items-end">
-            <Button size="sm" onClick={load}>
-              {t('common.filter')}
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-        <Card>
-          <CardHeader
-            title={t('ai.resend.caseCount', { count: String(display.length) })}
-            subtitle={error ? `API: ${error}` : t('ai.resend.listHint')}
+    <div className="vm-fade-up relative -mx-2 sm:-mx-1">
+      {/* Viewport-locked shell: long case lists scroll inside; composer stays on screen. */}
+      <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.75rem] shadow-[0_20px_50px_-28px_rgba(11,23,40,0.45)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+        {/* Dark case rail */}
+        <aside className="relative flex min-h-0 flex-col overflow-hidden bg-[color:var(--vm-midnight,#0b1728)] text-white">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(45,212,191,0.22),transparent_55%),radial-gradient(ellipse_at_100%_100%,rgba(14,165,233,0.12),transparent_40%)]"
           />
+          <div className="relative border-b border-white/10 px-5 pb-4 pt-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-300/90">AI</p>
+            <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight">
+              {t('ai.resend.title')}
+            </h1>
+            <p className="mt-1 text-sm text-slate-300">{t('ai.resend.subtitle')}</p>
+
+            <div className="mt-4 space-y-2">
+              <label className="relative block">
+                <span className="sr-only">{t('common.search')}</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                <input
+                  id="ai-resend-q"
+                  className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/15 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-400/50"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && load()}
+                  placeholder={t('ai.resend.searchPlaceholder')}
+                />
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="ai-resend-status"
+                  aria-label={t('common.status')}
+                  className="min-w-0 flex-1 rounded-xl border-0 bg-white/10 px-2.5 py-2 text-xs text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-teal-400/50 [&>option]:bg-navy-900 [&>option]:text-white"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="">{t('ai.resend.filterResendable')}</option>
+                  <option value="awaiting_review">{t('ai.resend.filterAwaitingReview')}</option>
+                  <option value="approved">{t('ai.resend.filterApproved')}</option>
+                  <option value="revision_requested">{t('ai.resend.filterRevision')}</option>
+                  <option value="failed">{t('ai.resend.filterFailed')}</option>
+                  <option value="rejected">{t('ai.resend.filterRejected')}</option>
+                  <option value="manual_review">{t('ai.resend.filterManual')}</option>
+                </select>
+                <select
+                  id="ai-resend-modality"
+                  aria-label={t('cases.modality')}
+                  className="rounded-xl border-0 bg-white/10 px-2.5 py-2 text-xs text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-teal-400/50 [&>option]:bg-navy-900 [&>option]:text-white"
+                  value={modality}
+                  onChange={(e) => setModality(e.target.value)}
+                >
+                  <option value="">{t('common.all')}</option>
+                  <option value="MR">MR</option>
+                  <option value="CT">CT</option>
+                  <option value="XR">XR</option>
+                  <option value="CR">CR</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={load}
+                  disabled={loading}
+                  title={t('common.refresh')}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-400 text-navy-950 transition hover:bg-teal-300 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative flex items-center justify-between px-5 py-3">
+            <p className="text-xs font-semibold text-slate-300">
+              {t('ai.resend.caseCount', { count: String(display.length) })}
+            </p>
+            <p className="text-[11px] text-slate-500">{t('ai.resend.listHint')}</p>
+          </div>
+
+          {error && (
+            <p className="relative mx-4 mb-2 rounded-xl bg-amber-400/15 px-3 py-2 text-xs text-amber-100" role="alert">
+              {error}
+            </p>
+          )}
+
           {loading ? (
-            <p className="flex items-center gap-2 px-5 pb-5 text-sm text-slate-500" role="status">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t('ai.resend.listLoading')}
+            <p className="relative flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-slate-400" role="status">
+              <Loader2 className="h-4 w-4 animate-spin text-teal-300" aria-hidden />
+              {t('ai.resend.listLoading')}
             </p>
           ) : display.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<Sparkles className="h-5 w-5" />}
-              title={t('ai.resend.emptyTitle')}
-              text={t('ai.resend.emptyText')}
-              action={
-                <Button size="sm" variant="secondary" onClick={load}>
-                  {t('common.refresh')}
-                </Button>
-              }
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100">
-                <thead className="bg-slate-50/70">
-                  <tr>
-                    <th className="th">{t('ai.resend.colCase')}</th>
-                    <th className="th">{t('ai.resend.colPatient')}</th>
-                    <th className="th">{t('ai.resend.colStatus')}</th>
-                    <th className="th">{t('ai.resend.colAi')}</th>
-                    <th className="th" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {display.map((c) => {
-                    const caseId = c.backendCaseId || c.id
-                    const run = runById[caseId] || { phase: 'idle' as const }
-                    const busy = run.phase === 'running'
-                    const analyzing = c.status === 'ai_analizi'
-                    const active = selectedId === caseId
-                    return (
-                      <tr
-                        key={c.id}
-                        className={`cursor-pointer ${active ? 'bg-teal-50/80' : 'hover:bg-slate-50'}`}
-                        onClick={() => setSelectedId(caseId)}
-                      >
-                        <td className="td font-mono text-xs">{c.no}</td>
-                        <td className="td">
-                          <p className="font-medium text-navy-900">{c.patient.name}</p>
-                          <p className="text-[11px] text-slate-500">
-                            {c.modality || '—'} · <PriorityBadge priority={c.priority} />
-                          </p>
-                        </td>
-                        <td className="td">
-                          <StatusBadge status={c.status} />
-                        </td>
-                        <td className="td text-xs text-slate-600">
-                          {run.phase === 'running' && (
-                            <span className="inline-flex items-center gap-1 text-teal-700">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> …
-                            </span>
-                          )}
-                          {run.phase === 'done' && <span className="text-emerald-700">{t('ai.resend.done')}</span>}
-                          {run.phase === 'error' && <span className="text-rose-700">{t('ai.resend.error')}</span>}
-                          {run.phase === 'idle' && '—'}
-                        </td>
-                        <td className="td" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              size="sm"
-                              icon={busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                              disabled={busy || analyzing}
-                              onClick={() => void resend(caseId)}
-                            >
-                              {t('ai.resend.resendBtn')}
-                            </Button>
-                            {busy && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                icon={<Square className="h-3.5 w-3.5" />}
-                                onClick={() => stopResend(caseId)}
-                              >
-                                {t('ai.resend.stop')}
-                              </Button>
-                            )}
-                            <LocalizedLink
-                              to={`/vakalar/${c.id}/calisma`}
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700"
-                            >
-                              <LayoutPanelLeft className="h-3.5 w-3.5" /> {t('ai.resend.workspaceLink')}
-                            </LocalizedLink>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div className="relative flex min-h-0 flex-1 items-center justify-center p-6 text-center">
+              <div>
+                <p className="font-[family-name:var(--vm-font-display)] text-base font-semibold">{t('ai.resend.emptyTitle')}</p>
+                <p className="mt-1 text-sm text-slate-400">{t('ai.resend.emptyText')}</p>
+              </div>
             </div>
+          ) : (
+            <ul
+              className="relative min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4"
+              role="listbox"
+              aria-label={t('ai.resend.caseCount', { count: String(display.length) })}
+            >
+              {display.map((c) => {
+                const caseId = c.backendCaseId || c.id
+                const run = runById[caseId] || { phase: 'idle' as const }
+                const busy = run.phase === 'running'
+                const active = selectedId === caseId
+                const meta = STATUS_META[c.status as CaseStatus] ?? STATUS_META.taslak
+                return (
+                  <li key={c.id} className="flex gap-1">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => setSelectedId(caseId)}
+                      className={`group flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                        active
+                          ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-navy-950 shadow-lg shadow-teal-900/30'
+                          : 'text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold tracking-wide ${
+                          active ? 'bg-navy-950/15 text-navy-950' : 'bg-white/10 text-teal-200'
+                        }`}
+                      >
+                        {(c.modality || '—').slice(0, 2)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={`block truncate text-sm font-semibold ${active ? 'text-navy-950' : 'text-white'}`}>
+                          {c.patient.name}
+                        </span>
+                        <span className={`mt-0.5 flex items-center gap-1.5 text-[11px] ${active ? 'text-navy-900/70' : 'text-slate-400'}`}>
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden />
+                          <span className="truncate">{statusLabel(c.status, t)}</span>
+                          {busy && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+                          {run.phase === 'done' && <span>· {t('ai.resend.done')}</span>}
+                          {run.phase === 'error' && <span>· {t('ai.resend.error')}</span>}
+                        </span>
+                      </span>
+                    </button>
+                    {busy && (
+                      <button
+                        type="button"
+                        onClick={() => stopResend(caseId)}
+                        className="shrink-0 self-center rounded-xl px-2 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white"
+                      >
+                        {t('ai.resend.stop')}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
           )}
-        </Card>
+        </aside>
 
-        <Card className="flex min-h-[520px] flex-col overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="flex items-center gap-2 text-sm font-semibold text-navy-900">
-              <Sparkles className="h-4 w-4 text-teal-600" /> {t('ai.resend.assistantTitle')}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {selected
-                ? `${selected.patient.name} · ${selected.no}`
-                : t('ai.resend.selectCaseHint')}
-            </p>
-          </div>
+        {/* Light stage */}
+        <section className="relative flex min-h-0 flex-col overflow-hidden bg-gradient-to-br from-[#f3fbfa] via-white to-[#eef6fb]">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 top-0 h-56 w-56 rounded-full bg-teal-300/20 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-10 -left-10 h-40 w-40 rounded-full bg-cyan-300/15 blur-3xl"
+          />
 
-          {!selectedId ? (
-            <div className="flex flex-1 items-center justify-center p-6">
-              <EmptyState
-                compact
-                icon={<Sparkles className="h-5 w-5" />}
-                title={t('ai.resend.noCaseTitle')}
-                text={t('ai.resend.noCaseText')}
-              />
+          {!selectedId || !selected ? (
+            <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-xl shadow-teal-600/30">
+                <Sparkles className="h-9 w-9" aria-hidden />
+              </div>
+              <div>
+                <p className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold text-navy-950">
+                  {t('ai.resend.noCaseTitle')}
+                </p>
+                <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">{t('ai.resend.noCaseText')}</p>
+              </div>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-2 border-b border-slate-50 px-4 py-2">
+              <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-teal-900/5 px-6 py-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
+                      {selected.patient.name}
+                    </h2>
+                    <span className="rounded-lg bg-teal-500/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-teal-800">
+                      {selected.modality || '—'}
+                    </span>
+                  </div>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="font-mono">{selected.no}</span>
+                    {selectedMeta && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`h-1.5 w-1.5 rounded-full ${selectedMeta.dot}`} aria-hidden />
+                          {statusLabel(selected.status, t)}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={
-                      (runById[selectedId]?.phase === 'running' && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      )) || <Sparkles className="h-3.5 w-3.5" />
-                    }
-                    disabled={runById[selectedId]?.phase === 'running' || selected?.status === 'ai_analizi'}
-                    onClick={() => void resend(selectedId)}
-                  >
-                    {t('ai.resend.resendBtn')}
-                  </Button>
-                  {runById[selectedId]?.phase === 'running' && (
+                  {selectedBusy ? (
+                    <Button size="sm" variant="secondary" icon={<Square className="h-3.5 w-3.5" />} onClick={() => stopResend(selectedId)}>
+                      {t('ai.resend.stop')}
+                    </Button>
+                  ) : (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      icon={<Square className="h-3.5 w-3.5" />}
-                      onClick={() => stopResend(selectedId)}
+                      icon={<Sparkles className="h-3.5 w-3.5" />}
+                      disabled={selectedAnalyzing}
+                      onClick={() => void resend(selectedId)}
                     >
-                      {t('review.workspace.stopAnalysis')}
+                      {t('ai.resend.resendBtn')}
                     </Button>
                   )}
+                  <LocalizedLink
+                    to={`/vakalar/${selected.id}/calisma`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-3 py-2 text-xs font-semibold text-teal-800 ring-1 ring-teal-900/10 transition hover:bg-white hover:ring-teal-500/30"
+                  >
+                    <LayoutPanelLeft className="h-3.5 w-3.5" aria-hidden />
+                    {t('ai.resend.workspaceLink')}
+                  </LocalizedLink>
+                  <button
+                    type="button"
+                    onClick={() => void clearChat()}
+                    disabled={!chat.length}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:opacity-30"
+                    title={t('ai.resend.clearChat')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Trash2 className="h-3.5 w-3.5" />}
-                  onClick={() => void clearChat()}
-                  disabled={!chat.length}
-                >
-                  {t('ai.resend.clearChat')}
-                </Button>
-              </div>
+              </header>
 
-              <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-4 py-4">
+              <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-6 py-4">
                 {chatLoading ? (
                   <p className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" /> {t('ai.resend.chatLoading')}
+                    <Loader2 className="h-4 w-4 animate-spin text-teal-600" aria-hidden />
+                    {t('ai.resend.chatLoading')}
                   </p>
                 ) : chat.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
-                    <p className="font-medium text-navy-900">{t('ai.resend.sampleQuestions')}</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
-                      <li>Bu vakadaki ana bulgular neler?</li>
-                      <li>Ayırıcı tanıda nelere dikkat etmeliyim?</li>
-                      <li>Taslak rapordaki belirsiz ifadeleri özetle.</li>
-                    </ul>
+                  <div className="mx-auto w-full max-w-xl">
+                    <p className="font-[family-name:var(--vm-font-display)] text-base font-semibold text-navy-950">
+                      {t('ai.resend.assistantTitle')}
+                    </p>
+                    <p className="mt-0.5 text-sm text-slate-500">{t('ai.resend.sampleQuestions')}</p>
+                    <div className="mt-3 space-y-2">
+                      {sampleQuestions.map((qText) => (
+                        <button
+                          key={qText}
+                          type="button"
+                          onClick={() => setDraft(qText)}
+                          className="group flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-navy-900 shadow-sm ring-1 ring-slate-200/70 transition hover:ring-teal-400/40"
+                        >
+                          <span>{qText}</span>
+                          <ArrowUpRight className="h-4 w-4 shrink-0 text-teal-600 opacity-60 group-hover:opacity-100" aria-hidden />
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   chat.map((m, i) => (
@@ -510,15 +557,12 @@ export default function ExpertAiResend() {
                       className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
+                        className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed shadow-sm ${
                           m.role === 'user'
-                            ? 'bg-navy-900 text-white'
-                            : 'border border-slate-200 bg-white text-slate-800'
+                            ? 'rounded-2xl rounded-br-md bg-[color:var(--vm-midnight,#0b1728)] text-white'
+                            : 'rounded-2xl rounded-bl-md bg-white text-slate-800 ring-1 ring-slate-200/80'
                         }`}
                       >
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">
-                          {m.role === 'user' ? t('ai.resend.you') : 'VetMind AI'}
-                        </p>
                         <p className="whitespace-pre-wrap">{m.content}</p>
                       </div>
                     </div>
@@ -526,9 +570,10 @@ export default function ExpertAiResend() {
                 )}
                 {sending && (
                   <div className="flex justify-start">
-                    <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ai.resend.typing')}
-                      <span className="font-mono tabular-nums text-slate-600">
+                    <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200/80">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-600" aria-hidden />
+                      {t('ai.resend.typing')}
+                      <span className="font-mono tabular-nums">
                         {Math.floor(chatElapsedSec / 60)}:{String(chatElapsedSec % 60).padStart(2, '0')}
                       </span>
                     </div>
@@ -538,7 +583,7 @@ export default function ExpertAiResend() {
               </div>
 
               <form
-                className="flex gap-2 border-t border-slate-100 bg-white p-3"
+                className="relative shrink-0 border-t border-teal-900/5 bg-white/95 px-6 pb-4 pt-3 backdrop-blur"
                 onSubmit={(e) => {
                   e.preventDefault()
                   if (sending) {
@@ -548,44 +593,31 @@ export default function ExpertAiResend() {
                   void sendChat()
                 }}
               >
-                <input
-                  className="input flex-1"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={t('ai.resend.questionPlaceholder')}
-                  disabled={sending}
-                  aria-label={t('ai.resend.questionAria')}
-                />
-                {sending ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    icon={<Square className="h-3.5 w-3.5" />}
-                    onClick={stopChat}
-                  >
-                    {t('ai.resend.stop')}
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    size="sm"
-                    icon={<Send className="h-3.5 w-3.5" />}
-                    disabled={!draft.trim()}
-                  >
-                    {t('common.send')}
-                  </Button>
-                )}
+                <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl bg-white p-1.5 shadow-md shadow-teal-900/5 ring-1 ring-slate-200/70 transition focus-within:ring-2 focus-within:ring-teal-500/35">
+                  <input
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-sm text-navy-900 outline-none placeholder:text-slate-400"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={t('ai.resend.questionPlaceholder')}
+                    disabled={sending}
+                    aria-label={t('ai.resend.questionAria')}
+                  />
+                  {sending ? (
+                    <Button type="button" size="sm" variant="secondary" icon={<Square className="h-3.5 w-3.5" />} onClick={stopChat}>
+                      {t('ai.resend.stop')}
+                    </Button>
+                  ) : (
+                    <Button type="submit" size="sm" icon={<Send className="h-3.5 w-3.5" />} disabled={!draft.trim()}>
+                      {t('common.send')}
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-2 text-center text-[11px] text-slate-400">{t('ai.resend.footerHint')}</p>
               </form>
             </>
           )}
-        </Card>
+        </section>
       </div>
-
-      <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-        <Info className="h-3.5 w-3.5" />
-        {t('ai.resend.footerHint')}
-      </p>
-    </>
+    </div>
   )
 }
