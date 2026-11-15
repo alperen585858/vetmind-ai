@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   AlertTriangle,
+  Download,
   FileCheck2,
   FileText,
   Loader2,
@@ -11,13 +12,11 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { Card } from '../components/Card'
-import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { SpeciesIcon } from '../components/CaseTable'
-import { deleteBackendCase, submitBackendReview } from '../lib/backend'
+import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../lib/backend'
 import { caseBelongsToOwner } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
 import type { BackendModality, VetCase } from '../types'
@@ -56,8 +55,10 @@ export default function ReportList() {
   const [pendingRevise, setPendingRevise] = useState<VetCase | null>(null)
   const [reviseNote, setReviseNote] = useState('')
   const [revising, setRevising] = useState(false)
+  const [bulkPdfBusy, setBulkPdfBusy] = useState(false)
 
   const canBulkDelete = role === 'expert' || role === 'vet' || role === 'admin' || role === 'owner'
+  const canSelect = canBulkDelete
 
   useEffect(() => {
     let cancelled = false
@@ -222,6 +223,57 @@ export default function ReportList() {
     }
   }
 
+  const downloadSelectedPdfs = async () => {
+    if (!selectedCases.length || bulkPdfBusy) return
+    setBulkPdfBusy(true)
+    let ok = 0
+    const failures: string[] = []
+    try {
+      for (const target of selectedCases) {
+        const caseKey = reportCaseId(target)
+        try {
+          if (!caseKey.startsWith('case-')) {
+            failures.push(`${target.reportNo ?? target.no}: PDF yok`)
+            continue
+          }
+          const version = target.currentReportVersion
+          const blob = await downloadApprovedReportPdf(
+            caseKey,
+            version && Number.isFinite(version) ? version : undefined,
+          )
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `vetmind-${target.reportNo ?? target.no ?? caseKey}.pdf`
+          a.click()
+          URL.revokeObjectURL(url)
+          ok += 1
+          // Browsers often block back-to-back downloads without a short gap.
+          await new Promise((r) => setTimeout(r, 350))
+        } catch (err) {
+          failures.push(
+            `${target.reportNo ?? target.no}: ${err instanceof Error ? err.message : 'hata'}`,
+          )
+        }
+      }
+      if (ok > 0) {
+        pushToast({
+          tone: failures.length ? 'warning' : 'success',
+          title: t('reports.bulkPdfDone', { count: ok }),
+          body: failures.length ? t('reports.bulkPdfPartial', { count: failures.length }) : undefined,
+        })
+      } else {
+        pushToast({
+          tone: 'error',
+          title: t('reports.bulkPdfNone'),
+          body: failures[0],
+        })
+      }
+    } finally {
+      setBulkPdfBusy(false)
+    }
+  }
+
   const confirmRevise = async () => {
     if (!pendingRevise || revising) return
     const note = reviseNote.trim()
@@ -257,41 +309,61 @@ export default function ReportList() {
     }
   }
 
+  const pageTitle = role === 'owner' ? t('reports.myReports') : t('reports.approved')
+  const filterClass =
+    'rounded-xl border-0 bg-white/90 px-3 py-2.5 text-xs font-medium text-navy-900 outline-none ring-1 ring-white/50 focus:ring-2 focus:ring-white'
+
   return (
     <>
-      <PageHeader
-        title={role === 'owner' ? t('reports.myReports') : t('reports.approved')}
-        subtitle={t('reports.listSubtitle')}
-        crumbs={[
-          { label: t('nav.dashboard'), to: '/' },
-          { label: role === 'owner' ? t('reports.myReports') : t('reports.approved') },
-        ]}
-      />
-      <Card>
-        <div className="border-b border-slate-100 px-4 pb-1 pt-4 sm:px-5">
-          <h2 className="text-sm font-semibold text-navy-900">{t('reports.listHeading')}</h2>
-          <p className="text-xs text-slate-500">
-            {t('reports.showingCount', { shown: filtered.length, total: reports.length })}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-end sm:px-5">
-          <label className="relative block flex-1">
-            <span className="sr-only">{t('reports.searchAria')}</span>
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-              aria-hidden
-            />
-            <input
-              className="input pl-9"
-              placeholder={t('reports.searchPlaceholder')}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          <label className="block lg:w-36">
-            <span className="label">{t('reports.filterCategory')}</span>
-            <select className="input" value={region} onChange={(e) => setRegion(e.target.value)}>
+      <div className="vm-fade-up relative -mx-1 space-y-4">
+        {/* Energetic hero band */}
+        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(52,211,153,0.35),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(45,212,191,0.2),transparent_45%)]"
+          />
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                {t('reports.showingCount', { shown: filtered.length, total: reports.length })}
+              </p>
+              <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+                {pageTitle}
+              </h1>
+              <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('reports.listSubtitle')}</p>
+            </div>
+            <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">{t('reports.searchAria')}</span>
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-emerald-200/70"
+                  aria-hidden
+                />
+                <input
+                  className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/20 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-emerald-300/50"
+                  placeholder={t('reports.searchPlaceholder')}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </label>
+              {hasFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="shrink-0 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-emerald-100 ring-1 ring-white/20 transition hover:bg-white/20"
+                >
+                  {t('common.clear')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="relative mt-4 flex flex-wrap gap-2">
+            <select
+              aria-label={t('reports.filterCategory')}
+              className={filterClass}
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+            >
               <option value="">{t('reports.filterAllCategories')}</option>
               {regions.map((r) => (
                 <option key={r} value={r}>
@@ -299,11 +371,9 @@ export default function ReportList() {
                 </option>
               ))}
             </select>
-          </label>
-          <label className="block lg:w-28">
-            <span className="label">{t('reports.filterModality')}</span>
             <select
-              className="input"
+              aria-label={t('reports.filterModality')}
+              className={filterClass}
               value={modality}
               onChange={(e) => setModality(e.target.value as BackendModality | '')}
             >
@@ -312,19 +382,19 @@ export default function ReportList() {
               <option value="CT">CT</option>
               <option value="XR">XR</option>
             </select>
-          </label>
-          <label className="block lg:w-32">
-            <span className="label">{t('reports.filterSpecies')}</span>
-            <select className="input" value={species} onChange={(e) => setSpecies(e.target.value)}>
+            <select
+              aria-label={t('reports.filterSpecies')}
+              className={filterClass}
+              value={species}
+              onChange={(e) => setSpecies(e.target.value)}
+            >
               <option value="">{t('cases.filterAllSpecies')}</option>
               <option>Köpek</option>
               <option>Kedi</option>
             </select>
-          </label>
-          <label className="block lg:w-36">
-            <span className="label">{t('reports.filterDelivery')}</span>
             <select
-              className="input"
+              aria-label={t('reports.filterDelivery')}
+              className={filterClass}
               value={delivery}
               onChange={(e) => setDelivery(e.target.value as DeliveryFilter)}
             >
@@ -333,179 +403,199 @@ export default function ReportList() {
               <option value="delivered">{t('reports.doc.delivered')}</option>
               <option value="viewed">{t('reports.doc.viewed')}</option>
             </select>
-          </label>
-          {hasFilters ? (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              {t('common.clear')}
-            </Button>
-          ) : null}
-        </div>
-
-        {canBulkDelete && selectedCases.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-rose-50/60 px-4 py-2.5 sm:px-5">
-            <p className="text-xs font-medium text-rose-900">
-              {t('reports.bulkSelected', { count: selectedCases.length })}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
-                onClick={() => setSelected(new Set())}
-              >
-                {t('common.clear')}
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
-                onClick={() => setPendingBulk(selectedCases)}
-              >
-                <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                {t('reports.deleteSelected')}
-              </button>
-            </div>
           </div>
-        ) : null}
+        </section>
 
-        {loading && !reports.length ? (
-          <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title={t('reports.loading')} />
-        ) : loadError && !reports.length ? (
-          <EmptyState icon={<AlertTriangle className="h-6 w-6" />} title={t('reports.loadFailed')} text={loadError} />
-        ) : filtered.length ? (
-          <ul className="divide-y divide-slate-100">
-            {canBulkDelete ? (
-              <li className="flex items-center gap-3 bg-slate-50/80 px-5 py-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  aria-label={t('reports.selectAllAria')}
-                />
-                <span className="text-xs font-medium text-slate-500">{t('reports.selectAll')}</span>
-              </li>
-            ) : null}
-            {filtered.map((c) => {
-              const version = c.currentReportVersion ?? c.reportVersionCount ?? 1
-              const revised = version > 1 || (c.reportVersionCount ?? 0) > 1
-              return (
-                <li key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
-                  {canBulkDelete ? (
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                      checked={selected.has(c.id)}
-                      onChange={() => toggleOne(c.id)}
-                      aria-label={t('reports.selectRowAria', { name: c.patient.name })}
-                    />
-                  ) : null}
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      revised ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-600'
-                    }`}
+        <div className="relative overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70">
+          {canSelect && selectedCases.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 bg-teal-50/80 px-4 py-2.5 sm:px-5">
+              <p className="text-xs font-semibold text-teal-950">
+                {t('reports.bulkSelected', { count: selectedCases.length })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
+                  onClick={() => setSelected(new Set())}
+                  disabled={bulkPdfBusy}
+                >
+                  {t('common.clear')}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-navy-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy-800 disabled:opacity-60"
+                  onClick={() => void downloadSelectedPdfs()}
+                  disabled={bulkPdfBusy}
+                >
+                  {bulkPdfBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {bulkPdfBusy ? t('reports.bulkPdfBusy') : t('reports.downloadSelectedPdf')}
+                </button>
+                {canBulkDelete ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+                    onClick={() => setPendingBulk(selectedCases)}
+                    disabled={bulkPdfBusy}
                   >
-                    <FileCheck2 className="h-5 w-5" aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-2 font-semibold text-navy-900">
-                      <SpeciesIcon species={c.patient.species} /> {c.patient.name} —{' '}
-                      {c.module
-                        ? t('reports.moduleReportTitle', { module: c.module })
-                        : t('reports.radiologyReportTitle')}
-                      {revised ? (
-                        <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800 ring-1 ring-inset ring-violet-200">
-                          {t('reports.revisedBadge', { version })}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200">
-                          v{version}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {c.reportNo ?? c.no}
-                      {c.modality || c.anatomicalRegion
-                        ? ` · ${[c.modality, c.anatomicalRegion ? regionLabel(c.anatomicalRegion) : null]
-                            .filter(Boolean)
-                            .join(' · ')}`
-                        : ''}
-                      {c.approvedBy ? ` · ${t('reports.approvedBy', { name: c.approvedBy })}` : ''}
-                      {c.approvedAt || c.reportAvailableAt
-                        ? ` · ${fmtDate(c.approvedAt ?? c.reportAvailableAt, locale)}`
-                        : ''}
-                      {c.reportViewedAt
-                        ? ` · ${t('reports.viewed')}`
-                        : c.reportDeliveredAt
-                          ? ` · ${t('reports.delivered')}`
-                          : ''}
-                      {revised ? ` · ${t('reports.priorVersionLocked')}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      icon={<FileText className="h-4 w-4" />}
-                      onClick={() => nav(`/raporlar/${c.id}`)}
-                    >
-                      {t('reports.openReport')}
-                    </Button>
-                    {role === 'expert' && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={<Send className="h-4 w-4" />}
-                        onClick={() => {
-                          setReviseNote('')
-                          setPendingRevise(c)
-                        }}
-                      >
-                        {t('reports.revise')}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-rose-700 hover:bg-rose-50"
-                      icon={<Trash2 className="h-4 w-4" />}
-                      onClick={() => setPendingDelete(c)}
-                      aria-label={t('reports.deleteReportAria', { name: c.patient.name })}
-                    >
-                      {t('common.delete')}
-                    </Button>
-                  </div>
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    {t('reports.deleteSelected')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {loading && !reports.length ? (
+            <EmptyState icon={<Loader2 className="h-6 w-6 animate-spin" />} title={t('reports.loading')} />
+          ) : loadError && !reports.length ? (
+            <EmptyState icon={<AlertTriangle className="h-6 w-6" />} title={t('reports.loadFailed')} text={loadError} />
+          ) : filtered.length ? (
+            <ul className="divide-y divide-slate-100">
+              {canSelect ? (
+                <li className="flex items-center gap-3 bg-slate-50/70 px-4 py-2.5 sm:px-5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    aria-label={t('reports.selectAllAria')}
+                  />
+                  <span className="text-xs font-medium text-slate-500">{t('reports.selectAll')}</span>
                 </li>
-              )
-            })}
-          </ul>
-        ) : reports.length === 0 ? (
-          <EmptyState
-            icon={<FileText className="h-6 w-6" />}
-            title={t('reports.emptyApproved')}
-            text={role === 'owner' ? t('reports.emptyOwnerHint') : t('reports.emptyStaffHint')}
-            action={
-              role === 'vet' ? (
-                <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
-                  {t('reports.createCase')}
+              ) : null}
+              {filtered.map((c) => {
+                const version = c.currentReportVersion ?? c.reportVersionCount ?? 1
+                const revised = version > 1 || (c.reportVersionCount ?? 0) > 1
+                const deliveryLabel = c.reportViewedAt
+                  ? t('reports.viewed')
+                  : c.reportDeliveredAt
+                    ? t('reports.delivered')
+                    : null
+                return (
+                  <li key={c.id}>
+                    <div className="flex items-stretch gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
+                      {canSelect ? (
+                        <div className="flex items-center pl-1">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                            checked={selected.has(c.id)}
+                            onChange={() => toggleOne(c.id)}
+                            aria-label={t('reports.selectRowAria', { name: c.patient.name })}
+                          />
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => nav(`/raporlar/${c.id}`)}
+                        className="group flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-2 py-2 text-left transition hover:bg-emerald-50/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+                      >
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-md shadow-emerald-700/20">
+                          <FileCheck2 className="h-5 w-5" aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="truncate font-[family-name:var(--vm-font-display)] text-base font-semibold text-navy-950">
+                              {c.patient.name}
+                            </span>
+                            <SpeciesIcon species={c.patient.species} />
+                            {revised ? (
+                              <span className="rounded-md bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
+                                v{version}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            {c.modality ? (
+                              <span className="rounded-md bg-navy-950 px-2 py-0.5 text-[11px] font-bold text-white">
+                                {c.modality}
+                              </span>
+                            ) : null}
+                            {c.anatomicalRegion ? (
+                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                                {regionLabel(c.anatomicalRegion)}
+                              </span>
+                            ) : null}
+                            <span className="font-mono text-[11px] text-slate-400">{c.reportNo ?? c.no}</span>
+                            {(c.approvedAt || c.reportAvailableAt) && (
+                              <span className="text-[11px] text-slate-500">
+                                {fmtDate(c.approvedAt ?? c.reportAvailableAt, locale)}
+                              </span>
+                            )}
+                            {deliveryLabel ? (
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                {deliveryLabel}
+                              </span>
+                            ) : null}
+                          </span>
+                        </span>
+                        <span className="hidden shrink-0 items-center gap-1 text-sm font-semibold text-teal-700 sm:inline-flex">
+                          {t('reports.openReport')}
+                          <FileText className="h-3.5 w-3.5 opacity-70 transition group-hover:translate-x-0.5" aria-hidden />
+                        </span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1 pr-1">
+                        {role === 'expert' && (
+                          <button
+                            type="button"
+                            className="rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-navy-900"
+                            onClick={() => {
+                              setReviseNote('')
+                              setPendingRevise(c)
+                            }}
+                          >
+                            {t('reports.revise')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-700"
+                          onClick={() => setPendingDelete(c)}
+                          aria-label={t('reports.deleteReportAria', { name: c.patient.name })}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : reports.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="h-6 w-6" />}
+              title={t('reports.emptyApproved')}
+              text={role === 'owner' ? t('reports.emptyOwnerHint') : t('reports.emptyStaffHint')}
+              action={
+                role === 'vet' ? (
+                  <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
+                    {t('reports.createCase')}
+                  </Button>
+                ) : role === 'expert' ? (
+                  <Button size="sm" onClick={() => nav('/kuyruk')}>
+                    {t('dashboard.expertGoWorklist')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<Search className="h-6 w-6" />}
+              title={t('reports.emptyFiltered')}
+              text={t('reports.emptyFilteredHint')}
+              action={
+                <Button size="sm" variant="secondary" onClick={clearFilters}>
+                  {t('common.clear')}
                 </Button>
-              ) : role === 'expert' ? (
-                <Button size="sm" onClick={() => nav('/kuyruk')}>
-                  {t('dashboard.expertGoWorklist')}
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={<Search className="h-6 w-6" />}
-            title={t('reports.emptyFiltered')}
-            text={t('reports.emptyFilteredHint')}
-            action={
-              <Button size="sm" variant="secondary" onClick={clearFilters}>
-                {t('common.clear')}
-              </Button>
-            }
-          />
-        )}
-      </Card>
+              }
+            />
+          )}
+        </div>
+      </div>
 
       <Modal
         open={Boolean(pendingDelete)}
