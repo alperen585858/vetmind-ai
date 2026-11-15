@@ -13,7 +13,7 @@ Bu belge, fotoğraftaki hedef mimariyi **bileşen bileşen** mevcut kodla karş�
 
 **2026-10-30 pre-data sprint:** `/calisma` canonical (ExpertReview kaldırıldı) · FE retention dry-run/apply · RAG `approved` + bulk KB UI · DICOM classification override → FeedbackStore · Document OCR adapter stub (`VETMIND_DOCUMENT_OCR_ENDPOINT`) · pixel opt-in dokümante · A/B plug-in yüzeyleri (bulk KB, wire fixtures, protected E2E projesi) **DONE** notu — klinik üretim **BOUNDARY / NO-GO** değişmedi.
 
-İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [PROJE_MIMARI_DEGERLENDIRME.md](../PROJE_MIMARI_DEGERLENDIRME.md) · [audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](audits/PHASE_8_SECURITY_ASYNC.md)
+İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](audits/PHASE_8_SECURITY_ASYNC.md)
 
 ---
 
