@@ -125,6 +125,8 @@ class Finding(BaseModel):
     finding_code: str
     description: str
     anatomical_location: str
+    # None for legacy producers; False marks an adapter's case-region fallback.
+    anatomical_location_reported: bool | None = None
     finding_status: FindingStatus
     source_model: str
     source_model_version: Optional[str] = None

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from app.http_policy import vision_http_policy
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
+from app.models.normalizer import normalize_laterality
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings
@@ -48,6 +49,7 @@ class RemoteFindingPayload(BaseModel):
     finding_status: Optional[str] = None
     evidence_references: list[RemoteEvidencePayload] = Field(default_factory=list)
     uncertainty_note: Optional[str] = None
+    laterality: Optional[str] = None
     synthetic: Optional[bool] = None
     # Optional model-provided confidence — never invented by VetMind if absent.
     model_confidence: Optional[float] = None
@@ -235,7 +237,9 @@ class HttpRemoteVisionModel:
         fid = str(item.finding_id or f"{case.case_id}-remote-{index + 1}")
         code = str(item.finding_code or "REMOTE-FINDING")
         desc = str(item.description or "Remote adapter finding.")
-        loc = str(item.anatomical_location or case.anatomical_region.value)
+        reported_location = item.anatomical_location or ""
+        has_reported_location = bool(reported_location.strip())
+        loc = reported_location if has_reported_location else case.anatomical_region.value
 
         if item.finding_status is None or not str(item.finding_status).strip():
             fstatus = FindingStatus.UNCERTAIN
@@ -301,6 +305,7 @@ class HttpRemoteVisionModel:
             finding_code=code,
             description=desc,
             anatomical_location=loc,
+            anatomical_location_reported=has_reported_location,
             finding_status=fstatus,
             source_model=self.model_id,
             source_model_version=self.version,
@@ -308,6 +313,7 @@ class HttpRemoteVisionModel:
             evidence_references=evidence,
             uncertainty_note=str(item.uncertainty_note or "Remote model uncertainty."),
             synthetic=synthetic,
+            laterality=normalize_laterality(item.laterality),
             model_confidence=confidence,
         )
 

@@ -34,6 +34,7 @@ from app.imaging.display_png import (
 from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
+from app.models.normalizer import normalize_laterality
 from app.models.study_inventory import InventoryFrame, build_study_inventory
 from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
@@ -82,17 +83,17 @@ def _normalize_vlm_code(raw: str) -> tuple[str, bool]:
 
 
 def _dedupe_findings(findings: list[Finding]) -> list[Finding]:
-    """Merge duplicate code+location across batches; keep evidence refs.
+    """Merge duplicate code+location+side across batches; keep evidence refs.
 
     Technique codes (e.g. IMAGE-QUALITY) collapse to a single entry regardless of
     location. Status merge never upgrades certainty.
     """
-    by_key: dict[tuple[str, str], Finding] = {}
-    order: list[tuple[str, str]] = []
+    by_key: dict[tuple[str, str, str], Finding] = {}
+    order: list[tuple[str, str, str]] = []
     for f in findings:
         code_key = f.finding_code.strip().upper()
         loc_key = "" if is_technique_code(f.finding_code) else (f.anatomical_location or "").strip().lower()
-        key = (code_key, loc_key)
+        key = (code_key, loc_key, f.laterality if loc_key else "")
         if key not in by_key:
             by_key[key] = f
             order.append(key)
@@ -131,6 +132,7 @@ Yalnızca JSON döndür. Şema:
       "finding_code": "SHORT_CODE",
       "description": "Türkçe, somut, yalnızca piksellerde görünen",
       "anatomical_location": "kısa konum",
+      "laterality": "LEFT" | "RIGHT" | "MIDLINE" | "UNKNOWN",
       "finding_status": "suspected" | "possible" | "uncertain" | "not_assessed",
       "uncertainty_note": "neden emin değilsin",
       "model_confidence": 0.0,
@@ -150,7 +152,8 @@ ZORUNLU kurallar:
 6) bbox_norm isteğe bağlı; odak bölge varsa 0–1 normalize [x_min,y_min,x_max,y_max] ver.
 7) "Normal" / "patoloji yok" deme. Kesin tanı yazma. Uydurma DICOM UID yazma.
 8) İngilizce sistem etiketleri / execution_status / pipeline jargonunu description'a yazma.
-9) Görüntü yetersizse teknik maddede söyle; boş findings[] yasak, uydurma lezyon da yasak."""
+9) Görüntü yetersizse teknik maddede söyle; boş findings[] yasak, uydurma lezyon da yasak.
+10) Tarafı yalnızca görüntüde doğrulanabiliyorsa belirt; aksi hâlde laterality=UNKNOWN yaz."""
 
 
 @dataclass(frozen=True)
@@ -1078,9 +1081,8 @@ class OpenAiCompatibleVlmVisionModel:
                 continue
             if frame is None:
                 ungrounded += 1
-            loc = str(
-                item.get("anatomical_location") or case.anatomical_region.value
-            ).strip()
+            reported_location = str(item.get("anatomical_location") or "")
+            loc = reported_location if reported_location.strip() else case.anatomical_region.value
             st_raw = str(item.get("finding_status") or "uncertain").strip().lower()
             if st_raw not in _VALID_FINDING_STATUS:
                 st_raw = FindingStatus.UNCERTAIN.value
@@ -1109,6 +1111,7 @@ class OpenAiCompatibleVlmVisionModel:
                     finding_code=code,
                     description=desc,
                     anatomical_location=loc,
+                    anatomical_location_reported=bool(reported_location.strip()),
                     finding_status=FindingStatus(st_raw),
                     source_model=self.model_id,
                     source_model_version=self.version,
@@ -1124,6 +1127,7 @@ class OpenAiCompatibleVlmVisionModel:
                     ],
                     uncertainty_note=unc,
                     synthetic=False,
+                    laterality=normalize_laterality(item.get("laterality")),
                     model_confidence=confidence,
                 )
             )
