@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.imaging.contracts import PreprocessingContract, TransformProvenance, metadata_only_contract
 from app.imaging.decoder import AuthorizedDicomDecoder
 from app.imaging.interfaces import PrepValidationError
 from app.imaging.profiles import profile_for_modality
-from app.models.model_input_builder import build_imaging_model_input
-from app.models.pixel_authorization import evaluate_pixel_access
-from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
 from app.schemas.enums import Modality
 from app.schemas.model_input import ImagingModelInput
+
+if TYPE_CHECKING:
+    from app.routing.capabilities import ModelCapability
+
+# app.models.model_input_builder, app.models.pixel_authorization and app.routing all import
+# app.imaging (whose __init__ imports this module). Importing them here at module load made
+# `import app.services…` / `import app.routing…` fail with a circular ImportError when that
+# module was the first one loaded (issue #48), so they are imported where they are used.
 
 
 class MetadataOnlyPreparationPipeline:
@@ -30,6 +36,8 @@ class MetadataOnlyPreparationPipeline:
         pixel_analysis_opt_in: bool = False,
         quarantine_root: Path | None = None,
     ) -> None:
+        from app.routing.capabilities import default_capabilities
+
         self._capabilities = list(capabilities) if capabilities is not None else list(default_capabilities())
         self._pixel_analysis_opt_in = bool(pixel_analysis_opt_in)
         self._quarantine_root = quarantine_root
@@ -41,6 +49,8 @@ class MetadataOnlyPreparationPipeline:
         contract: PreprocessingContract | None = None,
     ) -> ImagingModelInput:
         contract = contract or metadata_only_contract("metadata-pipeline")
+        from app.models.model_input_builder import build_imaging_model_input
+
         model_input = build_imaging_model_input(
             case,
             capabilities=self._capabilities,
@@ -126,6 +136,8 @@ class MetadataOnlyPreparationPipeline:
         if not contract.requires_pixels:
             raise PrepValidationError("Contract does not require pixels; decode denied.")
         by_id = {c.model_id: c for c in self._capabilities}
+        from app.models.pixel_authorization import evaluate_pixel_access
+
         decision = evaluate_pixel_access(
             case,
             model_id=contract.model_id,
