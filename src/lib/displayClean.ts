@@ -42,7 +42,7 @@ export function displayFindingDescription(desc?: string | null): string {
 type Translate = (key: string) => string
 
 const MODALITY_KEYS = new Set(['MR', 'CT', 'XR', 'OTHER'])
-const REGION_KEYS = new Set(['BRAIN', 'CERVICAL', 'THORAX', 'OTHER', 'UNKNOWN'])
+const REGION_KEYS = new Set(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR', 'OTHER', 'UNKNOWN'])
 
 /** "CT" → "BT" / "CT" by locale; unknown DICOM codes (DX, CR…) are shown as-is. */
 export function modalityLabel(t: Translate, modality?: string | null): string {

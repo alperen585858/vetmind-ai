@@ -573,7 +573,7 @@ export interface BackendPipelineResult {
 }
 
 export type BackendModality = 'MR' | 'CT' | 'XR' | 'OTHER'
-export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'THORAX' | 'OTHER' | 'UNKNOWN'
+export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'THORAX' | 'THORACOLUMBAR' | 'OTHER' | 'UNKNOWN'
 export type ClassificationConfidence = 'high' | 'medium' | 'low' | 'unknown'
 
 export interface DicomValidationIssue {

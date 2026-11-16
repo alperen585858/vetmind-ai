@@ -31,6 +31,7 @@ function regionLabel(region: string): string {
   if (region === 'BRAIN') return 'Beyin'
   if (region === 'CERVICAL') return 'Servikal'
   if (region === 'THORAX') return 'Toraks'
+  if (region === 'THORACOLUMBAR') return 'Torakolomber'
   if (region === 'OTHER') return 'Diğer'
   if (region === 'UNKNOWN') return 'Bilinmiyor'
   return region

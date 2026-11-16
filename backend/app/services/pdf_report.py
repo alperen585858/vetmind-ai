@@ -139,6 +139,7 @@ _REGION_UI = {
     AnatomicalRegion.BRAIN: "Beyin",
     AnatomicalRegion.CERVICAL: "Servikal",
     AnatomicalRegion.THORAX: "Toraks",
+    AnatomicalRegion.THORACOLUMBAR: "Torakolomber",
     AnatomicalRegion.OTHER: "Diğer",
     AnatomicalRegion.UNKNOWN: "Bilinmiyor",
 }

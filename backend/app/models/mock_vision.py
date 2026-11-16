@@ -15,7 +15,7 @@ ABSENCE_WARNING = (
 )
 
 
-_REGION_TR = {"BRAIN": "beyin", "CERVICAL": "servikal", "THORAX": "toraks", "OTHER": "diğer", "UNKNOWN": "bilinmeyen bölge"}
+_REGION_TR = {"BRAIN": "beyin", "CERVICAL": "servikal", "THORAX": "toraks", "THORACOLUMBAR": "torakolomber", "OTHER": "diğer", "UNKNOWN": "bilinmeyen bölge"}
 
 
 class MockVisionError(ImagingAdapterError):

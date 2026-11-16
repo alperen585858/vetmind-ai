@@ -96,6 +96,7 @@ function regionLabel(region: BackendAnatomicalRegion | string | undefined): stri
   if (region === 'CERVICAL') return 'Servikal'
   if (region === 'BRAIN') return 'Beyin'
   if (region === 'THORAX') return 'Toraks'
+  if (region === 'THORACOLUMBAR') return 'Torakolomber'
   if (region === 'OTHER') return 'Diğer'
   if (region === 'UNKNOWN') return 'Bilinmiyor'
   return region || '—'
@@ -108,6 +109,8 @@ export function clinicalModuleFromStudy(
 ): string {
   const r = String(region || '').toUpperCase()
   const m = String(modality || '').toUpperCase()
+  // Spine first: a thoracolumbar radiograph is a spinal (neurology) study, not a chest one.
+  if (r === 'THORACOLUMBAR') return 'Nöroloji'
   if (r === 'THORAX' || m === 'XR') return 'Toraks'
   if (r === 'BRAIN' || r === 'CERVICAL') return 'Nöroloji'
   if (r === 'OTHER' || r === 'UNKNOWN') return 'Genel'

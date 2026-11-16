@@ -18,6 +18,8 @@ class AnatomicalRegion(str, Enum):
     BRAIN = "BRAIN"
     CERVICAL = "CERVICAL"
     THORAX = "THORAX"
+    # Thoracolumbar / lumbar spine (T3-L3 and caudal), e.g. disc herniation (#49).
+    THORACOLUMBAR = "THORACOLUMBAR"
     OTHER = "OTHER"
     UNKNOWN = "UNKNOWN"
 

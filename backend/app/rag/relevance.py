@@ -27,7 +27,12 @@ _EXCLUDED_TAGS = frozenset({"META"})
 
 _SPECIES_TR = {"canine": "köpek", "feline": "kedi"}
 _MODALITY_TR = {"MR": "MR", "CT": "BT tomografi", "XR": "röntgen radyografi"}
-_REGION_TR = {"BRAIN": "beyin", "CERVICAL": "servikal boyun", "THORAX": "toraks akciğer"}
+_REGION_TR = {
+    "BRAIN": "beyin",
+    "CERVICAL": "servikal boyun",
+    "THORAX": "toraks akciğer",
+    "THORACOLUMBAR": "torakolomber omurga",
+}
 
 
 @dataclass(frozen=True)

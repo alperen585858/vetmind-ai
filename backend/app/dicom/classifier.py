@@ -79,6 +79,7 @@ REGION_TR = {
     AnatomicalRegion.BRAIN: "beyin",
     AnatomicalRegion.CERVICAL: "servikal",
     AnatomicalRegion.THORAX: "toraks",
+    AnatomicalRegion.THORACOLUMBAR: "torakolomber",
     AnatomicalRegion.OTHER: "diğer",
     AnatomicalRegion.UNKNOWN: "bilinmiyor",
 }
