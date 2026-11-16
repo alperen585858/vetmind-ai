@@ -377,7 +377,7 @@ $env:VETMIND_LOCAL_TORCH_MODALITIES="XR"; $env:VETMIND_LOCAL_TORCH_REGIONS="THOR
 | E-posta | Rol | Tipik kullanım |
 |---------|-----|----------------|
 | `vet@demo.local` | Veteriner hekim | DICOM yükle, vaka oluştur, analiz başlat |
-| `expert@demo.local` | Uzman hekim (VRM) | İnceleme / onay / red / revizyon |
+| `expert@demo.local` | Uzman Veteriner Radyolog (VRM) | İnceleme / onay / red / revizyon |
 | `owner@demo.local` | Hayvan sahibi | Görüntüleme talebi, rapor okuma |
 | `clinic-owner@demo.local` | Klinik sahibi | Klinik vakaları ve raporlar |
 | `admin@demo.local` | Admin | Kullanıcılar, bilgi tabanı, sistem durumu |
@@ -422,7 +422,7 @@ yeni ve boş bir veritabanıyla başlamak en temizidir.
 5. İşleme ekranında `DEMO / MOCK ANALYSIS` ve job alanlarını gör.  
 6. **Vakalar → Backend’den yenile** (SQLite kalıcılık; restart sonrası da kalır).  
 7. Vaka detay → **Bulgular** → mock / SYNTHETIC provenance.  
-8. Üst barda rolü **Uzman Hekim (VRM)** yap → **Çalışma alanı** (`/calisma`) → **Onayla**.  
+8. Üst barda rolü **Uzman Veteriner Radyolog** yap → **Çalışma alanı** (`/calisma`) → **Onayla**.  
 9. Vaka geçmişinde sürüm / immutable; **Raporlar** → onaylı rapor; **PDF olarak indir**.  
 10. İsteğe bağlı: Admin → **Bilgi Tabanı** (RAG search), **Sistem Durumu** (`/health`).
 
