@@ -8,6 +8,7 @@ conflicting / unsupported outcomes always require human confirmation.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from app.llm.privacy import redact_personal_data
@@ -69,6 +70,43 @@ _THORAX_TOKENS = (
     "AKCIGER",
     "KALP",
 )
+
+# Thoracolumbar / lumbar spine (#49). "THORACIC" alone stays a chest word; only spine phrases
+# count here, and _thorax_text() hides them so "THORACIC SPINE" is not also read as thorax.
+_THORACOLUMBAR_TOKENS = (
+    "THORACOLUMBAR",
+    "THORACO-LUMBAR",
+    "THORACIC SPINE",
+    "LUMBAR",
+    "LUMBOSACRAL",
+    "TORAKOLOMBER",
+    "LOMBER",
+    "LUMBOSAKRAL",
+)
+# Vertebral levels as whole words only: T10-T13 and L1-L7. Never T1/T2 (MR sequence names)
+# and never inside other words ("AXIAL1" must not read as L1).
+_TL_LEVEL = re.compile(r"(?<![A-Z0-9])(?:T1[0-3]|L[1-7])(?![0-9])")
+# Short spine abbreviations as whole words only: "CERVICAL SPINE" contains "L SPINE" and
+# "THORACIC SPINE" contains "C SPINE", so plain substring tokens would cross-match.
+_TL_SHORT = re.compile(r"(?<![A-Z0-9])(?:TL|T|L)[ -]?SPINE")
+_TL_PHRASES = re.compile(r"THORACO-?LUMBAR|THORACIC SPINE|(?<![A-Z0-9])(?:TL|T)[ -]?SPINE")
+_STRONG_THORACOLUMBAR = ("THORACOLUMBAR", "THORACO-LUMBAR", "THORACIC SPINE", "LUMBAR", "TORAKOLOMBER", "LOMBER")
+
+
+def _thoracolumbar_hits(text: str) -> list[str]:
+    hits = [t for t in _THORACOLUMBAR_TOKENS if t in text]
+    hits += sorted(set(_TL_SHORT.findall(text)))
+    hits += sorted(set(_TL_LEVEL.findall(text)))
+    return hits
+
+
+def _thorax_text(text: str) -> str:
+    """Text for the chest (THORAX) and neck (CERVICAL) rules with thoracolumbar spine phrases removed.
+
+    "THORACIC SPINE" must not count as chest ("THORACIC") nor as neck ("...C SPINE").
+    """
+    return _TL_PHRASES.sub(" ", text)
+
 
 _CANINE_TOKENS = ("CANINE", "CANIS", "DOG", "KOPEK")
 _FELINE_TOKENS = ("FELINE", "FELIS", "CAT", "KEDI")
@@ -187,12 +225,13 @@ def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
         ("BRAIN", "HEAD", "SAG BRAIN", "AX BRAIN", "INTRACRANIAL", "CRANIUM", "BEYIN", "KAFA", "KRANIAL", "KRANYAL"),
     )
     cervical = _contains_any(
-        series_text,
+        _thorax_text(series_text),
         ("C-SPINE", "CERVICAL", "NECK", "SPINE C", "SAG C SPINE", "C SPINE", "SERVIKAL", "BOYUN"),
     )
     thorax = _contains_any(
-        series_text, ("CHEST", "THORAX", "LUNG", "CXR", "THORACIC", "TORAKS", "GOGUS", "AKCIGER")
+        _thorax_text(series_text), ("CHEST", "THORAX", "LUNG", "CXR", "THORACIC", "TORAKS", "GOGUS", "AKCIGER")
     )
+    thoracolumbar = _thoracolumbar_hits(series_text)
     region: AnatomicalRegion | None = None
     conf = ClassificationConfidence.LOW
     note_bits: list[str] = []
@@ -200,6 +239,7 @@ def _series_hint_signal(study: DicomStudyMeta) -> ClassificationSignal:
         (brain, AnatomicalRegion.BRAIN),
         (cervical, AnatomicalRegion.CERVICAL),
         (thorax, AnatomicalRegion.THORAX),
+        (thoracolumbar, AnatomicalRegion.THORACOLUMBAR),
     ]
     non_empty = [(h, r) for h, r in hits if h]
     if len(non_empty) == 1:
@@ -286,13 +326,15 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
             modality_status = ClassificationStatus.UNSUPPORTED
 
     brain_hits = _contains_any(text, _BRAIN_TOKENS)
-    cervical_hits = _contains_any(text, _CERVICAL_TOKENS)
-    thorax_hits = _contains_any(text, _THORAX_TOKENS)
+    cervical_hits = _contains_any(_thorax_text(text), _CERVICAL_TOKENS)
+    thorax_hits = _contains_any(_thorax_text(text), _THORAX_TOKENS)
+    thoracolumbar_hits = _thoracolumbar_hits(text)
 
     hit_groups = [
         (brain_hits, AnatomicalRegion.BRAIN, ("BRAIN", "CRANIAL", "INTRACRANIAL", "BEYIN", "KRANIAL", "KRANYAL")),
         (cervical_hits, AnatomicalRegion.CERVICAL, ("CERVICAL", "C-SPINE", "CSPINE", "SERVIKAL")),
         (thorax_hits, AnatomicalRegion.THORAX, ("THORAX", "THORACIC", "CHEST", "LUNG", "TORAKS", "AKCIGER", "GOGUS")),
+        (thoracolumbar_hits, AnatomicalRegion.THORACOLUMBAR, _STRONG_THORACOLUMBAR),
     ]
     non_empty = [(hits, region, strong) for hits, region, strong in hit_groups if hits]
 
@@ -314,7 +356,9 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
     elif text.strip():
         region = AnatomicalRegion.OTHER
         region_confidence = ClassificationConfidence.LOW
-        rationale.append("Açıklama var ama beyin, servikal veya toraks bölgesini gösteren kelime bulunamadı.")
+        rationale.append(
+            "Açıklama var ama beyin, servikal, toraks veya torakolomber bölgeyi gösteren kelime bulunamadı."
+        )
         region_status = ClassificationStatus.UNSUPPORTED
     else:
         region = AnatomicalRegion.UNKNOWN

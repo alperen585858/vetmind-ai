@@ -38,7 +38,12 @@ if TYPE_CHECKING:
 
 SIGNAL_NAME = "llm_metadata"
 TOOL_NAME = "submit_dicom_classification"
-_CONCRETE_REGIONS = {AnatomicalRegion.BRAIN, AnatomicalRegion.CERVICAL, AnatomicalRegion.THORAX}
+_CONCRETE_REGIONS = {
+    AnatomicalRegion.BRAIN,
+    AnatomicalRegion.CERVICAL,
+    AnatomicalRegion.THORAX,
+    AnatomicalRegion.THORACOLUMBAR,
+}
 _SUPPORTED_MODALITIES = {Modality.MR, Modality.CT, Modality.XR}
 _MAX_SERIES = 20
 _MAX_FIELD_CHARS = 120
@@ -48,7 +53,7 @@ CLASSIFICATION_JSON_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["region", "region_confidence", "species", "species_confidence", "evidence"],
     "properties": {
-        "region": {"type": "string", "enum": ["BRAIN", "CERVICAL", "THORAX", "OTHER", "UNKNOWN"]},
+        "region": {"type": "string", "enum": ["BRAIN", "CERVICAL", "THORAX", "THORACOLUMBAR", "OTHER", "UNKNOWN"]},
         "region_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
         "species": {"type": "string", "enum": ["canine", "feline", "other", "unknown"]},
         "species_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
@@ -60,13 +65,15 @@ SYSTEM_PROMPT = """You classify veterinary DICOM studies for routing, using only
 Field text may be English, Turkish or vendor abbreviations, for example:
 "BEYIN", "KAFA", "KRANYAL" = brain/head; "BOYUN", "SERVIKAL", "C-OMURGA" = neck/cervical spine;
 "TORAKS", "GOGUS", "AKCIGER", "KALP" = thorax; "KOPEK" = dog; "KEDI" = cat;
-"LOMBER", "TORAKOLOMBER", "LUMBOSAKRAL", "BATIN" = OTHER (lumbar/thoracolumbar spine and abdomen are not thorax).
+"LOMBER", "TORAKOLOMBER", "LUMBOSAKRAL" = THORACOLUMBAR (thoracolumbar/lumbar spine is not thorax);
+"BATIN" = OTHER (abdomen). "THORACIC SPINE" / "T-SPINE" is THORACOLUMBAR, not THORAX.
 BodyPartExamined is often empty in veterinary studies; a clear StudyDescription or SeriesDescription
 is enough on its own to answer with high confidence.
 
 Return:
 - region: BRAIN (brain, head, skull), CERVICAL (neck, cervical spine C1-C7), THORAX (chest, lungs, heart),
-  OTHER (another body part such as abdomen, limb, pelvis, thoracolumbar or lumbar spine),
+  THORACOLUMBAR (thoracic/thoracolumbar/lumbar spine, T3-L7, e.g. "T13-L1"),
+  OTHER (another body part such as abdomen, limb, pelvis),
   UNKNOWN (no reliable region clue).
 - species: canine, feline, other (another animal) or unknown.
 - region_confidence / species_confidence: high, medium or low.

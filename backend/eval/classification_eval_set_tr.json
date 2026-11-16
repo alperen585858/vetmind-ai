@@ -218,7 +218,7 @@
     },
     {
       "id": "tr-lomber",
-      "title": "Lomber omurga — desteklenmeyen bölge",
+      "title": "Lomber omurga — torakolomber bölgesi (#49'dan önce 'diğer'di)",
       "study": {
         "study_description": "LOMBER OMURGA MR",
         "series": [
@@ -230,7 +230,7 @@
       },
       "expected": {
         "modality": "MR",
-        "region": "OTHER"
+        "region": "THORACOLUMBAR"
       }
     },
     {
@@ -252,7 +252,7 @@
     },
     {
       "id": "trap-torakolomber",
-      "title": "Tuzak: torakolomber toraks değildir",
+      "title": "Tuzak: torakolomber toraks değildir (#49'dan beri kendi bölgesi)",
       "study": {
         "study_description": "TORAKOLOMBER MR",
         "series": [
@@ -264,7 +264,7 @@
       },
       "expected": {
         "modality": "MR",
-        "region": "OTHER"
+        "region": "THORACOLUMBAR"
       }
     },
     {
