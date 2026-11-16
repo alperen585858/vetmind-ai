@@ -622,6 +622,7 @@ export async function uploadDicomDemo(input: {
 const DEMO_FILE_PREFIX: Record<DicomDemoKind, string> = {
   brain_mri: 'brain_mr',
   cervical_mri: 'cervical_mr',
+  thoracolumbar_mri: 'thoracolumbar_mr',
   brain_ct: 'brain_ct',
   thorax_xr: 'thorax_xr',
 }
@@ -669,6 +670,7 @@ export function resolveDemoKindForCase(input: {
     .join(' ')
     .toUpperCase()
   if (/CERVICAL|SERV[Iİ]KAL|C-SPINE|CSPINE/.test(hay)) return 'cervical_mri'
+  if (/THORACOLUMBAR|TORAKOLOMBER|LOMBER|LUMBAR|TLSPINE/.test(hay)) return 'thoracolumbar_mri'
   if (/\bCT\b|B[İI]LG[İI]SAYARLI|\bBT\b/.test(hay)) return 'brain_ct'
   if (/\bXR\b|\bDX\b|THORAX|TORAKS|R[ÖO]NTGEN/.test(hay)) return 'thorax_xr'
   return 'brain_mri'

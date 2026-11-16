@@ -351,7 +351,7 @@ export type BackendScenario =
   | 'model_failure'
   | 'conflicting'
 
-export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'brain_ct' | 'thorax_xr'
+export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'thoracolumbar_mri' | 'brain_ct' | 'thorax_xr'
 
 export type BackendSpecies = 'canine' | 'feline' | 'other'
 

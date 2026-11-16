@@ -14,6 +14,7 @@ from app.dicom.fixtures import (
     brain_ct_study_files,
     brain_mri_study_files,
     cervical_mri_study_files,
+    thoracolumbar_mri_study_files,
     thorax_xr_study_files,
 )
 from app.schemas.case import CaseRecord
@@ -34,7 +35,7 @@ _MAX_FILES = 200
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
 _MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MiB aggregate per upload
 _MAX_VIEW_FIXTURES = 24
-DemoFixtureKind = Literal["brain_mri", "cervical_mri", "brain_ct", "thorax_xr"]
+DemoFixtureKind = Literal["brain_mri", "cervical_mri", "thoracolumbar_mri", "brain_ct", "thorax_xr"]
 
 # Process-local cache so sequential /fixtures/{kind}/{index} fetches share one synthetic study.
 _fixture_view_cache: dict[tuple[str, int], list[tuple[str, bytes]]] = {}
@@ -45,6 +46,8 @@ def _demo_files(kind: DemoFixtureKind, instance_count: int | None = None) -> lis
         return brain_mri_study_files(instance_count or 2)
     if kind == "cervical_mri":
         return cervical_mri_study_files(instance_count or 2)
+    if kind == "thoracolumbar_mri":
+        return thoracolumbar_mri_study_files(instance_count or 2)
     if kind == "brain_ct":
         return brain_ct_study_files(instance_count or 2)
     return thorax_xr_study_files(min(instance_count or 1, 1))

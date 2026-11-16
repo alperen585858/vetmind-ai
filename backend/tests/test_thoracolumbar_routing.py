@@ -145,3 +145,44 @@ def test_thoracolumbar_radiograph_is_not_auto_routed(tmp_path: Path) -> None:
     )
     # The radiograph mock only reads chests; a spine radiograph must not get chest findings.
     assert conf.status_code == 409
+
+
+def test_thoracolumbar_demo_study_is_suggested_and_routed_without_manual_override(tmp_path: Path) -> None:
+    """#49 step 4: the TL demo fixture is recognised by the classifier, so the default confirm routes it."""
+    client = _client(tmp_path)
+    up = client.post(
+        "/api/v1/dicom/demo/thoracolumbar_mri",
+        data={"patient_name": "TL-Demo", "species": "canine", "clinical_history": "Akut paraparezi."},
+    )
+    assert up.status_code in (200, 201), up.text
+    body = up.json()
+    suggestion = body["classification"]
+    assert suggestion["suggested_anatomical_region"] == "THORACOLUMBAR"
+    assert suggestion["confidence"] == "high"
+    conf = client.post(
+        f"/api/v1/dicom/ingestions/{body['ingest_id']}/confirm",
+        json={
+            "accept_suggestion": True,
+            "imaging_source_permission_verified": True,
+            "imaging_analysis_consent_verified": True,
+        },
+    )
+    assert conf.status_code in (200, 201), conf.text
+    case_id = conf.json()["case_id"]
+    assert client.post(f"/api/v1/cases/{case_id}/analyze").status_code == 200
+    case = client.get(f"/api/v1/cases/{case_id}").json()
+    assert case["anatomical_region"] == "THORACOLUMBAR"
+    assert case["structured_findings"]["source_model_id"] == "mock-tl-mri-v1"
+
+
+def test_demo_seed_has_a_thoracolumbar_patient(tmp_path: Path) -> None:
+    from app.container import AppContainer
+    from app.demo_seed import seed_demo_cases
+    from app.services.repository import InMemoryCaseRepository
+    from tests.test_phase6_e2e_journey import _mem_settings
+
+    c = AppContainer(repo=InMemoryCaseRepository(), settings=_mem_settings(tmp_path))
+    cases = [c.repo.get_case(i) for i in seed_demo_cases(c)]
+    tl = next(x for x in cases if x.patient_name == "Fındık")
+    assert tl.anatomical_region == AnatomicalRegion.THORACOLUMBAR
+    assert tl.structured_findings and tl.structured_findings.source_model_id == "mock-tl-mri-v1"

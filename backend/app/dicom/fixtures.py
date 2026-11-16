@@ -145,6 +145,25 @@ def cervical_mri_study_files(instance_count: int = 2) -> list[tuple[str, bytes]]
     return files
 
 
+def thoracolumbar_mri_study_files(instance_count: int = 2) -> list[tuple[str, bytes]]:
+    """Synthetic thoracolumbar spine MR (#49): metadata the classifier should read as THORACOLUMBAR."""
+    study_uid = generate_uid()
+    series_uid = generate_uid()
+    files: list[tuple[str, bytes]] = []
+    for i in range(1, instance_count + 1):
+        data = build_synthetic_instance(
+            study_uid=study_uid,
+            series_uid=series_uid,
+            modality="MR",
+            study_description="SYNTHETIC THORACOLUMBAR SPINE MRI",
+            series_description="SYNTHETIC SAGITTAL T2 T13-L1",
+            body_part="TLSPINE",
+            instance_number=i,
+        )
+        files.append((f"thoracolumbar_mr_{i}.dcm", data))
+    return files
+
+
 def brain_ct_study_files(instance_count: int = 2) -> list[tuple[str, bytes]]:
     study_uid = generate_uid()
     series_uid = generate_uid()

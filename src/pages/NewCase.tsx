@@ -253,6 +253,7 @@ export default function NewCase() {
     const titles: Record<DicomDemoKind, string> = {
       brain_mri: 'DICOM · Brain MRI',
       cervical_mri: 'DICOM · Cervical MRI',
+      thoracolumbar_mri: 'DICOM · Thoracolumbar MRI',
       brain_ct: 'DICOM · Brain CT',
       thorax_xr: 'DICOM · Thorax XR',
     }

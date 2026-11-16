@@ -82,6 +82,7 @@ const DEMO_SETS: {
 }[] = [
   { kind: 'brain_mri', label: 'Brain MRI', hint: 'MR · kranial', tone: 'from-teal-50 to-cyan-50 text-teal-700', Icon: Brain },
   { kind: 'cervical_mri', label: 'Cervical MRI', hint: 'MR · servikal', tone: 'from-sky-50 to-indigo-50 text-sky-700', Icon: Bone },
+  { kind: 'thoracolumbar_mri', label: 'Thoracolumbar MRI', hint: 'MR · torakolomber', tone: 'from-emerald-50 to-teal-50 text-emerald-700', Icon: Bone },
   { kind: 'brain_ct', label: 'Brain CT', hint: 'BT · kranial', tone: 'from-violet-50 to-slate-50 text-violet-700', Icon: Scan },
   { kind: 'thorax_xr', label: 'Thorax XR', hint: 'Röntgen · toraks', tone: 'from-amber-50 to-orange-50 text-amber-700', Icon: FileText },
 ]
@@ -874,7 +875,7 @@ export default function DicomUpload() {
           </Button>
         )}
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {DEMO_SETS.map((d) => {
           const selected = pendingDemo === d.kind
           return (
