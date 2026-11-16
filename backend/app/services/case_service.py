@@ -1841,6 +1841,9 @@ class CaseService:
             notes=feedback.comment,
         )
         case.status = CaseLifecycleStatus.APPROVED
+        # Keep assignee in sync so post-approve vet→expert questions notify the reviewer.
+        if not case.assigned_reviewer_id and feedback.reviewer_id:
+            case.assigned_reviewer_id = feedback.reviewer_id
         clear_review_sla(case)
         if case.report_available_at is None:
             case.report_available_at = _now()
@@ -1962,8 +1965,11 @@ class CaseService:
                 recipients.add(saved.pet_owner_subject)
             elif saved.owner_subject:
                 recipients.add(saved.owner_subject)
-        elif to_role == "expert" and saved.assigned_reviewer_id:
-            recipients.add(saved.assigned_reviewer_id)
+        elif to_role == "expert":
+            if saved.assigned_reviewer_id:
+                recipients.add(saved.assigned_reviewer_id)
+            elif saved.draft_report and saved.draft_report.reviewed_by:
+                recipients.add(saved.draft_report.reviewed_by)
         for recipient in recipients:
             if recipient == principal.subject:
                 continue

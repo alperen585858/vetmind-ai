@@ -26,11 +26,14 @@ import { Logo } from '../components/Logo'
 import { ApprovedReportFigures } from '../components/ApprovedReportFigures'
 import { ReportRevisionSimple } from '../components/ReportRevisionSimple'
 import {
+  createCaseInfoRequest,
   downloadApprovedReportPdf,
+  getBackendCase,
   getReportVersion,
   listReportVersions,
   markReportDelivered,
   markReportViewed,
+  replyCaseInfoRequest,
   submitBackendReview,
 } from '../lib/backend'
 import { fmtDate } from '../lib/format'
@@ -39,7 +42,12 @@ import {
   caseWithDraftVersion,
   printSectionsForCase,
 } from '../lib/reportPrint'
-import type { BackendDraftReport, BackendReportVersionSummary, VetCase } from '../types'
+import type {
+  BackendDraftReport,
+  BackendInfoRequest,
+  BackendReportVersionSummary,
+  VetCase,
+} from '../types'
 
 export default function ApprovedReport() {
   const { id = '' } = useParams()
@@ -60,7 +68,25 @@ export default function ApprovedReport() {
   const [revising, setRevising] = useState(false)
   const [versionSwitching, setVersionSwitching] = useState(false)
   const [deliverBusy, setDeliverBusy] = useState(false)
+  const [expertAsk, setExpertAsk] = useState('')
+  const [expertAskBusy, setExpertAskBusy] = useState(false)
+  const [infoRequests, setInfoRequests] = useState<BackendInfoRequest[]>([])
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const viewedRef = useRef<string | null>(null)
+
+  const isVetStaff = role === 'vet' || role === 'clinic_owner'
+  const canAskExpert = isVetStaff && id.startsWith('case-')
+  const canReplyAsExpert = role === 'expert' && id.startsWith('case-')
+
+  const refreshInfoRequests = async () => {
+    if (!id.startsWith('case-')) return
+    try {
+      const rec = await getBackendCase(id)
+      setInfoRequests(rec.info_requests || [])
+    } catch {
+      /* keep prior */
+    }
+  }
 
   // Load case + version list once per case id (do NOT depend on hydrate fields — that caused a flash loop).
   useEffect(() => {
@@ -94,6 +120,15 @@ export default function ApprovedReport() {
       if (mapped.status === 'onaylandi' && mapped.fromBackend && viewedRef.current !== id) {
         viewedRef.current = id
         void markReportViewed(id).catch(() => undefined)
+      }
+      if (!cancelled) {
+        void getBackendCase(id)
+          .then((rec) => {
+            if (!cancelled) setInfoRequests(rec.info_requests || [])
+          })
+          .catch(() => {
+            if (!cancelled) setInfoRequests([])
+          })
       }
     })()
     return () => {
@@ -329,6 +364,62 @@ export default function ApprovedReport() {
       .finally(() => setDeliverBusy(false))
   }
 
+  const sendExpertQuestion = () => {
+    if (!canAskExpert || !expertAsk.trim() || expertAskBusy) return
+    setExpertAskBusy(true)
+    void createCaseInfoRequest(id, { body: expertAsk.trim(), to_role: 'expert' })
+      .then(async () => {
+        setExpertAsk('')
+        pushToast({ tone: 'info', title: t('cases.detail.toastExpertQuestionSent') })
+        await refreshInfoRequests()
+      })
+      .catch((err) => {
+        pushToast({
+          tone: 'error',
+          title: t('cases.detail.toastRequestFailed'),
+          body: err instanceof Error ? err.message : undefined,
+        })
+      })
+      .finally(() => setExpertAskBusy(false))
+  }
+
+  const replyExpertQuestion = (requestId: string) => {
+    const reply = (replyDraft[requestId] || '').trim()
+    if (!reply || expertAskBusy) return
+    setExpertAskBusy(true)
+    void replyCaseInfoRequest(id, requestId, reply)
+      .then(async () => {
+        setReplyDraft((prev) => {
+          const next = { ...prev }
+          delete next[requestId]
+          return next
+        })
+        pushToast({ tone: 'success', title: t('cases.detail.toastReplySaved') })
+        await refreshInfoRequests()
+      })
+      .catch((err) => {
+        pushToast({
+          tone: 'error',
+          title: t('cases.detail.toastReplyFailed'),
+          body: err instanceof Error ? err.message : undefined,
+        })
+      })
+      .finally(() => setExpertAskBusy(false))
+  }
+
+  const statusLabel = (status: string) => {
+    if (status === 'OPEN') return t('cases.detail.statusOpen')
+    if (status === 'ANSWERED') return t('cases.detail.statusAnswered')
+    if (status === 'CLOSED') return t('cases.detail.statusClosed')
+    return status
+  }
+  const roleLabel = (r: string) => {
+    if (r === 'expert') return t('cases.detail.roleExpert')
+    if (r === 'vet' || r === 'clinic_owner') return t('cases.detail.roleVet')
+    if (r === 'owner') return t('cases.detail.roleOwner')
+    return r
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="no-print">
@@ -383,6 +474,90 @@ export default function ApprovedReport() {
         <div className="no-print mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {loadError}
         </div>
+      )}
+
+      {(canAskExpert || canReplyAsExpert) && (
+        <Card className="no-print mb-5">
+          <div className="space-y-3 px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-navy-900">{t('reports.askExpertTitle')}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{t('reports.askExpertHint')}</p>
+            </div>
+            {canAskExpert && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="block flex-1 text-xs text-slate-600">
+                  {t('cases.detail.askExpert')}
+                  <textarea
+                    className="input mt-1 min-h-[72px] text-sm"
+                    value={expertAsk}
+                    onChange={(e) => setExpertAsk(e.target.value)}
+                    placeholder={t('reports.askExpertPlaceholder')}
+                    data-testid="ask-expert-input"
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  disabled={expertAskBusy || !expertAsk.trim()}
+                  icon={<Send className="h-4 w-4" />}
+                  onClick={sendExpertQuestion}
+                  data-testid="ask-expert-send"
+                >
+                  {t('reports.sendExpertQuestion')}
+                </Button>
+              </div>
+            )}
+            {infoRequests.length > 0 && (
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {t('reports.expertThreadTitle')}
+                </p>
+                <ul className="space-y-2 text-xs">
+                  {infoRequests.map((r) => (
+                    <li
+                      key={r.request_id}
+                      className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                      data-testid={`info-request-${r.request_id}`}
+                    >
+                      <p className="font-medium text-navy-900">
+                        {t('cases.detail.requestMeta', {
+                          status: statusLabel(r.status),
+                          role: roleLabel(r.to_role),
+                        })}
+                      </p>
+                      <p className="mt-0.5 text-navy-900">{r.body}</p>
+                      {r.reply ? (
+                        <p className="mt-1 text-teal-800" data-testid="info-request-reply">
+                          {t('cases.detail.replyLabel')} {r.reply}
+                        </p>
+                      ) : null}
+                      {r.status === 'OPEN' && canReplyAsExpert && r.to_role === 'expert' && (
+                        <div className="mt-2 flex flex-wrap items-end gap-2">
+                          <input
+                            className="input flex-1 text-sm"
+                            placeholder={t('cases.detail.replyPlaceholder')}
+                            value={replyDraft[r.request_id] || ''}
+                            onChange={(e) =>
+                              setReplyDraft((prev) => ({ ...prev, [r.request_id]: e.target.value }))
+                            }
+                            data-testid="ask-expert-reply-input"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={expertAskBusy || !(replyDraft[r.request_id] || '').trim()}
+                            onClick={() => replyExpertQuestion(r.request_id)}
+                            data-testid="ask-expert-reply-send"
+                          >
+                            {t('cases.detail.reply')}
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Card>
       )}
 
       {hasRevisionHistory && (

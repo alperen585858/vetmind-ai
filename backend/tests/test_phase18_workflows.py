@@ -183,6 +183,32 @@ def test_case_clinical_note_info_request_and_document_no_duplicate(tmp_path: Pat
     assert ans.status_code == 200
     assert ans.json()["info_requests"][-1]["status"] == "ANSWERED"
 
+    # Vet → expert question (assigned reviewer notified)
+    vet_ask = client.post(
+        f"/api/v1/cases/{cid}/info-requests",
+        json={"body": "Cerrahiye mi yönlendireyim?", "to_role": "expert"},
+        headers=_hdr(vet),
+    )
+    assert vet_ask.status_code == 201, vet_ask.text
+    expert_irq = vet_ask.json()["info_requests"][-1]
+    assert expert_irq["to_role"] == "expert"
+    assert expert_irq["status"] == "OPEN"
+    expert_ntf = client.get("/api/v1/notifications", headers=_hdr(expert))
+    assert expert_ntf.status_code == 200
+    assert any(
+        i["kind"] == "info_request_opened" and "Cerrahiye" in (i.get("body") or "")
+        for i in expert_ntf.json()["items"]
+    )
+    expert_reply = client.post(
+        f"/api/v1/cases/{cid}/info-requests/{expert_irq['request_id']}/reply",
+        json={"reply": "Önce medikal tedavi deneyin."},
+        headers=_hdr(expert),
+    )
+    assert expert_reply.status_code == 200
+    assert expert_reply.json()["info_requests"][-1]["status"] == "ANSWERED"
+    vet_ntf = client.get("/api/v1/notifications", headers=_hdr(vet))
+    assert any(i["kind"] == "info_request_answered" for i in vet_ntf.json()["items"])
+
     # Document attach must not create a second case
     before = client.get("/api/v1/cases", headers=_hdr(vet))
     n_before = len(before.json())

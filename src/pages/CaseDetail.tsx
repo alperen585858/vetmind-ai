@@ -594,6 +594,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
   const caseKey = c.backendCaseId || c.id
   const [note, setNote] = useState('')
   const [infoBody, setInfoBody] = useState('')
+  const [infoTarget, setInfoTarget] = useState<'vet' | 'owner' | 'expert'>(isExpert ? 'vet' : 'expert')
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [history, setHistory] = useState<PetHistoryEntry[]>([])
   const [busy, setBusy] = useState(false)
@@ -653,16 +654,36 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
     }
   }
 
-  const askInfo = async () => {
+  const roleLabel = (role: string) => {
+    if (role === 'expert') return t('cases.detail.roleExpert')
+    if (role === 'vet' || role === 'clinic_owner') return t('cases.detail.roleVet')
+    if (role === 'owner') return t('cases.detail.roleOwner')
+    return role
+  }
+  const statusLabel = (status: string) => {
+    if (status === 'OPEN') return t('cases.detail.statusOpen')
+    if (status === 'ANSWERED') return t('cases.detail.statusAnswered')
+    if (status === 'CLOSED') return t('cases.detail.statusClosed')
+    return status
+  }
+
+  const askInfo = async (toRole?: 'vet' | 'owner' | 'expert') => {
     if (!infoBody.trim() || !caseKey.startsWith('case-')) return
+    const target = toRole || (isExpert ? 'vet' : infoTarget)
     setBusy(true)
     try {
       await createCaseInfoRequest(caseKey, {
         body: infoBody.trim(),
-        to_role: isExpert ? 'vet' : 'owner',
+        to_role: target,
       })
       setInfoBody('')
-      pushToast({ tone: 'info', title: t('cases.detail.toastInfoRequestOpened') })
+      pushToast({
+        tone: 'info',
+        title:
+          target === 'expert'
+            ? t('cases.detail.toastExpertQuestionSent')
+            : t('cases.detail.toastInfoRequestOpened'),
+      })
       await refresh()
     } catch (e) {
       pushToast({ tone: 'error', title: t('cases.detail.toastRequestFailed'), body: e instanceof Error ? e.message : undefined })
@@ -755,18 +776,56 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
           <Card>
             <CardHeader title={t('cases.detail.infoRequestsDocs')} icon={<Info className="h-5 w-5" />} />
             <div className="space-y-3 px-5 pb-5">
-              <label className="block text-xs text-slate-600">
-                {isExpert ? t('cases.detail.askVet') : t('cases.detail.askOwnerRadiologist')}
-                <input
-                  className="input mt-1 text-sm"
-                  value={infoBody}
-                  onChange={(e) => setInfoBody(e.target.value)}
-                  placeholder={t('cases.detail.requestPlaceholder')}
-                />
-              </label>
+              {isExpert ? (
+                <label className="block text-xs text-slate-600">
+                  {t('cases.detail.askVet')}
+                  <input
+                    className="input mt-1 text-sm"
+                    value={infoBody}
+                    onChange={(e) => setInfoBody(e.target.value)}
+                    placeholder={t('cases.detail.requestPlaceholder')}
+                  />
+                </label>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-xs text-slate-600">
+                    {t('cases.detail.askTarget')}
+                    <select
+                      className="input mt-1 text-sm"
+                      value={infoTarget}
+                      onChange={(e) => setInfoTarget(e.target.value as 'owner' | 'expert')}
+                    >
+                      <option value="expert">{t('cases.detail.roleExpert')}</option>
+                      <option value="owner">{t('cases.detail.roleOwner')}</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs text-slate-600">
+                    {infoTarget === 'expert' ? t('cases.detail.askExpert') : t('cases.detail.askOwner')}
+                    <input
+                      className="input mt-1 text-sm"
+                      value={infoBody}
+                      onChange={(e) => setInfoBody(e.target.value)}
+                      placeholder={
+                        infoTarget === 'expert'
+                          ? t('cases.detail.expertQuestionPlaceholder')
+                          : t('cases.detail.requestPlaceholder')
+                      }
+                    />
+                  </label>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" disabled={busy || !infoBody.trim()} onClick={() => void askInfo()}>
-                  {t('cases.detail.openRequest')}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy || !infoBody.trim()}
+                  onClick={() => void askInfo()}
+                >
+                  {isExpert
+                    ? t('cases.detail.openRequest')
+                    : infoTarget === 'expert'
+                      ? t('cases.detail.sendToExpert')
+                      : t('cases.detail.openRequest')}
                 </Button>
                 <Button size="sm" variant="secondary" disabled={busy} onClick={() => docInputRef.current?.click()}>
                   Belge ekle (mevcut vaka)
@@ -787,8 +846,12 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                 {(backendExtras?.info_requests || []).map((r) => (
                   <li key={r.request_id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
                     <p className="font-medium text-navy-900">
-                      {r.status} · → {r.to_role} · {r.body}
+                      {t('cases.detail.requestMeta', {
+                        status: statusLabel(r.status),
+                        role: roleLabel(r.to_role),
+                      })}
                     </p>
+                    <p className="mt-0.5 text-navy-900">{r.body}</p>
                     {r.reply ? <p className="text-teal-800">{t('cases.detail.replyLabel')} {r.reply}</p> : null}
                     {r.status === 'OPEN' && (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -828,7 +891,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                             .then(() => pushToast({ tone: 'info', title: t('cases.detail.toastRequestClosed') }))
                         }
                       >
-                        Kapat (CLOSED)
+                        {t('cases.detail.closeRequest')}
                       </button>
                     )}
                   </li>

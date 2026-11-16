@@ -55,6 +55,7 @@ const env = {
   // E2E must never call a real model, whatever the developer's shell has set.
   VETMIND_LLM_PROVIDER: 'mock',
   VETMIND_RAG_EMBEDDING: 'hash',
+  VETMIND_VLM_ENABLED: '0',
 }
 
 const child = spawn(python, ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
