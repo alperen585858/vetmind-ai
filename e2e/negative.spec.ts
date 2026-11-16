@@ -219,7 +219,7 @@ test.describe('Expert authz', () => {
       await expect(page.getByText(/Sınıflandırma|MR/i).first()).toBeVisible({ timeout: 25_000 })
     }
     const caseId = await confirmAndRunDemoAnalysis(page, `ExpertOK-${Date.now().toString(36)}`)
-    await switchRole(page, 'Uzman Hekim (VRM)')
+    await switchRole(page, 'Uzman Veteriner Radyolog')
     await openExpertReviewForCase(page, caseId)
   })
 })

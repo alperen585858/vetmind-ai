@@ -65,7 +65,7 @@
   },
   "roles": {
     "vet": "Veterinarian",
-    "expert": "Specialist (VRM)",
+    "expert": "Veterinary Radiologist",
     "owner": "Pet Owner",
     "clinic_owner": "Clinic Owner",
     "admin": "System Administrator",
@@ -77,7 +77,7 @@
   },
   "roleTitles": {
     "vet": "Veterinarian",
-    "expert": "Veterinary Neurology Specialist",
+    "expert": "Veterinary Radiologist",
     "owner": "Pet Owner",
     "clinic_owner": "Clinic Owner",
     "admin": "System Administrator"

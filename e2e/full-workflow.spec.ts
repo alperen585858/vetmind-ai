@@ -50,7 +50,7 @@ test.describe('Full clinical workflow (synthetic)', () => {
     })
 
     // 11. Authorized expert review
-    await switchRole(page, 'Uzman Hekim (VRM)')
+    await switchRole(page, 'Uzman Veteriner Radyolog')
     await openExpertReviewForCase(page, caseId)
     // Demo provenance banner (wording: "Demo çıktı. Klinik tanı veya sertifikasyon iddiası yoktur.")
     await expect(page.getByText(/Demo çıktı|sertifikasyon iddiası|source_kind=mock/i).first()).toBeVisible()

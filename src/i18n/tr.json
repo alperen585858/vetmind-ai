@@ -65,7 +65,7 @@
   },
   "roles": {
     "vet": "Veteriner Hekim",
-    "expert": "Uzman Hekim (VRM)",
+    "expert": "Uzman Veteriner Radyolog",
     "owner": "Hayvan Sahibi",
     "clinic_owner": "Klinik Sahibi",
     "admin": "Sistem Yöneticisi",
@@ -77,7 +77,7 @@
   },
   "roleTitles": {
     "vet": "Veteriner Hekim",
-    "expert": "Uzman Veteriner Nörolog",
+    "expert": "Uzman Veteriner Radyolog",
     "owner": "Hayvan Sahibi",
     "clinic_owner": "Klinik Sahibi",
     "admin": "Sistem Yöneticisi"

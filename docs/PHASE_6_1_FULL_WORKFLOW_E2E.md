@@ -18,7 +18,7 @@
 6. **Demo analize devam et** → wait for `/vakalar/case-*/isleme`  
 7. Assert `DEMO / MOCK ANALYSIS`  
 8. Case detail **Bulgular** shows mock/synthetic provenance  
-9. Switch to **Uzman Hekim (VRM)**  
+9. Switch to **Uzman Veteriner Radyolog**  
 10. Expert review (backend hydrate) → **Onayla ve Yayınla**  
 11. Case history shows version / immutable  
 12. Approved report: patient, `DEMO / SENTETİK VERİ`, version label  
