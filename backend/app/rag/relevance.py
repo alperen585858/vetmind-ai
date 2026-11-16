@@ -6,7 +6,7 @@ docs (clinic-uploaded ``custom-*``) are always eligible. ``META`` docs (reportin
 safety notes) are never retrieved as clinical context.
 
 Region tags in use: BRAIN, SKULL, CERVICAL, SPINE (any level), SPINE_TL
-(thoracolumbar only), THORAX, META.
+(thoracolumbar only), THORAX, META. Case region THORACOLUMBAR draws from SPINE_TL + SPINE.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ _REGION_ALLOW: dict[str, frozenset[str]] = {
     "BRAIN": frozenset({"BRAIN"}),
     "CERVICAL": frozenset({"CERVICAL", "SPINE"}),
     "THORAX": frozenset({"THORAX"}),
+    # #49: thoracolumbar cases see spine sources only (TL myelopathy, IVDD, FKE, ...), never chest.
+    "THORACOLUMBAR": frozenset({"SPINE_TL", "SPINE"}),
 }
 # Skull bone / suture references matter for CT and radiographs, not brain MRI.
 _SKULL_MODALITIES = frozenset({"CT", "XR", "OTHER"})
