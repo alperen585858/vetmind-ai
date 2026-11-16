@@ -6,6 +6,7 @@ import {
   setBackendAccessToken,
   setBackendTokens,
 } from './auth'
+import { splitRecommendations } from './recommendations'
 import { canonicalizeCaseId } from './caseId'
 import { MAX_VIEWER_FRAMES } from './dicomFolder'
 import type { AIAssessment, DifferentialLikelihood, ReportSections, Species } from '../types'
@@ -1516,7 +1517,7 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       likelihood: d.likelihood,
       aliases: d.citations,
     })),
-    recommendedTests: [report.recommendations.text],
+    recommendedTests: splitRecommendations(report.recommendations.text),
     validation: findings.warnings
       .filter((w) => !isDisclaimerWarning(w))
       .map((w) => ({ kind: 'missing' as const, text: 'Pipeline notu', detail: w })),
