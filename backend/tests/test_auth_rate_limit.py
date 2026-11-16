@@ -91,7 +91,13 @@ def test_login_locks_account_after_failed_attempts(tmp_path: Path) -> None:
     blocked = _login(client, "vet@demo.local", "demo1234")  # even the right password waits
     assert blocked.status_code == 429
     assert int(blocked.headers["Retry-After"]) > 0
-    assert re.match(r"Too many attempts\. Try again in \d+ min\.", blocked.json()["detail"])
+    detail = blocked.json()["detail"]
+    if isinstance(detail, dict):
+        assert detail.get("code") == "rate_limited"
+        assert re.match(r"Too many attempts\. Try again in \d+ min\.", detail.get("message", ""))
+        assert isinstance(detail.get("minutes"), int) and detail["minutes"] >= 1
+    else:
+        assert re.match(r"Too many attempts\. Try again in \d+ min\.", detail)
     # Other accounts are unaffected (per-IP budget is larger).
     assert _login(client, "owner@demo.local", "demo1234").status_code == 200
     events = [e for e in container.audit.list_events(limit=100) if e["event_type"] == "auth.rate_limited"]

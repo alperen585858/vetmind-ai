@@ -33,15 +33,36 @@ MIN_PASSWORD_LENGTH = 8
 MAX_PASSWORD_LENGTH = 120
 
 
+def password_policy_detail(password: str) -> dict[str, object] | None:
+    """Return a structured API error when ``password`` is too weak, else ``None``."""
+    from app.http_errors import api_error
+
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return api_error(
+            "password_too_short",
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters.",
+            min=MIN_PASSWORD_LENGTH,
+        )
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return api_error(
+            "password_too_long",
+            f"Password must be at most {MAX_PASSWORD_LENGTH} characters.",
+            max=MAX_PASSWORD_LENGTH,
+        )
+    if not any(ch.isalpha() for ch in password) or not any(ch.isdigit() for ch in password):
+        return api_error(
+            "password_needs_letter_digit",
+            "Password must contain at least one letter and one digit.",
+        )
+    return None
+
+
 def password_policy_error(password: str) -> str | None:
     """Return why ``password`` is too weak for a new account, or ``None`` if it is fine."""
-    if len(password) < MIN_PASSWORD_LENGTH:
-        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
-    if len(password) > MAX_PASSWORD_LENGTH:
-        return f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
-    if not any(ch.isalpha() for ch in password) or not any(ch.isdigit() for ch in password):
-        return "Password must contain at least one letter and one digit."
-    return None
+    detail = password_policy_detail(password)
+    if detail is None:
+        return None
+    return str(detail["message"])
 
 
 def _b64(data: bytes) -> str:

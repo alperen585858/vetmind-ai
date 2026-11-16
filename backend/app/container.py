@@ -3,6 +3,7 @@ from pathlib import Path
 from app.auth.mailer import build_mailer
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
+from app.services.report_view_tokens import ReportViewTokenService, build_report_view_token_store
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.dicom.llm_classifier import build_metadata_classifier
@@ -375,11 +376,24 @@ class AppContainer:
             ttl_seconds=self.settings.refresh_ttl_seconds,
             directory=self._auth_users,
         )
+        self.report_view_tokens = ReportViewTokenService(
+            build_report_view_token_store(self.settings),
+            ttl_seconds=self.settings.report_view_token_ttl_seconds,
+        )
         self.password_resets = PasswordResetService(
             build_password_reset_store(self.settings),
             ttl_seconds=self.settings.password_reset_ttl_seconds,
         )
         self.mailer = build_mailer(self.settings)
+        self.cases.bind_owner_delivery(
+            mailer=self.mailer,
+            report_view_tokens=self.report_view_tokens,
+            auth_users=self._auth_users,
+            workflow_store=self.workflow_store,
+            smtp_configured=bool(self.settings.smtp_host),
+            public_base_url=self.settings.public_base_url,
+        )
+        self.dicom.bind_owner_directory(auth_users=self._auth_users, workflow_store=self.workflow_store)
         from app.security.rate_limit import build_rate_limiter
 
         self.rate_limiter = build_rate_limiter(

@@ -27,7 +27,9 @@ from app.schemas.enums import (
 )
 from app.schemas.findings import StudyInfo
 from app.feedback.store import FeedbackStore
+from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
+from app.services.owner_contact import resolve_owner_account, validate_owner_contact
 from app.services.repository import CaseRepository
 from app.storage.malware_scan import MalwareScanner, assert_upload_clean
 from app.storage.quarantine import QuarantineStore
@@ -67,6 +69,12 @@ class DicomService:
         self._tenant_isolation = tenant_isolation
         self._audit = audit
         self._malware_scanner = malware_scanner
+        self._auth_users: dict | None = None
+        self._workflow_store: object | None = None
+
+    def bind_owner_directory(self, *, auth_users: dict | None, workflow_store: object | None) -> None:
+        self._auth_users = auth_users
+        self._workflow_store = workflow_store
 
     def upload(
         self,
@@ -165,11 +173,17 @@ class DicomService:
     ) -> DicomIngestionRecord:
         record = self._repo.get_ingestion(ingest_id)
         if record is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DICOM ingestion not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=api_error("dicom_not_found", "DICOM ingestion not found."),
+            )
         if principal is not None and not can_access_owned(
             principal, record, isolation=self._tenant_isolation
         ):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DICOM ingestion not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=api_error("dicom_not_found", "DICOM ingestion not found."),
+            )
         return record
 
     def confirm(
@@ -187,21 +201,28 @@ class DicomService:
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
+                detail=api_error(
+                    "owner_cannot_confirm",
                     "Pet owners attach DICOM to imaging submissions; "
-                    "a veterinarian must verify and open the clinical case."
+                    "a veterinarian must verify and open the clinical case.",
                 ),
             )
         record = self.get_ingestion(ingest_id, principal=principal)
         if record.blocked:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=record.block_reason or "Blocked DICOM ingestion cannot create a case.",
+                detail=api_error(
+                    "ingestion_blocked",
+                    record.block_reason or "Blocked DICOM ingestion cannot create a case.",
+                ),
             )
         if record.study is None or record.classification is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Ingestion has no validated study/classification to confirm.",
+                detail=api_error(
+                    "ingestion_incomplete",
+                    "Ingestion has no validated study/classification to confirm.",
+                ),
             )
         if record.accepted and record.case_id:
             existing = self._repo.get_case(record.case_id)
@@ -240,25 +261,33 @@ class DicomService:
         if modality not in _ROUTABLE_MODALITIES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Confirmed modality is unsupported for the mock imaging pipeline (use MR/CT/XR; CR/DX/DR map to XR).",
+                detail=api_error(
+                    "unsupported_modality",
+                    "Confirmed modality is unsupported for the mock imaging pipeline "
+                    "(use MR/CT/XR; CR/DX/DR map to XR).",
+                ),
             )
         if region not in _ROUTABLE_REGIONS:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Confirmed anatomical region must be BRAIN, CERVICAL, THORAX or THORACOLUMBAR for automated routing. "
-                    "Use manual synthetic CaseCreate if you need OTHER/UNKNOWN demos."
+                detail=api_error(
+                    "unsupported_region",
+                    "Confirmed anatomical region must be BRAIN, CERVICAL, THORAX or THORACOLUMBAR "
+                    "for automated routing. Use manual synthetic CaseCreate if you need OTHER/UNKNOWN demos.",
                 ),
             )
         if modality == Modality.XR and region != AnatomicalRegion.THORAX:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="XR mock pipeline currently routes THORAX only.",
+                detail=api_error("xr_thorax_only", "XR mock pipeline currently routes THORAX only."),
             )
         if modality in {Modality.MR, Modality.CT} and region == AnatomicalRegion.THORAX:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="MR/CT mock pipeline currently routes BRAIN, CERVICAL or THORACOLUMBAR (not THORAX).",
+                detail=api_error(
+                    "mr_ct_no_thorax",
+                    "MR/CT mock pipeline currently routes BRAIN, CERVICAL or THORACOLUMBAR (not THORAX).",
+                ),
             )
 
         patient_name = (payload.patient_name or record.patient_name).strip()
@@ -300,6 +329,30 @@ class DicomService:
             imaging_analysis_consent_verified=bool(payload.imaging_analysis_consent_verified),
             status=CaseLifecycleStatus.CREATED,
         )
+        resolved = validate_owner_contact(
+            owner_name=payload.owner_name,
+            owner_email=payload.owner_email,
+            owner_email_consent=payload.owner_email_consent,
+            pet_owner_subject=payload.pet_owner_subject,
+            require=True,
+        )
+        assert resolved is not None
+        linked = resolved.pet_owner_subject
+        if not linked and resolved.owner_contact_email:
+            get_user = None
+            store = self._workflow_store
+            if store is not None and hasattr(store, "get_user"):
+                get_user = store.get_user
+            linked = resolve_owner_account(
+                email=resolved.owner_contact_email,
+                auth_users=self._auth_users,
+                workflow_get_user=get_user,
+            )
+        case.owner_contact_name = resolved.owner_contact_name
+        case.owner_contact_email = resolved.owner_contact_email or None
+        case.owner_email_consent = resolved.owner_email_consent
+        if linked:
+            case.pet_owner_subject = linked
         # F4: use live capability list so prepared_for_models includes remote Vision when registered.
         case.model_input = build_imaging_model_input(case, capabilities=self._capabilities)
         saved = self._repo.save_case(case)

@@ -18,6 +18,7 @@ import { fmtDate } from '../lib/format'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import type { TranslateFn } from '../i18n'
+import { presentApiError } from '../lib/apiErrors'
 import { demoEmailForRole } from '../lib/auth'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
@@ -71,39 +72,17 @@ function submissionStatusLabel(status: string, t: TranslateFn) {
 
 /** User-facing message; keep raw text for debugging. */
 function presentError(raw: string, tr: TranslateFn): { message: string; technical: string } {
+  const presented = presentApiError(raw, tr)
+  if (presented.code && presented.code !== 'unexpected') {
+    return { message: presented.message, technical: presented.technical }
+  }
   const text = raw.trim()
   const lower = text.toLowerCase()
   if (!text) return { message: tr('submissions.errors.unexpected'), technical: text }
-  if (
-    lower.includes('internal server error') ||
-    lower === '500' ||
-    /\b500\b/.test(text) ||
-    lower.includes('server error')
-  ) {
-    return {
-      message: tr('submissions.errors.server'),
-      technical: text,
-    }
-  }
-  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network')) {
-    return {
-      message: tr('submissions.errors.network'),
-      technical: text,
-    }
-  }
-  if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('403')) {
-    return {
-      message: tr('submissions.errors.auth'),
-      technical: text,
-    }
-  }
   if (lower.includes('timeout') || lower.includes('timed out')) {
-    return {
-      message: tr('submissions.errors.timeout'),
-      technical: text,
-    }
+    return { message: tr('submissions.errors.timeout'), technical: text }
   }
-  return { message: text, technical: text }
+  return { message: presented.message, technical: presented.technical || text }
 }
 
 function ErrorDetails({ raw }: { raw: string }) {
@@ -202,12 +181,11 @@ export default function Submissions() {
   }
 
   const toastError = (title: string, err: unknown) => {
-    const raw = err instanceof Error ? err.message : t('submissions.errors.unexpected')
-    const { message, technical } = presentError(raw, t)
+    const { message, technical } = presentApiError(err, t)
     pushToast({
       tone: 'error',
       title,
-      body: message === technical ? message : `${message} (${technical})`,
+      body: message === technical ? message : `${message}\n${technical}`,
     })
   }
 

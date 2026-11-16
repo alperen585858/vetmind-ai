@@ -24,6 +24,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { currentActorId } from '../lib/auth'
+import { toastErrorBody } from '../lib/apiErrors'
 import { vhsSpeciesFrom, type VhsResult } from '../lib/vhs'
 import { canonicalizeCaseId, isBackendCaseId } from '../lib/caseId'
 import { AIFindingsPanel, type EvidenceFocus } from '../components/AIFindingsPanel'
@@ -332,7 +333,7 @@ export default function RadiologistWorkspace() {
                       pushToast({
                         tone: 'error',
                         title: t('review.workspace.manualDraftFailed'),
-                        body: err instanceof Error ? err.message : undefined,
+                        body: toastErrorBody(err, t),
                       }),
                     )
                     .finally(() => setSaving(false))
@@ -377,7 +378,7 @@ export default function RadiologistWorkspace() {
       pushToast({
         tone: 'error',
         title: 'Taslak kaydedilemedi',
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
       return false
     } finally {
@@ -418,7 +419,7 @@ export default function RadiologistWorkspace() {
       pushToast({
         tone: 'error',
         title: t('review.workspace.lessonFailed'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     }
   }
@@ -458,7 +459,7 @@ export default function RadiologistWorkspace() {
           setModal(null)
           return
         }
-        await submitBackendReview(caseKey, {
+        const reviewed = await submitBackendReview(caseKey, {
           action: 'approve',
           comment: reason || undefined,
           edited_technique: text.klinikOzet,
@@ -470,6 +471,18 @@ export default function RadiologistWorkspace() {
         setModal(null)
         setReason('')
         setReasonCodes([])
+        if (reviewed.owner_email_delivery_status === 'failed_smtp') {
+          pushToast({
+            tone: 'error',
+            title: t('ownerContact.emailFailedToast'),
+            body: reviewed.owner_email_delivery_detail || t('ownerContact.deliveryFailed'),
+          })
+        } else if (reviewed.owner_email_delivery_status === 'sent') {
+          pushToast({
+            tone: 'success',
+            title: t('ownerContact.deliverySent'),
+          })
+        }
         // Hard navigation — do not use SPA nav (was leaving users on the worklist).
         goToApprovedReport(caseKey)
         return
@@ -513,7 +526,7 @@ export default function RadiologistWorkspace() {
       pushToast({
         tone: 'error',
         title: t('review.workspace.toastOpFailed'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     }
   }
@@ -572,7 +585,7 @@ export default function RadiologistWorkspace() {
       pushToast({
         tone: 'error',
         title: t('review.workspace.toastResendError'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     } finally {
       if (resendAbortRef.current === controller) resendAbortRef.current = null
@@ -613,7 +626,7 @@ export default function RadiologistWorkspace() {
       pushToast({
         tone: 'error',
         title: t('review.workspace.toastRegenerateFailed'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     } finally {
       setRegenerating(false)
@@ -1033,7 +1046,7 @@ export default function RadiologistWorkspace() {
                           pushToast({
                             tone: 'error',
                             title: t('review.workspace.toastInternalFailed'),
-                            body: e instanceof Error ? e.message : undefined,
+                            body: toastErrorBody(e, t),
                           }),
                         )
                     }
@@ -1063,7 +1076,7 @@ export default function RadiologistWorkspace() {
                           pushToast({
                             tone: 'error',
                             title: t('review.workspace.toastRequestFailed'),
-                            body: e instanceof Error ? e.message : undefined,
+                            body: toastErrorBody(e, t),
                           }),
                         )
                     }
@@ -1106,7 +1119,7 @@ export default function RadiologistWorkspace() {
                     pushToast({
                       tone: 'error',
                       title: t('review.workspace.toastDeleteFailed'),
-                      body: err instanceof Error ? err.message : undefined,
+                      body: toastErrorBody(err, t),
                     }),
                   )
                   .finally(() => setDeleting(false))

@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Literal
 
 from fastapi import HTTPException, status
 
-from app.auth.passwords import hash_password, is_password_hash, needs_rehash, password_policy_error
+from app.auth.passwords import hash_password, is_password_hash, needs_rehash, password_policy_detail
+from app.http_errors import api_error
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
 from app.auth.tenancy import assert_case_access, can_access_owned
@@ -71,7 +72,7 @@ def _assert_user_state_allowed(user: ManagedUser) -> None:
 
 
 def _assert_password_allowed(password: str) -> None:
-    weak = password_policy_error(password)
+    weak = password_policy_detail(password)
     if weak:
         raise HTTPException(status_code=422, detail=weak)
 
@@ -685,6 +686,10 @@ class WorkflowService:
                         clinical_history=history,
                         imaging_source_permission_verified=True,
                         imaging_analysis_consent_verified=True,
+                        owner_name=pet.name,
+                        owner_email=sub.pet_owner_subject,
+                        owner_email_consent=True,
+                        pet_owner_subject=sub.pet_owner_subject,
                     ),
                     principal=principal,
                 )
@@ -709,6 +714,10 @@ class WorkflowService:
                     assigned_reviewer_id=payload.assigned_reviewer_id,
                     study=StudyInfo(dicom_available=False),
                     referring_clinic=sub.clinic_id,
+                    owner_name=pet.name,
+                    owner_email=sub.pet_owner_subject,
+                    owner_email_consent=True,
+                    pet_owner_subject=sub.pet_owner_subject,
                 ),
                 principal=principal,
             )
@@ -1008,9 +1017,15 @@ class WorkflowService:
         """Public sign-up. Owners are active at once; vets wait for admin activation."""
         email = email.strip().lower()
         if not _EMAIL_RE.match(email):
-            raise HTTPException(status_code=422, detail="Enter a valid email address.")
+            raise HTTPException(
+                status_code=422,
+                detail=api_error("invalid_email", "Enter a valid email address."),
+            )
         if role not in ("owner", "vet"):
-            raise HTTPException(status_code=422, detail="This role cannot be self-registered.")
+            raise HTTPException(
+                status_code=422,
+                detail=api_error("role_not_self_registerable", "This role cannot be self-registered."),
+            )
         _assert_password_allowed(password)
         name = (display_name or "").strip() or email.split("@")[0]
         user = ManagedUser(
@@ -1027,7 +1042,7 @@ class WorkflowService:
             if self._store.get_user(email) is not None or email in DEMO_USERS:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="An account with this email already exists.",
+                    detail=api_error("email_exists", "An account with this email already exists."),
                 )
             self._store.save_user(user)
             self.sync_auth_directory()

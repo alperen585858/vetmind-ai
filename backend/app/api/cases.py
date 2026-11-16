@@ -14,6 +14,7 @@ from app.schemas.case import (
     CaseCreate,
     CaseMessageCreate,
     CaseMessageView,
+    CaseOwnerUpdate,
     CaseRecord,
     CaseSummary,
     ClinicDashboardStats,
@@ -212,6 +213,29 @@ def update_assignment(
     if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assignment not allowed.")
     return case_for_principal(service.update_assignment(case_id, payload, principal=principal), principal)
+
+
+@router.patch("/{case_id}/owner", response_model=CaseRecord)
+def update_case_owner(
+    case_id: str,
+    payload: CaseOwnerUpdate,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_capability(CAP_CASE_WRITE)),
+) -> CaseRecord:
+    """Attach or update pet-owner contact (including legacy cases without an owner)."""
+    return case_for_principal(service.update_owner_contact(case_id, payload, principal=principal), principal)
+
+
+@router.post("/{case_id}/report-view-links/revoke", response_model=CaseRecord)
+def revoke_report_view_links(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    """Invalidate outstanding emailed report-view links for this case."""
+    if not (principal.can(CAP_CASE_WRITE) or principal.can(CAP_REVIEW)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+    return case_for_principal(service.revoke_report_view_links(case_id, principal=principal), principal)
 
 
 @router.post("/{case_id}/clinical-notes", response_model=CaseRecord)

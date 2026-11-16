@@ -184,7 +184,11 @@ def test_weak_password_is_rejected_with_reason(tmp_path: Path, password: str) ->
     client, container = _app(tmp_path)
     res = _register(client, password=password)
     assert res.status_code == 422
-    assert "Password must" in res.json()["detail"]
+    detail = res.json()["detail"]
+    message = detail["message"] if isinstance(detail, dict) else detail
+    assert "Password must" in message
+    if isinstance(detail, dict):
+        assert detail.get("code", "").startswith("password_")
     assert container.workflow_store.get_user("ayse@example.com") is None
 
 
@@ -303,7 +307,9 @@ def test_admin_create_and_reset_use_same_password_policy(tmp_path: Path, passwor
         headers=admin,
     )
     assert created.status_code == 422
-    assert "Password must" in created.json()["detail"]
+    created_detail = created.json()["detail"]
+    created_msg = created_detail["message"] if isinstance(created_detail, dict) else created_detail
+    assert "Password must" in created_msg
     assert container.workflow_store.get_user("weak@clinic.test") is None
 
     reset = client.patch("/api/v1/admin/users/vet@demo.local", json={"password": password}, headers=admin)

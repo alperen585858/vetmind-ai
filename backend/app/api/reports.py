@@ -7,6 +7,7 @@ from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
 from app.container import AppContainer
+from app.http_errors import api_error
 from app.schemas.case import CaseActivityEvent, CaseRecord, ReportDraftUpdate, ReviewFeedback
 from app.schemas.enums import CaseLifecycleStatus, ReportStatus
 from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
@@ -153,12 +154,21 @@ def download_approved_report_pdf(
     """Download a server-generated PDF of an immutable approved report version."""
     case = service.get_case(case_id, principal=principal)
     if case.status != CaseLifecycleStatus.APPROVED:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PDF only for approved cases.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=api_error("pdf_not_approved", "PDF only for approved cases."),
+        )
     quarantine = container.quarantine
     if version is not None:
         snap = service.get_report_version(case_id, version, principal=principal)
         if not snap.immutable:
-            raise HTTPException(status_code=409, detail="Selected version is not an approved immutable snapshot.")
+            raise HTTPException(
+                status_code=409,
+                detail=api_error(
+                    "pdf_version_not_immutable",
+                    "Selected version is not an approved immutable snapshot.",
+                ),
+            )
         pdf = build_approved_report_pdf(
             case,
             snap,
@@ -171,7 +181,10 @@ def download_approved_report_pdf(
         if report is None or not report.immutable or report.status != ReportStatus.APPROVED:
             snaps = [v for v in case.report_versions if v.immutable]
             if not snaps:
-                raise HTTPException(status_code=409, detail="No immutable approved report to export.")
+                raise HTTPException(
+                    status_code=409,
+                    detail=api_error("pdf_not_approved", "No immutable approved report to export."),
+                )
             snap = max(snaps, key=lambda s: s.version)
             pdf = build_approved_report_pdf(
                 case,

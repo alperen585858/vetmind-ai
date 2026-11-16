@@ -8,10 +8,11 @@ from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth
 from app.auth.mailer import OutgoingMail
 from app.auth.password_reset import PasswordResetError
-from app.auth.passwords import password_policy_error
+from app.auth.passwords import password_policy_detail
 from app.auth.refresh_tokens import RefreshTokenError
 from app.auth.security import DEMO_USERS, DemoUserRecord, create_access_token, verify_password
 from app.container import AppContainer
+from app.http_errors import api_error
 from app.security.audit import AuditOutcome
 from app.security.rate_limit import (
     FORGOT_PER_EMAIL,
@@ -140,7 +141,11 @@ def _enforce_limits(
         minutes = max(1, math.ceil(wait / 60))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many attempts. Try again in {minutes} min.",
+            detail=api_error(
+                "rate_limited",
+                f"Too many attempts. Try again in {minutes} min.",
+                minutes=minutes,
+            ),
             headers={"Retry-After": str(wait)},
         )
 
@@ -189,7 +194,10 @@ def login(
             outcome=AuditOutcome.DENIED,
             detail="invalid_credentials",
         )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=api_error("invalid_credentials", "Invalid email or password."),
+        )
     container.audit.record(
         event_type="auth.login",
         actor=email,
@@ -234,7 +242,7 @@ def _issue_token(
     )
 
 
-_SESSION_EXPIRED = "Session expired. Please sign in again."
+_SESSION_EXPIRED = api_error("session_expired", "Session expired. Please sign in again.")
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -303,7 +311,10 @@ def register(
 
     if not container.settings.self_registration_enabled:
         _audit(AuditOutcome.DENIED, "self_registration_disabled")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Self-registration is disabled.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=api_error("self_registration_disabled", "Self-registration is disabled."),
+        )
     try:
         user = container.workflow.register_user(
             email=email,
@@ -342,7 +353,10 @@ def me(
 
 # --- password change / forgot / reset (issue #31 step 4) ---------------------
 
-_RESET_LINK_INVALID = "This reset link is invalid or has expired. Request a new one."
+_RESET_LINK_INVALID = api_error(
+    "reset_link_invalid",
+    "This reset link is invalid or has expired. Request a new one.",
+)
 _FORGOT_ACCEPTED = "If an account exists for this email, we've sent a link to reset the password."
 
 
@@ -355,7 +369,10 @@ def change_password(
 ) -> TokenResponse:
     """Change your own password. Other sessions end; this one gets a fresh token pair."""
     if principal.via != "jwt":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sign in with a user account first.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=api_error("sign_in_required", "Sign in with a user account first."),
+        )
     email = principal.subject
     limits = [("password_change_user", email, PASSWORD_CHANGE_PER_USER)]
     _enforce_limits(container, request, email, limits)
@@ -369,7 +386,10 @@ def change_password(
             outcome=AuditOutcome.DENIED,
             detail="wrong_current_password",
         )
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=api_error("wrong_current_password", "Current password is incorrect."),
+        )
     user = container.workflow.set_password(email, payload.new_password)
     container.refresh_tokens.revoke_all_for(email)
     container.audit.record(
@@ -448,7 +468,7 @@ def reset_password(
     """Set a new password with an emailed token. Ends every existing session."""
     limits = [("reset_ip", _client_ip(request, container), RESET_PER_IP)]
     _enforce_limits(container, request, "anonymous", limits)
-    weak = password_policy_error(payload.new_password)
+    weak = password_policy_detail(payload.new_password)
     if weak:
         # Checked before the token is consumed, so a weak attempt does not burn the link.
         raise HTTPException(status_code=422, detail=weak)

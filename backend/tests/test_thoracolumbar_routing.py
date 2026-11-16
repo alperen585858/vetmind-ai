@@ -110,7 +110,7 @@ def test_confirmed_thoracolumbar_mr_study_is_analysed_by_the_spine_model(tmp_pat
     conf = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
         json={
-            "accept_suggestion": False,
+            "accept_suggestion": False, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "modality": "MR",
             "anatomical_region": "THORACOLUMBAR",
             "imaging_source_permission_verified": True,
@@ -136,7 +136,7 @@ def test_thoracolumbar_radiograph_is_not_auto_routed(tmp_path: Path) -> None:
     conf = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
         json={
-            "accept_suggestion": False,
+            "accept_suggestion": False, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "modality": "XR",
             "anatomical_region": "THORACOLUMBAR",
             "imaging_source_permission_verified": True,
@@ -162,7 +162,7 @@ def test_thoracolumbar_demo_study_is_suggested_and_routed_without_manual_overrid
     conf = client.post(
         f"/api/v1/dicom/ingestions/{body['ingest_id']}/confirm",
         json={
-            "accept_suggestion": True,
+            "accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "imaging_source_permission_verified": True,
             "imaging_analysis_consent_verified": True,
         },

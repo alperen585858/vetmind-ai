@@ -29,9 +29,33 @@ const API_BASE = '/api/v1'
 
 export class BackendUnavailableError extends Error {
   // Shown to users; the developer hint (start the backend) lives in README §4.
+  // Prefer presentApiError() / auth.backendUnreachable for locale-aware UI.
   constructor(message = 'Sunucuya ulaşılamıyor. Lütfen biraz sonra tekrar deneyin.') {
     super(message)
     this.name = 'BackendUnavailableError'
+  }
+}
+
+/** HTTP API failure with optional stable ``code`` for i18n. */
+export class ApiError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly params?: Record<string, string | number>
+  readonly detail: unknown
+
+  constructor(opts: {
+    status: number
+    message: string
+    code?: string
+    params?: Record<string, string | number>
+    detail?: unknown
+  }) {
+    super(opts.message)
+    this.name = 'ApiError'
+    this.status = opts.status
+    this.code = opts.code
+    this.params = opts.params
+    this.detail = opts.detail
   }
 }
 
@@ -82,6 +106,35 @@ function formatDetail(detail: unknown): string {
   } catch {
     return 'Request failed'
   }
+}
+
+function parseApiDetail(detail: unknown): {
+  message: string
+  code?: string
+  params?: Record<string, string | number>
+} {
+  if (typeof detail === 'string') {
+    return { message: detail }
+  }
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const obj = detail as Record<string, unknown>
+    const message =
+      typeof obj.message === 'string'
+        ? obj.message
+        : formatDetail(detail)
+    const code = typeof obj.code === 'string' ? obj.code : undefined
+    const params: Record<string, string | number> = {}
+    for (const key of ['minutes', 'min', 'max', 'count'] as const) {
+      const v = obj[key]
+      if (typeof v === 'number' || typeof v === 'string') params[key] = v
+    }
+    return {
+      message,
+      code,
+      params: Object.keys(params).length ? params : undefined,
+    }
+  }
+  return { message: formatDetail(detail) }
 }
 
 /** Fired on `window` when the backend session cannot be renewed (user must sign in again). */
@@ -180,14 +233,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
   if (!res.ok) {
-    let detail = res.statusText
+    let rawDetail: unknown = res.statusText
     try {
       const body = (await res.json()) as { detail?: unknown }
-      if (body.detail !== undefined) detail = formatDetail(body.detail)
+      if (body.detail !== undefined) rawDetail = body.detail
     } catch {
       /* ignore */
     }
-    throw new Error(detail)
+    const parsed = parseApiDetail(rawDetail)
+    throw new ApiError({
+      status: res.status,
+      message: parsed.message || res.statusText || 'Request failed',
+      code: parsed.code,
+      params: parsed.params,
+      detail: rawDetail,
+    })
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T
@@ -534,6 +594,10 @@ export async function createAndAnalyzeCase(input: {
   scenario: BackendScenario
   patientAgeYears?: number
   priority?: 'normal' | 'high' | 'urgent' | 'stat'
+  ownerName: string
+  ownerEmail: string
+  ownerEmailConsent?: boolean
+  petOwnerSubject?: string | null
   clinicalHistoryStructured?: {
     complaint?: string
     onset?: string
@@ -565,6 +629,10 @@ export async function createAndAnalyzeCase(input: {
       priority: input.priority ?? 'normal',
       scenario: input.scenario,
       referring_clinic: '',
+      owner_name: input.ownerName,
+      owner_email: input.ownerEmail,
+      owner_email_consent: Boolean(input.ownerEmailConsent),
+      pet_owner_subject: input.petOwnerSubject || null,
     }),
   })
   return analyzeCaseAsyncAndWait(created.case_id, {
@@ -712,9 +780,24 @@ export async function confirmDocumentIngest(ingestId: string): Promise<BackendCa
 
 export async function confirmDocumentAndAnalyze(
   ingestId: string,
-  opts?: { signal?: AbortSignal; cancelBackendOnAbort?: boolean },
+  opts?: {
+    signal?: AbortSignal
+    cancelBackendOnAbort?: boolean
+    ownerName?: string
+    ownerEmail?: string
+    ownerEmailConsent?: boolean
+    petOwnerSubject?: string | null
+  },
 ): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDocumentIngest(ingestId)
+  if (opts?.ownerName?.trim() && opts?.ownerEmail?.trim()) {
+    await updateCaseOwner(caseRecord.case_id, {
+      owner_name: opts.ownerName.trim(),
+      owner_email: opts.ownerEmail.trim(),
+      owner_email_consent: Boolean(opts.ownerEmailConsent),
+      pet_owner_subject: opts.petOwnerSubject || null,
+    })
+  }
   return analyzeCaseAsyncAndWait(caseRecord.case_id, {
     signal: opts?.signal,
     cancelBackendOnAbort: opts?.cancelBackendOnAbort,
@@ -940,6 +1023,10 @@ export async function confirmDicomClassification(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
+  ownerName: string
+  ownerEmail: string
+  ownerEmailConsent?: boolean
+  petOwnerSubject?: string | null
   /** Maps UI consent → case flags (does not enable pixel inference by itself). */
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
@@ -954,10 +1041,67 @@ export async function confirmDicomClassification(input: {
       anatomical_region: input.anatomicalRegion ?? null,
       patient_name: input.patientName ?? null,
       clinical_history: input.clinicalHistory ?? null,
+      owner_name: input.ownerName,
+      owner_email: input.ownerEmail,
+      owner_email_consent: Boolean(input.ownerEmailConsent),
+      pet_owner_subject: input.petOwnerSubject || null,
       imaging_source_permission_verified: Boolean(input.imagingSourcePermissionVerified),
       imaging_analysis_consent_verified: Boolean(input.imagingAnalysisConsentVerified),
     }),
   })
+}
+
+export type OwnerSearchHit = {
+  subject: string
+  display_name: string
+  email: string
+  role: string
+  clinic_id?: string | null
+}
+
+export async function searchOwners(q: string): Promise<{ items: OwnerSearchHit[] }> {
+  const qs = new URLSearchParams({ q })
+  return request(`/owners/search?${qs}`)
+}
+
+export async function updateCaseOwner(
+  caseId: string,
+  payload: {
+    owner_name: string
+    owner_email: string
+    owner_email_consent?: boolean
+    pet_owner_subject?: string | null
+  },
+): Promise<BackendCaseRecord> {
+  return request(`/cases/${encodeURIComponent(caseId)}/owner`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      owner_name: payload.owner_name,
+      owner_email: payload.owner_email,
+      owner_email_consent: Boolean(payload.owner_email_consent),
+      pet_owner_subject: payload.pet_owner_subject || null,
+    }),
+  })
+}
+
+export async function revokeCaseReportViewLinks(caseId: string): Promise<BackendCaseRecord> {
+  return request(`/cases/${encodeURIComponent(caseId)}/report-view-links/revoke`, { method: 'POST' })
+}
+
+export type PublicReportView = {
+  case_id: string
+  patient_name: string
+  report_version: number
+  technique?: string | null
+  findings?: string | null
+  impression?: string | null
+  recommendations?: string | null
+  note?: string
+}
+
+export async function fetchPublicReportView(token: string, consume = true): Promise<PublicReportView> {
+  const qs = new URLSearchParams({ token, consume: consume ? 'true' : 'false' })
+  return request(`/public/report-view?${qs}`)
 }
 
 /** Enqueue background analyze and return immediately (no polling). */
@@ -979,6 +1123,10 @@ export async function confirmDicomAndEnqueueAnalyze(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
+  ownerName: string
+  ownerEmail: string
+  ownerEmailConsent?: boolean
+  petOwnerSubject?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
@@ -996,6 +1144,10 @@ export async function confirmDicomAndAnalyze(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
+  ownerName: string
+  ownerEmail: string
+  ownerEmailConsent?: boolean
+  petOwnerSubject?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
@@ -1404,8 +1556,8 @@ export async function submitBackendReview(caseId: string, payload: {
   edited_findings?: string
   edited_impression?: string
   edited_recommendations?: string
-}) {
-  return request(`/cases/${caseId}/review`, {
+}): Promise<BackendCaseRecord> {
+  return request<BackendCaseRecord>(`/cases/${caseId}/review`, {
     method: 'POST',
     body: JSON.stringify({ reviewer_id: currentActorId(), ...payload }),
   })

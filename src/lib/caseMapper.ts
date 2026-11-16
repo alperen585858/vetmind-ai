@@ -169,8 +169,12 @@ function applyPatientDemographics(
   return patient
 }
 
-function ownerLabelFromBackend(ownerSubject?: string | null, petOwnerSubject?: string | null): string {
-  return (petOwnerSubject || ownerSubject || '').trim()
+function ownerLabelFromBackend(
+  ownerSubject?: string | null,
+  petOwnerSubject?: string | null,
+  ownerContactName?: string | null,
+): string {
+  return (ownerContactName || petOwnerSubject || ownerSubject || '').trim()
 }
 
 /**
@@ -205,7 +209,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
   const species = speciesFromBackend(s.species)
   const status = caseStatusFromLifecycle(s.status)
   const created = s.created_at.slice(0, 10)
-  const owner = ownerLabelFromBackend(s.owner_subject, s.pet_owner_subject)
+  const owner = ownerLabelFromBackend(s.owner_subject, s.pet_owner_subject, s.owner_contact_name)
   const patient = basePatient(s.patient_name, species, s.breed, owner)
   if (s.patient_age_years != null) patient.age = s.patient_age_years
   return {
@@ -243,6 +247,10 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     petOwnerSubject: s.pet_owner_subject ?? undefined,
     petId: s.pet_id ?? undefined,
     submissionId: s.submission_id ?? undefined,
+    ownerContactName: s.owner_contact_name ?? undefined,
+    ownerContactEmail: s.owner_contact_email ?? undefined,
+    ownerEmailConsent: s.owner_email_consent ?? undefined,
+    ownerEmailDeliveryStatus: s.owner_email_delivery_status ?? undefined,
     currentReportVersion: s.current_report_version ?? undefined,
     reportVersionCount: s.report_version_count ?? undefined,
   }
@@ -269,7 +277,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     clinical.medications = structured.medications || clinical.medications
     clinical.history = structured.relevant_history || clinical.history
   }
-  const owner = ownerLabelFromBackend(r.owner_subject, r.pet_owner_subject)
+  const owner = ownerLabelFromBackend(r.owner_subject, r.pet_owner_subject, r.owner_contact_name)
   const patient = applyPatientDemographics(
     basePatient(r.patient_name, species, r.breed, owner),
     structured,
@@ -420,6 +428,11 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     petOwnerSubject: r.pet_owner_subject ?? undefined,
     petId: r.pet_id ?? undefined,
     submissionId: r.submission_id ?? undefined,
+    ownerContactName: r.owner_contact_name ?? undefined,
+    ownerContactEmail: r.owner_contact_email ?? undefined,
+    ownerEmailConsent: Boolean(r.owner_email_consent),
+    ownerEmailDeliveryStatus: r.owner_email_delivery_status ?? undefined,
+    ownerEmailDeliveryDetail: r.owner_email_delivery_detail ?? undefined,
   }
 }
 

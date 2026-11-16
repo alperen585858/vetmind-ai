@@ -9,6 +9,7 @@ import { Logo } from '../components/Logo'
 import { Button } from '../components/Button'
 import { PasswordStrength, usePasswordError } from '../components/PasswordStrength'
 import { backendAccountSession, postLoginPath, setBackendTokens } from '../lib/auth'
+import { userErrorMessage } from '../lib/apiErrors'
 import { BackendUnavailableError, backendRegister } from '../lib/backend'
 
 // Self-service roles the backend accepts. Vets start inactive until an admin assigns a clinic.
@@ -50,13 +51,7 @@ export default function Register() {
       pushToast({ tone: 'success', title: t('auth.registerSuccessTitle'), body: session.email })
       nav(postLoginPath(session.role, locale))
     } catch (err) {
-      setError(
-        err instanceof BackendUnavailableError
-          ? t('auth.backendUnreachable')
-          : err instanceof Error
-            ? err.message
-            : t('auth.loginFailed'),
-      )
+      setError(err instanceof BackendUnavailableError ? t('auth.backendUnreachable') : userErrorMessage(err, t) || t('auth.loginFailed'))
     } finally {
       setBusy(false)
     }

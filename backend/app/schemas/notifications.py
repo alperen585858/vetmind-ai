@@ -17,6 +17,7 @@ NotificationKind = Literal[
     "case_message",
     "revision_requested",
     "report_approved",
+    "owner_email_failed",
     "urgent_assignment",
     "info_request_opened",
     "info_request_answered",

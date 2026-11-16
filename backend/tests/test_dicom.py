@@ -15,6 +15,16 @@ from app.schemas.enums import AnatomicalRegion, DicomValidationCode, Modality, S
 from app.schemas.dicom import ConfirmClassificationRequest
 
 
+def _owner_confirm(**extra):
+    body = {
+        "owner_name": "Demo Owner",
+        "owner_email": "owner@demo.local",
+        "owner_email_consent": True,
+    }
+    body.update(extra)
+    return body
+
+
 def test_parse_synthetic_brain_instance() -> None:
     filename, data = brain_mri_study_files(1)[0]
     parsed = parse_dicom_bytes(data, filename)
@@ -174,7 +184,7 @@ def test_api_upload_confirm_analyze(client: TestClient) -> None:
 
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={"accept_suggestion": True},
+        json=_owner_confirm(accept_suggestion=True),
     )
     assert confirmed.status_code == 200, confirmed.text
     case = confirmed.json()
@@ -203,11 +213,11 @@ def test_api_confirm_override_region(client: TestClient) -> None:
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={
-            "accept_suggestion": False,
-            "modality": "MR",
-            "anatomical_region": "CERVICAL",
-        },
+        json=_owner_confirm(
+            accept_suggestion=False,
+            modality="MR",
+            anatomical_region="CERVICAL",
+        ),
     )
     assert confirmed.status_code == 200
     assert confirmed.json()["anatomical_region"] == "CERVICAL"
@@ -225,7 +235,7 @@ def test_api_blocked_cannot_confirm(client: TestClient) -> None:
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json=ConfirmClassificationRequest(accept_suggestion=True).model_dump(mode="json"),
+        json=ConfirmClassificationRequest(accept_suggestion=True, owner_name='Demo Owner', owner_email='owner@demo.local', owner_email_consent=True).model_dump(mode="json"),
     )
     assert confirmed.status_code == 409
 
@@ -256,7 +266,7 @@ def test_api_demo_fixture_brain(client: TestClient) -> None:
     assert body["classification"]["suggested_anatomical_region"] == "BRAIN"
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{body['ingest_id']}/confirm",
-        json={"accept_suggestion": True},
+        json=_owner_confirm(accept_suggestion=True),
     )
     assert confirmed.status_code == 200
     analyzed = client.post(f"/api/v1/cases/{confirmed.json()['case_id']}/analyze")
@@ -272,7 +282,7 @@ def test_case_list_includes_study_summary_fields(client: TestClient) -> None:
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={"accept_suggestion": True},
+        json=_owner_confirm(accept_suggestion=True),
     )
     assert confirmed.status_code == 200
     listing = client.get("/api/v1/cases")
@@ -303,7 +313,9 @@ def test_analyze_blocked_when_classification_unconfirmed(client: TestClient) -> 
     container.repo.save_case(case)
     denied = client.post(f"/api/v1/cases/{case_id}/analyze")
     assert denied.status_code == 409
-    assert "classification" in denied.json()["detail"].lower()
+    detail = denied.json()["detail"]
+    message = detail["message"] if isinstance(detail, dict) else detail
+    assert "classification" in str(message).lower()
 
 
 def test_confirm_wires_consent_flags_without_pixel_auth(client: TestClient) -> None:
@@ -316,11 +328,11 @@ def test_confirm_wires_consent_flags_without_pixel_auth(client: TestClient) -> N
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={
-            "accept_suggestion": True,
-            "imaging_source_permission_verified": True,
-            "imaging_analysis_consent_verified": True,
-        },
+        json=_owner_confirm(
+            accept_suggestion=True,
+            imaging_source_permission_verified=True,
+            imaging_analysis_consent_verified=True,
+        ),
     )
     assert confirmed.status_code == 200, confirmed.text
     case = confirmed.json()
@@ -383,7 +395,7 @@ def test_case_dicom_files_from_quarantine(client: TestClient) -> None:
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={"accept_suggestion": True},
+        json=_owner_confirm(accept_suggestion=True),
     )
     assert confirmed.status_code == 200
     case_id = confirmed.json()["case_id"]

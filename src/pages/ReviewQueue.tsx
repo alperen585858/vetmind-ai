@@ -7,6 +7,7 @@ import { Button } from '../components/Button'
 import { ExpertWorklistTable } from '../components/ExpertWorklistTable'
 import { Modal } from '../components/Modal'
 import { currentActorId } from '../lib/auth'
+import { toastErrorBody } from '../lib/apiErrors'
 import { deleteBackendCase, listBackendWorklist, updateCaseAssignment } from '../lib/backend'
 import { summaryToVetCase } from '../lib/caseMapper'
 import { compareBySlaUrgency, isSlaAttention } from '../lib/reviewSla'
@@ -98,7 +99,7 @@ export default function ReviewQueue() {
         pushToast({
           tone: 'error',
           title: t('review.assignFailed'),
-          body: err instanceof Error ? err.message : undefined,
+          body: toastErrorBody(err, t),
         }),
       )
   }
@@ -350,7 +351,7 @@ export default function ReviewQueue() {
                     pushToast({
                       tone: 'error',
                       title: t('review.deleteFailed'),
-                      body: err instanceof Error ? err.message : undefined,
+                      body: toastErrorBody(err, t),
                     }),
                   )
                   .finally(() => setDeleting(false))

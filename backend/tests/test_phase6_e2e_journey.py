@@ -79,7 +79,7 @@ def _demo_upload_confirm_analyze(client: TestClient, *, headers: dict | None = N
     conf = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
         json={
-            "accept_suggestion": True,
+            "accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "imaging_source_permission_verified": True,
             "imaging_analysis_consent_verified": True,
         },
@@ -173,7 +173,7 @@ def test_e2e_async_analyze_and_cancel(tmp_path: Path) -> None:
     ingest_id = up.json()["ingest_id"]
     case_id = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={"accept_suggestion": True},
+        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
     ).json()["case_id"]
 
     job = client.post(f"/api/v1/cases/{case_id}/analyze/async").json()

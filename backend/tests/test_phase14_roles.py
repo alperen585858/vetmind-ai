@@ -267,7 +267,7 @@ def test_owner_can_attach_dicom_but_cannot_confirm_case(tmp_path: Path) -> None:
     denied = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
         json={
-            "accept_suggestion": True,
+            "accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "imaging_source_permission_verified": True,
             "imaging_analysis_consent_verified": True,
         },

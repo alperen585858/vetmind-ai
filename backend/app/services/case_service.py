@@ -23,6 +23,7 @@ from app.schemas.case import (
     CaseMessage,
     CaseMessageCreate,
     CaseMessageView,
+    CaseOwnerUpdate,
     CaseRecord,
     CaseSummary,
     ClinicDashboardStats,
@@ -69,8 +70,11 @@ from app.schemas.report import (
     ReportVersionSnapshot,
     ReportVersionSummary,
 )
+from app.auth.mailer import OutgoingMail
 from app.feedback.store import FeedbackStore
+from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
+from app.services.owner_contact import resolve_owner_account, validate_owner_contact
 from app.services.report_versioning import (
     apply_reject_or_revision,
     assert_mutable_for_edit,
@@ -133,10 +137,34 @@ class CaseService:
             max_concurrent=self._max_concurrent_analyze,
             path=analyze_gate_path,
         )
+        self._mailer: object | None = None
+        self._report_view_tokens: object | None = None
+        self._auth_users: dict | None = None
+        self._workflow_store: object | None = None
+        self._smtp_configured = False
+        self._public_base_url = "http://127.0.0.1:5173"
 
     def bind_radiologist_payouts(self, service: object | None) -> None:
         """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
         self._radiologist_payouts = service
+
+    def bind_owner_delivery(
+        self,
+        *,
+        mailer: object | None,
+        report_view_tokens: object | None,
+        auth_users: dict | None,
+        workflow_store: object | None,
+        smtp_configured: bool,
+        public_base_url: str,
+    ) -> None:
+        """Wire SMTP + magic-link delivery for non-member pet owners."""
+        self._mailer = mailer
+        self._report_view_tokens = report_view_tokens
+        self._auth_users = auth_users
+        self._workflow_store = workflow_store
+        self._smtp_configured = bool(smtp_configured)
+        self._public_base_url = (public_base_url or "http://127.0.0.1:5173").rstrip("/")
 
     def _record_radiologist_payout(self, case: CaseRecord, reviewer_id: str) -> None:
         svc = self._radiologist_payouts
@@ -182,7 +210,11 @@ class CaseService:
         if not self._analyze_gate.try_acquire():
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Too many concurrent analyses (max {self._max_concurrent_analyze}).",
+                detail=api_error(
+                    "concurrent_analyze_limit",
+                    f"Too many concurrent analyses (max {self._max_concurrent_analyze}).",
+                    max=self._max_concurrent_analyze,
+                ),
             )
 
     def _release_analyze_slot(self) -> None:
@@ -252,6 +284,43 @@ class CaseService:
             clinic_id=principal.clinic_id if principal else None,
         )
 
+    def _apply_owner_contact(
+        self,
+        case: CaseRecord,
+        *,
+        owner_name: str | None,
+        owner_email: str | None,
+        owner_email_consent: bool = False,
+        pet_owner_subject: str | None = None,
+        require: bool = True,
+    ) -> CaseRecord:
+        resolved = validate_owner_contact(
+            owner_name=owner_name,
+            owner_email=owner_email,
+            owner_email_consent=owner_email_consent,
+            pet_owner_subject=pet_owner_subject,
+            require=require,
+        )
+        if resolved is None:
+            return case
+        linked = resolved.pet_owner_subject
+        if not linked and resolved.owner_contact_email:
+            get_user = None
+            store = self._workflow_store
+            if store is not None and hasattr(store, "get_user"):
+                get_user = store.get_user
+            linked = resolve_owner_account(
+                email=resolved.owner_contact_email,
+                auth_users=self._auth_users,
+                workflow_get_user=get_user,
+            )
+        case.owner_contact_name = resolved.owner_contact_name
+        case.owner_contact_email = resolved.owner_contact_email or None
+        case.owner_email_consent = resolved.owner_email_consent
+        if linked:
+            case.pet_owner_subject = linked
+        return case
+
     def create_case(self, payload: CaseCreate, *, principal: AuthPrincipal | None = None) -> CaseRecord:
         history = payload.clinical_history
         structured = payload.clinical_history_structured
@@ -284,11 +353,49 @@ class CaseService:
             clinic_id=principal.clinic_id if principal and principal.via != "disabled" else None,
             status=CaseLifecycleStatus.CREATED,
         )
+        self._apply_owner_contact(
+            case,
+            owner_name=payload.owner_name,
+            owner_email=payload.owner_email,
+            owner_email_consent=payload.owner_email_consent,
+            pet_owner_subject=payload.pet_owner_subject,
+            require=True,
+        )
         caps = self._orchestrator._router.list_capabilities()  # noqa: SLF001 — live caps for F4
         case.model_input = build_imaging_model_input(case, capabilities=caps)
         saved = self._repo.save_case(case)
         self._emit_audit("case.create", principal=principal, resource=saved.case_id)
         return saved
+
+    def update_owner_contact(
+        self,
+        case_id: str,
+        payload: CaseOwnerUpdate,
+        *,
+        principal: AuthPrincipal | None = None,
+    ) -> CaseRecord:
+        """Attach or replace pet-owner contact on an existing case (legacy rows included)."""
+        if principal is not None and principal.role not in {
+            "vet",
+            "clinic_owner",
+            "admin",
+            "expert",
+            "demo",
+            "service",
+        } and principal.via != "disabled":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+        case = self.get_case(case_id, principal=principal)
+        self._apply_owner_contact(
+            case,
+            owner_name=payload.owner_name,
+            owner_email=payload.owner_email,
+            owner_email_consent=payload.owner_email_consent,
+            pet_owner_subject=payload.pet_owner_subject,
+            require=True,
+        )
+        case.updated_at = _now()
+        append_activity(case, kind="owner_contact_updated", actor_subject=principal.subject if principal else "system")
+        return self._repo.save_case(case)
 
     def prepare_model_input(
         self, case_id: str, *, principal: AuthPrincipal | None = None
@@ -347,6 +454,10 @@ class CaseService:
             report_viewed_at=getattr(c, "report_viewed_at", None),
             pet_id=getattr(c, "pet_id", None),
             pet_owner_subject=getattr(c, "pet_owner_subject", None),
+            owner_contact_name=getattr(c, "owner_contact_name", None),
+            owner_contact_email=getattr(c, "owner_contact_email", None),
+            owner_email_consent=bool(getattr(c, "owner_email_consent", False)),
+            owner_email_delivery_status=getattr(c, "owner_email_delivery_status", None),
             submission_id=getattr(c, "submission_id", None),
             vet_verified=bool(getattr(c, "vet_verified", True)),
             current_report_version=getattr(c, "current_report_version", None)
@@ -870,17 +981,23 @@ class CaseService:
         if case.draft_report is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="No draft report to save.",
+                detail=api_error("no_draft", "No draft report to save."),
             )
         report = case.draft_report.model_copy(deep=True)
         try:
             assert_mutable_for_edit(report)
         except (PermissionError, ValueError) as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=api_error("report_immutable", str(exc)),
+            ) from exc
         if report.status == ReportStatus.APPROVED or report.immutable:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Approved reports are immutable and cannot be edited in place.",
+                detail=api_error(
+                    "report_immutable",
+                    "Approved reports are immutable and cannot be edited in place.",
+                ),
             )
         if payload.technique is not None:
             report.technique.text = payload.technique
@@ -995,24 +1112,34 @@ class CaseService:
         if getattr(case, "vet_verified", True) is False:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Owner submissions require veterinary verification before analysis.",
+                detail=api_error(
+                    "needs_vet_verification",
+                    "Owner submissions require veterinary verification before analysis.",
+                ),
             )
         if case.status == CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot analyze until DICOM metadata classification is confirmed.",
+                detail=api_error(
+                    "classification_unconfirmed",
+                    "Cannot analyze until DICOM metadata classification is confirmed.",
+                ),
             )
         if not case.classification_confirmed:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot analyze: classification_confirmed is false.",
+                detail=api_error(
+                    "classification_unconfirmed",
+                    "Cannot analyze: classification_confirmed is false.",
+                ),
             )
         if case.status == CaseLifecycleStatus.APPROVED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
+                detail=api_error(
+                    "approved_needs_revision",
                     "Cannot re-analyze an approved case. "
-                    "Request revision first so a new mutable report version can be created."
+                    "Request revision first so a new mutable report version can be created.",
                 ),
             )
         if case.status == CaseLifecycleStatus.ANALYZING and case.latest_job_id:
@@ -1024,7 +1151,10 @@ class CaseService:
             }:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Analysis already in progress for this case.",
+                    detail=api_error(
+                        "analysis_in_progress",
+                        "Analysis already in progress for this case.",
+                    ),
                 )
 
     def analyze(self, case_id: str, *, principal: AuthPrincipal | None = None) -> PipelineResult:
@@ -1855,6 +1985,7 @@ class CaseService:
         )
         case.review_history.append(feedback)
         case.updated_at = _now()
+        self._deliver_owner_report_email(case, report_version=report.version)
         saved = self._repo.save_case(case)
         self._record_radiologist_payout(saved, feedback.reviewer_id)
         for recipient in {saved.pet_owner_subject, saved.owner_subject, "vet@demo.local"}:
@@ -1870,7 +2001,109 @@ class CaseService:
                 case_id=saved.case_id,
                 clinic_id=saved.clinic_id,
             )
+        # Surface SMTP failure to the referring vet (never silent).
+        if saved.owner_email_delivery_status == "failed_smtp" and saved.owner_subject:
+            self._notify(
+                recipient_subject=saved.owner_subject,
+                kind="owner_email_failed",
+                title="Sahibe e-posta gönderilemedi",
+                body=saved.owner_email_delivery_detail
+                or "SMTP yapılandırılmamış veya gönderim başarısız. Raporu kendiniz iletin.",
+                link_path=f"/raporlar/{saved.case_id}",
+                dedupe_key=f"owner_email_failed:{saved.case_id}:v{report.version}",
+                case_id=saved.case_id,
+                clinic_id=saved.clinic_id,
+            )
         return saved
+
+    def _deliver_owner_report_email(self, case: CaseRecord, *, report_version: int) -> None:
+        """Email non-member owners a single-use report link when KVKK consent is set."""
+        email = (case.owner_contact_email or "").strip().lower()
+        if case.pet_owner_subject:
+            # Linked account gets in-app notification; skip outbound email by default.
+            case.owner_email_delivery_status = "skipped_linked"
+            case.owner_email_delivery_detail = "Owner has an account; in-app notification used."
+            return
+        if not email:
+            case.owner_email_delivery_status = "skipped_no_email"
+            case.owner_email_delivery_detail = "No owner email on case."
+            return
+        if not case.owner_email_consent:
+            case.owner_email_delivery_status = "skipped_no_consent"
+            case.owner_email_delivery_detail = "Owner email consent (KVKK) was not recorded."
+            return
+        if self._mailer is None or self._report_view_tokens is None:
+            case.owner_email_delivery_status = "failed_smtp"
+            case.owner_email_delivery_detail = "Mailer or report-view tokens are not configured."
+            return
+        if not self._smtp_configured:
+            case.owner_email_delivery_status = "failed_smtp"
+            case.owner_email_delivery_detail = (
+                "SMTP is not configured (VETMIND_SMTP_HOST). Report email was not sent."
+            )
+            return
+        try:
+            raw = self._report_view_tokens.issue(  # type: ignore[attr-defined]
+                case_id=case.case_id,
+                report_version=report_version,
+            )
+            minutes = max(1, int(getattr(self._report_view_tokens, "ttl_seconds", 72 * 3600)) // 60)
+            link = f"{self._public_base_url}/rapor-baglanti?token={raw}"
+            name = case.owner_contact_name or "Sayın sahip"
+            body = (
+                f"Merhaba {name},\n\n"
+                f"{case.patient_name} için veteriner radyoloji raporu hazır.\n\n"
+                f"Raporu görüntülemek için bu bağlantıyı {minutes} dakika içinde açın "
+                f"(tek kullanımlık):\n{link}\n\n"
+                "Bağlantıda sağlık verisi eki yoktur; yalnızca güvenli görüntüleme sunulur.\n"
+                "İsterseniz VetMind'e üye olarak raporlarınıza hesabınızdan ulaşabilirsiniz.\n\n"
+                f"Hello {name},\n"
+                f"The radiology report for {case.patient_name} is ready. "
+                f"Open the single-use link above within {minutes} minutes.\n"
+            )
+            self._mailer.send(  # type: ignore[attr-defined]
+                OutgoingMail(
+                    to=email,
+                    subject=f"VetMind rapor hazır · {case.patient_name}",
+                    body=body,
+                )
+            )
+            case.owner_email_delivery_status = "sent"
+            case.owner_email_delivery_detail = f"Report view link emailed to {email}."
+            append_activity(
+                case,
+                kind="owner_report_email_sent",
+                actor_subject="system",
+                detail=email,
+            )
+        except Exception as exc:  # noqa: BLE001 — never fail approval solely on mail
+            case.owner_email_delivery_status = "failed_smtp"
+            case.owner_email_delivery_detail = f"Email send failed: {exc}"
+
+    def revoke_report_view_links(
+        self, case_id: str, *, principal: AuthPrincipal | None = None
+    ) -> CaseRecord:
+        case = self.get_case(case_id, principal=principal)
+        if principal is not None and principal.role not in {
+            "vet",
+            "clinic_owner",
+            "admin",
+            "expert",
+            "demo",
+            "service",
+        } and principal.via != "disabled":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
+        n = 0
+        if self._report_view_tokens is not None:
+            n = int(self._report_view_tokens.revoke_case(case_id))  # type: ignore[attr-defined]
+        append_activity(
+            case,
+            kind="report_view_links_revoked",
+            actor_subject=principal.subject if principal else "system",
+            detail=str(n),
+        )
+        case.updated_at = _now()
+        return self._repo.save_case(case)
 
     def _notify(self, **kwargs) -> None:
         nsvc = self._notifications

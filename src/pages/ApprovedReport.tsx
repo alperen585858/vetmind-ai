@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { modalityLabel, regionLabel } from '../lib/displayClean'
+import { toastErrorBody } from '../lib/apiErrors'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
@@ -160,7 +161,7 @@ export default function ApprovedReport() {
         pushToast({
           tone: 'error',
           title: t('reports.versionLoadFailed'),
-          body: err instanceof Error ? err.message : undefined,
+          body: toastErrorBody(err, t),
         })
       })
       .finally(() => {
@@ -199,7 +200,7 @@ export default function ApprovedReport() {
       pushToast({
         tone: 'error',
         title: t('reports.pdfFailed'),
-        body: e instanceof Error ? e.message : undefined,
+        body: toastErrorBody(e, t),
       })
     } finally {
       setPdfBusy(false)
@@ -234,7 +235,7 @@ export default function ApprovedReport() {
       pushToast({
         tone: 'error',
         title: t('reports.revisionFailed'),
-        body: e instanceof Error ? e.message : undefined,
+        body: toastErrorBody(e, t),
       })
     } finally {
       setRevising(false)
@@ -358,7 +359,7 @@ export default function ApprovedReport() {
         pushToast({
           tone: 'error',
           title: t('reports.deliverFailed'),
-          body: err instanceof Error ? err.message : t('reports.deliverFailed'),
+          body: toastErrorBody(err, t),
         })
       })
       .finally(() => setDeliverBusy(false))
@@ -377,7 +378,7 @@ export default function ApprovedReport() {
         pushToast({
           tone: 'error',
           title: t('cases.detail.toastRequestFailed'),
-          body: err instanceof Error ? err.message : undefined,
+          body: toastErrorBody(err, t),
         })
       })
       .finally(() => setExpertAskBusy(false))
@@ -401,7 +402,7 @@ export default function ApprovedReport() {
         pushToast({
           tone: 'error',
           title: t('cases.detail.toastReplyFailed'),
-          body: err instanceof Error ? err.message : undefined,
+          body: toastErrorBody(err, t),
         })
       })
       .finally(() => setExpertAskBusy(false))

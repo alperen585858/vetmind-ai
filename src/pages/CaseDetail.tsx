@@ -20,6 +20,8 @@ import { CaseMessaging } from '../components/CaseMessaging'
 import { ReportVersionCompare } from '../components/ReportVersionCompare'
 import { DicomViewer } from '../components/DicomViewer'
 import { localize } from '../lib/neuroLocalization'
+import { toastErrorBody } from '../lib/apiErrors'
+import { OwnerContactFields, type OwnerContactValue } from '../components/OwnerContactFields'
 import { fmtDate } from '../lib/format'
 import {
   cleanClinicalHistory,
@@ -43,6 +45,8 @@ import {
   requestCancelAnalysisJob,
   resendCaseToAI,
   resolveDemoKindForCase,
+  revokeCaseReportViewLinks,
+  updateCaseOwner,
   uploadDocuments,
   type PetHistoryEntry,
 } from '../lib/backend'
@@ -313,7 +317,7 @@ export default function CaseDetail() {
                         pushToast({
                           tone: 'error',
                           title: t('cases.detail.toastStopFailed'),
-                          body: err instanceof Error ? err.message : undefined,
+                          body: toastErrorBody(err, t),
                         })
                       })
                       .finally(() => setStoppingAnalysis(false))
@@ -399,7 +403,7 @@ export default function CaseDetail() {
                       pushToast({
                         tone: 'error',
                         title: t('cases.detail.toastResendSendFailed'),
-                        body: err instanceof Error ? err.message : undefined,
+                        body: toastErrorBody(err, t),
                       })
                     })
                     .finally(() => setResendingAi(false))
@@ -604,6 +608,30 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
     'info_requests' | 'clinical_notes_log'
   > | null>(null)
   const [extrasTick, setExtrasTick] = useState(0)
+  const [ownerDraft, setOwnerDraft] = useState<OwnerContactValue>({
+    ownerName: c.ownerContactName || c.patient.ownerName || '',
+    ownerEmail: c.ownerContactEmail || c.petOwnerSubject || '',
+    ownerEmailConsent: Boolean(c.ownerEmailConsent),
+    petOwnerSubject: c.petOwnerSubject || null,
+    mode: c.petOwnerSubject ? 'member' : 'guest',
+  })
+  const [ownerBusy, setOwnerBusy] = useState(false)
+
+  useEffect(() => {
+    setOwnerDraft({
+      ownerName: c.ownerContactName || c.patient.ownerName || '',
+      ownerEmail: c.ownerContactEmail || c.petOwnerSubject || '',
+      ownerEmailConsent: Boolean(c.ownerEmailConsent),
+      petOwnerSubject: c.petOwnerSubject || null,
+      mode: c.petOwnerSubject ? 'member' : 'guest',
+    })
+  }, [
+    c.ownerContactName,
+    c.ownerContactEmail,
+    c.ownerEmailConsent,
+    c.petOwnerSubject,
+    c.patient.ownerName,
+  ])
 
   useEffect(() => {
     if (!c.petId || !c.fromBackend) return
@@ -648,7 +676,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       pushToast({ tone: 'success', title: t('cases.detail.toastNoteAdded') })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: t('cases.detail.toastNoteFailed'), body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastNoteFailed'), body: toastErrorBody(e, t) })
     } finally {
       setBusy(false)
     }
@@ -686,7 +714,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: t('cases.detail.toastRequestFailed'), body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastRequestFailed'), body: toastErrorBody(e, t) })
     } finally {
       setBusy(false)
     }
@@ -708,7 +736,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
       pushToast({ tone: 'success', title: t('cases.detail.toastDocAttached'), body: t('cases.detail.toastDocAttachedBody') })
       await refresh()
     } catch (e) {
-      pushToast({ tone: 'error', title: t('cases.detail.toastDocFailed'), body: e instanceof Error ? e.message : undefined })
+      pushToast({ tone: 'error', title: t('cases.detail.toastDocFailed'), body: toastErrorBody(e, t) })
     } finally {
       setBusy(false)
     }
@@ -728,14 +756,107 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
               <Row
                 k="Sahip"
                 v={
-                  c.petOwnerSubject || p.ownerName !== '—'
-                    ? `${c.petOwnerSubject || p.ownerName}${p.ownerPhone ? ` · ${p.ownerPhone}` : ''}`
+                  c.petOwnerSubject ||
+                  c.ownerContactName ||
+                  (p.ownerName !== '—' ? p.ownerName : '')
+                    ? `${c.ownerContactName || c.petOwnerSubject || p.ownerName}${
+                        c.ownerContactEmail || c.petOwnerSubject
+                          ? ` · ${c.ownerContactEmail || c.petOwnerSubject}`
+                          : p.ownerPhone
+                            ? ` · ${p.ownerPhone}`
+                            : ''
+                      }`
                     : '—'
                 }
               />
+              {c.ownerEmailDeliveryStatus ? (
+                <Row
+                  k={t('reports.doc.delivery')}
+                  v={
+                    c.ownerEmailDeliveryStatus === 'failed_smtp'
+                      ? t('ownerContact.deliveryFailed')
+                      : c.ownerEmailDeliveryStatus === 'sent'
+                        ? t('ownerContact.deliverySent')
+                        : c.ownerEmailDeliveryStatus
+                  }
+                />
+              ) : null}
               <Row k="Klinik / Hekim" v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
               <Row k={t('cases.detail.rowPriorityAssign')} v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>
+            {isVet && c.fromBackend && caseKey.startsWith('case-') && (
+              <div className="space-y-3 border-t border-slate-100 px-5 py-4">
+                {!c.petOwnerSubject && !c.ownerContactEmail ? (
+                  <p className="text-xs text-amber-800">{t('ownerContact.legacyHint')}</p>
+                ) : null}
+                <p className="text-xs font-semibold text-slate-600">{t('ownerContact.attachTitle')}</p>
+                <OwnerContactFields value={ownerDraft} onChange={setOwnerDraft} disabled={ownerBusy} />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    disabled={
+                      ownerBusy ||
+                      !ownerDraft.ownerName.trim() ||
+                      !ownerDraft.ownerEmail.trim() ||
+                      (ownerDraft.mode === 'member' && !ownerDraft.petOwnerSubject)
+                    }
+                    onClick={() => {
+                      void (async () => {
+                        setOwnerBusy(true)
+                        try {
+                          await updateCaseOwner(caseKey, {
+                            owner_name: ownerDraft.ownerName.trim(),
+                            owner_email: ownerDraft.ownerEmail.trim(),
+                            owner_email_consent: ownerDraft.ownerEmailConsent,
+                            pet_owner_subject: ownerDraft.petOwnerSubject,
+                          })
+                          await hydrateBackendCase(caseKey)
+                          setExtrasTick((n) => n + 1)
+                          pushToast({ tone: 'success', title: t('ownerContact.attached') })
+                        } catch (e) {
+                          pushToast({
+                            tone: 'error',
+                            title: t('ownerContact.attachTitle'),
+                            body: toastErrorBody(e, t),
+                          })
+                        } finally {
+                          setOwnerBusy(false)
+                        }
+                      })()
+                    }}
+                  >
+                    {t('ownerContact.attachSave')}
+                  </Button>
+                  {c.status === 'onaylandi' ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={ownerBusy}
+                      onClick={() => {
+                        void (async () => {
+                          setOwnerBusy(true)
+                          try {
+                            await revokeCaseReportViewLinks(caseKey)
+                            await hydrateBackendCase(caseKey)
+                            pushToast({ tone: 'success', title: t('ownerContact.revoked') })
+                          } catch (e) {
+                            pushToast({
+                              tone: 'error',
+                              title: t('ownerContact.revokeLinks'),
+                              body: toastErrorBody(e, t),
+                            })
+                          } finally {
+                            setOwnerBusy(false)
+                          }
+                        })()
+                      }}
+                    >
+                      {t('ownerContact.revokeLinks')}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            )}
           </Card>
           <Card>
             <CardHeader title={t('cases.detail.clinicalInfo')} icon={<Stethoscope className="h-5 w-5" />} />
@@ -872,7 +993,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                                 pushToast({
                                   tone: 'error',
                                   title: t('cases.detail.toastReplyFailed'),
-                                  body: e instanceof Error ? e.message : undefined,
+                                  body: toastErrorBody(e, t),
                                 }),
                               )
                           }
@@ -1364,7 +1485,7 @@ function Imaging({ c }: { c: VetCase }) {
                 pushToast({
                   tone: 'error',
                   title: t('cases.detail.folderReadFailed'),
-                  body: err instanceof Error ? err.message : t('cases.detail.filesFailed'),
+                  body: toastErrorBody(err, t),
                 })
               }
             })()

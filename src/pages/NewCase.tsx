@@ -13,8 +13,9 @@ import { buildAssessment, makeDocument } from '../data/templates'
 import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../lib/pipeline'
+import { toastErrorBody } from '../lib/apiErrors'
+import { OwnerContactFields, type OwnerContactValue } from '../components/OwnerContactFields'
 import {
-  BackendUnavailableError,
   PollingCancelledError,
   confirmDicomAndAnalyze,
   createAndAnalyzeCase,
@@ -162,6 +163,13 @@ export default function NewCase() {
   const steps = useMemo(() => STEP_KEYS.map((key) => t(key)), [t])
   const [step, setStep] = useState(0)
   const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT)
+  const [ownerContact, setOwnerContact] = useState<OwnerContactValue>({
+    ownerName: '',
+    ownerEmail: '',
+    ownerEmailConsent: false,
+    petOwnerSubject: null,
+    mode: 'guest',
+  })
   const [clinical, setClinical] = useState<ClinicalInfo>(EMPTY_CLINICAL)
   const [neuro, setNeuro] = useState<NeuroExam>(EMPTY_NEURO)
   const [files, setFiles] = useState<UploadFile[]>([])
@@ -191,6 +199,13 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(SAMPLE_FORM.patient)
+    setOwnerContact({
+      ownerName: SAMPLE_FORM.patient.ownerName || 'Mehmet Yılmaz',
+      ownerEmail: 'owner@demo.local',
+      ownerEmailConsent: true,
+      petOwnerSubject: 'owner@demo.local',
+      mode: 'member',
+    })
     setClinical(SAMPLE_FORM.clinical)
     setNeuro(SAMPLE_FORM.neuro)
     setFiles(SAMPLE_FORM.files.map((f, i) => ({ ...f, id: `s${i}` })))
@@ -203,6 +218,13 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(BRAIN_BACKEND_FORM.patient)
+    setOwnerContact({
+      ownerName: BRAIN_BACKEND_FORM.patient.ownerName || 'Mehmet Yılmaz',
+      ownerEmail: 'owner@demo.local',
+      ownerEmailConsent: true,
+      petOwnerSubject: 'owner@demo.local',
+      mode: 'member',
+    })
     setClinical(BRAIN_BACKEND_FORM.clinical)
     setNeuro(BRAIN_BACKEND_FORM.neuro)
     setFiles([{ id: 'brain-placeholder', name: 'synthetic_brain_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
@@ -215,6 +237,13 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(CERVICAL_BACKEND_FORM.patient)
+    setOwnerContact({
+      ownerName: CERVICAL_BACKEND_FORM.patient.ownerName || 'Mehmet Yılmaz',
+      ownerEmail: 'owner@demo.local',
+      ownerEmailConsent: true,
+      petOwnerSubject: 'owner@demo.local',
+      mode: 'member',
+    })
     setClinical(CERVICAL_BACKEND_FORM.clinical)
     setNeuro(CERVICAL_BACKEND_FORM.neuro)
     setFiles([{ id: 'cerv-placeholder', name: 'synthetic_cervical_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
@@ -227,6 +256,13 @@ export default function NewCase() {
     setDicomFiles([])
     setDicomPreview(null)
     setPendingDemoKind(kind)
+    setOwnerContact({
+      ownerName: 'Mehmet Yılmaz',
+      ownerEmail: 'owner@demo.local',
+      ownerEmailConsent: true,
+      petOwnerSubject: 'owner@demo.local',
+      mode: 'member',
+    })
     if (kind === 'cervical_mri') {
       setPatient(CERVICAL_BACKEND_FORM.patient)
       setClinical(CERVICAL_BACKEND_FORM.clinical)
@@ -329,14 +365,17 @@ export default function NewCase() {
         })
       }
     } catch (err) {
-      const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'DICOM yükleme başarısız.'
-      pushToast({ tone: 'error', title: 'DICOM metadata yüklenemedi', body: message })
+      pushToast({ tone: 'error', title: t('dicom.uploadFailed'), body: toastErrorBody(err, t) })
     } finally {
       setSubmitting(false)
     }
   }
 
-  const canNext = step !== 0 || (patient.name.trim() && patient.breed.trim() && patient.ownerName.trim())
+  const ownerReady =
+    Boolean(ownerContact.ownerName.trim() && ownerContact.ownerEmail.trim()) &&
+    (ownerContact.mode === 'guest' || Boolean(ownerContact.petOwnerSubject))
+  const canNext =
+    step !== 0 || (patient.name.trim() && patient.breed.trim() && ownerReady)
 
   const submit = async () => {
     const stamp = nowStamp()
@@ -407,6 +446,10 @@ export default function NewCase() {
           anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
           patientName: patient.name,
           clinicalHistory: history,
+          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
+          ownerEmail: ownerContact.ownerEmail.trim(),
+          ownerEmailConsent: ownerContact.ownerEmailConsent,
+          petOwnerSubject: ownerContact.petOwnerSubject,
           signal: controller.signal,
           cancelBackendOnAbort: true,
         })
@@ -439,6 +482,10 @@ export default function NewCase() {
         result = await confirmDocumentAndAnalyze(upload.ingest_id, {
           signal: controller.signal,
           cancelBackendOnAbort: true,
+          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
+          ownerEmail: ownerContact.ownerEmail.trim(),
+          ownerEmailConsent: ownerContact.ownerEmailConsent,
+          petOwnerSubject: ownerContact.petOwnerSubject,
         })
       } else {
         result = await createAndAnalyzeCase({
@@ -448,6 +495,10 @@ export default function NewCase() {
           clinicalHistory: history,
           scenario: pipeline,
           patientAgeYears: patient.age || undefined,
+          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
+          ownerEmail: ownerContact.ownerEmail.trim(),
+          ownerEmailConsent: ownerContact.ownerEmailConsent,
+          petOwnerSubject: ownerContact.petOwnerSubject,
           priority:
             neuro.deepPain === 'Yok'
               ? 'stat'
@@ -523,8 +574,7 @@ export default function NewCase() {
         pushToast({ tone: 'info', title: 'Analiz durduruldu' })
         return
       }
-      const message = err instanceof BackendUnavailableError ? err.message : err instanceof Error ? err.message : 'İstek başarısız.'
-      pushToast({ tone: 'error', title: 'Sunucu yanıt vermedi', body: message })
+      pushToast({ tone: 'error', title: t('apiErrors.unexpected'), body: toastErrorBody(err, t) })
       return
     }
     if (submitAbortRef.current === controller) submitAbortRef.current = null
@@ -714,12 +764,18 @@ export default function NewCase() {
                   <input type="number" min={0} step="0.1" className="input" value={patient.weight || ''} onChange={(e) => P('weight', Number(e.target.value))} />
                 </Field>
               </div>
-              <Field label={`${t('newCase.ownerName')} *`}>
-                <input className="input" value={patient.ownerName} onChange={(e) => P('ownerName', e.target.value)} placeholder={t('newCase.ownerNamePlaceholder')} />
-              </Field>
               <Field label={t('newCase.ownerPhone')}>
                 <input className="input" value={patient.ownerPhone} onChange={(e) => P('ownerPhone', e.target.value)} placeholder={t('newCase.ownerPhonePlaceholder')} />
               </Field>
+              <div className="md:col-span-2">
+                <OwnerContactFields
+                  value={ownerContact}
+                  onChange={(next) => {
+                    setOwnerContact(next)
+                    if (next.ownerName) P('ownerName', next.ownerName)
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}

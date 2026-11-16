@@ -30,6 +30,7 @@ const TR_TO_EN: Record<string, string> = {
   sistem: 'system',
   'model-performansi': 'model-performance',
   ayarlar: 'settings',
+  'rapor-baglanti': 'report-link',
 }
 
 const EN_TO_TR: Record<string, string> = Object.fromEntries(
@@ -103,6 +104,7 @@ export const PUBLIC_ROUTE_PAIRS: { tr: string; en: string }[] = [
   { tr: '/kayit', en: '/register' },
   { tr: '/sifremi-unuttum', en: '/forgot-password' },
   { tr: '/sifre-sifirla', en: '/reset-password' },
+  { tr: '/rapor-baglanti', en: '/report-link' },
 ]
 
 /** True if ``pathname`` is one of the app's routes (TR or EN), e.g. "/vakalar/case-1". */

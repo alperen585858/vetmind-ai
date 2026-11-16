@@ -102,6 +102,8 @@ class Settings:
     self_registration_owner_clinic_id: str | None = "clinic-demo-a"
     # Issue #31 step 4 — password reset links (single use).
     password_reset_ttl_seconds: int = 30 * 60
+    # Single-use approved-report email links (default 72h).
+    report_view_token_ttl_seconds: int = 72 * 60 * 60
     # Frontend origin used to build links in emails.
     public_base_url: str = "http://localhost:5173"
     # Outgoing mail. Without smtp_host, mails are written to the server log in demo mode.
@@ -560,6 +562,10 @@ def load_settings() -> Settings:
         self_registration_enabled=self_registration_enabled,
         self_registration_owner_clinic_id=self_registration_owner_clinic_id,
         password_reset_ttl_seconds=min(max(300, password_reset_ttl), 24 * 60 * 60),
+        report_view_token_ttl_seconds=min(
+            max(3600, int(os.getenv("VETMIND_REPORT_VIEW_TOKEN_TTL_SECONDS", str(72 * 60 * 60)))),
+            14 * 24 * 60 * 60,
+        ),
         public_base_url=public_base_url,
         smtp_host=smtp_host,
         smtp_port=smtp_port,

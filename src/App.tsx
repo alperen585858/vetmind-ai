@@ -21,6 +21,7 @@ const Login = lazyPage(() => import('./pages/Login'))
 const Register = lazyPage(() => import('./pages/Register'))
 const ForgotPassword = lazyPage(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazyPage(() => import('./pages/ResetPassword'))
+const ReportLink = lazyPage(() => import('./pages/ReportLink'))
 const Dashboard = lazyPage(() => import('./pages/Dashboard'))
 const CaseList = lazyPage(() => import('./pages/CaseList'))
 const NewCase = lazyPage(() => import('./pages/NewCase'))
@@ -98,14 +99,16 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           {dualRoutes('/sifremi-unuttum', '/forgot-password', <ForgotPassword />)}
           {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
+          {dualRoutes('/rapor-baglanti', '/report-link', <ReportLink />)}
           <Route path="*" element={<PublicFallback />} />
         </Routes>
         </Suspense>
       ) : (
         <Suspense fallback={<PageLoader fullScreen />}>
         <Routes>
-          {/* Emailed reset links work even when this browser is still signed in. */}
+          {/* Emailed reset / report-view links work even when this browser is still signed in. */}
           {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
+          {dualRoutes('/rapor-baglanti', '/report-link', <ReportLink />)}
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             {dualRoutes('vakalar', 'cases', <Gate roles={['vet', 'expert', 'clinic_owner']}><CaseList /></Gate>)}

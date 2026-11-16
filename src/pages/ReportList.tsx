@@ -17,6 +17,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { SpeciesIcon } from '../components/CaseTable'
 import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../lib/backend'
+import { toastErrorBody } from '../lib/apiErrors'
 import { caseBelongsToOwner } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
 import type { BackendModality, VetCase } from '../types'
@@ -181,7 +182,7 @@ export default function ReportList() {
       pushToast({
         tone: 'error',
         title: t('review.deleteFailed'),
-        body: err instanceof Error ? err.message : 'Sunucu hatası',
+        body: toastErrorBody(err, t),
       })
     } finally {
       setDeleting(false)
@@ -303,7 +304,7 @@ export default function ReportList() {
       pushToast({
         tone: 'error',
         title: t('reports.revisionFailed'),
-        body: err instanceof Error ? err.message : 'Sunucu hatası',
+        body: toastErrorBody(err, t),
       })
     } finally {
       setRevising(false)

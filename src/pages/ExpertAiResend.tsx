@@ -25,6 +25,7 @@ import {
   resendCaseToAI,
   type AiChatTurn,
 } from '../lib/backend'
+import { toastErrorBody } from '../lib/apiErrors'
 import { summaryToVetCase } from '../lib/caseMapper'
 import type { BackendCaseSummary } from '../types'
 
@@ -125,7 +126,7 @@ export default function ExpertAiResend() {
           pushToast({
             tone: 'error',
             title: t('ai.resend.toastChatLoadFailed'),
-            body: err instanceof Error ? err.message : undefined,
+            body: toastErrorBody(err, t),
           })
         }
       })
@@ -209,7 +210,7 @@ export default function ExpertAiResend() {
         load()
         return
       }
-      const msg = err instanceof Error ? err.message : t('ai.resend.unknownError')
+      const msg = toastErrorBody(err, t)
       setRunById((prev) => ({ ...prev, [caseId]: { phase: 'error', message: msg } }))
       pushToast({ tone: 'error', title: t('ai.resend.toastResendSendFailed'), body: msg })
     } finally {
@@ -253,7 +254,7 @@ export default function ExpertAiResend() {
       pushToast({
         tone: 'error',
         title: t('ai.resend.toastReplyFailed'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     } finally {
       if (chatAbortRef.current === controller) chatAbortRef.current = null
@@ -275,7 +276,7 @@ export default function ExpertAiResend() {
       pushToast({
         tone: 'error',
         title: t('ai.resend.toastChatClearFailed'),
-        body: err instanceof Error ? err.message : undefined,
+        body: toastErrorBody(err, t),
       })
     }
   }

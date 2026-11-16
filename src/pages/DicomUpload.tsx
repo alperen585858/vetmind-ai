@@ -17,15 +17,16 @@ import {
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../lib/displayClean'
+import { toastErrorBody } from '../lib/apiErrors'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
 import { DicomViewer } from '../components/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from '../components/SeriesExplorer'
+import { OwnerContactFields } from '../components/OwnerContactFields'
 import { CLINIC } from '../data/mock'
 import { nowStamp, today } from '../lib/format'
 import {
-  BackendUnavailableError,
   fetchDemoDicomFiles,
   uploadDicomDemo,
   uploadDicomFiles,
@@ -100,6 +101,13 @@ export default function DicomUpload() {
   const [ageYears, setAgeYears] = useState('')
   const [history, setHistory] = useState('')
   const [consent, setConsent] = useState(false)
+  const [ownerContact, setOwnerContact] = useState({
+    ownerName: '',
+    ownerEmail: '',
+    ownerEmailConsent: false,
+    petOwnerSubject: null as string | null,
+    mode: 'guest' as 'member' | 'guest',
+  })
   const [files, setFiles] = useState<File[]>([])
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [framesLoading, setFramesLoading] = useState(false)
@@ -274,7 +282,7 @@ export default function DicomUpload() {
       pushToast({
         tone: 'error',
         title: 'Doğrulama başarısız',
-        body: err instanceof Error ? err.message : 'Dosyalar doğrulanamadı.',
+        body: toastErrorBody(err, t),
       })
     } finally {
       if (abortRef.current === controller) abortRef.current = null
@@ -297,7 +305,7 @@ export default function DicomUpload() {
       pushToast({
         tone: 'error',
         title: 'Klasör okunamadı',
-        body: err instanceof Error ? err.message : 'Sürüklenen klasör işlenemedi.',
+        body: toastErrorBody(err, t),
       })
     } finally {
       setBusy(false)
@@ -319,13 +327,7 @@ export default function DicomUpload() {
         body: 'Görüntüleyici açıldı. İsterseniz metadata önizleyebilir veya analize devam edebilirsiniz.',
       })
     } catch (err) {
-      const message =
-        err instanceof BackendUnavailableError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Örnek indirilemedi'
-      pushToast({ tone: 'error', title: t('dicom.sampleFailed'), body: message })
+      pushToast({ tone: 'error', title: t('dicom.sampleFailed'), body: toastErrorBody(err, t) })
     } finally {
       setBusy(false)
       setUploadProgress(null)
@@ -395,13 +397,7 @@ export default function DicomUpload() {
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
-      const message =
-        err instanceof BackendUnavailableError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Yükleme başarısız'
-      pushToast({ tone: 'error', title: 'DICOM yüklenemedi', body: message })
+      pushToast({ tone: 'error', title: t('dicom.uploadFailed'), body: toastErrorBody(err, t) })
     } finally {
       if (abortRef.current === controller) abortRef.current = null
       setBusy(false)
@@ -442,6 +438,18 @@ export default function DicomUpload() {
       })
       return
     }
+    const ownerOk =
+      ownerContact.ownerName.trim() &&
+      ownerContact.ownerEmail.trim() &&
+      (ownerContact.mode === 'guest' || ownerContact.petOwnerSubject)
+    if (!ownerOk) {
+      pushToast({
+        tone: 'warning',
+        title: t('ownerContact.requiredToast'),
+        body: t('ownerContact.requiredBody'),
+      })
+      return
+    }
     if (!preview?.ingest_id && files.length === 0 && !pendingDemo) {
       pushToast({
         tone: 'warning',
@@ -473,7 +481,7 @@ export default function DicomUpload() {
       neutered: true,
       age: Number.isFinite(parsedAge) ? parsedAge : 0,
       weight: 0,
-      ownerName: 'Sahip',
+      ownerName: ownerContact.ownerName.trim() || 'Sahip',
       ownerPhone: '',
     }
     const clinical: ClinicalInfo = {
@@ -524,6 +532,10 @@ export default function DicomUpload() {
       overrideModality,
       overrideRegion,
       vetName: user?.name ?? 'Dr. Elif Kaya',
+      ownerName: ownerContact.ownerName.trim(),
+      ownerEmail: ownerContact.ownerEmail.trim(),
+      ownerEmailConsent: ownerContact.ownerEmailConsent,
+      petOwnerSubject: ownerContact.petOwnerSubject,
     })
     addCase(pendingCase)
     nav(`/vakalar/${pendingId}/isleme`, { replace: true })
@@ -587,6 +599,7 @@ export default function DicomUpload() {
             onChange={(e) => setHistory(e.target.value)}
           />
         </label>
+        <OwnerContactFields value={ownerContact} onChange={setOwnerContact} disabled={busy || uploading} />
       </section>
 
       {hasStudy && (

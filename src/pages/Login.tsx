@@ -15,6 +15,7 @@ import {
   setProtectedTokenMode,
   type DemoSession,
 } from '../lib/auth'
+import { userErrorMessage } from '../lib/apiErrors'
 import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../lib/backend'
 import type { Role } from '../types'
 
@@ -72,13 +73,7 @@ export default function Login() {
       })
       nav(postLoginPath(session.role, locale))
     } catch (err) {
-      setError(
-        err instanceof BackendUnavailableError
-          ? t('auth.backendUnreachable')
-          : err instanceof Error
-            ? err.message
-            : t('auth.loginFailed'),
-      )
+      setError(err instanceof BackendUnavailableError ? t('auth.backendUnreachable') : userErrorMessage(err, t) || t('auth.loginFailed'))
     } finally {
       setBusy(false)
     }

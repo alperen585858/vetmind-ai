@@ -138,6 +138,23 @@ class CaseCreate(BaseModel):
     scenario: Optional[MockScenario] = None
     study: StudyInfo = Field(default_factory=StudyInfo)
     referring_clinic: Optional[str] = None
+    # Pet owner contact (required for new clinical cases).
+    owner_name: str = Field(min_length=1, max_length=120)
+    owner_email: str = Field(min_length=3, max_length=200)
+    owner_email_consent: bool = False
+    # Optional: select an existing account (email still required for contact display).
+    pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
+
+
+class CaseOwnerUpdate(BaseModel):
+    """Attach / update pet-owner contact on an existing case (including legacy rows)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    owner_name: str = Field(min_length=1, max_length=120)
+    owner_email: str = Field(min_length=3, max_length=200)
+    owner_email_consent: bool = False
+    pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
 
 
 class ReviewFeedback(BaseModel):
@@ -243,6 +260,13 @@ class CaseRecord(BaseModel):
     # Phase 14: pet-owner linkage (owner ACL uses pet_owner_subject, not clinic-wide).
     pet_id: Optional[str] = None
     pet_owner_subject: Optional[str] = None
+    # Contact for delivery when owner has no account (or for display).
+    owner_contact_name: Optional[str] = None
+    owner_contact_email: Optional[str] = None
+    owner_email_consent: bool = False
+    # Last outbound report-email attempt: sent | failed_smtp | skipped_no_consent | skipped_linked | none
+    owner_email_delivery_status: Optional[str] = None
+    owner_email_delivery_detail: Optional[str] = None
     submission_id: Optional[str] = None
     vet_verified: bool = True
     # Phase 17: append-only real activity events.
@@ -289,6 +313,10 @@ class CaseSummary(BaseModel):
     report_viewed_at: Optional[datetime] = None
     pet_id: Optional[str] = None
     pet_owner_subject: Optional[str] = None
+    owner_contact_name: Optional[str] = None
+    owner_contact_email: Optional[str] = None
+    owner_email_consent: bool = False
+    owner_email_delivery_status: Optional[str] = None
     submission_id: Optional[str] = None
     vet_verified: bool = True
     # Report revision signal for list UIs (approved v1 stays locked; v2+ = revised).

@@ -374,7 +374,7 @@ def test_dicom_confirm_then_async_still_works(client: TestClient) -> None:
     ingest_id = upload.json()["ingest_id"]
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json=ConfirmClassificationRequest(accept_suggestion=True).model_dump(mode="json"),
+        json=ConfirmClassificationRequest(accept_suggestion=True, owner_name='Demo Owner', owner_email='owner@demo.local', owner_email_consent=True).model_dump(mode="json"),
     )
     assert confirmed.status_code == 200
     case_id = confirmed.json()["case_id"]

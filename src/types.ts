@@ -725,6 +725,10 @@ export interface BackendCaseSummary {
   report_viewed_at?: string | null
   pet_id?: string | null
   pet_owner_subject?: string | null
+  owner_contact_name?: string | null
+  owner_contact_email?: string | null
+  owner_email_consent?: boolean
+  owner_email_delivery_status?: string | null
   submission_id?: string | null
   vet_verified?: boolean
   current_report_version?: number | null
@@ -757,6 +761,11 @@ export interface BackendCaseRecord {
   latest_job_id?: string | null
   pet_id?: string | null
   pet_owner_subject?: string | null
+  owner_contact_name?: string | null
+  owner_contact_email?: string | null
+  owner_email_consent?: boolean
+  owner_email_delivery_status?: string | null
+  owner_email_delivery_detail?: string | null
   submission_id?: string | null
   vet_verified?: boolean
   structured_findings?: BackendFindings | null
@@ -849,6 +858,11 @@ export interface VetCase {
   petOwnerSubject?: string
   petId?: string
   submissionId?: string
+  ownerContactName?: string
+  ownerContactEmail?: string
+  ownerEmailConsent?: boolean
+  ownerEmailDeliveryStatus?: string
+  ownerEmailDeliveryDetail?: string
 }
 
 export interface KbSource {

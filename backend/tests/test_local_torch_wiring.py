@@ -53,7 +53,7 @@ def _analyze_demo_thorax(client: TestClient) -> dict:
     conf = client.post(
         f"/api/v1/dicom/ingestions/{up.json()['ingest_id']}/confirm",
         json={
-            "accept_suggestion": True,
+            "accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "imaging_source_permission_verified": True,
             "imaging_analysis_consent_verified": True,
         },

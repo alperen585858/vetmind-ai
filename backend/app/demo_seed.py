@@ -273,11 +273,16 @@ def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
         clinical_history=_history_text(p),
         referring_clinic=DEMO_CLINIC_NAME,
     )
+    owner_email = DEMO_OWNER if p.owned_by_demo_owner else f"{_demo_pet_id(p.patient_name)}@demo-owner.local"
     case = container.dicom.confirm(
         upload.ingest_id,
         ConfirmClassificationRequest(
             imaging_source_permission_verified=True,
             imaging_analysis_consent_verified=True,
+            owner_name="Demo Sahip" if p.owned_by_demo_owner else f"{p.patient_name} sahibi",
+            owner_email=owner_email,
+            owner_email_consent=True,
+            pet_owner_subject=DEMO_OWNER if p.owned_by_demo_owner else None,
         ),
     )
     # Flag before any review so feedback hooks can skip the case.

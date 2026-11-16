@@ -40,6 +40,10 @@ def make_payload(**kwargs) -> CaseCreate:
         anatomical_region=AnatomicalRegion.BRAIN,
         clinical_history="Synthetic demo case. Not a real patient.",
         scenario=MockScenario.BRAIN_MRI_SUSPECTED,
+        owner_name="Demo Owner",
+        owner_email="owner@demo.local",
+        owner_email_consent=True,
+        pet_owner_subject="owner@demo.local",
     )
     data.update(kwargs)
     return CaseCreate(**data)

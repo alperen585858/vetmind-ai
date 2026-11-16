@@ -27,8 +27,8 @@ import { buildAssessment, makeDocument } from '../data/templates'
 import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
 import { studyLabel as formatStudyLabel } from '../lib/displayClean'
+import { toastErrorBody, userErrorMessage } from '../lib/apiErrors'
 import {
-  BackendUnavailableError,
   confirmDicomAndEnqueueAnalyze,
   enqueueAnalyzeCase,
   getAnalysisJob,
@@ -140,7 +140,7 @@ function buildCaseFromHandoff(
     neutered: true,
     age: Number.isFinite(parsedAge) ? parsedAge : 0,
     weight: 0,
-    ownerName: 'Sahip',
+    ownerName: handoff.ownerName || 'Sahip',
     ownerPhone: '',
   }
   const clinical: ClinicalInfo = {
@@ -334,6 +334,10 @@ export default function Processing() {
           anatomicalRegion: handoff.acceptSuggestion ? undefined : handoff.overrideRegion,
           patientName: handoff.patientName,
           clinicalHistory: handoff.history,
+          ownerName: handoff.ownerName,
+          ownerEmail: handoff.ownerEmail,
+          ownerEmailConsent: handoff.ownerEmailConsent,
+          petOwnerSubject: handoff.petOwnerSubject,
           imagingSourcePermissionVerified: handoff.consent,
           imagingAnalysisConsentVerified: handoff.consent,
           signal: controller.signal,
@@ -361,15 +365,10 @@ export default function Processing() {
       } catch (err) {
         if (!alive || (err instanceof DOMException && err.name === 'AbortError')) return
         clearAnalyzeHandoff(id)
-        const message =
-          err instanceof BackendUnavailableError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : t('cases.processing.handoffFailed')
+        const message = userErrorMessage(err, t)
         setHandoffPhase('failed')
         setLoadError(message)
-        pushToast({ tone: 'error', title: t('cases.processing.handoffFailed'), body: message })
+        pushToast({ tone: 'error', title: t('cases.processing.handoffFailed'), body: toastErrorBody(err, t) })
       }
     })()
 
@@ -449,9 +448,9 @@ export default function Processing() {
       await hydrateBackendCase(caseId)
       await refresh()
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('cases.processing.cancelFailed')
+      const message = userErrorMessage(err, t)
       setLoadError(message)
-      pushToast({ tone: 'error', title: t('cases.processing.toastStopFailed'), body: message })
+      pushToast({ tone: 'error', title: t('cases.processing.toastStopFailed'), body: toastErrorBody(err, t) })
     } finally {
       setStopping(false)
     }
@@ -480,14 +479,9 @@ export default function Processing() {
       })
       await refresh()
     } catch (err) {
-      const message =
-        err instanceof BackendUnavailableError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : t('cases.processing.retryFailed')
+      const message = userErrorMessage(err, t)
       setLoadError(message)
-      pushToast({ tone: 'error', title: t('cases.processing.retryFailed'), body: message })
+      pushToast({ tone: 'error', title: t('cases.processing.retryFailed'), body: toastErrorBody(err, t) })
     } finally {
       setRetrying(false)
     }

@@ -15,7 +15,7 @@ def test_override_emits_classification_correction(client: TestClient) -> None:
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
         json={
-            "accept_suggestion": False,
+            "accept_suggestion": False, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True,
             "modality": "MR",
             "anatomical_region": "CERVICAL",
         },
