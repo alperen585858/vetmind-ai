@@ -188,6 +188,43 @@ class MockCervicalMriModel:
         return out
 
 
+class MockThoracolumbarMriModel:
+    """Demo thoracolumbar spine MR (#49): a T13-L1 disc extrusion pattern, never a cervical one."""
+
+    model_id = "mock-tl-mri-v1"
+    version = "0.1.0"
+
+    def analyze(self, case: CaseRecord) -> StructuredFindings:
+        if case.scenario == MockScenario.MODEL_FAILURE:
+            raise MockVisionError("Demo torakolomber MR modeli bilinçli olarak hata verdi (senaryo: model hatası).")
+        if case.scenario == MockScenario.NO_FINDINGS:
+            out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+            out.no_findings_returned = True
+            out.warnings.append(ABSENCE_WARNING)
+            return out
+        out = _base(case, model_id=self.model_id, version=self.version, status=ModelExecutionStatus.SUCCESS)
+        out.findings = [
+            _finding(
+                finding_id=f"{case.case_id}-f-tl-01",
+                finding_code="MOCK-TL-DISC-EXTRUSION",
+                description="T13–L1 seviyesinde şüpheli ventral ekstradural disk materyali ve omurilik basısı.",
+                anatomical_location="torakolomber omurga / T13–L1",
+                finding_status=FindingStatus.SUSPECTED,
+                model_id=self.model_id,
+                version=self.version,
+                evidence=[
+                    EvidenceReference(
+                        evidence_id=f"{case.case_id}-ev-tl-01",
+                        description="T2A sagital seri ipucu.",
+                        series_hint="T2A sagital",
+                        note="",
+                    )
+                ],
+            )
+        ]
+        return out
+
+
 class MockCt3dModel:
     """Stub CT 3D adapter — synthetic findings only; no volume reconstruction."""
 
@@ -334,6 +371,7 @@ def default_model_registry() -> dict[str, ImagingModel]:
         MockBrainMriModel.model_id: MockBrainMriModel(),
         MockBrainMriAltModel.model_id: MockBrainMriAltModel(),
         MockCervicalMriModel.model_id: MockCervicalMriModel(),
+        MockThoracolumbarMriModel.model_id: MockThoracolumbarMriModel(),
         MockCt3dModel.model_id: MockCt3dModel(),
         MockXrVisionModel.model_id: MockXrVisionModel(),
         MockMultimodalVlmModel.model_id: MockMultimodalVlmModel(),

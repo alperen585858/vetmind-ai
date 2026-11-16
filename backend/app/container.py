@@ -147,6 +147,7 @@ class AppContainer:
                             AnatomicalRegion.BRAIN,
                             AnatomicalRegion.CERVICAL,
                             AnatomicalRegion.THORAX,
+                            AnatomicalRegion.THORACOLUMBAR,
                             AnatomicalRegion.OTHER,
                             AnatomicalRegion.UNKNOWN,
                         }

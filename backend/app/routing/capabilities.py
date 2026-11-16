@@ -63,7 +63,7 @@ def _mock_tasks() -> frozenset[str]:
 def default_capabilities() -> list[ModelCapability]:
     """Production-default capability table for mock adapters (MRI / CT / XR / multimodal)."""
     canine_feline = frozenset({Species.CANINE, Species.FELINE})
-    neuro = frozenset({AnatomicalRegion.BRAIN, AnatomicalRegion.CERVICAL})
+    neuro = frozenset({AnatomicalRegion.BRAIN, AnatomicalRegion.CERVICAL, AnatomicalRegion.THORACOLUMBAR})
     meta = frozenset({INPUT_METADATA_ONLY})
     return [
         ModelCapability(
@@ -96,12 +96,26 @@ def default_capabilities() -> list[ModelCapability]:
             adapter_kind="mock",
         ),
         ModelCapability(
+            model_id="mock-tl-mri-v1",
+            modalities=frozenset({Modality.MR}),
+            regions=frozenset({AnatomicalRegion.THORACOLUMBAR}),
+            species=canine_feline,
+            priority=10,
+            description="Mock thoracolumbar spine MRI (canine/feline)",
+            model_version="1.0.0-mock",
+            timeout_s=15.0,
+            task_capabilities=_mock_tasks(),
+            input_requirements=meta,
+            availability=AVAILABILITY_AVAILABLE,
+            adapter_kind="mock",
+        ),
+        ModelCapability(
             model_id="mock-ct-3d-v1",
             modalities=frozenset({Modality.CT}),
             regions=neuro,
             species=canine_feline,
             priority=20,
-            description="Mock CT 3D volume stub (brain/cervical)",
+            description="Mock CT 3D volume stub (brain/cervical/thoracolumbar)",
             model_version="1.0.0-mock",
             timeout_s=20.0,
             task_capabilities=_mock_tasks(),

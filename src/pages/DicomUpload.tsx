@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { confidenceLabel, modalityLabel, studyLabel } from '../lib/displayClean'
+import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../lib/displayClean'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -338,7 +338,7 @@ export default function DicomUpload() {
     setOverrideModality(mod === 'CT' || mod === 'XR' || mod === 'MR' ? mod : 'MR')
     const region = upload.classification.suggested_anatomical_region
     setOverrideRegion(
-      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' ? region : 'BRAIN',
+      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' || region === 'THORACOLUMBAR' ? region : 'BRAIN',
     )
   }
 
@@ -666,9 +666,11 @@ export default function DicomUpload() {
                 <option value="XR">XR</option>
               </select>
               <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
-                <option value="BRAIN">BRAIN</option>
-                <option value="CERVICAL">CERVICAL</option>
-                <option value="THORAX">THORAX</option>
+                {(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR'] as const).map((r) => (
+                  <option key={r} value={r}>
+                    {regionLabel(t, r)}
+                  </option>
+                ))}
               </select>
             </div>
           )}

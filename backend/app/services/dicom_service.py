@@ -38,6 +38,7 @@ _ROUTABLE_REGIONS = frozenset(
         AnatomicalRegion.BRAIN,
         AnatomicalRegion.CERVICAL,
         AnatomicalRegion.THORAX,
+        AnatomicalRegion.THORACOLUMBAR,
     }
 )
 _ROUTABLE_MODALITIES = frozenset({Modality.MR, Modality.CT, Modality.XR})
@@ -245,7 +246,7 @@ class DicomService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "Confirmed anatomical region must be BRAIN, CERVICAL, or THORAX for automated routing. "
+                    "Confirmed anatomical region must be BRAIN, CERVICAL, THORAX or THORACOLUMBAR for automated routing. "
                     "Use manual synthetic CaseCreate if you need OTHER/UNKNOWN demos."
                 ),
             )
@@ -257,7 +258,7 @@ class DicomService:
         if modality in {Modality.MR, Modality.CT} and region == AnatomicalRegion.THORAX:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="MR/CT mock pipeline currently routes BRAIN or CERVICAL (not THORAX).",
+                detail="MR/CT mock pipeline currently routes BRAIN, CERVICAL or THORACOLUMBAR (not THORAX).",
             )
 
         patient_name = (payload.patient_name or record.patient_name).strip()

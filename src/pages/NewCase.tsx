@@ -3,7 +3,7 @@ import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { confidenceLabel, studyLabel } from '../lib/displayClean'
+import { confidenceLabel, regionLabel, studyLabel } from '../lib/displayClean'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -289,7 +289,7 @@ export default function NewCase() {
     setOverrideModality(mod === 'CT' || mod === 'XR' || mod === 'MR' ? mod : 'MR')
     const region = upload.classification.suggested_anatomical_region
     setOverrideRegion(
-      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' ? region : 'BRAIN',
+      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' || region === 'THORACOLUMBAR' ? region : 'BRAIN',
     )
   }
 
@@ -1087,9 +1087,11 @@ export default function NewCase() {
                         </Field>
                         <Field label="Anatomik bölge override">
                           <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
-                            <option value="BRAIN">BRAIN</option>
-                            <option value="CERVICAL">CERVICAL</option>
-                            <option value="THORAX">THORAX</option>
+                            {(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR'] as const).map((r) => (
+                              <option key={r} value={r}>
+                                {regionLabel(t, r)}
+                              </option>
+                            ))}
                           </select>
                         </Field>
                       </div>
