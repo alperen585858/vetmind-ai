@@ -109,6 +109,7 @@
     "BRAIN": "Brain",
     "CERVICAL": "Cervical",
     "THORAX": "Thorax",
+    "THORACOLUMBAR": "Thoracolumbar",
     "OTHER": "Other region",
     "UNKNOWN": "Region unclear"
   },

@@ -20,6 +20,7 @@ from app.dicom.fixtures import (
     brain_ct_study_files,
     brain_mri_study_files,
     cervical_mri_study_files,
+    thoracolumbar_mri_study_files,
     thorax_xr_study_files,
 )
 from app.schemas.case import CaseAssignmentUpdate, CasePriority, ReviewFeedback, StructuredClinicalHistory
@@ -45,6 +46,7 @@ Stage = Literal["created", "analyzed", "assigned", "revision", "approved"]
 _FIXTURES: dict[str, Callable[[int], list[tuple[str, bytes]]]] = {
     "brain_mri": brain_mri_study_files,
     "cervical_mri": cervical_mri_study_files,
+    "thoracolumbar_mri": thoracolumbar_mri_study_files,
     "brain_ct": brain_ct_study_files,
     "thorax_xr": thorax_xr_study_files,
 }
@@ -181,6 +183,26 @@ DEMO_PATIENTS: tuple[DemoPatient, ...] = (
             medications="Yok",
         ),
         exam="Ataksi (dört bacak), baş eğikliği, nistagmus.",
+    ),
+    DemoPatient(
+        patient_name="Fındık",
+        species=Species.CANINE,
+        breed="Dachshund",
+        age_years=5,
+        fixture="thoracolumbar_mri",
+        instances=12,
+        stage="analyzed",
+        days_ago=2,
+        priority="high",
+        history=StructuredClinicalHistory(
+            complaint="Arka bacaklarda ani güçsüzlük, sırtta ağrı",
+            onset="Akut",
+            course="Progresif",
+            relevant_history="Merdivenden atladıktan sonra başladı.",
+            medications="Yok",
+        ),
+        exam="Paraparezi, T3-L3 hiperestezi; derin ağrı korunuyor.",
+        sex="Erkek",
     ),
     DemoPatient(
         patient_name="Pamuk",

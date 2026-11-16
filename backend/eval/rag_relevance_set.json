@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "VetMind RAG relevance set",
   "note": "Sentetik vakalar; ilgili kaynaklar ekip tarafından işaretlendi (yazarların yargısını yansıtır). Kafatası/ırk kaynakları (suture-*, breed-*) yalnızca kafa travması veya kafatası morfolojisi sorularında ilgili sayılır; kb-10 (raporlama güvenlik notu) klinik kaynak değildir. 'relevant' boşsa doğru davranış hiç kaynak getirmemektir. Klinik validasyon değildir.",
   "cases": [
@@ -292,10 +292,10 @@
     },
     {
       "id": "tl-spine-paresis-dog",
-      "title": "Torakolomber disk, arka bacak güçsüzlüğü (bölge: diğer)",
+      "title": "Torakolomber disk, arka bacak güçsüzlüğü",
       "species": "canine",
       "modality": "MR",
-      "region": "OTHER",
+      "region": "THORACOLUMBAR",
       "complaint": "Arka bacaklarda ani güçsüzlük, sırt ağrısı",
       "history": "5 yaşında Dachshund.",
       "findings": [
@@ -310,6 +310,26 @@
         "kb-2",
         "kb-3",
         "kb-4"
+      ]
+    },
+    {
+      "id": "tl-fce-cat",
+      "title": "Kedi, ani ve ağrısız arka bacak felci (FKE şüphesi)",
+      "species": "feline",
+      "modality": "MR",
+      "region": "THORACOLUMBAR",
+      "complaint": "Ani başlayan, ağrısız arka bacak felci; sol tarafta daha belirgin",
+      "history": "9 yaşında. Egzersiz sırasında birden başladı, ilerlemiyor.",
+      "findings": [
+        {
+          "code": "TL-INTRAMEDULLARY-T2",
+          "description": "L4-L5 seviyesinde, bası olmadan omurilik içinde fokal T2 hiperintensitesi.",
+          "location": "lomber omurilik / L4-L5"
+        }
+      ],
+      "relevant": [
+        "kb-4",
+        "kb-1"
       ]
     },
     {

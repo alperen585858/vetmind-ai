@@ -109,6 +109,7 @@
     "BRAIN": "Beyin",
     "CERVICAL": "Servikal",
     "THORAX": "Toraks",
+    "THORACOLUMBAR": "Torakolomber",
     "OTHER": "Diğer bölge",
     "UNKNOWN": "Bölge belirsiz"
   },

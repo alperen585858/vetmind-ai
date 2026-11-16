@@ -37,6 +37,16 @@ def test_cervical_case_sees_spine_but_not_thoracolumbar_only_docs() -> None:
     assert not cervical.allows(["SPINE_TL"], [])
 
 
+def test_thoracolumbar_case_sees_spine_sources_only() -> None:
+    tl = RagFilter(region="THORACOLUMBAR", species="canine", modality="MR")
+    assert tl.allows(["SPINE_TL"], []) and tl.allows(["SPINE"], [])
+    assert tl.allows(["BRAIN", "SPINE"], [])  # spinal + intracranial neoplasia atlas
+    for chest_or_head in (["THORAX"], ["CERVICAL"], ["BRAIN"], ["SKULL"]):
+        assert not tl.allows(chest_or_head, [])
+    # Same on a CT: skull references stay limited to head studies.
+    assert not RagFilter(region="THORACOLUMBAR", modality="CT").allows(["SKULL"], [])
+
+
 def test_clean_query_drops_enum_and_finding_codes() -> None:
     q = build_retrieval_query(
         species="canine",

@@ -214,7 +214,7 @@ def test_rules_understand_turkish_keywords() -> None:
         "Boyun omurgasi": AnatomicalRegion.CERVICAL,
         "Göğüs grafisi": AnatomicalRegion.THORAX,  # Turkish characters are folded
         "AKCIGER BT": AnatomicalRegion.THORAX,
-        "TORAKOLOMBER MR": AnatomicalRegion.OTHER,  # spine, not thorax
+        "TORAKOLOMBER MR": AnatomicalRegion.THORACOLUMBAR,  # its own region since #49, not thorax
     }
     for text, region in cases.items():
         assert classify_study(_study(text, "T2")).suggested_anatomical_region == region, text

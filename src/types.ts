@@ -351,7 +351,7 @@ export type BackendScenario =
   | 'model_failure'
   | 'conflicting'
 
-export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'brain_ct' | 'thorax_xr'
+export type DicomDemoKind = 'brain_mri' | 'cervical_mri' | 'thoracolumbar_mri' | 'brain_ct' | 'thorax_xr'
 
 export type BackendSpecies = 'canine' | 'feline' | 'other'
 
@@ -573,7 +573,7 @@ export interface BackendPipelineResult {
 }
 
 export type BackendModality = 'MR' | 'CT' | 'XR' | 'OTHER'
-export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'THORAX' | 'OTHER' | 'UNKNOWN'
+export type BackendAnatomicalRegion = 'BRAIN' | 'CERVICAL' | 'THORAX' | 'THORACOLUMBAR' | 'OTHER' | 'UNKNOWN'
 export type ClassificationConfidence = 'high' | 'medium' | 'low' | 'unknown'
 
 export interface DicomValidationIssue {

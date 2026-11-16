@@ -714,10 +714,10 @@ Boyut/embedding ayarı değişirse `rag_index.json` ilk açılışta özel kayna
 
 | | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız |
 |---|---:|---:|---:|---:|---:|
-| Hash (varsayılan) | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
-| bge-m3 | 0.82 | 0.94 | 0.64 | 1.00 | 0.28 |
+| Hash (varsayılan) | 0.72 | 1.00 | 0.57 | 1.00 | 0.42 |
+| bge-m3 | 0.82 | 1.00 | 0.71 | 1.00 | 0.32 |
 
-bge-m3 sıralamada çok daha iyi (ilgili kaynağı olan her vakada 1. sıradaki kaynak doğru), ama yoğun vektörlerde alakasız metin de yüksek puan aldığı için eşikler daha yüksek: bölgeli vakada 0.50, bölgesi "diğer/bilinmiyor" vakada 0.60. Bu yüzden bölgesi "diğer" olan torakolomber disk vakası eşiğe takılıyor.
+bge-m3 sıralamada çok daha iyi (ilgili kaynağı olan her vakada 1. sıradaki kaynak doğru), ama yoğun vektörlerde alakasız metin de yüksek puan aldığı için eşikler daha yüksek: bölgeli vakada 0.50, bölgesi "diğer/bilinmiyor" vakada 0.60. Torakolomber vakalar (#49) kendi bölgeleriyle yalnızca omurga kaynaklarını görür (SPINE_TL + SPINE); önceden "diğer" sayıldıkları için göğüs kaynakları geliyor ve bge-m3'te eşiğe takılıyorlardı. Ölçüm seti 19 vaka (2 torakolomber).
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
 
 ### 8.5 Revizyondan öğrenen AI (uzman dersleri)

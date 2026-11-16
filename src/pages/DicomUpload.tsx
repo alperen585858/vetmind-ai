@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { confidenceLabel, modalityLabel, studyLabel } from '../lib/displayClean'
+import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../lib/displayClean'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/Button'
@@ -82,6 +82,7 @@ const DEMO_SETS: {
 }[] = [
   { kind: 'brain_mri', label: 'Brain MRI', hint: 'MR · kranial', tone: 'from-teal-50 to-cyan-50 text-teal-700', Icon: Brain },
   { kind: 'cervical_mri', label: 'Cervical MRI', hint: 'MR · servikal', tone: 'from-sky-50 to-indigo-50 text-sky-700', Icon: Bone },
+  { kind: 'thoracolumbar_mri', label: 'Thoracolumbar MRI', hint: 'MR · torakolomber', tone: 'from-emerald-50 to-teal-50 text-emerald-700', Icon: Bone },
   { kind: 'brain_ct', label: 'Brain CT', hint: 'BT · kranial', tone: 'from-violet-50 to-slate-50 text-violet-700', Icon: Scan },
   { kind: 'thorax_xr', label: 'Thorax XR', hint: 'Röntgen · toraks', tone: 'from-amber-50 to-orange-50 text-amber-700', Icon: FileText },
 ]
@@ -338,7 +339,7 @@ export default function DicomUpload() {
     setOverrideModality(mod === 'CT' || mod === 'XR' || mod === 'MR' ? mod : 'MR')
     const region = upload.classification.suggested_anatomical_region
     setOverrideRegion(
-      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' ? region : 'BRAIN',
+      region === 'CERVICAL' || region === 'THORAX' || region === 'BRAIN' || region === 'THORACOLUMBAR' ? region : 'BRAIN',
     )
   }
 
@@ -666,9 +667,11 @@ export default function DicomUpload() {
                 <option value="XR">XR</option>
               </select>
               <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
-                <option value="BRAIN">BRAIN</option>
-                <option value="CERVICAL">CERVICAL</option>
-                <option value="THORAX">THORAX</option>
+                {(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR'] as const).map((r) => (
+                  <option key={r} value={r}>
+                    {regionLabel(t, r)}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -872,7 +875,7 @@ export default function DicomUpload() {
           </Button>
         )}
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {DEMO_SETS.map((d) => {
           const selected = pendingDemo === d.kind
           return (
