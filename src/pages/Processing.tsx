@@ -39,7 +39,12 @@ import {
   type BackendAnalysisJob,
 } from '../lib/backend'
 import { displayAnalysisProgress, estimateAnalysisDurationMs } from '../lib/analysisProgress'
-import { clearAnalyzeHandoff, getAnalyzeHandoff, type AnalyzeHandoff } from '../lib/analyzeHandoff'
+import {
+  claimAnalyzeHandoff,
+  clearAnalyzeHandoff,
+  getAnalyzeHandoff,
+  type AnalyzeHandoff,
+} from '../lib/analyzeHandoff'
 import { cacheCaseDicomFiles } from '../lib/dicomCaseCache'
 import { MAX_VIEWER_FRAMES } from '../lib/dicomFolder'
 import type { TranslateFn } from '../i18n'
@@ -284,6 +289,9 @@ export default function Processing() {
   }, [refresh, c?.processingStartedAt])
 
   // Run upload + enqueue after immediate navigation from DICOM upload.
+  // Do not abort on effect cleanup: React Strict Mode / router remounts would cancel a
+  // successful confirm mid-flight, then a second run races into a false "failed" UI while
+  // the case is already analyzing on the server.
   useEffect(() => {
     if (!isPending) return
     const handoff = getAnalyzeHandoff(id)
@@ -292,7 +300,11 @@ export default function Processing() {
       setLoadError(t('cases.processing.handoffFailed'))
       return
     }
-    const controller = new AbortController()
+    if (!claimAnalyzeHandoff(id)) {
+      // Sibling Strict Mode effect already owns the pipeline; keep uploading UI.
+      setHandoffPhase('uploading')
+      return
+    }
     let alive = true
 
     ;(async () => {
@@ -308,7 +320,6 @@ export default function Processing() {
                 species: handoff.species,
                 breed: handoff.breed,
                 clinicalHistory: handoff.history,
-                signal: controller.signal,
               })
             : await uploadDicomFiles({
                 files: handoff.files,
@@ -316,14 +327,15 @@ export default function Processing() {
                 species: handoff.species,
                 breed: handoff.breed,
                 clinicalHistory: handoff.history,
-                signal: controller.signal,
               })
-          if (!alive) return
           uploadSnap = upload
           if (upload.blocked) {
             throw new Error(upload.block_reason || t('dicom.uploadBlocked'))
           }
           ingestId = upload.ingest_id
+          // Persist ingest so a remount resumes confirm instead of re-uploading.
+          handoff.ingestId = ingestId
+          handoff.uploadSnap = upload
         }
 
         if (alive) setHandoffPhase('queuing')
@@ -340,12 +352,8 @@ export default function Processing() {
           petOwnerSubject: handoff.petOwnerSubject,
           imagingSourcePermissionVerified: handoff.consent,
           imagingAnalysisConsentVerified: handoff.consent,
-          signal: controller.signal,
         })
-        if (!alive) return
 
-        setHandoffPhase('sent')
-        setJob(enqueued)
         const newCase = buildCaseFromHandoff(handoff, caseRecord, enqueued, uploadSnap, locale, t)
         if (handoff.files.length > 0) {
           void cacheCaseDicomFiles(newCase.id, handoff.files.slice(0, MAX_VIEWER_FRAMES))
@@ -353,18 +361,24 @@ export default function Processing() {
         clearAnalyzeHandoff(handoff.pendingId)
         addCase(newCase)
         startedAtRef.current = newCase.processingStartedAt ?? Date.now()
-        pushToast({
-          tone: 'info',
-          title: t('cases.processing.sentToAi'),
-          body: `${handoff.patientName} · ${t('cases.processing.loadingTitle')}`,
-        })
-        // Navigate first so the pending id is not briefly "not found".
+        // Always navigate even if this effect instance unmounted — otherwise the pending
+        // route stays stuck while analysis already runs on the backend.
         nav(`/vakalar/${newCase.id}/isleme`, { replace: true })
         removeCase(handoff.pendingId)
-        setHandoffPhase('idle')
+        if (alive) {
+          setHandoffPhase('sent')
+          setJob(enqueued)
+          setHandoffPhase('idle')
+          pushToast({
+            tone: 'info',
+            title: t('cases.processing.sentToAi'),
+            body: `${handoff.patientName} · ${t('cases.processing.loadingTitle')}`,
+          })
+        }
       } catch (err) {
-        if (!alive || (err instanceof DOMException && err.name === 'AbortError')) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
         clearAnalyzeHandoff(id)
+        if (!alive) return
         const message = userErrorMessage(err, t)
         setHandoffPhase('failed')
         setLoadError(message)
@@ -374,7 +388,6 @@ export default function Processing() {
 
     return () => {
       alive = false
-      controller.abort()
     }
   }, [addCase, id, isPending, locale, nav, pushToast, removeCase, t])
 
@@ -496,8 +509,17 @@ export default function Processing() {
   }
 
   const outcome = job?.outcome ?? c.backendOutcome
-  const failed = outcome === 'failed' || jobStatus === 'failed' || jobStatus === 'timed_out' || handoffPhase === 'failed'
-  const unsupported = outcome === 'unsupported'
+  // Case lifecycle wins over a stale/racy job poll: once the case reached review,
+  // never show the handoff/job failure chrome on this page.
+  const caseAlreadyAdvanced =
+    c?.status === 'uzman_incelemesinde' ||
+    c?.status === 'onaylandi' ||
+    c?.status === 'manuel_inceleme' ||
+    c?.status === 'revizyon'
+  const failed =
+    !caseAlreadyAdvanced &&
+    (outcome === 'failed' || jobStatus === 'failed' || jobStatus === 'timed_out' || handoffPhase === 'failed')
+  const unsupported = !caseAlreadyAdvanced && outcome === 'unsupported'
   const cancelled = jobStatus === 'cancelled'
   const cancelling = jobStatus === 'cancel_requested' || stopping
   const canStop =
@@ -505,7 +527,8 @@ export default function Processing() {
     (isInFlightStatus(job?.status) || retrying) &&
     jobStatus !== 'cancel_requested'
   const roundedPct = Math.round(progressPct)
-  const completedOk = jobStatus === 'completed' && !failed && !unsupported && !cancelled
+  const completedOk =
+    caseAlreadyAdvanced || (jobStatus === 'completed' && !failed && !unsupported && !cancelled)
   const stageText =
     handoffPhase === 'uploading'
       ? t('cases.processing.preparingUpload')

@@ -52,7 +52,10 @@ export function OwnerContactFields({
   }, [query, value.mode])
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+    <div
+      data-testid="owner-contact-fields"
+      className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4"
+    >
       <div>
         <p className="text-sm font-semibold text-navy-900">{t('ownerContact.title')}</p>
         <p className="mt-0.5 text-xs text-slate-500">{t('ownerContact.hint')}</p>
@@ -70,6 +73,7 @@ export function OwnerContactFields({
         </button>
         <button
           type="button"
+          data-testid="owner-contact-guest"
           disabled={disabled}
           className={`rounded-lg px-3 py-1.5 font-medium ${
             value.mode === 'guest' ? 'bg-teal-700 text-white' : 'bg-white text-navy-800 ring-1 ring-slate-200'
@@ -135,6 +139,7 @@ export function OwnerContactFields({
           <label className="block text-xs text-slate-600">
             {t('ownerContact.name')} *
             <input
+              data-testid="owner-contact-name"
               className="input mt-1 text-sm"
               value={value.ownerName}
               disabled={disabled}
@@ -145,6 +150,7 @@ export function OwnerContactFields({
           <label className="block text-xs text-slate-600">
             {t('ownerContact.email')} *
             <input
+              data-testid="owner-contact-email"
               className="input mt-1 text-sm"
               type="email"
               value={value.ownerEmail}
@@ -158,6 +164,7 @@ export function OwnerContactFields({
 
       <label className="flex items-start gap-2 text-xs text-slate-700">
         <input
+          data-testid="owner-contact-consent"
           type="checkbox"
           className="mt-0.5"
           checked={value.ownerEmailConsent}

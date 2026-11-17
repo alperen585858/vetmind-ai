@@ -24,5 +24,8 @@ export async function signOutFromSettings(page: Page) {
   const button = page.getByRole('main').getByRole('button', { name: 'Çıkış yap' })
   await expect(button).toBeVisible({ timeout: 20_000 })
   await button.click()
-  await page.waitForURL(/\/giris$/, { timeout: 15_000 })
+  // Match pathname (not full URL). Hard logout lands on /giris|/login.
+  await page.waitForURL((url) => /\/(giris|login)$/.test(url.pathname) || url.pathname === '/', {
+    timeout: 15_000,
+  })
 }

@@ -1,5 +1,6 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
 import { loginAsExpert } from './auth'
+import { E2E_OWNER } from './ownerContact'
 import { openExpertReviewForCase } from './workflow'
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000/api/v1'
@@ -31,6 +32,7 @@ export async function seedAnnotatedCase(
       accept_suggestion: true,
       imaging_source_permission_verified: true,
       imaging_analysis_consent_verified: true,
+      ...E2E_OWNER,
     },
   })
   expect(conf.ok(), await conf.text()).toBeTruthy()

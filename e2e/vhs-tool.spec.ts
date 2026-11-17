@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { loginAsExpert } from './helpers/auth'
+import { E2E_OWNER } from './helpers/ownerContact'
 import { openExpertReviewForCase } from './helpers/workflow'
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000/api/v1'
@@ -20,6 +21,7 @@ async function seedThoraxXrCase(request: APIRequestContext): Promise<string> {
       accept_suggestion: true,
       imaging_source_permission_verified: true,
       imaging_analysis_consent_verified: true,
+      ...E2E_OWNER,
     },
   })
   expect(conf.ok(), await conf.text()).toBeTruthy()

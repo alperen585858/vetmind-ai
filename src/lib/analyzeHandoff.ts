@@ -30,9 +30,12 @@ export type AnalyzeHandoff = {
 }
 
 let pending: AnalyzeHandoff | null = null
+/** Prevents Strict Mode / remount from starting a second confirm for the same pending id. */
+const startedPendingIds = new Set<string>()
 
 export function setAnalyzeHandoff(handoff: AnalyzeHandoff): void {
   pending = handoff
+  startedPendingIds.delete(handoff.pendingId)
 }
 
 /** Read handoff without clearing (survives React Strict Mode remounts). */
@@ -41,6 +44,14 @@ export function getAnalyzeHandoff(pendingId: string): AnalyzeHandoff | null {
   return pending
 }
 
+/** Returns false if another effect instance already owns this pending upload. */
+export function claimAnalyzeHandoff(pendingId: string): boolean {
+  if (startedPendingIds.has(pendingId)) return false
+  startedPendingIds.add(pendingId)
+  return true
+}
+
 export function clearAnalyzeHandoff(pendingId: string): void {
   if (pending?.pendingId === pendingId) pending = null
+  startedPendingIds.delete(pendingId)
 }

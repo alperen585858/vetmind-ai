@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { useLocalePath, useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
+import { useLocalePath } from '../hooks/useLocalizedNavigate'
+import { localizePath } from '../i18n/paths'
 import {
   Activity,
   BookOpen,
@@ -47,9 +48,8 @@ export function Sidebar({
   collapsed: boolean
   onToggleCollapsed: () => void
 }) {
-  const { role, cases, signOut, pushToast } = useApp()
-  const { t } = useLocale()
-  const nav = useLocalizedNavigate()
+  const { role, cases, signOut } = useApp()
+  const { t, locale } = useLocale()
   const lp = useLocalePath()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
@@ -269,10 +269,10 @@ export function Sidebar({
             type="button"
             title={t('nav.logout')}
             onClick={() => {
+              // Hard navigate: sign-out remounts public routes and can drop SPA navigate.
               signOut()
               onClose()
-              nav('/giris')
-              pushToast({ tone: 'info', title: t('settings.signOut'), body: t('settings.accountHint') })
+              window.location.assign(localizePath('/giris', locale))
             }}
             className={`flex w-full min-h-11 items-center rounded-lg text-sm font-medium text-navy-200 transition hover:bg-vet-red hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vet-red ${
               collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'

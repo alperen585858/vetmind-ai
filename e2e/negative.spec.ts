@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test'
 import { loginAsExpert, loginAsVet, switchRole } from './helpers/auth'
+import { withOwnerContact } from './helpers/ownerContact'
 import {
   approveReport,
   confirmAndRunDemoAnalysis,
+  fillConsentAndPatient,
   loadBrainMriDemo,
   openDicomUpload,
   openExpertReviewForCase,
@@ -45,7 +47,7 @@ test.describe('Negative browser scenarios', () => {
   test('refresh persistence keeps approved report', async ({ page, request }) => {
     const patient = `Persist-${Date.now().toString(36)}`
     const created = await request.post('http://127.0.0.1:8000/api/v1/cases', {
-      data: {
+      data: withOwnerContact({
         patient_name: patient,
         species: 'canine',
         breed: 'Mix',
@@ -53,7 +55,7 @@ test.describe('Negative browser scenarios', () => {
         anatomical_region: 'BRAIN',
         clinical_history: 'E2E refresh persistence — synthetic',
         scenario: 'brain_mri_suspected',
-      },
+      }),
     })
     expect(created.ok()).toBeTruthy()
     const caseId = (await created.json()).case_id as string
@@ -97,8 +99,7 @@ test.describe('Negative browser scenarios', () => {
     await loginAsVet(page)
     await openDicomUpload(page)
     await loadBrainMriDemo(page)
-    await page.getByLabel(/Hasta adı/i).fill(`Timeout-${Date.now().toString(36)}`)
-    await page.getByRole('checkbox', { name: /ön değerlendirme/i }).check()
+    await fillConsentAndPatient(page, `Timeout-${Date.now().toString(36)}`)
 
     // Allow upload/confirm; stall job polling
     await page.route('**/api/v1/jobs/**', async (route) => {
@@ -135,7 +136,7 @@ test.describe('Negative browser scenarios', () => {
     expect(health.ok()).toBeTruthy()
 
     const create = await request.post('http://127.0.0.1:8000/api/v1/cases', {
-      data: {
+      data: withOwnerContact({
         patient_name: `Cancel-${Date.now().toString(36)}`,
         species: 'canine',
         breed: 'Mix',
@@ -143,7 +144,7 @@ test.describe('Negative browser scenarios', () => {
         anatomical_region: 'BRAIN',
         clinical_history: 'E2E cancel synthetic',
         scenario: 'brain_mri_suspected',
-      },
+      }),
     })
     expect(create.ok()).toBeTruthy()
     const caseId = (await create.json()).case_id as string
@@ -174,7 +175,7 @@ test.describe('Expert review reason codes', () => {
   test('reject requires reason code and text on workspace', async ({ page, request }) => {
     const patient = `Reject-${Date.now().toString(36)}`
     const created = await request.post('http://127.0.0.1:8000/api/v1/cases', {
-      data: {
+      data: withOwnerContact({
         patient_name: patient,
         species: 'canine',
         breed: 'Mix',
@@ -182,7 +183,7 @@ test.describe('Expert review reason codes', () => {
         anatomical_region: 'BRAIN',
         clinical_history: 'E2E reject path',
         scenario: 'brain_mri_suspected',
-      },
+      }),
     })
     expect(created.ok()).toBeTruthy()
     const caseId = (await created.json()).case_id as string

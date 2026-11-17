@@ -1,8 +1,8 @@
 /**
  * In-app navigation guard (issue #24). Only same-origin absolute paths pass:
  * "/vakalar/x" is fine; "//evil.com", "/\\evil.com", "https://…", "javascript:…" fall back.
- * React Router 6.30 still has a moderate open-redirect via backslash (fixed only in v7),
- * so paths that come from data (notification links, rewritten URLs) go through this.
+ * React Router v7 fixed the backslash open-redirect; keep this for data-driven paths
+ * (notification links, rewritten URLs) so untrusted strings never reach navigate/Link.
  */
 export function safeInternalPath(path: string | null | undefined, fallback = '/'): string {
   if (!path) return fallback

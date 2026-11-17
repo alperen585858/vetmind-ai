@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Bell, Loader2, LogOut, Monitor, Save, Settings as SettingsIcon, UserRound } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
@@ -9,6 +8,7 @@ import { Button } from '../components/Button'
 import { ChangePasswordCard } from '../components/ChangePasswordCard'
 import { ROLE_BADGE } from '../components/Topbar'
 import { isLocale } from '../i18n/types'
+import { localizePath } from '../i18n/paths'
 import {
   BackendUnavailableError,
   getUserSettings,
@@ -69,7 +69,6 @@ function applySidebarPref(compact: boolean) {
 export default function Settings() {
   const { role, user, signOut, pushToast, applyUserProfile } = useApp()
   const { t, locale, setLocale, intlLocale } = useLocale()
-  const nav = useLocalizedNavigate()
   const [settings, setSettings] = useState<BackendUserSettings | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [org, setOrg] = useState('')
@@ -305,9 +304,10 @@ export default function Settings() {
                 variant="danger"
                 icon={<LogOut className="h-4 w-4" />}
                 onClick={() => {
+                  // Hard navigate after sign-out: clearing role remounts the public route
+                  // tree and can drop an in-flight SPA navigate('/giris').
                   signOut()
-                  nav('/giris')
-                  pushToast({ tone: 'info', title: t('common.info'), body: t('settings.signOut') })
+                  window.location.assign(localizePath('/giris', locale))
                 }}
               >
                 {t('settings.signOut')}

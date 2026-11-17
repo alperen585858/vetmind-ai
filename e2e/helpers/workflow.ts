@@ -28,16 +28,24 @@ export async function navigateSlices(page: Page) {
 
 export async function fillConsentAndPatient(page: Page, patientName: string) {
   await page.getByLabel(/Hasta adı/i).fill(patientName)
-  // Consent checkbox by accessible name (wording changed over time; "ön değerlendirme" stays).
-  await page.getByRole('checkbox', { name: /ön değerlendirme/i }).check()
+  const owner = page.getByTestId('owner-contact-fields')
+  await owner.getByTestId('owner-contact-guest').click()
+  await owner.getByTestId('owner-contact-name').fill('E2E Sahip')
+  await owner.getByTestId('owner-contact-email').fill('owner@demo.local')
+  const kvkk = owner.getByTestId('owner-contact-consent')
+  if (!(await kvkk.isChecked())) await kvkk.check()
+  // Imaging consent checkbox by accessible name (wording changed over time; "ön değerlendirme" stays).
+  const imaging = page.getByRole('checkbox', { name: /ön değerlendirme/i })
+  if (!(await imaging.isChecked())) await imaging.check()
 }
 
 /** Metadata preview → accept suggestion → run mock analysis → land on processing. */
 export async function confirmAndRunDemoAnalysis(page: Page, patientName: string) {
   await fillConsentAndPatient(page, patientName)
 
+  const analyzeBtn = page.getByRole('button', { name: /Analize gönder|Demo analize devam et/i })
   const previewBtn = page.getByRole('button', { name: /Demo metadata önizle|Metadata önizle/i }).first()
-  if (await previewBtn.isEnabled()) {
+  if ((await previewBtn.count()) && (await previewBtn.isEnabled()) && !(await analyzeBtn.isEnabled())) {
     await previewBtn.click()
     await expect(page.getByText(/Sınıflandırma|MR\s*\/\s*BRAIN|Metadata hazır/i).first()).toBeVisible({
       timeout: 25_000,
@@ -51,8 +59,8 @@ export async function confirmAndRunDemoAnalysis(page: Page, patientName: string)
     else await page.locator('label').filter({ hasText: 'Öneriyi kabul et' }).locator('input').check()
   }
 
-  const analyzeBtn = page.getByRole('button', { name: /Analize gönder|Demo analize devam et/i })
   await expect(analyzeBtn).toBeEnabled({ timeout: 20_000 })
+  await analyzeBtn.scrollIntoViewIfNeeded()
   await analyzeBtn.click()
   // Deterministic readiness: navigate to processing OR surface a toast error (no sleep).
   const processing = page.waitForURL(/\/vakalar\/case-[a-z0-9]+\/isleme/, { timeout: 60_000 })
@@ -72,7 +80,14 @@ export async function confirmAndRunDemoAnalysis(page: Page, patientName: string)
 /** Processing page reached its terminal state. (The "DEMO / MOCK ANALYSIS" badge was removed
  * on purpose in f887f85; demo provenance is checked on the case page instead.) */
 export async function expectMockProcessing(page: Page) {
-  await expect(page.getByText(/Analiz tamamlandı|Analysis complete/i).first()).toBeVisible({ timeout: 20_000 })
+  // Turkish status uses dotted İ ("İncelemesinde"); ASCII /i does not match it.
+  await expect(
+    page
+      .getByRole('heading', { name: /Analiz tamamlandı|Analysis complete/i })
+      .or(page.getByText('Uzman İncelemesinde'))
+      .or(page.getByText('Under Specialist Review'))
+      .first(),
+  ).toBeVisible({ timeout: 90_000 })
 }
 
 /** Canonical expert path: RadiologistWorkspace (/calisma). /inceleme redirects here. */

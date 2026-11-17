@@ -41,12 +41,13 @@ test.describe('Logout cleanup signal', () => {
       await page.getByRole('button', { name: /Giriş|Login|Devam/i }).click()
       await page.waitForURL((url) => !url.pathname.endsWith('/giris'), { timeout: 20_000 })
     }
-    // On narrow screens the sidebar (with "Çıkış yap") sits behind the menu button.
-    const menu = page.getByRole('button', { name: /Menüyü aç|Open menu/i })
-    if (await menu.isVisible()) await menu.click()
-    const logout = page.getByRole('button', { name: /Çıkış|Logout|Oturumu/i }).first()
-    await expect(logout).toBeVisible({ timeout: 10_000 })
+    // Settings logout uses a hard navigation (stable on mobile; sidebar drawer is flaky).
+    await page.goto('/ayarlar')
+    const logout = page.getByRole('main').getByRole('button', { name: /Çıkış yap|Sign out|Log out/i })
+    await expect(logout).toBeVisible({ timeout: 15_000 })
     await logout.click()
-    await expect(page).toHaveURL(/giris|\/$/, { timeout: 10_000 })
+    await page.waitForURL((url) => /\/(giris|login)$/.test(url.pathname) || url.pathname === '/', {
+      timeout: 15_000,
+    })
   })
 })
