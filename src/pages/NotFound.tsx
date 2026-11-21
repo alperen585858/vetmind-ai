@@ -56,14 +56,16 @@ export default function NotFound({ variant }: { variant: 'public' | 'app' }) {
     return <Card className="mx-auto mt-8 max-w-xl overflow-hidden">{body}</Card>
   }
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden px-4">
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden bg-navy-950 px-4">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_80%_-10%,rgba(14,165,233,0.18),transparent_55%),radial-gradient(700px_360px_at_10%_100%,rgba(11,128,122,0.12),transparent_50%),linear-gradient(180deg,#eef6fc_0%,#f8fafc_100%)]"
+        className="pointer-events-none absolute -right-32 top-10 h-[420px] w-[420px] rounded-full bg-teal-600/20 blur-3xl"
       />
       <div className="relative flex flex-col items-center gap-6">
-        <Logo />
-        <Card className="w-full max-w-md overflow-hidden shadow-[0_16px_48px_rgba(15,39,68,0.1)]">{body}</Card>
+        <Logo dark size="lg" />
+        <Card className="w-full max-w-md overflow-hidden border-navy-800 bg-white shadow-xl">
+          {body}
+        </Card>
       </div>
     </main>
   )

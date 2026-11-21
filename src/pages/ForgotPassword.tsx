@@ -43,15 +43,15 @@ export default function ForgotPassword() {
   if (sent) {
     return (
       <AuthCard icon={<MailCheck className="h-5 w-5" />} title={t('auth.forgotSentTitle')}>
-        <p className="text-sm leading-relaxed text-navy-600" role="status">
+        <p className="text-sm leading-relaxed text-navy-200" role="status">
           {t('auth.forgotSentBody')}
         </p>
         {demoMode && (
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">
+          <p className="mt-3 rounded-lg bg-amber-400/15 px-3 py-2 text-xs text-amber-100 ring-1 ring-inset ring-amber-300/30">
             {t('auth.forgotDemoNote')}
           </p>
         )}
-        <LocalizedLink to="/giris" className="mt-5 inline-flex text-sm font-semibold text-sky-600 hover:underline">
+        <LocalizedLink to="/giris" className="mt-5 inline-flex text-sm font-semibold text-teal-300 hover:underline">
           {t('auth.backToLogin')}
         </LocalizedLink>
       </AuthCard>
@@ -61,7 +61,7 @@ export default function ForgotPassword() {
   return (
     <AuthCard icon={<KeyRound className="h-5 w-5" />} title={t('auth.forgotTitle')} subtitle={t('auth.forgotSubtitle')}>
       <form onSubmit={onSubmit}>
-        <label className="block text-xs font-medium text-navy-700">
+        <label className="block text-xs font-medium text-navy-300">
           {t('auth.email')}
           <input
             className={`${authInputClass} mt-1.5`}
@@ -76,7 +76,7 @@ export default function ForgotPassword() {
         <AuthError message={error} />
         <Button
           type="submit"
-          className="mt-5 w-full !bg-sky-500 hover:!bg-sky-600"
+          className="mt-5 w-full"
           size="lg"
           disabled={busy || !email.includes('@')}
           icon={<ArrowRight className="h-4 w-4" />}
@@ -84,7 +84,7 @@ export default function ForgotPassword() {
           {busy ? t('common.loading') : t('auth.forgotSubmit')}
         </Button>
         <p className="mt-4 text-center text-sm">
-          <LocalizedLink to="/giris" className="font-semibold text-sky-600 hover:underline">
+          <LocalizedLink to="/giris" className="font-semibold text-teal-300 hover:underline">
             {t('auth.backToLogin')}
           </LocalizedLink>
         </p>

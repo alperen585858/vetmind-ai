@@ -716,6 +716,16 @@ export default function RadiologistWorkspace() {
           </div>
         }
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-indigo-950 via-navy-950 to-teal-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-300/90">
+          {t('review.workspace.crumbWorkspace')}
+        </p>
+        <p className="mt-1 font-display text-lg font-semibold tracking-tight">
+          {c.patient.name}
+          <span className="ml-2 text-sm font-normal text-slate-300">{c.no}</span>
+        </p>
+        <p className="mt-1 text-sm text-slate-300">{contextBits.join(' · ')}</p>
+      </div>
 
       <Card className="mb-4 p-3 text-sm text-slate-700">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.caseContext')}</p>

@@ -228,10 +228,10 @@ function VetDashboard() {
     <div className="space-y-4">
       {/* Welcome + primary actions */}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,17rem)]">
-        <div className="relative overflow-hidden rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 via-sky-50 to-white shadow-soft">
+        <div className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)]">
           <div
-            className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-teal-200/30 blur-2xl"
             aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.35),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(14,165,233,0.2),transparent_45%)]"
           />
           {/* Photo fades into the card — mask avoids a hard vertical seam */}
           <div
@@ -241,30 +241,31 @@ function VetDashboard() {
             <img
               src="/dashboard-hero-dog.jpg"
               alt=""
-              className="h-full w-full scale-[1.06] object-cover object-[58%_12%]"
+              className="h-full w-full scale-[1.06] object-cover object-[58%_12%] opacity-90"
             />
-            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white/70 to-transparent" />
-            <div className="absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-teal-50/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--vm-midnight,#0b1728)] via-[color:var(--vm-midnight,#0b1728)]/55 to-transparent" />
           </div>
           <div className="relative flex min-h-[168px] items-center p-5 sm:p-6">
             <div className="max-w-[58%] min-w-0">
-              <p className="font-display text-xl font-semibold tracking-tight text-navy-900 sm:text-2xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">
+                {user?.org || t('nav.dashboard')}
+              </p>
+              <p className="mt-1 font-display text-xl font-bold tracking-tight sm:text-2xl">
                 {t('dashboard.welcomeNamed', { name: user?.name ?? '' })}
               </p>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
                 {t('dashboard.todayAtClinic', { date: formatClinicDate(t) })}{' '}
-                <span className="font-semibold text-navy-900">{t('dashboard.reviewCount', { count: review })}</span>
+                <span className="font-semibold text-white">{t('dashboard.reviewCount', { count: review })}</span>
                 {pendingSubs > 0 ? (
                   <>
                     {' '}
-                    <span className="font-semibold text-navy-900">
+                    <span className="font-semibold text-white">
                       {t('dashboard.andNewSubmissions', { count: pendingSubs })}
                     </span>
                   </>
                 ) : null}{' '}
                 {t('dashboard.awaitingSuffix')}
               </p>
-              {user?.org ? <p className="mt-2 text-xs text-slate-500">{user.org}</p> : null}
             </div>
           </div>
         </div>

@@ -264,8 +264,15 @@ export default function CaseDetail() {
 
   return (
     <>
-      <section className="mb-5 rounded-2xl bg-vet-navy p-5 text-white shadow-soft sm:p-6" aria-label={t('cases.detail.patientBannerAria')}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <section
+        className="relative mb-5 overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] p-5 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:p-6"
+        aria-label={t('cases.detail.patientBannerAria')}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.35),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(20,184,166,0.18),transparent_45%)]"
+        />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <LocalizedLink
               to={role === 'expert' ? '/kuyruk' : '/vakalar'}
@@ -292,7 +299,7 @@ export default function CaseDetail() {
             ) : null}
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+        <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
           <Button
             variant="secondary"
             size="sm"

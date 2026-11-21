@@ -24,6 +24,10 @@ export default function Modules() {
   return (
     <>
       <PageHeader title={t('admin.modulesTitle')} subtitle={t('admin.modulesSubtitle')} />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-teal-950 via-navy-950 to-sky-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('admin.modulesTitle')}</p>
+        <p className="mt-1 font-display text-lg font-semibold tracking-tight">{t('admin.modulesSubtitle')}</p>
+      </div>
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
         <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
           {t('admin.demoFiction')}

@@ -321,7 +321,7 @@ export default function ReportList() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
                 {t('reports.showingCount', { shown: filtered.length, total: reports.length })}
               </p>
-              <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+              <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                 {pageTitle}
               </h1>
               <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('reports.listSubtitle')}</p>

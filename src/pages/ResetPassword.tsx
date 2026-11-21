@@ -89,10 +89,10 @@ export default function ResetPassword() {
   if (done) {
     return (
       <AuthCard icon={<CheckCircle2 className="h-5 w-5" />} title={t('auth.resetDoneTitle')}>
-        <p className="text-sm text-navy-600" role="status">
+        <p className="text-sm text-navy-200" role="status">
           {t('auth.resetDoneBody')}
         </p>
-        <button type="button" onClick={goToLogin} className="mt-5 inline-flex text-sm font-semibold text-sky-600 hover:underline">
+        <button type="button" onClick={goToLogin} className="mt-5 inline-flex text-sm font-semibold text-teal-300 hover:underline">
           {t('auth.backToLogin')}
         </button>
       </AuthCard>
@@ -102,10 +102,10 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <AuthCard icon={<ShieldAlert className="h-5 w-5" />} title={t('auth.resetTitle')}>
-        <p className="text-sm text-navy-600" role="alert">
+        <p className="text-sm text-navy-200" role="alert">
           {t('auth.resetMissingToken')}
         </p>
-        <LocalizedLink to="/sifremi-unuttum" className="mt-5 inline-flex text-sm font-semibold text-sky-600 hover:underline">
+        <LocalizedLink to="/sifremi-unuttum" className="mt-5 inline-flex text-sm font-semibold text-teal-300 hover:underline">
           {t('auth.requestNewLink')}
         </LocalizedLink>
       </AuthCard>
@@ -115,7 +115,7 @@ export default function ResetPassword() {
   return (
     <AuthCard icon={<KeyRound className="h-5 w-5" />} title={t('auth.resetTitle')} subtitle={t('auth.resetSubtitle')}>
       <form onSubmit={onSubmit} noValidate>
-        <label className="block text-xs font-medium text-navy-700">
+        <label className="block text-xs font-medium text-navy-300">
           {t('auth.newPassword')}
           <input
             className={`${authInputClass} mt-1.5`}
@@ -128,7 +128,7 @@ export default function ResetPassword() {
           />
         </label>
         <PasswordStrength password={password} />
-        <label className="mt-4 block text-xs font-medium text-navy-700">
+        <label className="mt-4 block text-xs font-medium text-navy-300">
           {t('auth.confirmPassword')}
           <input
             className={`${authInputClass} mt-1.5`}
@@ -142,14 +142,14 @@ export default function ResetPassword() {
         <AuthError message={error} />
         {error && linkRejected && (
           <p className="mt-2 text-xs">
-            <LocalizedLink to="/sifremi-unuttum" className="font-medium text-sky-600 hover:underline">
+            <LocalizedLink to="/sifremi-unuttum" className="font-medium text-teal-300 hover:underline">
               {t('auth.requestNewLink')}
             </LocalizedLink>
           </p>
         )}
         <Button
           type="submit"
-          className="mt-5 w-full !bg-sky-500 hover:!bg-sky-600"
+          className="mt-5 w-full"
           size="lg"
           disabled={busy}
           icon={<ArrowRight className="h-4 w-4" />}

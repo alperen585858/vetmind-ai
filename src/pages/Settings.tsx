@@ -171,6 +171,11 @@ export default function Settings() {
           </Button>
         }
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-navy-950 via-slate-900 to-teal-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('settings.title')}</p>
+        <p className="mt-1 font-display text-lg font-semibold tracking-tight">{user.name}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('settings.subtitle')}</p>
+      </div>
 
       {loadError && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

@@ -60,11 +60,11 @@ export default function ReportLink() {
   if (loading) {
     return (
       <AuthCard
-        icon={<FileText className="h-6 w-6 text-teal-700" />}
+        icon={<FileText className="h-6 w-6" />}
         title={t('reportLink.loadingTitle')}
         subtitle={t('reportLink.loadingBody')}
       >
-        <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        <p className="text-sm text-navy-300">{t('common.loading')}</p>
       </AuthCard>
     )
   }
@@ -74,11 +74,11 @@ export default function ReportLink() {
       <AuthCard
         title={t('reportLink.errorTitle')}
         subtitle={t('reportLink.errorBody')}
-        icon={<ShieldAlert className="h-6 w-6 text-rose-600" />}
+        icon={<ShieldAlert className="h-6 w-6 text-rose-300" />}
       >
         <AuthError message={error || t('apiErrors.report_link_invalid')} />
-        <p className="mt-4 text-sm text-slate-600">
-          <LocalizedLink to="/kayit" className="font-medium text-teal-700 hover:underline">
+        <p className="mt-4 text-sm text-navy-300">
+          <LocalizedLink to="/kayit" className="font-medium text-teal-300 hover:underline">
             {t('reportLink.registerCta')}
           </LocalizedLink>
         </p>
@@ -90,12 +90,12 @@ export default function ReportLink() {
     <AuthCard
       title={t('reportLink.title', { patient: view.patient_name })}
       subtitle={t('reportLink.subtitle', { version: String(view.report_version) })}
-      icon={<FileText className="h-6 w-6 text-teal-700" />}
+      icon={<FileText className="h-6 w-6" />}
     >
-      <div className="space-y-4 text-sm text-navy-900">
+      <div className="space-y-4 text-sm text-navy-100">
         {view.technique ? (
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-300/90">
               {t('sections.klinikOzet')}
             </h2>
             <p className="mt-1 whitespace-pre-wrap">{view.technique}</p>
@@ -103,31 +103,33 @@ export default function ReportLink() {
         ) : null}
         {view.findings ? (
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-300/90">
               {t('sections.bulgular')}
             </h2>
-            <p className="mt-1 whitespace-pre-wrap">{view.findings}</p>
+            <p className="mt-1 whitespace-pre-wrap text-navy-100">{view.findings}</p>
           </section>
         ) : null}
         {view.impression ? (
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-300/90">
               {t('sections.degerlendirme')}
             </h2>
-            <p className="mt-1 whitespace-pre-wrap">{view.impression}</p>
+            <p className="mt-1 whitespace-pre-wrap text-navy-100">{view.impression}</p>
           </section>
         ) : null}
         {view.recommendations ? (
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-teal-300/90">
               {t('sections.oneriler')}
             </h2>
-            <p className="mt-1 whitespace-pre-wrap">{view.recommendations}</p>
+            <p className="mt-1 whitespace-pre-wrap text-navy-100">{view.recommendations}</p>
           </section>
         ) : null}
-        {view.note ? <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{view.note}</p> : null}
-        <p className="text-sm text-slate-600">
-          <LocalizedLink to="/kayit" className="font-medium text-teal-700 hover:underline">
+        {view.note ? (
+          <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-navy-200 ring-1 ring-inset ring-white/10">{view.note}</p>
+        ) : null}
+        <p className="text-sm text-navy-300">
+          <LocalizedLink to="/kayit" className="font-medium text-teal-300 hover:underline">
             {t('reportLink.registerCta')}
           </LocalizedLink>
         </p>

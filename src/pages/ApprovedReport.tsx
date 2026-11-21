@@ -468,6 +468,18 @@ export default function ApprovedReport() {
             </div>
           }
         />
+        <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-emerald-950 via-navy-950 to-teal-950 px-5 py-4 text-white shadow-soft">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300/90">
+            {t('reports.approvedTitle')}
+          </p>
+          <p className="mt-1 font-display text-lg font-semibold tracking-tight">
+            {c.patient.name}
+            <span className="ml-2 text-sm font-normal text-slate-300">{c.no}</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-300">
+            {[modalityLabel(t, c.modality), regionLabel(t, c.anatomicalRegion)].filter(Boolean).join(' · ')}
+          </p>
+        </div>
       </div>
 
       {loadError && (

@@ -136,16 +136,20 @@ export default function ReviewQueue() {
   return (
     <>
       <div className="vm-fade-up relative -mx-1 space-y-4">
-        <section className="relative overflow-hidden rounded-xl border border-slate-200 bg-navy-950 px-5 py-6 text-white shadow-soft sm:px-7">
+        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(129,140,248,0.4),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(45,212,191,0.2),transparent_45%)]"
+          />
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-300/90">
                 {t('review.caseCountTitle', { count: display.length })}
               </p>
-              <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+              <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">
                 {t('review.worklistTitle')}
               </h1>
-              <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('review.worklistSubtitle')}</p>
+              <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-300">{t('review.worklistSubtitle')}</p>
               {usingStaleFallback ? (
                 <p className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs text-amber-100 ring-1 ring-amber-300/30" role="status">
                   {t('review.staleFallbackBanner')}

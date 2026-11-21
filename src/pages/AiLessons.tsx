@@ -73,6 +73,10 @@ export default function AiLessons() {
           </Button>
         }
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-violet-950 via-navy-950 to-indigo-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-300/90">{t('lessons.title')}</p>
+        <p className="mt-1 font-display text-lg font-semibold tracking-tight">{t('lessons.subtitle')}</p>
+      </div>
 
       <p className="mb-5 flex items-start gap-3 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 to-white px-4 py-3 text-sm text-violet-950 shadow-sm">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
