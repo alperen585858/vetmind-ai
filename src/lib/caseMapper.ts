@@ -92,13 +92,19 @@ export function caseStatusFromLifecycle(status: string): CaseStatus {
   }
 }
 
+/** Stable anatomy codes for UI i18n (`anatomy.region.*`); no locale-locked Turkish. */
 function regionLabel(region: BackendAnatomicalRegion | string | undefined): string {
-  if (region === 'CERVICAL') return 'Servikal'
-  if (region === 'BRAIN') return 'Beyin'
-  if (region === 'THORAX') return 'Toraks'
-  if (region === 'THORACOLUMBAR') return 'Torakolomber'
-  if (region === 'OTHER') return 'Diğer'
-  if (region === 'UNKNOWN') return 'Bilinmiyor'
+  const r = String(region || '').toUpperCase()
+  if (
+    r === 'CERVICAL' ||
+    r === 'BRAIN' ||
+    r === 'THORAX' ||
+    r === 'THORACOLUMBAR' ||
+    r === 'OTHER' ||
+    r === 'UNKNOWN'
+  ) {
+    return r
+  }
   return region || '—'
 }
 

@@ -183,10 +183,7 @@ body:has([data-role='clinic_owner']) {
   --vm-font-display: Outfit, Inter, system-ui, sans-serif;
 }
 body:has([data-role='expert']) {
-  background:
-    radial-gradient(900px 420px at 88% -8%, rgba(13, 148, 136, 0.1), transparent 55%),
-    radial-gradient(700px 360px at 0% 0%, rgba(16, 42, 67, 0.06), transparent 50%),
-    var(--vm-surface);
+  background: var(--vm-surface);
   color: var(--vm-text);
 }
 [data-role='expert'] .input {
@@ -196,8 +193,8 @@ body:has([data-role='expert']) {
   @apply outline-teal-700;
 }
 [data-role='expert'] aside.vm-sidebar {
-  background: linear-gradient(180deg, #102a43 0%, #0b1728 100%);
-  border-right: 1px solid rgba(94, 234, 212, 0.08);
+  background: #102a43;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 [data-role='expert'] aside.vm-sidebar .font-bold {
   letter-spacing: -0.02em;

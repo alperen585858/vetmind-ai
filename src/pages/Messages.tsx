@@ -4,7 +4,6 @@ import { LocalizedLink } from '../components/LocalizedLink'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   ArrowLeft,
-  CheckCheck,
   Loader2,
   MessageSquare,
   Plus,
@@ -273,33 +272,29 @@ export default function Messages() {
   return (
     <>
       <div className="vm-fade-up relative -mx-2 sm:-mx-1">
-        <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.75rem] shadow-[0_20px_50px_-28px_rgba(11,23,40,0.45)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-          {/* Dark conversation rail */}
+        <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+          {/* Clinical conversation rail */}
           <aside
-            className={`relative flex min-h-0 flex-col overflow-hidden bg-[color:var(--vm-midnight,#0b1728)] text-white ${
+            className={`relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white text-navy-950 ${
               showChat ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(45,212,191,0.22),transparent_55%),radial-gradient(ellipse_at_100%_100%,rgba(14,165,233,0.12),transparent_40%)]"
-            />
-            <div className="relative border-b border-white/10 px-5 pb-4 pt-5">
+            <div className="relative border-b border-slate-200 px-5 pb-4 pt-5">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-300/90">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     {t('messages.conversations')}
                   </p>
-                  <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight">
+                  <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
                     {t('messages.title')}
                   </h1>
-                  <p className="mt-1 text-sm text-slate-300">{subtitle}</p>
+                  <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
                 </div>
                 {canCompose && (
                   <button
                     type="button"
                     onClick={() => setComposeOpen(true)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-400 text-navy-950 transition hover:bg-teal-300"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy-900 text-white transition hover:bg-navy-800"
                     title={t('messages.newMessage')}
                     aria-label={t('messages.newMessage')}
                   >
@@ -315,34 +310,34 @@ export default function Messages() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t('messages.searchPlaceholder')}
-                  className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/15 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-400/50"
+                  className="w-full rounded-lg border-0 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-navy-900 outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-navy-900/15"
                 />
               </label>
             </div>
 
             {error && (
-              <p className="relative mx-4 mb-2 rounded-xl bg-amber-400/15 px-3 py-2 text-xs text-amber-100" role="alert">
+              <p className="relative mx-4 mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200" role="alert">
                 {error}
               </p>
             )}
 
             <div className="relative min-h-0 flex-1 overflow-y-auto">
               {loading ? (
-                <p className="flex items-center gap-2 px-5 py-8 text-sm text-slate-400">
+                <p className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}
                 </p>
               ) : filtered.length === 0 ? (
                 <div className="px-6 py-12 text-center">
-                  <MessageSquare className="mx-auto h-8 w-8 text-slate-500" />
-                  <p className="mt-3 text-sm font-medium text-white">{t('messages.noMessages')}</p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <MessageSquare className="mx-auto h-8 w-8 text-slate-400" />
+                  <p className="mt-3 text-sm font-medium text-navy-950">{t('messages.noMessages')}</p>
+                  <p className="mt-1 text-xs text-slate-500">
                     {isOwner ? t('messages.emptyListHintOwner') : t('messages.emptyListHintStaff')}
                   </p>
                   {canCompose && (
                     <button
                       type="button"
                       onClick={() => setComposeOpen(true)}
-                      className="mt-4 text-sm font-semibold text-teal-300 hover:text-teal-200"
+                      className="mt-4 text-sm font-semibold text-navy-800 hover:underline"
                     >
                       {t('messages.newMessage')}
                     </button>
@@ -357,33 +352,33 @@ export default function Messages() {
                         <button
                           type="button"
                           onClick={() => navigate(`/mesajlar/${thread.thread_id}`)}
-                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
-                            active ? 'bg-white/15 ring-1 ring-teal-300/40' : 'hover:bg-white/8'
+                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
+                            active ? 'bg-slate-100 ring-1 ring-slate-200' : 'hover:bg-slate-50'
                           }`}
                         >
                           <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${channelTone(thread.channel)}`}
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${channelTone(thread.channel)}`}
                           >
                             {thread.channel === 'admin' ? <Shield className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-sm font-semibold text-white">{thread.subject}</span>
+                              <span className="truncate text-sm font-semibold text-navy-950">{thread.subject}</span>
                               <span
                                 className={`shrink-0 text-[11px] ${
-                                  thread.unread_count > 0 ? 'font-semibold text-teal-300' : 'text-slate-500'
+                                  thread.unread_count > 0 ? 'font-semibold text-navy-800' : 'text-slate-400'
                                 }`}
                               >
                                 {fmtListTime(thread.last_message_at || thread.updated_at, locale)}
                               </span>
                             </div>
                             <div className="mt-0.5 flex items-center justify-between gap-2">
-                              <p className="truncate text-[12px] text-slate-400">
+                              <p className="truncate text-[12px] text-slate-500">
                                 {!isOwner ? `${thread.owner_subject} · ` : ''}
                                 {thread.last_message_preview || channelLabel(thread.channel, t)}
                               </p>
                               {thread.unread_count > 0 && (
-                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-teal-400 px-1.5 text-[11px] font-bold text-navy-950">
+                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-navy-900 px-1.5 text-[11px] font-bold text-white">
                                   {thread.unread_count}
                                 </span>
                               )}
@@ -400,13 +395,13 @@ export default function Messages() {
 
           {/* Light chat stage */}
           <section
-            className={`relative flex min-h-0 flex-col bg-[linear-gradient(180deg,#f0fdfa_0%,#f8fafc_40%,#ffffff_100%)] ${
+            className={`relative flex min-h-0 flex-col bg-slate-50 ${
               showChat ? 'flex' : 'hidden lg:flex'
             }`}
           >
             {!threadId ? (
               <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[color:var(--vm-midnight,#0b1728)] text-teal-300 shadow-lg">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-navy-900 text-white">
                   <MessageSquare className="h-7 w-7" />
                 </div>
                 <h2 className="mt-5 font-[family-name:var(--vm-font-display)] text-2xl font-semibold text-navy-900">
@@ -510,7 +505,6 @@ export default function Messages() {
                               </button>
                             )}
                             <span>{fmtClock(m.created_at) || fmtDate(m.created_at, locale)}</span>
-                            {mine && <CheckCheck className="h-3.5 w-3.5 text-teal-300" aria-hidden />}
                           </div>
                         </div>
                       </div>

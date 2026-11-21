@@ -199,8 +199,15 @@ export default function RadiologistWorkspace() {
     const caseKey = canonicalizeCaseId(c.backendCaseId || c.id)
     void listReportVersions(caseKey)
       .then((v) => setVersions(v.map((x) => ({ version: x.version, immutable: x.immutable, status: x.status }))))
-      .catch(() => setVersions([]))
-  }, [c?.id, c?.backendCaseId, c?.status])
+      .catch((err) => {
+        setVersions([])
+        pushToast({
+          tone: 'error',
+          title: t('review.workspace.versionsLoadFailed'),
+          body: toastErrorBody(err, t),
+        })
+      })
+  }, [c?.id, c?.backendCaseId, c?.status, pushToast, t])
 
   useEffect(() => {
     void listBackendWorklist({ assigned_to: currentActorId() })
@@ -208,9 +215,16 @@ export default function RadiologistWorkspace() {
       .catch(() =>
         listBackendWorklist()
           .then(setWorklist)
-          .catch(() => setWorklist([])),
+          .catch((err) => {
+            setWorklist([])
+            pushToast({
+              tone: 'error',
+              title: t('review.workspace.worklistLoadFailed'),
+              body: toastErrorBody(err, t),
+            })
+          }),
       )
-  }, [id])
+  }, [id, pushToast, t])
 
   useEffect(() => {
     if (!c?.petId) {
@@ -219,8 +233,15 @@ export default function RadiologistWorkspace() {
     }
     void getPetMedicalHistory(c.petId)
       .then((h) => setPriorReports(h.timeline.filter((e) => e.kind === 'report' || e.report_available).slice(0, 6)))
-      .catch(() => setPriorReports([]))
-  }, [c?.petId])
+      .catch((err) => {
+        setPriorReports([])
+        pushToast({
+          tone: 'error',
+          title: t('review.workspace.priorLoadFailed'),
+          body: toastErrorBody(err, t),
+        })
+      })
+  }, [c?.petId, pushToast, t])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -816,7 +837,7 @@ export default function RadiologistWorkspace() {
                 analysisMode: (
                   c.backendFindings?.source_kind ||
                   c.backendDraft?.generation?.source_kind ||
-                  'mock'
+                  ''
                 )
                   .toString()
                   .toLowerCase(),
@@ -841,9 +862,9 @@ export default function RadiologistWorkspace() {
           <AIFindingsPanel
             findings={c.backendFindings}
             analysisMode={
-              (c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind || 'mock')
+              (c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind || '')
                 .toString()
-                .toLowerCase()
+                .toLowerCase() || undefined
             }
             selectedEvidenceId={evidenceFocus?.evidenceId ?? null}
             canVerify={role === 'expert' || role === 'admin'}
@@ -861,7 +882,7 @@ export default function RadiologistWorkspace() {
                   updateCase(c.id, { backendFindings: sf })
                 })
                 .catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : 'Evidence review failed')
+                  setError(err instanceof Error ? err.message : t('review.workspace.evidenceReviewFailed'))
                 })
             }}
             onVerifyEvidence={(evidenceId, action) => {
@@ -871,7 +892,7 @@ export default function RadiologistWorkspace() {
                   updateCase(c.id, { backendFindings: sf })
                 })
                 .catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : 'Verification failed')
+                  setError(err instanceof Error ? err.message : t('review.workspace.verificationFailed'))
                 })
             }}
           />

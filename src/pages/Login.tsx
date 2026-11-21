@@ -23,8 +23,8 @@ export default function Login() {
   const { signIn, pushToast } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
-  const [email, setEmail] = useState('vet@demo.local')
-  const [password, setPassword] = useState('demo1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [authEnabled, setAuthEnabled] = useState(false)
@@ -188,7 +188,21 @@ export default function Login() {
                   />
                 </div>
               </label>
-              <div className="mt-2 text-right">
+              <div className="mt-2 flex items-center justify-between gap-2">
+                {statusLoaded && deploymentMode === 'demo' && !lockedMode ? (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-sky-600 hover:underline"
+                    onClick={() => {
+                      setEmail('vet@demo.local')
+                      setPassword('demo1234')
+                    }}
+                  >
+                    {t('auth.fillDemo')}
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <LocalizedLink to="/sifremi-unuttum" className="text-xs font-medium text-sky-600 hover:underline">
                   {t('auth.forgotLink')}
                 </LocalizedLink>

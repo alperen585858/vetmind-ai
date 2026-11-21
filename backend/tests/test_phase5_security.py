@@ -41,6 +41,10 @@ def _settings(tmp_path: Path, **kwargs) -> Settings:
 
 
 def _client(tmp_path: Path, **kwargs) -> TestClient:
+    import os
+
+    if kwargs.get("deployment_mode") == "protected":
+        os.environ.setdefault("VETMIND_MALWARE_SCANNER", "fake_clean")
     return TestClient(create_app(AppContainer(repo=InMemoryCaseRepository(), settings=_settings(tmp_path, **kwargs))))
 
 
@@ -105,6 +109,20 @@ def test_protected_mode_requires_malware_and_scrub(tmp_path: Path) -> None:
     )
     with pytest.raises(RuntimeError, match="DICOM_IDENTITY_SCRUB"):
         validate_security_settings(settings2)
+    import os
+
+    os.environ.pop("VETMIND_MALWARE_SCANNER", None)
+    settings3 = _settings(
+        tmp_path,
+        auth_enabled=True,
+        deployment_mode="protected",
+        jwt_secret="x" * 32,
+        malware_scan_required=True,
+        dicom_identity_scrub=True,
+        self_registration_enabled=False,
+    )
+    with pytest.raises(RuntimeError, match="malware scanner"):
+        validate_security_settings(settings3)
 
 
 def test_cross_tenant_case_access_denied(tmp_path: Path) -> None:

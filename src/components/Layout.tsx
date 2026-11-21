@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { useLocale } from '../context/LocaleContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { SourcePanel } from './SourcePanel'
@@ -9,6 +10,7 @@ import { PageLoader } from './PageLoader'
 const COLLAPSE_KEY = 'vetmind.sidebar.collapsed'
 
 export function Layout() {
+  const { t } = useLocale()
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -56,7 +58,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-transparent" data-role={role || undefined}>
       <a href="#main-content" className="skip-link no-print">
-        İçeriğe atla
+        {t('nav.skipToContent')}
       </a>
       <Sidebar
         open={menu}

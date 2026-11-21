@@ -160,7 +160,10 @@
     "collapseMenu": "Menüyü daralt",
     "closeSidebar": "Kenar çubuğunu kapat",
     "brandSubtitle": "Teleradyoloji",
-    "aiLessons": "AI Dersleri"
+    "aiLessons": "AI Dersleri",
+    "menu": "Menü",
+    "mainMenuAria": "Ana menü",
+    "skipToContent": "İçeriğe atla"
   },
   "topbar": {
     "openMenu": "Menüyü aç",
@@ -361,7 +364,8 @@
     "resetMissingToken": "Bu bağlantı eksik veya bozuk. Yeni bir bağlantı isteyin.",
     "requestNewLink": "Yeni bağlantı iste",
     "backendUnreachable": "Sunucuya ulaşılamıyor. Backend çalışıyor mu?",
-    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın."
+    "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
+    "fillDemo": "Demo hesabı doldur"
   },
   "settings": {
     "title": "Ayarlar",
@@ -1028,7 +1032,14 @@
       "error": "Hata",
       "aria": "Vaka iş akışı",
       "stepsAria": "İlerleme adımları"
-    }
+    },
+    "syncOkBody": "{count} vaka yüklendi.",
+    "syncFailBody": "Sunucuya ulaşılamıyor olabilir.",
+    "deleteConfirmTitle": "Vakayı silmek istediğinize emin misiniz?",
+    "deleteConfirmYes": "Evet, sil",
+    "deleting": "Siliniyor…",
+    "deleteConfirmBody": "{name} vakasını ({no}) kalıcı olarak silmek istediğinize emin misiniz?",
+    "deleteIrreversible": "Bu işlem geri alınamaz. Rapor, bulgular ve sohbet geçmişi de silinir."
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",
@@ -1206,8 +1217,14 @@
       "lessonSavedBody": "Benzer vakaların taslaklarında modele hatırlatılacak.",
       "lessonFailed": "Ders kaydedilemedi",
       "appliedLessons": "Bu taslakta {count} kayıtlı uzman dersi uygulandı.",
-      "viewLessons": "Dersleri gör"
-    }
+      "viewLessons": "Dersleri gör",
+      "versionsLoadFailed": "Rapor sürümleri yüklenemedi",
+      "worklistLoadFailed": "Yan iş listesi yüklenemedi",
+      "priorLoadFailed": "Önceki raporlar yüklenemedi",
+      "evidenceReviewFailed": "Kanıt incelemesi başarısız",
+      "verificationFailed": "Doğrulama başarısız"
+    },
+    "staleFallbackBanner": "Sunucu listesi alınamadı — yerel önbellekteki eski veriler gösteriliyor. Güncel olmayabilir."
   },
   "analysis": {
     "pending": "Bekliyor",
@@ -2203,5 +2220,15 @@
     "medications": "Mevcut ilaçlar",
     "patientNameRequired": "Hasta adı gerekli",
     "patientNameRequiredBody": "DICOM yüklemeden önce hasta adını girin."
+  },
+  "anatomy": {
+    "region": {
+      "CERVICAL": "Servikal",
+      "BRAIN": "Beyin",
+      "THORAX": "Toraks",
+      "THORACOLUMBAR": "Torakolomber",
+      "OTHER": "Diğer",
+      "UNKNOWN": "Bilinmiyor"
+    }
   }
 }

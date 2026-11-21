@@ -26,7 +26,14 @@ def require_auth(
     audit: AuditLogger | None = getattr(container, "audit", None)
     if not auth.enabled:
         # Demo-only principal when auth is off — never minted as a signed JWT.
-        return AuthPrincipal(subject="anonymous", role="demo", via="disabled", clinic_id=None)
+        # Full "*" admin only with VETMIND_ALLOW_INSECURE_DEMO=1 (uses service role).
+        insecure = bool(getattr(container.settings, "allow_insecure_demo", False))
+        return AuthPrincipal(
+            subject="anonymous",
+            role="service" if insecure else "demo",
+            via="disabled",
+            clinic_id=None,
+        )
 
     api_key = request.headers.get("X-API-Key")
     if verify_api_key(api_key, auth.api_key):
@@ -76,8 +83,7 @@ def require_capability(capability: str):
     """Dependency factory: 403 unless principal has the capability (or auth disabled)."""
 
     def _dep(principal: AuthPrincipal = Depends(require_auth)) -> AuthPrincipal:
-        if principal.via == "disabled":
-            return principal
+        # Even auth-off demo principals must pass capability checks (limited demo set).
         if not principal.can(capability):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -94,8 +100,6 @@ def require_roles(*roles: str):
     allowed = set(roles)
 
     def _dep(principal: AuthPrincipal = Depends(require_auth)) -> AuthPrincipal:
-        if principal.via == "disabled":
-            return principal
         if principal.role in {"admin", "service"} or principal.role in allowed:
             return principal
         raise HTTPException(
