@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { Sidebar } from './Sidebar'
@@ -20,6 +20,7 @@ export function Layout() {
     }
   })
   const { role, refreshBackendCases, pushToast } = useApp()
+  const { pathname } = useLocation()
 
   // Cases start empty after a page refresh; load them once for every signed-in page
   // (dashboards, sidebar badge) instead of relying on each page to fetch.
@@ -79,11 +80,13 @@ export function Layout() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 print:p-0"
+          className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-7 lg:px-8 print:p-0"
         >
           {/* Keeps the sidebar and top bar on screen while a page chunk loads. */}
           <Suspense fallback={<PageLoader />}>
-            <Outlet />
+            <div className="vm-page-enter" key={pathname}>
+              <Outlet />
+            </div>
           </Suspense>
         </main>
       </div>

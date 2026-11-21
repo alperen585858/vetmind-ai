@@ -224,19 +224,19 @@ export function Sidebar({
               onClick={onClose}
               title={collapsed ? it.label : undefined}
               className={({ isActive }) =>
-                `group relative flex items-center rounded-lg text-sm font-medium transition duration-200 ${
+                `group relative flex items-center rounded-xl text-sm font-semibold tracking-tight transition duration-200 ${
                   collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
                 } px-3 py-2.5 ${
                   isActive
                     ? isOwner
-                      ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
+                      ? 'bg-sky-500/25 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
                       : isExpert
-                        ? 'bg-white/10 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
+                        ? 'bg-white/12 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
                         : isClinic
-                          ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
+                          ? 'bg-indigo-500/25 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
                           : isAdmin
-                            ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_0_#34d399]'
-                            : 'bg-teal-600/20 text-white ring-1 ring-inset ring-teal-500/40'
+                            ? 'bg-emerald-500/20 text-white shadow-[inset_3px_0_0_0_#34d399]'
+                            : 'bg-teal-500/25 text-white ring-1 ring-inset ring-teal-400/50'
                     : 'text-navy-200 hover:bg-navy-800/80 hover:text-white'
                 }`
               }

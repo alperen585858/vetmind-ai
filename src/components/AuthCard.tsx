@@ -18,7 +18,7 @@ export function AuthCard({
 }) {
   const { t } = useLocale()
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
+    <div className="min-h-screen bg-[radial-gradient(900px_420px_at_90%_-10%,rgba(14,165,233,0.16),transparent_55%),radial-gradient(700px_360px_at_0%_0%,rgba(15,39,68,0.08),transparent_50%),linear-gradient(180deg,#eef6fc_0%,#f8fafc_100%)]">
       <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 py-8 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <LocalizedLink to="/" aria-label={t('landing.homeAria')}>
@@ -26,13 +26,15 @@ export function AuthCard({
           </LocalizedLink>
           <LanguageSwitcher persistRemote={false} size="sm" />
         </div>
-        <main className="mt-10 rounded-2xl border border-sky-100 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-2 text-sky-600">
-            {icon}
-            <h1 className="text-lg font-semibold text-navy-900">{title}</h1>
+        <main className="vm-page-enter mt-10 rounded-2xl border border-sky-100/90 bg-white/95 p-7 shadow-[0_8px_32px_rgba(15,39,68,0.08)] backdrop-blur">
+          <div className="flex items-center gap-3 text-sky-600">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 ring-1 ring-inset ring-sky-100">
+              {icon}
+            </span>
+            <h1 className="font-display text-xl font-bold tracking-tight text-navy-900">{title}</h1>
           </div>
-          {subtitle && <p className="mt-1 text-sm text-navy-500">{subtitle}</p>}
-          <div className="mt-5">{children}</div>
+          {subtitle && <p className="mt-2 text-sm leading-relaxed text-navy-500">{subtitle}</p>}
+          <div className="mt-6">{children}</div>
         </main>
       </div>
     </div>

@@ -54,7 +54,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }
 
   return (
-    <header className="no-print sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200/80 bg-surface-elevated/90 px-4 backdrop-blur sm:px-6">
+    <header className="vm-topbar-glass no-print sticky top-0 z-20 flex h-[4.25rem] items-center gap-3 px-4 sm:px-6">
       <button
         type="button"
         onClick={onMenu}

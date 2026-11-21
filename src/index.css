@@ -14,10 +14,10 @@
   --vm-success: #059669;
   --vm-warning: #d97706;
   --vm-info: #0284c7;
-  --vm-radius: 0.75rem;
-  --vm-shadow: 0 1px 2px rgba(16, 35, 58, 0.04), 0 4px 16px rgba(16, 35, 58, 0.06);
-  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
-  --vm-font-body: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  --vm-radius: 1rem;
+  --vm-shadow: 0 1px 2px rgba(16, 35, 58, 0.04), 0 8px 28px rgba(16, 35, 58, 0.07);
+  --vm-font-display: Outfit, "Plus Jakarta Sans", system-ui, sans-serif;
+  --vm-font-body: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, sans-serif;
 }
 
 /* Pet owner — Premium care workspace (sky / navy brand lane) */
@@ -36,7 +36,7 @@
   --vm-radius: 0.75rem;
   --vm-shadow: 0 1px 2px rgba(15, 39, 68, 0.05), 0 8px 24px rgba(15, 39, 68, 0.05);
   --vm-border: rgba(148, 163, 184, 0.32);
-  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+  --vm-font-display: Outfit, "Plus Jakarta Sans", system-ui, sans-serif;
 }
 body:has([data-role='owner']) {
   background:
@@ -84,7 +84,7 @@ body:has([data-role='owner']) {
   --vm-radius: 0.75rem;
   --vm-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px rgba(15, 23, 42, 0.05);
   --vm-border: rgba(148, 163, 184, 0.32);
-  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+  --vm-font-display: Outfit, "Plus Jakarta Sans", system-ui, sans-serif;
 }
 body:has([data-role='admin']) {
   background:
@@ -132,7 +132,7 @@ body:has([data-role='admin']) {
   --vm-radius: 0.75rem;
   --vm-shadow: 0 1px 2px rgba(30, 27, 75, 0.05), 0 8px 24px rgba(30, 27, 75, 0.05);
   --vm-border: rgba(148, 163, 184, 0.32);
-  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+  --vm-font-display: Outfit, "Plus Jakarta Sans", system-ui, sans-serif;
 }
 body:has([data-role='clinic_owner']) {
   background:
@@ -180,7 +180,7 @@ body:has([data-role='clinic_owner']) {
   --vm-radius: 0.75rem;
   --vm-shadow: 0 1px 2px rgba(16, 42, 67, 0.05), 0 8px 24px rgba(16, 42, 67, 0.04);
   --vm-border: rgba(148, 163, 184, 0.32);
-  --vm-font-display: Outfit, Inter, system-ui, sans-serif;
+  --vm-font-display: Outfit, "Plus Jakarta Sans", system-ui, sans-serif;
 }
 body:has([data-role='expert']) {
   background: var(--vm-surface);
@@ -235,10 +235,12 @@ html {
 body {
   font-family: var(--vm-font-body);
   background:
-    radial-gradient(1200px 480px at 12% -10%, rgba(18, 160, 150, 0.08), transparent 55%),
-    radial-gradient(900px 420px at 100% 0%, rgba(30, 82, 122, 0.07), transparent 50%),
-    var(--vm-surface);
+    radial-gradient(1100px 520px at 8% -12%, rgba(18, 160, 150, 0.14), transparent 58%),
+    radial-gradient(900px 480px at 96% -4%, rgba(30, 82, 122, 0.1), transparent 52%),
+    radial-gradient(700px 380px at 50% 100%, rgba(14, 165, 233, 0.05), transparent 55%),
+    linear-gradient(180deg, #eef4f8 0%, var(--vm-surface) 42%, #f7fafc 100%);
   color: #12233a;
+  background-attachment: fixed;
 }
 
 /* In the components layer so utilities on the element win (e.g. `input pl-9` next to a search
@@ -246,27 +248,79 @@ body {
    icon sat on top of the placeholder text. */
 @layer components {
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20;
+    @apply w-full rounded-xl border border-slate-300/90 bg-white/95 px-3.5 py-2.5 text-sm text-navy-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20;
     min-height: 44px;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-navy-800;
+    @apply mb-1.5 block text-sm font-semibold text-navy-800;
   }
 }
 
 .text-display {
   font-family: var(--vm-font-display);
-  @apply text-2xl font-semibold tracking-tight text-navy-900 sm:text-3xl;
+  @apply text-[1.65rem] font-bold tracking-tight text-navy-900 sm:text-[2rem];
+  letter-spacing: -0.03em;
 }
 .text-title {
   font-family: var(--vm-font-display);
   @apply text-lg font-semibold text-navy-900;
+  letter-spacing: -0.02em;
 }
 .text-body {
   @apply text-sm leading-relaxed text-navy-800;
 }
 .text-caption {
   @apply text-xs text-slate-500;
+}
+
+/* Page shell — every authenticated route */
+.vm-page-enter {
+  animation: vm-page-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes vm-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.vm-page-header {
+  position: relative;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1.35rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+.vm-page-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: min(7.5rem, 40%);
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--vm-accent), transparent);
+}
+.vm-card-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
+  box-shadow: var(--vm-shadow);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  backdrop-filter: blur(8px);
+}
+.vm-topbar-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.72) 100%);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 8px 24px rgba(16, 35, 58, 0.04);
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vm-page-enter {
+    animation: none !important;
+  }
 }
 
 @keyframes shimmer {
@@ -308,10 +362,10 @@ body {
   @apply rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white outline outline-2 outline-offset-2 outline-white;
 }
 .th {
-  @apply whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:px-4;
+  @apply whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 sm:px-4;
 }
 .td {
-  @apply whitespace-nowrap px-3 py-2.5 text-sm text-navy-800 sm:px-4;
+  @apply whitespace-nowrap px-3 py-3 text-sm text-navy-800 sm:px-4;
 }
 
 /* Landing page motion */

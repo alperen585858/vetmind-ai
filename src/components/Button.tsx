@@ -3,12 +3,14 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'warning' | 'success'
 
 const styles: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-hover shadow-sm',
-  secondary: 'bg-surface-elevated text-navy-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-50',
-  ghost: 'text-navy-700 hover:bg-slate-100',
-  danger: 'bg-danger text-white hover:bg-rose-700 shadow-sm',
-  warning: 'bg-warning text-white hover:bg-amber-600 shadow-sm',
-  success: 'bg-success text-white hover:bg-emerald-700 shadow-sm',
+  primary:
+    'bg-accent text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_6px_16px_rgba(11,128,122,0.28)] hover:bg-accent-hover hover:shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_20px_rgba(11,128,122,0.34)]',
+  secondary:
+    'bg-white/90 text-navy-800 ring-1 ring-inset ring-slate-300/90 shadow-sm hover:bg-slate-50 hover:ring-slate-400/70',
+  ghost: 'text-navy-700 hover:bg-slate-100/90',
+  danger: 'bg-danger text-white shadow-sm hover:bg-rose-700',
+  warning: 'bg-warning text-white shadow-sm hover:bg-amber-600',
+  success: 'bg-success text-white shadow-sm hover:bg-emerald-700',
 }
 
 export function Button({
