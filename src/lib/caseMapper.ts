@@ -15,7 +15,7 @@ import type {
 import type { TranslateFn } from '../i18n'
 import { translate } from '../i18n'
 import { draftToSections, pipelineToAssessment } from './backend'
-import { USERS } from '../data/mock'
+import { USERS } from '../shared/demo/users'
 import { cleanClinicalHistory, displayClinic } from './displayClean'
 
 const defaultT: TranslateFn = (key) => translate('tr', key)

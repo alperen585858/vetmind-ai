@@ -117,19 +117,20 @@ veteriner/
 ├── public/
 ├── scripts/                 # build-share.mjs vb.
 ├── src/                     # React UI
-│   ├── App.tsx              # Router + rol Gate
+│   ├── App.tsx              # Composition root: providers + feature routes
 │   ├── main.tsx
-│   ├── types.ts
-│   ├── pages/               # Ekranlar
-│   ├── components/          # Layout, DicomViewer, RagCitations, …
-│   ├── context/AppContext.tsx
+│   ├── types.ts             # Facade → shared/types
+│   ├── features/            # Domain ekranları (auth, cases, dicom, …) + routes.tsx
+│   ├── shared/              # api, auth, ui, shell, types, demo seedler
+│   ├── components/          # Uyumluluk re-export’ları + kalan UI
+│   ├── context/AppContext.tsx  # auth / cases / kb / toast birleşimi
 │   ├── lib/
-│   │   ├── backend.ts       # FastAPI client
+│   │   ├── backend.ts       # Facade → shared/api
 │   │   ├── auth.ts          # Demo localStorage + JWT saklama
 │   │   ├── caseMapper.ts
 │   │   ├── dicomPreview.ts
 │   │   └── …
-│   └── data/mock.ts         # Yerel seed vakalar / KB
+│   └── data/mock.ts         # Demo seed facade → shared/demo ve feature demo modülleri
 └── backend/
     ├── README.md
     ├── .env.example
@@ -335,8 +336,18 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 | `DicomViewer.tsx` + `dicomPreview.ts` | Tarayıcıda W/L, dilim, zoom/pan (klinik PACS değil) |
 | `RagCitations.tsx` | Backend `rag_citations` gösterimi |
 | `AIDisclaimer.tsx` | Klinik olmayan çıktı uyarısı |
-| `backend.ts` | Tüm `/api/v1` çağrıları, async poll helper |
+| `shared/api/*` (+ geçici `lib/backend.ts` facade) | Domain’lere ayrılmış `/api/v1` istemcisi |
 | `caseMapper.ts` | Backend record → UI `VetCase` |
+
+### 6.4 Feature modules
+
+Frontend domain modülleri `src/features/<domain>/` altında, paylaşılan kod `src/shared/` altında yaşar.
+
+- Composition root: `src/App.tsx` (providers + route mount).
+- Import kuralı: bir feature başka bir feature’ı import etmez; yalnızca `shared/` ve kendi klasörü.
+- Domain haritası ve migrasyon kuralları: [docs/modularization.md](docs/modularization.md).
+
+Hedef domain’ler: `auth`, `cases`, `dicom`, `analysis`, `reports`, `expert`, `submissions`, `messaging`, `rag-admin`, `admin`.
 
 ---
 
@@ -536,13 +547,18 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine (`uzman_incele
 | DI / wiring | `backend/app/container.py` |
 | Env | `backend/app/settings.py`, `backend/.env.example` |
 | Pipeline | `backend/app/orchestration/orchestrator.py` |
-| DICOM | `backend/app/dicom/*`, `backend/app/services/dicom_service.py` |
-| Cases API | `backend/app/api/cases.py`, `services/case_service.py` |
-| Auth | `backend/app/auth/*` |
-| UI router | `src/App.tsx` |
-| API client | `src/lib/backend.ts` |
-| Demo auth | `src/lib/auth.ts` |
-| Case state | `src/context/AppContext.tsx` |
+| DICOM | `backend/app/dicom/*`, `backend/app/services/dicom_service.py`, `src/features/dicom/` |
+| Cases API | `backend/app/api/cases.py`, `backend/app/services/case_service.py` |
+| Analysis / reports | `backend/app/services/analysis_application.py`, `backend/app/services/report_application.py` |
+| Messaging | `backend/app/services/messaging_facade.py`, `src/features/messaging/api.ts` |
+| Auth | `backend/app/auth/*`, `src/shared/auth/` |
+| UI router | `src/App.tsx` mounts `src/features/*/routes.tsx` (`src/pages/` removed) |
+| Screens | `src/features/`, `src/shared/shell/` |
+| API client | `src/shared/api/*` (facade: `src/lib/backend.ts`) |
+| Demo auth | `src/shared/auth/`, `src/lib/auth.ts`, seeds `src/shared/demo/users.ts` |
+| Demo seeds | `src/shared/demo/`, `src/features/rag-admin/demoKb.ts`, `src/features/admin/demoInfra.ts` (facade: `src/data/mock.ts`) |
+| Case state | `src/features/cases` (facade: `src/context/AppContext.tsx`) |
+| Modularization | `docs/modularization.md` |
 
 ---
 

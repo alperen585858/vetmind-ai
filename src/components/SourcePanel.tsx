@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { BookOpen, FileText, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
-import { kbLicenseLabel, kbSourceText, kbTypeLabel } from '../data/mock'
+import { kbLicenseLabel, kbSourceText, kbTypeLabel } from '../features/rag-admin/demoKb'
 
 export function SourcePanel() {
   const { t, locale } = useLocale()

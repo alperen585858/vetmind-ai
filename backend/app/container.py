@@ -41,6 +41,7 @@ from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
 from app.security.audit import AuditLogger
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
+from app.services.ports import OwnerDelivery
 from app.ingest.documents import build_document_text_adapter
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
@@ -48,6 +49,7 @@ from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
 from app.services.user_settings_store import build_user_settings_store
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
+from app.services.messaging_facade import MessagingFacade
 from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
 from app.services.payment_service import PaymentService
@@ -300,6 +302,20 @@ class AppContainer:
         self.notification_store = build_notification_store(self.settings)
         self.notifications = NotificationService(self.notification_store)
         self.user_settings = build_user_settings_store(self.settings)
+        # Mutable login directory (admin can add/update users via WorkflowService).
+        self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)
+        self.workflow_store = build_workflow_store(self.settings)
+        self.report_view_tokens = ReportViewTokenService(
+            build_report_view_token_store(self.settings),
+            ttl_seconds=self.settings.report_view_token_ttl_seconds,
+        )
+        self.mailer = build_mailer(self.settings)
+        self.radiologist_payout_store = build_radiologist_payout_store(self.settings)
+        self.radiologist_payouts = RadiologistPayoutService(
+            self.radiologist_payout_store,
+            audit=self.audit,
+            cases_repo=self.repo,
+        )
         self.cases = CaseService(
             self.repo,
             self.orchestrator,
@@ -315,6 +331,15 @@ class AppContainer:
             user_settings=self.user_settings,
             default_report_language=self.settings.llm_report_language,
             evidence_store=self.evidence_store,
+            radiologist_payouts=self.radiologist_payouts,
+            owner_delivery=OwnerDelivery(
+                mailer=self.mailer,
+                report_view_tokens=self.report_view_tokens,
+                auth_users=self._auth_users,
+                workflow_store=self.workflow_store,
+                smtp_configured=bool(self.settings.smtp_host),
+                public_base_url=self.settings.public_base_url,
+            ),
         )
         self.dicom = DicomService(
             self.repo,
@@ -337,22 +362,12 @@ class AppContainer:
             tenant_isolation=self.settings.tenant_isolation,
             document_adapter=doc_adapter,
         )
-        # Mutable login directory (admin can add/update users via WorkflowService).
-        self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)
-        self.workflow_store = build_workflow_store(self.settings)
         self.payment_store = build_payment_store(self.settings)
         self.payments = PaymentService(
             self.payment_store,
             audit=self.audit,
             tenant_isolation=self.settings.tenant_isolation,
         )
-        self.radiologist_payout_store = build_radiologist_payout_store(self.settings)
-        self.radiologist_payouts = RadiologistPayoutService(
-            self.radiologist_payout_store,
-            audit=self.audit,
-            cases_repo=self.repo,
-        )
-        self.cases.bind_radiologist_payouts(self.radiologist_payouts)
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -386,24 +401,17 @@ class AppContainer:
             ttl_seconds=self.settings.refresh_ttl_seconds,
             directory=self._auth_users,
         )
-        self.report_view_tokens = ReportViewTokenService(
-            build_report_view_token_store(self.settings),
-            ttl_seconds=self.settings.report_view_token_ttl_seconds,
-        )
         self.password_resets = PasswordResetService(
             build_password_reset_store(self.settings),
             ttl_seconds=self.settings.password_reset_ttl_seconds,
         )
-        self.mailer = build_mailer(self.settings)
-        self.cases.bind_owner_delivery(
-            mailer=self.mailer,
-            report_view_tokens=self.report_view_tokens,
-            auth_users=self._auth_users,
-            workflow_store=self.workflow_store,
-            smtp_configured=bool(self.settings.smtp_host),
-            public_base_url=self.settings.public_base_url,
-        )
         self.dicom.bind_owner_directory(auth_users=self._auth_users, workflow_store=self.workflow_store)
+        self.analysis = self.cases.analysis
+        self.reports = self.cases.reports
+        self.collaboration = self.cases.collaboration
+        self.messaging_domain = MessagingFacade(self.messaging, self.collaboration)
+        self.pets = self.workflow.pets
+        self.submissions = self.workflow.submissions
         from app.security.rate_limit import build_rate_limiter
 
         self.rate_limiter = build_rate_limiter(

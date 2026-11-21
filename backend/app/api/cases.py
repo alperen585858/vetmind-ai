@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.deps import get_case_service, get_container
+from app.api.deps import get_case_service, get_collaboration_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
@@ -27,6 +27,7 @@ from app.schemas.workflow import (
 )
 from app.schemas.model_input import ImagingModelInput
 from app.security.audit import AuditOutcome
+from app.services.case_collaboration import CaseCollaborationService
 from app.services.case_service import CaseService
 
 router = APIRouter(
@@ -134,7 +135,7 @@ def clinic_dashboard(
 @router.get("/{case_id}/messages", response_model=list[CaseMessageView])
 def list_messages(
     case_id: str,
-    service: CaseService = Depends(get_case_service),
+    service: CaseCollaborationService = Depends(get_collaboration_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> list[CaseMessageView]:
     return service.list_messages(case_id, principal=principal)
@@ -148,7 +149,7 @@ def list_messages(
 def post_message(
     case_id: str,
     payload: CaseMessageCreate,
-    service: CaseService = Depends(get_case_service),
+    service: CaseCollaborationService = Depends(get_collaboration_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> CaseMessageView:
     """Vet, radiologist, or pet owner (own approved case) may post."""
@@ -164,7 +165,7 @@ def post_message(
 @router.post("/{case_id}/messages/read", response_model=list[CaseMessageView])
 def mark_messages_read(
     case_id: str,
-    service: CaseService = Depends(get_case_service),
+    service: CaseCollaborationService = Depends(get_collaboration_service),
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> list[CaseMessageView]:
     return service.mark_messages_read(case_id, principal=principal)

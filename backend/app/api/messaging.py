@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.api.deps import get_container
+from app.api.deps import get_messaging_facade
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_MESSAGES
-from app.container import AppContainer
 from app.schemas.messaging import (
     SupportMessageCreate,
     SupportMessageView,
@@ -15,14 +14,15 @@ from app.schemas.messaging import (
     SupportThreadDetail,
     SupportThreadSummary,
 )
+from app.services.messaging_facade import MessagingFacade
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"], dependencies=[Depends(require_auth)])
 
 _ALLOWED_DEMO_ROLES = frozenset({"owner", "expert", "admin", "vet", "clinic_owner"})
 
 
-def _messaging(container: AppContainer = Depends(get_container)):
-    return container.messaging
+def _messaging(facade: MessagingFacade = Depends(get_messaging_facade)):
+    return facade.support
 
 
 def _demo_actor(request: Request, principal: AuthPrincipal) -> tuple[str | None, str | None]:

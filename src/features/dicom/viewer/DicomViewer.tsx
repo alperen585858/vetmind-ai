@@ -1,0 +1,1297 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  type WheelEvent,
+} from 'react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Columns2,
+  Contrast,
+  FlipHorizontal2,
+  FlipVertical2,
+  ImageOff,
+  Maximize2,
+  Minimize2,
+  Move,
+  Pause,
+  PenLine,
+  Play,
+  RotateCcw,
+  RotateCw,
+  HeartPulse,
+  Ruler,
+  Square,
+  Undo2,
+  Triangle,
+  ZoomIn,
+} from 'lucide-react'
+import {
+  autoWindow,
+  groupFramesBySeries,
+  renderFrameToCanvas,
+  roiStats,
+  type DicomFramePreview,
+} from '../../../lib/dicomPreview'
+import { useLocale } from '../../../context/LocaleContext'
+import { modalityLabel } from '../../../lib/displayClean'
+import { VhsGuideModal } from '../../../components/VhsGuideModal'
+import { shouldShowVhsGuide } from '../../../lib/vhsGuidePref'
+import { computeVhs, VHS_POINT_COUNT, VHS_STEP_KEYS, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../../../lib/vhs'
+import {
+  applyHandleDrag,
+  assertAnnotateViewAllowed,
+  bboxValidForSave,
+  clampBBoxToImage,
+  clientToNativePixel,
+  hitTestBBox,
+  normalizeBBox,
+  type HitHandle,
+  type NativeBBox,
+} from '../../../lib/viewerCoords'
+
+type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi' | 'annotate' | 'vhs'
+
+export type AnnotateCommitPayload = {
+  mode: 'create' | 'edit'
+  bbox: NativeBBox
+  evidenceId?: string
+  sopInstanceUid?: string | null
+  frameIndex?: number | null
+}
+
+const PRESET_DEFS: { id: string; labelKey: string; wc: number; ww: number }[] = [
+  { id: 'auto', labelKey: 'dicom.viewer.presetAuto', wc: 0, ww: 0 },
+  { id: 'soft', labelKey: 'dicom.viewer.presetSoft', wc: 40, ww: 400 },
+  { id: 'brain', labelKey: 'dicom.viewer.presetBrain', wc: 40, ww: 80 },
+  { id: 'bone', labelKey: 'dicom.viewer.presetBone', wc: 300, ww: 1500 },
+  { id: 'lung', labelKey: 'dicom.viewer.presetLung', wc: -600, ww: 1500 },
+  { id: 'abdomen', labelKey: 'dicom.viewer.presetAbdomen', wc: 40, ww: 350 },
+]
+
+function ToolButton({
+  active,
+  title,
+  onClick,
+  children,
+}: {
+  active?: boolean
+  title: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition ${
+        active
+          ? 'bg-[#0D827B] text-white shadow-sm'
+          : 'text-slate-300 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function formatDistance(
+  dx: number,
+  dy: number,
+  spacing?: [number, number],
+): { text: string; calibrated: boolean } {
+  const pxDist = Math.hypot(dx, dy)
+  if (spacing) {
+    const [rowMm, colMm] = spacing
+    const mm = Math.hypot(dx * colMm, dy * rowMm)
+    return { text: `${mm.toFixed(1)} mm`, calibrated: true }
+  }
+  return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false }
+}
+
+const VHS_LABELS = ['1', '2', '3', '4', 'T4', 'T8']
+
+/** Long axis (1→2), short axis (3→4) and the T4→T8 spine scale with one tick per vertebra. */
+function VhsOverlay({ points, stroke }: { points: VhsPoint[]; stroke: number }) {
+  const [a, b, c, d, t4, t8] = points
+  const line = (p: VhsPoint | undefined, q: VhsPoint | undefined, color: string) =>
+    p && q ? <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={color} strokeWidth={stroke} /> : null
+  const ticks =
+    t4 && t8
+      ? [1, 2, 3].map((k) => (
+          <circle
+            key={k}
+            cx={t4.x + ((t8.x - t4.x) * k) / 4}
+            cy={t4.y + ((t8.y - t4.y) * k) / 4}
+            r={stroke * 1.6}
+            fill="#38bdf8"
+          />
+        ))
+      : null
+  return (
+    <g>
+      {line(a, b, '#fb7185')}
+      {line(c, d, '#fda4af')}
+      {line(t4, t8, '#38bdf8')}
+      {ticks}
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle
+            data-vhs-point={VHS_LABELS[i]}
+            cx={p.x}
+            cy={p.y}
+            r={stroke * 2.4}
+            fill={i >= 4 ? '#38bdf8' : '#fb7185'}
+            stroke="#0b1727"
+            strokeWidth={stroke / 2}
+          />
+          <text x={p.x + stroke * 3} y={p.y - stroke * 3} fill="#fff" fontSize={stroke * 9} fontFamily="monospace">
+            {VHS_LABELS[i]}
+          </text>
+        </g>
+      ))}
+    </g>
+  )
+}
+
+export function DicomViewer({
+  frames,
+  loading = false,
+  className = '',
+  onActiveFrameChange,
+  focusSopUid,
+  focusRequestId = 0,
+  aiOverlayBbox,
+  aiOverlayStyle = 'ai',
+  aiOverlayLabel,
+  overlays,
+  annotateEnabled = false,
+  selectedEvidenceId = null,
+  onAnnotateCommit,
+  vhsEnabled = false,
+  vhsSpecies = 'other',
+  onVhsCommit,
+}: {
+  frames: DicomFramePreview[]
+  loading?: boolean
+  className?: string
+  onActiveFrameChange?: (frame: DicomFramePreview, index: number) => void
+  focusSopUid?: string | null
+  focusRequestId?: number
+  /** @deprecated Prefer `overlays` — kept for single-bbox callers. */
+  aiOverlayBbox?: { x_min: number; y_min: number; x_max: number; y_max: number } | null
+  aiOverlayStyle?: 'ai' | 'vet'
+  aiOverlayLabel?: string | null
+  /** P1.6 — multiple verified native bboxes for the active frame. */
+  overlays?: {
+    evidenceId: string
+    label: string
+    bbox: { x_min: number; y_min: number; x_max: number; y_max: number }
+    style: 'ai' | 'vet'
+    selected?: boolean
+  }[]
+  /** P1.7 — allow draw / move / resize bbox tool. */
+  annotateEnabled?: boolean
+  selectedEvidenceId?: string | null
+  onAnnotateCommit?: (payload: AnnotateCommitPayload) => void | Promise<void>
+  /** VHS (vertebral heart score) tool for lateral thoracic radiographs. */
+  vhsEnabled?: boolean
+  vhsSpecies?: VhsSpecies
+  /** "Add to report" for a finished VHS measurement; button hidden when absent. */
+  onVhsCommit?: (result: VhsResult) => void
+}) {
+  const { t } = useLocale()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const compareCanvasRef = useRef<HTMLCanvasElement>(null)
+  const seriesGroups = useMemo(() => groupFramesBySeries(frames), [frames])
+  const [seriesKey, setSeriesKey] = useState<string | null>(null)
+  const activeSeries = useMemo(() => {
+    if (!seriesGroups.length) return null
+    return seriesGroups.find((s) => s.key === seriesKey) || seriesGroups[0]!
+  }, [seriesGroups, seriesKey])
+  const viewable = useMemo(
+    () => (activeSeries?.frames || []).filter((f) => f.ok && f.pixels && f.rows && f.cols),
+    [activeSeries],
+  )
+  const [compareSeriesKey, setCompareSeriesKey] = useState<string | null>(null)
+  const compareSeries = useMemo(() => {
+    if (!compareSeriesKey) return null
+    return seriesGroups.find((s) => s.key === compareSeriesKey) || null
+  }, [seriesGroups, compareSeriesKey])
+  const compareViewable = useMemo(
+    () => (compareSeries?.frames || []).filter((f) => f.ok && f.pixels && f.rows && f.cols),
+    [compareSeries],
+  )
+
+  const [index, setIndex] = useState(0)
+  const [tool, setTool] = useState<Tool>('wwwl')
+  const [invert, setInvert] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [rotation, setRotation] = useState(0)
+  const [flipH, setFlipH] = useState(false)
+  const [flipV, setFlipV] = useState(false)
+  const [wc, setWc] = useState(0)
+  const [ww, setWw] = useState(400)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [compare, setCompare] = useState(false)
+  const [compareIndex, setCompareIndex] = useState(0)
+  const [cine, setCine] = useState(false)
+  const [cineFps, setCineFps] = useState(8)
+  const [measurePts, setMeasurePts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [measureLabel, setMeasureLabel] = useState<string | null>(null)
+  const [anglePts, setAnglePts] = useState<null | { a: { x: number; y: number }; b: { x: number; y: number }; c?: { x: number; y: number } }>(
+    null,
+  )
+  const [angleLabel, setAngleLabel] = useState<string | null>(null)
+  const [roiPts, setRoiPts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [roiLabel, setRoiLabel] = useState<string | null>(null)
+  const [vhsPts, setVhsPts] = useState<VhsPoint[]>([])
+  const [vhsGuideOpen, setVhsGuideOpen] = useState(false)
+  /** Pick the VHS tool; first explain it unless the user snoozed the guide. */
+  const selectVhsTool = () => {
+    setTool('vhs')
+    if (shouldShowVhsGuide()) setVhsGuideOpen(true)
+  }
+  const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
+  const measureStartRef = useRef<{ x: number; y: number } | null>(null)
+  const roiStartRef = useRef<{ x: number; y: number } | null>(null)
+  const [draftAnnotate, setDraftAnnotate] = useState<null | {
+    mode: 'create' | 'edit'
+    evidenceId?: string
+    box: NativeBBox
+  }>(null)
+  const [annotateBusy, setAnnotateBusy] = useState(false)
+  const [annotateError, setAnnotateError] = useState<string | null>(null)
+  const annotateDragRef = useRef<null | {
+    kind: 'draw' | 'edit'
+    handle?: HitHandle
+    startNative: { x: number; y: number }
+    startBox?: NativeBBox
+    evidenceId?: string
+  }>(null)
+
+  useEffect(() => {
+    if (seriesGroups.length && (!seriesKey || !seriesGroups.some((s) => s.key === seriesKey))) {
+      setSeriesKey(seriesGroups[0]!.key)
+    }
+  }, [seriesGroups, seriesKey])
+
+  const safeIndex = Math.min(index, Math.max(0, viewable.length - 1))
+  const frame = viewable[safeIndex]
+
+  useEffect(() => {
+    setIndex(0)
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    setInvert(false)
+    setRotation(0)
+    setFlipH(false)
+    setFlipV(false)
+    setCine(false)
+    setMeasurePts(null)
+    setMeasureLabel(null)
+    setAnglePts(null)
+    setAngleLabel(null)
+    setRoiPts(null)
+    setRoiLabel(null)
+  }, [seriesKey, frames])
+
+  useEffect(() => {
+    if (!focusSopUid || !focusRequestId) return
+    for (const g of seriesGroups) {
+      const idx = g.frames.findIndex((f) => f.sopInstanceUid === focusSopUid)
+      if (idx >= 0) {
+        setSeriesKey(g.key)
+        const viewIdx = g.frames.filter((f) => f.ok && f.pixels).findIndex((f) => f.sopInstanceUid === focusSopUid)
+        if (viewIdx >= 0) setIndex(viewIdx)
+        break
+      }
+    }
+  }, [focusSopUid, focusRequestId, seriesGroups])
+
+  useEffect(() => {
+    if (!frame) return
+    const aw = autoWindow(frame)
+    setWc(aw.center)
+    setWw(aw.width)
+  }, [frame?.fileName, frame?.sopInstanceUid])
+
+  useEffect(() => {
+    if (!frame) return
+    onActiveFrameChange?.(frame, safeIndex)
+  }, [frame, safeIndex, onActiveFrameChange])
+
+  const paint = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !frame) return
+    renderFrameToCanvas(canvas, frame, { windowCenter: wc, windowWidth: ww, invert })
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const drawList =
+      overlays && overlays.length > 0
+        ? overlays
+        : aiOverlayBbox
+          ? [
+              {
+                evidenceId: 'legacy',
+                label: aiOverlayLabel?.trim() || (aiOverlayStyle === 'vet' ? 'Vet' : 'AI'),
+                bbox: aiOverlayBbox,
+                style: aiOverlayStyle,
+                selected: true,
+              },
+            ]
+          : []
+
+    for (const item of drawList) {
+      const color = item.style === 'vet' ? '#1d4ed8' : '#dc2626'
+      const selected = Boolean(item.selected)
+      ctx.save()
+      ctx.strokeStyle = color
+      ctx.lineWidth = selected ? 3 : 2
+      if (!selected || item.style === 'ai') ctx.setLineDash(selected ? [] : [6, 4])
+      else ctx.setLineDash([])
+      const x = item.bbox.x_min
+      const y = item.bbox.y_min
+      const w = Math.max(1, item.bbox.x_max - item.bbox.x_min)
+      const h = Math.max(1, item.bbox.y_max - item.bbox.y_min)
+      ctx.strokeRect(x, y, w, h)
+      ctx.setLineDash([])
+      ctx.fillStyle = color
+      ctx.font = selected ? 'bold 12px sans-serif' : '12px sans-serif'
+      ctx.fillText(item.label, x + 2, Math.max(12, y - 4))
+      ctx.restore()
+    }
+  }, [frame, wc, ww, invert, aiOverlayBbox, aiOverlayStyle, aiOverlayLabel, overlays])
+
+  useEffect(() => {
+    paint()
+  }, [paint])
+
+  const comparePool = compareViewable.length ? compareViewable : viewable
+  const compareFrame = comparePool[Math.min(compareIndex, Math.max(0, comparePool.length - 1))]
+  useEffect(() => {
+    const canvas = compareCanvasRef.current
+    if (!compare || !canvas || !compareFrame) return
+    renderFrameToCanvas(canvas, compareFrame, { windowCenter: wc, windowWidth: ww, invert })
+  }, [compare, compareFrame, wc, ww, invert])
+
+  useEffect(() => {
+    if (!cine || viewable.length < 2) return
+    const ms = Math.max(40, Math.round(1000 / cineFps))
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % viewable.length)
+    }, ms)
+    return () => window.clearInterval(id)
+  }, [cine, cineFps, viewable.length])
+
+  useEffect(() => {
+    const onFs = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    const el = viewportRef.current
+    if (!el) return
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await el.requestFullscreen()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const goSlice = useCallback(
+    (delta: number) => {
+      setIndex((i) => Math.max(0, Math.min(viewable.length - 1, i + delta)))
+    },
+    [viewable.length],
+  )
+
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault()
+    if (!viewable.length) return
+    if (e.ctrlKey || e.metaKey) {
+      setZoom((z) => Math.min(8, Math.max(0.25, z * (e.deltaY > 0 ? 0.9 : 1.1))))
+      return
+    }
+    goSlice(e.deltaY > 0 ? 1 : -1)
+  }
+
+  const canvasLocalPoint = (e: PointerEvent) => {
+    const canvas = canvasRef.current
+    const vp = viewportRef.current
+    if (!canvas || !frame?.cols || !frame.rows) return { x: 0, y: 0 }
+    // Prefer explicit inverse when annotate / non-zero view transform; else AABB map.
+    // Never fall back to AABB under rotation/flip — that maps the wrong pixels.
+    try {
+      assertAnnotateViewAllowed({
+        panX: pan.x,
+        panY: pan.y,
+        zoom,
+        rotationDeg: rotation,
+        flipH,
+        flipV,
+      })
+      if (vp && (tool === 'annotate' || rotation !== 0 || flipH || flipV || zoom !== 1 || pan.x || pan.y)) {
+        const vpRect = vp.getBoundingClientRect()
+        return clientToNativePixel(e.clientX, e.clientY, {
+          originClientX: vpRect.left + vpRect.width / 2,
+          originClientY: vpRect.top + vpRect.height / 2,
+          contentWidth: canvas.offsetWidth || frame.cols,
+          contentHeight: canvas.offsetHeight || frame.rows,
+          cols: frame.cols,
+          rows: frame.rows,
+          panX: pan.x,
+          panY: pan.y,
+          zoom,
+          rotationDeg: rotation,
+          flipH,
+          flipV,
+        })
+      }
+    } catch {
+      if (rotation !== 0 || flipH || flipV) {
+        return { x: Number.NaN, y: Number.NaN }
+      }
+    }
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * frame.cols
+    const y = ((e.clientY - rect.top) / Math.max(1, rect.height)) * frame.rows
+    return { x, y }
+  }
+
+  const onPointerDown = (e: PointerEvent) => {
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    if (tool === 'annotate' && annotateEnabled && frame?.cols && frame.rows) {
+      setAnnotateError(null)
+      try {
+        assertAnnotateViewAllowed({
+          panX: pan.x,
+          panY: pan.y,
+          zoom,
+          rotationDeg: rotation,
+          flipH,
+          flipV,
+        })
+      } catch (err) {
+        setAnnotateError(err instanceof Error ? err.message : t('dicom.viewer.annotateViewBlocked'))
+        return
+      }
+      const pt = canvasLocalPoint(e)
+      const selected = overlays?.find((o) => o.evidenceId === selectedEvidenceId)
+      const handle = selected ? hitTestBBox(pt.x, pt.y, selected.bbox, Math.max(6, (frame.cols || 512) / 64)) : null
+      if (selected && handle) {
+        annotateDragRef.current = {
+          kind: 'edit',
+          handle,
+          startNative: pt,
+          startBox: { ...selected.bbox },
+          evidenceId: selected.evidenceId,
+        }
+        setDraftAnnotate({ mode: 'edit', evidenceId: selected.evidenceId, box: { ...selected.bbox } })
+        return
+      }
+      annotateDragRef.current = { kind: 'draw', startNative: pt }
+      setDraftAnnotate({
+        mode: 'create',
+        box: { x_min: pt.x, y_min: pt.y, x_max: pt.x, y_max: pt.y },
+      })
+      return
+    }
+    if (tool === 'vhs') {
+      const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
+      setVhsPts((prev) => (prev.length >= VHS_POINT_COUNT ? [pt] : [...prev, pt]))
+      return
+    }
+    if (tool === 'measure') {
+      const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
+      measureStartRef.current = pt
+      setMeasurePts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
+      setMeasureLabel(null)
+      return
+    }
+    if (tool === 'roi') {
+      const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
+      roiStartRef.current = pt
+      setRoiPts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
+      setRoiLabel(null)
+      return
+    }
+    if (tool === 'angle') {
+      const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
+      setAnglePts((prev) => {
+        if (!prev || prev.c) return { a: pt, b: pt }
+        if (!prev.c && (prev.a.x !== prev.b.x || prev.a.y !== prev.b.y)) {
+          return { ...prev, c: pt }
+        }
+        return { a: prev.a, b: pt }
+      })
+      setAngleLabel(null)
+      return
+    }
+    dragRef.current = { x: e.clientX, y: e.clientY, wc, ww, panX: pan.x, panY: pan.y, zoom }
+  }
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (tool === 'annotate' && annotateDragRef.current && frame?.cols && frame.rows) {
+      const pt = canvasLocalPoint(e)
+      const drag = annotateDragRef.current
+      if (drag.kind === 'draw') {
+        const box = clampBBoxToImage(normalizeBBox(drag.startNative, pt), frame.cols, frame.rows)
+        setDraftAnnotate({ mode: 'create', box })
+      } else if (drag.kind === 'edit' && drag.startBox && drag.handle) {
+        const dx = pt.x - drag.startNative.x
+        const dy = pt.y - drag.startNative.y
+        const box = clampBBoxToImage(
+          applyHandleDrag(drag.startBox, drag.handle, dx, dy),
+          frame.cols,
+          frame.rows,
+        )
+        setDraftAnnotate({ mode: 'edit', evidenceId: drag.evidenceId, box })
+      }
+      return
+    }
+    if (tool === 'measure' && measureStartRef.current) {
+      const pt = canvasLocalPoint(e)
+      setMeasurePts({
+        x0: measureStartRef.current.x,
+        y0: measureStartRef.current.y,
+        x1: pt.x,
+        y1: pt.y,
+      })
+      return
+    }
+    if (tool === 'roi' && roiStartRef.current) {
+      const pt = canvasLocalPoint(e)
+      setRoiPts({
+        x0: roiStartRef.current.x,
+        y0: roiStartRef.current.y,
+        x1: pt.x,
+        y1: pt.y,
+      })
+      return
+    }
+    if (tool === 'angle' && anglePts && !anglePts.c) {
+      const pt = canvasLocalPoint(e)
+      setAnglePts({ ...anglePts, b: pt })
+      return
+    }
+    const d = dragRef.current
+    if (!d) return
+    const dx = e.clientX - d.x
+    const dy = e.clientY - d.y
+    if (tool === 'wwwl') {
+      setWw(Math.max(1, d.ww + dx * 2))
+      setWc(d.wc - dy * 2)
+    } else if (tool === 'pan') {
+      setPan({ x: d.panX + dx, y: d.panY + dy })
+    } else if (tool === 'zoom') {
+      setZoom(Math.min(8, Math.max(0.25, d.zoom * (1 - dy * 0.01))))
+    }
+  }
+
+  const onPointerUp = () => {
+    if (tool === 'annotate') {
+      annotateDragRef.current = null
+      return
+    }
+    if (tool === 'measure' && measurePts && frame) {
+      const dx = measurePts.x1 - measurePts.x0
+      const dy = measurePts.y1 - measurePts.y0
+      const { text } = formatDistance(dx, dy, frame.pixelSpacingMm)
+      setMeasureLabel(text)
+    }
+    if (tool === 'roi' && roiPts && frame) {
+      const stats = roiStats(frame, roiPts.x0, roiPts.y0, roiPts.x1, roiPts.y1)
+      if (stats) {
+        const unit = frame.pixelSpacingMm ? '' : ' (kalibre değil)'
+        setRoiLabel(`ROI μ=${stats.mean.toFixed(1)} min=${stats.min.toFixed(1)} max=${stats.max.toFixed(1)} n=${stats.count}${unit}`)
+      }
+    }
+    if (tool === 'angle' && anglePts?.c) {
+      const v1x = anglePts.a.x - anglePts.b.x
+      const v1y = anglePts.a.y - anglePts.b.y
+      const v2x = anglePts.c.x - anglePts.b.x
+      const v2y = anglePts.c.y - anglePts.b.y
+      const dot = v1x * v2x + v1y * v2y
+      const n1 = Math.hypot(v1x, v1y)
+      const n2 = Math.hypot(v2x, v2y)
+      if (n1 > 1e-6 && n2 > 1e-6) {
+        const deg = (Math.acos(Math.max(-1, Math.min(1, dot / (n1 * n2)))) * 180) / Math.PI
+        setAngleLabel(`${deg.toFixed(1)}°`)
+      }
+    }
+    measureStartRef.current = null
+    roiStartRef.current = null
+    dragRef.current = null
+  }
+
+  const commitAnnotate = async () => {
+    if (!draftAnnotate || !frame?.cols || !frame.rows || !onAnnotateCommit) return
+    if (!bboxValidForSave(draftAnnotate.box, frame.cols, frame.rows)) {
+      setAnnotateError(t('dicom.viewer.annotateTooSmall'))
+      return
+    }
+    setAnnotateBusy(true)
+    setAnnotateError(null)
+    try {
+      await onAnnotateCommit({
+        mode: draftAnnotate.mode,
+        bbox: draftAnnotate.box,
+        evidenceId: draftAnnotate.evidenceId,
+        sopInstanceUid: frame.sopInstanceUid,
+        frameIndex: safeIndex,
+      })
+      setDraftAnnotate(null)
+    } catch (err) {
+      setAnnotateError(err instanceof Error ? err.message : t('dicom.viewer.annotateSaveFailed'))
+    } finally {
+      setAnnotateBusy(false)
+    }
+  }
+
+  const resetView = () => {
+    if (!frame) return
+    const aw = autoWindow(frame)
+    setWc(aw.center)
+    setWw(aw.width)
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    setInvert(false)
+    setRotation(0)
+    setFlipH(false)
+    setFlipV(false)
+    setMeasurePts(null)
+    setMeasureLabel(null)
+    setAnglePts(null)
+    setAngleLabel(null)
+    setRoiPts(null)
+    setRoiLabel(null)
+    setVhsPts([])
+  }
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!viewable.length) return
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      goSlice(-1)
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      goSlice(1)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      setIndex(0)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      setIndex(viewable.length - 1)
+    } else if (e.key === ' ') {
+      e.preventDefault()
+      setCine((v) => !v)
+    } else if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault()
+      resetView()
+    } else if (e.key === 'i' || e.key === 'I') {
+      e.preventDefault()
+      setInvert((v) => !v)
+    } else if (e.key === 'w' || e.key === 'W') setTool('wwwl')
+    else if (e.key === 'p' || e.key === 'P') setTool('pan')
+    else if (e.key === 'z' || e.key === 'Z') setTool('zoom')
+    else if (e.key === 'm' || e.key === 'M') setTool('measure')
+    else if (e.key === 'a' || e.key === 'A') setTool('angle')
+    else if (e.key === 'o' || e.key === 'O') setTool('roi')
+    else if ((e.key === 'b' || e.key === 'B') && annotateEnabled) setTool('annotate')
+    else if ((e.key === 'h' || e.key === 'H') && vhsEnabled) selectVhsTool()
+    else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault()
+      void toggleFullscreen()
+    } else if (e.key === 'c' || e.key === 'C') setCompare((v) => !v)
+  }
+
+  const applyPreset = (id: string) => {
+    if (!frame) return
+    if (id === 'auto') {
+      const aw = autoWindow(frame)
+      setWc(aw.center)
+      setWw(aw.width)
+      return
+    }
+    const p = PRESET_DEFS.find((x) => x.id === id)
+    if (p) {
+      setWc(p.wc)
+      setWw(p.ww)
+    }
+  }
+
+  const transformStyle = {
+    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+    transformOrigin: 'center center' as const,
+  }
+
+  if (loading) {
+    return (
+      <div
+        className={`flex min-h-[420px] items-center justify-center rounded-xl border border-[#12233a] bg-[#071B30] text-sm text-slate-300 ${className}`}
+      >
+        Seri yükleniyor…
+      </div>
+    )
+  }
+
+  if (!frames.length) return null
+
+  if (!viewable.length) {
+    const err = frames.find((f) => f.error)?.error
+    return (
+      <div className={`rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 ${className}`}>
+        <div className="flex items-start gap-2">
+          <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">Piksel önizlemesi yok</p>
+            <p className="mt-1 text-xs">
+              Metadata okundu; görüntü verisi yok veya transfer syntax desteklenmiyor.
+              {err ? ` (${err})` : ''}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const statusBits = [measureLabel, angleLabel, roiLabel].filter(Boolean).join(' · ')
+  const vhsResult = vhsEnabled ? computeVhs(vhsPts, vhsSpecies, frame?.pixelSpacingMm) : null
+
+  return (
+    <>
+    <div
+      className={`flex flex-col overflow-hidden rounded-xl border border-[#12233a] bg-[#071B30] shadow-soft ${fullscreen ? 'h-full' : ''} ${className}`}
+      tabIndex={0}
+      ref={viewportRef}
+      onKeyDown={onKeyDown}
+      role="application"
+      aria-label="DICOM görüntüleyici"
+    >
+      {seriesGroups.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
+          {seriesGroups.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              title={s.label}
+              onClick={() => setSeriesKey(s.key)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
+                s.key === activeSeries?.key
+                  ? 'bg-[#0D827B] text-white'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              {s.thumbUrl ? (
+                <img src={s.thumbUrl} alt="" className="h-8 w-8 rounded object-cover" />
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded bg-black text-[9px] text-slate-500">
+                  {s.frames.length}
+                </span>
+              )}
+              <span className="max-w-[100px] truncate">
+                {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
+                {s.label}
+              </span>
+              <span className="text-slate-400">({s.frames.length})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
+        <span className="mr-2 hidden text-[10px] font-semibold uppercase tracking-wider text-[#0D827B] sm:inline">
+          Viewer
+        </span>
+        <ToolButton active={tool === 'wwwl'} title="Window / Level (W)" onClick={() => setTool('wwwl')}>
+          <Contrast className="h-3.5 w-3.5" /> W/L
+        </ToolButton>
+        <ToolButton active={tool === 'pan'} title="Pan (P)" onClick={() => setTool('pan')}>
+          <Move className="h-3.5 w-3.5" /> Pan
+        </ToolButton>
+        <ToolButton active={tool === 'zoom'} title="Zoom (Z)" onClick={() => setTool('zoom')}>
+          <ZoomIn className="h-3.5 w-3.5" /> Zoom
+        </ToolButton>
+        <ToolButton active={tool === 'measure'} title="Mesafe (M)" onClick={() => setTool('measure')}>
+          <Ruler className="h-3.5 w-3.5" /> Mesafe
+        </ToolButton>
+        <ToolButton active={tool === 'angle'} title="Açı (A)" onClick={() => setTool('angle')}>
+          <Triangle className="h-3.5 w-3.5" /> Açı
+        </ToolButton>
+        <ToolButton active={tool === 'roi'} title="ROI (O)" onClick={() => setTool('roi')}>
+          <Square className="h-3.5 w-3.5" /> ROI
+        </ToolButton>
+        {annotateEnabled ? (
+          <ToolButton
+            active={tool === 'annotate'}
+            title="Anotasyon kutusu (B)"
+            onClick={() => setTool('annotate')}
+          >
+            <PenLine className="h-3.5 w-3.5" /> BBox
+          </ToolButton>
+        ) : null}
+        {vhsEnabled ? (
+          <ToolButton active={tool === 'vhs'} title={`${t('vhs.toolTitle')} (H)`} onClick={selectVhsTool}>
+            <HeartPulse className="h-3.5 w-3.5" /> VHS
+          </ToolButton>
+        ) : null}
+        <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
+        <ToolButton active={invert} title="Invert (I)" onClick={() => setInvert((v) => !v)}>
+          Invert
+        </ToolButton>
+        <ToolButton title="90° döndür" onClick={() => setRotation((r) => (r + 90) % 360)}>
+          <RotateCw className="h-3.5 w-3.5" />
+        </ToolButton>
+        <ToolButton active={flipH} title="Yatay çevir" onClick={() => setFlipH((v) => !v)}>
+          <FlipHorizontal2 className="h-3.5 w-3.5" />
+        </ToolButton>
+        <ToolButton active={flipV} title="Dikey çevir" onClick={() => setFlipV((v) => !v)}>
+          <FlipVertical2 className="h-3.5 w-3.5" />
+        </ToolButton>
+        <ToolButton title="Reset (R)" onClick={resetView}>
+          <RotateCcw className="h-3.5 w-3.5" /> Reset
+        </ToolButton>
+        <ToolButton
+          active={cine}
+          title="Cine (Space)"
+          onClick={() => setCine((v) => !v)}
+        >
+          {cine ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} Cine
+        </ToolButton>
+        {cine && (
+          <label className="flex items-center gap-1 text-[10px] text-slate-400">
+            fps
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={cineFps}
+              onChange={(e) => setCineFps(Math.max(1, Math.min(30, Number(e.target.value) || 8)))}
+              className="w-10 rounded border border-white/10 bg-black/40 px-1 py-0.5 text-white"
+            />
+          </label>
+        )}
+        <ToolButton
+          active={compare}
+          title="Karşılaştır (C)"
+          onClick={() => {
+            setCompare((v) => !v)
+            if (!compare && seriesGroups.length > 1) {
+              const other = seriesGroups.find((s) => s.key !== activeSeries?.key)
+              setCompareSeriesKey(other?.key || null)
+            }
+          }}
+        >
+          <Columns2 className="h-3.5 w-3.5" /> Compare
+        </ToolButton>
+        <ToolButton title="Tam ekran (F)" onClick={() => void toggleFullscreen()}>
+          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </ToolButton>
+        <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
+        {PRESET_DEFS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            title={t(p.labelKey)}
+            onClick={() => applyPreset(p.id)}
+            className="rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 hover:text-white"
+          >
+            {t(p.labelKey)}
+          </button>
+        ))}
+        <span className="ml-auto max-w-[50%] truncate font-mono text-[10px] tabular-nums text-slate-400">
+          W:{Math.round(ww)} L:{Math.round(wc)} · {Math.round(zoom * 100)}% · {safeIndex + 1}/{viewable.length}
+          {statusBits ? ` · ${statusBits}` : ''}
+          {!frame.pixelSpacingMm ? ' · spacing yok' : ''}
+        </span>
+      </div>
+
+      {vhsEnabled && (tool === 'vhs' || vhsPts.length > 0) && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#0b1727] px-3 py-1.5 text-[11px] text-slate-200"
+          role="status"
+          aria-live="polite"
+        >
+          <HeartPulse className="h-3.5 w-3.5 text-rose-300" aria-hidden />
+          {vhsResult ? (
+            <span>
+              <strong className="text-white">VHS {vhsResult.vhs.toFixed(1)} v</strong>
+              {' · '}
+              {t(`vhs.category.${vhsResult.category}`)}
+              {vhsResult.reference
+                ? ` (${t('vhs.reference', { min: vhsResult.reference.min, max: vhsResult.reference.max })})`
+                : ''}
+              {` · ${t('vhs.axes', { long: vhsResult.longV.toFixed(1), short: vhsResult.shortV.toFixed(1) })}`}
+              {vhsResult.notPerpendicular ? (
+                <span className="ml-1 text-amber-300">· {t('vhs.notPerpendicular', { deg: vhsResult.axisAngleDeg })}</span>
+              ) : null}
+            </span>
+          ) : (
+            <span>
+              <span className="font-mono text-rose-200">
+                {Math.min(vhsPts.length + 1, VHS_POINT_COUNT)}/{VHS_POINT_COUNT}
+              </span>{' '}
+              {t(`vhs.step.${VHS_STEP_KEYS[Math.min(vhsPts.length, VHS_POINT_COUNT - 1)]}`)}
+            </span>
+          )}
+          <span className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-white/20 font-bold text-slate-200 hover:bg-white/10"
+              title={t('vhs.guide.help')}
+              aria-label={t('vhs.guide.help')}
+              onClick={() => setVhsGuideOpen(true)}
+            >
+              ?
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+              disabled={!vhsPts.length}
+              onClick={() => setVhsPts((p) => p.slice(0, -1))}
+            >
+              <Undo2 className="h-3 w-3" aria-hidden /> {t('vhs.undo')}
+            </button>
+            <button
+              type="button"
+              className="rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+              disabled={!vhsPts.length}
+              onClick={() => setVhsPts([])}
+            >
+              {t('vhs.clear')}
+            </button>
+            {vhsResult && onVhsCommit ? (
+              <button
+                type="button"
+                className="rounded bg-[#0D827B] px-2 py-0.5 font-semibold text-white hover:bg-[#0b6f69]"
+                onClick={() => onVhsCommit(vhsResult)}
+              >
+                {t('vhs.addToReport')}
+              </button>
+            ) : null}
+          </span>
+        </div>
+      )}
+
+      <div
+        className={`relative flex min-h-[min(62vh,640px)] flex-1 cursor-crosshair items-center justify-center overflow-hidden bg-black select-none ${compare ? 'gap-1' : ''}`}
+        onWheel={onWheel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={() => viewportRef.current?.focus()}
+      >
+        <div className={`relative flex items-center justify-center ${compare ? 'w-1/2' : 'w-full'}`} style={transformStyle}>
+          {/* Wrapper hugs the canvas so the SVG layer (measure/angle/ROI/bbox draft/VHS) is drawn in
+              exactly the canvas box. Spanning the wider container stretched it horizontally and
+              drew marks away from where the user clicked on narrow/portrait images. */}
+          <div className="relative inline-block max-w-full leading-[0]">
+          <canvas ref={canvasRef} className="block max-h-[min(58vh,600px)] max-w-full" />
+          {frame?.cols && frame.rows && (
+            <svg
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              viewBox={`0 0 ${frame.cols} ${frame.rows}`}
+              preserveAspectRatio="none"
+            >
+              {measurePts && (
+                <line
+                  x1={measurePts.x0}
+                  y1={measurePts.y0}
+                  x2={measurePts.x1}
+                  y2={measurePts.y1}
+                  stroke="#5eead4"
+                  strokeWidth={Math.max(1, frame.cols / 400)}
+                />
+              )}
+              {anglePts && (
+                <>
+                  <line
+                    x1={anglePts.a.x}
+                    y1={anglePts.a.y}
+                    x2={anglePts.b.x}
+                    y2={anglePts.b.y}
+                    stroke="#fbbf24"
+                    strokeWidth={Math.max(1, frame.cols / 400)}
+                  />
+                  {anglePts.c && (
+                    <line
+                      x1={anglePts.b.x}
+                      y1={anglePts.b.y}
+                      x2={anglePts.c.x}
+                      y2={anglePts.c.y}
+                      stroke="#fbbf24"
+                      strokeWidth={Math.max(1, frame.cols / 400)}
+                    />
+                  )}
+                </>
+              )}
+              {roiPts && (
+                <rect
+                  x={Math.min(roiPts.x0, roiPts.x1)}
+                  y={Math.min(roiPts.y0, roiPts.y1)}
+                  width={Math.abs(roiPts.x1 - roiPts.x0)}
+                  height={Math.abs(roiPts.y1 - roiPts.y0)}
+                  fill="rgba(94,234,212,0.12)"
+                  stroke="#5eead4"
+                  strokeWidth={Math.max(1, frame.cols / 400)}
+                />
+              )}
+              {vhsPts.length > 0 && (
+                <VhsOverlay points={vhsPts} stroke={Math.max(1.5, frame.cols / 350)} />
+              )}
+              {draftAnnotate && (
+                <rect
+                  x={draftAnnotate.box.x_min}
+                  y={draftAnnotate.box.y_min}
+                  width={Math.max(1, draftAnnotate.box.x_max - draftAnnotate.box.x_min)}
+                  height={Math.max(1, draftAnnotate.box.y_max - draftAnnotate.box.y_min)}
+                  fill="rgba(29,78,216,0.15)"
+                  stroke="#1d4ed8"
+                  strokeWidth={Math.max(2, frame.cols / 300)}
+                  strokeDasharray={draftAnnotate.mode === 'create' ? '8 4' : undefined}
+                />
+              )}
+            </svg>
+          )}
+          </div>
+        </div>
+        {compare && (
+          <div className="flex w-1/2 flex-col items-center justify-center border-l border-white/10">
+            {seriesGroups.length > 1 && (
+              <select
+                className="mb-1 max-w-[90%] rounded border border-white/10 bg-[#0b1727] px-2 py-0.5 text-[10px] text-slate-200"
+                value={compareSeriesKey || ''}
+                onChange={(e) => {
+                  setCompareSeriesKey(e.target.value || null)
+                  setCompareIndex(0)
+                }}
+                aria-label="Karşılaştırma serisi"
+              >
+                <option value="">Aynı seri (dilim)</option>
+                {seriesGroups.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
+                    {s.label} ({s.frames.length})
+                  </option>
+                ))}
+              </select>
+            )}
+            <canvas ref={compareCanvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
+            {comparePool.length > 1 && (
+              <input
+                type="range"
+                min={0}
+                max={comparePool.length - 1}
+                value={Math.min(compareIndex, comparePool.length - 1)}
+                onChange={(e) => setCompareIndex(Number(e.target.value))}
+                className="mt-2 w-4/5 accent-[#0D827B]"
+                aria-label="Karşılaştırma dilimi"
+              />
+            )}
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute left-3 top-3 font-mono text-[10px] leading-relaxed text-teal-200/90">
+          {frame.modality && <p>{frame.modality}</p>}
+          {frame.seriesDescription && <p className="max-w-[220px] truncate">{frame.seriesDescription}</p>}
+          {frame.cols != null && frame.rows != null && (
+            <p>
+              {frame.cols}×{frame.rows}
+            </p>
+          )}
+          <p>
+            Im: {safeIndex + 1}/{viewable.length}
+          </p>
+          {frame.instanceNumber != null && <p>Inst#: {frame.instanceNumber}</p>}
+          {frame.imagePositionPatient && (
+            <p className="text-slate-400">
+              IPP z={frame.imagePositionPatient[2].toFixed(1)}
+            </p>
+          )}
+        </div>
+        <div className="pointer-events-none absolute right-3 top-3 text-right font-mono text-[10px] leading-relaxed text-slate-300/90">
+          <p>
+            WL {Math.round(wc)} / {Math.round(ww)}
+          </p>
+          <p>{tool.toUpperCase()}</p>
+          <p className="text-slate-500">Scroll dilim · Ctrl+scroll zoom · Space cine</p>
+        </div>
+        {(draftAnnotate || annotateError) && annotateEnabled ? (
+          <div className="absolute bottom-3 right-3 z-10 flex max-w-[min(100%,280px)] flex-col gap-1 rounded-md border border-white/15 bg-[#0b1727]/95 p-2 text-[11px] text-slate-100 shadow-lg">
+            {annotateError ? <p className="text-amber-300">{annotateError}</p> : null}
+            {draftAnnotate ? (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-slate-400">
+                  {draftAnnotate.mode === 'edit' ? 'Kutu düzenle' : 'Yeni kutu'} · native px
+                </span>
+                <button
+                  type="button"
+                  className="rounded bg-[#0D827B] px-2 py-0.5 text-white disabled:opacity-50"
+                  disabled={annotateBusy}
+                  onClick={() => void commitAnnotate()}
+                >
+                  {annotateBusy ? '…' : 'Kaydet'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-white/10 px-2 py-0.5 text-slate-200"
+                  disabled={annotateBusy}
+                  onClick={() => {
+                    setDraftAnnotate(null)
+                    setAnnotateError(null)
+                  }}
+                >
+                  İptal
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] truncate font-mono text-[10px] text-slate-400">
+          {frame.relativePath || frame.fileName}
+        </div>
+
+        {viewable.length > 1 && (
+          <>
+            <button
+              type="button"
+              title="Önceki dilim"
+              aria-label="Önceki dilim"
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-[#071B30]/85 p-2 text-white ring-1 ring-white/15 hover:bg-[#0D827B]"
+              onClick={() => goSlice(-1)}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              title="Sonraki dilim"
+              aria-label="Sonraki dilim"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-[#071B30]/85 p-2 text-white ring-1 ring-white/15 hover:bg-[#0D827B]"
+              onClick={() => goSlice(1)}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-2 border-t border-white/10 bg-[#0b1727] px-3 py-2">
+        {viewable.length > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
+              onClick={() => goSlice(-1)}
+              disabled={safeIndex <= 0}
+              aria-label="Önceki dilim"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={viewable.length - 1}
+              value={safeIndex}
+              onChange={(e) => {
+                setCine(false)
+                setIndex(Number(e.target.value))
+              }}
+              className="h-1.5 flex-1 cursor-pointer accent-[#0D827B]"
+              aria-label="Dilim kaydırıcı"
+            />
+            <button
+              type="button"
+              className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
+              onClick={() => goSlice(1)}
+              disabled={safeIndex >= viewable.length - 1}
+              aria-label="Sonraki dilim"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <span className="min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-slate-300">
+              {safeIndex + 1} / {viewable.length}
+            </span>
+          </div>
+        )}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+            Center
+            <input
+              type="range"
+              min={Math.round((frame.pixelMin ?? 0) - 500)}
+              max={Math.round((frame.pixelMax ?? 4000) + 500)}
+              value={Math.round(wc)}
+              onChange={(e) => setWc(Number(e.target.value))}
+              className="flex-1 accent-[#0D827B]"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+            Width
+            <input
+              type="range"
+              min={1}
+              max={Math.max(100, Math.round(((frame.pixelMax ?? 4000) - (frame.pixelMin ?? 0)) * 2))}
+              value={Math.round(ww)}
+              onChange={(e) => setWw(Number(e.target.value))}
+              className="flex-1 accent-[#0D827B]"
+            />
+          </label>
+        </div>
+
+        {viewable.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+            {viewable.map((f, i) => {
+              const aspect =
+                f.cols && f.rows && f.cols > 0 ? Math.max(0.55, Math.min(1.35, f.rows / f.cols)) : 1
+              return (
+                <button
+                  key={`${f.sopInstanceUid || f.fileName}-${i}`}
+                  type="button"
+                  title={f.relativePath || f.fileName}
+                  onClick={() => {
+                    setCine(false)
+                    setIndex(i)
+                  }}
+                  className={`h-14 shrink-0 overflow-hidden rounded bg-black ring-2 ${
+                    i === safeIndex ? 'ring-[#0D827B]' : 'ring-white/10 hover:ring-white/25'
+                  }`}
+                  style={{ width: `${Math.round(56 / aspect)}px` }}
+                >
+                  {f.thumbUrl ? (
+                    <img src={f.thumbUrl} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[9px] text-slate-500">
+                      {i + 1}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+    {vhsEnabled ? <VhsGuideModal open={vhsGuideOpen} onClose={() => setVhsGuideOpen(false)} /> : null}
+    </>
+  )
+}

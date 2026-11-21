@@ -1,72 +1,28 @@
-import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
-import { isKnownAppPath } from './i18n/paths'
-import { Suspense, type ReactNode } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Suspense } from 'react'
 import { useApp } from './context/AppContext'
 import { useLocale } from './context/LocaleContext'
-import { Layout } from './components/Layout'
-import { LocalePathSync } from './components/LocalePathSync'
-import { Toasts } from './components/Toasts'
-import { localizePath } from './i18n/paths'
-import type { Role } from './types'
+import { Layout } from './shared/shell/Layout'
+import { LocalePathSync } from './shared/shell/LocalePathSync'
+import { Toasts } from './shared/ui/Toasts'
+import { isKnownAppPath, localizePath } from './i18n/paths'
 import { lazyPage } from './lib/lazyPage'
-import { PageLoader } from './components/PageLoader'
+import { PageLoader } from './shared/ui/PageLoader'
 import { safeInternalPath } from './lib/safePath'
+import { publicAuthRoutes, settingsRoutes, signedInResetRoutes } from './features/auth/routes'
+import { caseRoutes } from './features/cases/routes'
+import { dicomRoutes } from './features/dicom/routes'
+import { analysisRoutes } from './features/analysis/routes'
+import { expertRoutes } from './features/expert/routes'
+import { publicReportLinkRoutes, reportRoutes } from './features/reports/routes'
+import { submissionRoutes } from './features/submissions/routes'
+import { messagingRoutes } from './features/messaging/routes'
+import { ragAdminRoutes } from './features/rag-admin/routes'
+import { adminRoutes } from './features/admin/routes'
 
-// Each page is its own chunk (issue #25); only the visited page is downloaded.
-const NotFound = lazyPage(() => import('./pages/NotFound'))
-const Landing = lazyPage(() => import('./pages/Landing'))
-const Login = lazyPage(() => import('./pages/Login'))
-const Register = lazyPage(() => import('./pages/Register'))
-const ForgotPassword = lazyPage(() => import('./pages/ForgotPassword'))
-const ResetPassword = lazyPage(() => import('./pages/ResetPassword'))
-const ReportLink = lazyPage(() => import('./pages/ReportLink'))
-const Dashboard = lazyPage(() => import('./pages/Dashboard'))
-const CaseList = lazyPage(() => import('./pages/CaseList'))
-const NewCase = lazyPage(() => import('./pages/NewCase'))
-const DicomUpload = lazyPage(() => import('./pages/DicomUpload'))
-const Processing = lazyPage(() => import('./pages/Processing'))
-const CaseDetail = lazyPage(() => import('./pages/CaseDetail'))
-const RadiologistWorkspace = lazyPage(() => import('./pages/RadiologistWorkspace'))
-const ExpertAiResend = lazyPage(() => import('./pages/ExpertAiResend'))
-const ReviewQueue = lazyPage(() => import('./pages/ReviewQueue'))
-const ReportList = lazyPage(() => import('./pages/ReportList'))
-const ApprovedReport = lazyPage(() => import('./pages/ApprovedReport'))
-const Modules = lazyPage(() => import('./pages/Modules'))
-const KnowledgeBase = lazyPage(() => import('./pages/KnowledgeBase'))
-const SystemStatus = lazyPage(() => import('./pages/SystemStatus'))
-const ModelPerformance = lazyPage(() => import('./pages/ModelPerformance'))
-const AiLessons = lazyPage(() => import('./pages/AiLessons'))
-const OwnerPets = lazyPage(() => import('./pages/OwnerPets'))
-const Submissions = lazyPage(() => import('./pages/Submissions'))
-const Messages = lazyPage(() => import('./pages/Messages'))
-const AdminUsers = lazyPage(() => import('./pages/AdminUsers'))
-const AdminRadiologists = lazyPage(() => import('./pages/AdminRadiologists'))
-const Settings = lazyPage(() => import('./pages/Settings'))
-
-function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
-  const { role } = useApp()
-  const { locale } = useLocale()
-  if (role && roles.includes(role)) return <>{children}</>
-  return <Navigate to={localizePath('/', locale)} replace />
-}
-
-/** Legacy /inceleme|/review → canonical radiologist workspace. */
-function ExpertReviewRedirect() {
-  const { id } = useParams()
-  const { locale } = useLocale()
-  if (!id || id === 'undefined') {
-    return <Navigate to={localizePath('/kuyruk', locale)} replace />
-  }
-  return <Navigate to={localizePath(`/vakalar/${id}/calisma`, locale)} replace />
-}
-
-/** Register the same page under Turkish and English path patterns. */
-function dualRoutes(tr: string, en: string, element: ReactNode) {
-  return [
-    <Route key={`tr:${tr}`} path={tr} element={element} />,
-    <Route key={`en:${en}`} path={en} element={element} />,
-  ]
-}
+const NotFound = lazyPage(() => import('./shared/shell/NotFound'))
+const Landing = lazyPage(() => import('./shared/shell/Landing'))
+const Dashboard = lazyPage(() => import('./features/dashboard/Dashboard'))
 
 /** Signed out: known app URLs go to login with a safe return path; unknown URLs get a 404. */
 function PublicFallback() {
@@ -92,101 +48,37 @@ export default function App() {
       <LocalePathSync />
       {!role ? (
         <Suspense fallback={<PageLoader fullScreen />}>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/giris" element={<Login />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/kayit" element={<Register />} />
-          <Route path="/register" element={<Register />} />
-          {dualRoutes('/sifremi-unuttum', '/forgot-password', <ForgotPassword />)}
-          {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
-          {dualRoutes('/rapor-baglanti', '/report-link', <ReportLink />)}
-          <Route path="*" element={<PublicFallback />} />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            {publicAuthRoutes}
+            {publicReportLinkRoutes}
+            <Route path="*" element={<PublicFallback />} />
+          </Routes>
         </Suspense>
       ) : (
         <Suspense fallback={<PageLoader fullScreen />}>
-        <Routes>
-          {/* Emailed reset / report-view links work even when this browser is still signed in. */}
-          {dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />)}
-          {dualRoutes('/rapor-baglanti', '/report-link', <ReportLink />)}
-          <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            {dualRoutes('vakalar', 'cases', <Gate roles={['vet', 'expert', 'clinic_owner']}><CaseList /></Gate>)}
-            {dualRoutes('vakalar/yeni', 'cases/new', <Gate roles={['vet']}><NewCase /></Gate>)}
-            {dualRoutes('dicom-yukle', 'dicom-upload', <Gate roles={['vet']}><DicomUpload /></Gate>)}
-            {dualRoutes(
-              'vakalar/:id',
-              'cases/:id',
-              <Gate roles={['vet', 'expert', 'clinic_owner', 'owner']}><CaseDetail /></Gate>,
-            )}
-            {dualRoutes(
-              'vakalar/:id/isleme',
-              'cases/:id/processing',
-              <Gate roles={['vet', 'expert']}><Processing /></Gate>,
-            )}
-            {dualRoutes(
-              'vakalar/:id/inceleme',
-              'cases/:id/review',
-              <Gate roles={['expert']}><ExpertReviewRedirect /></Gate>,
-            )}
-            {dualRoutes(
-              'vakalar/:id/calisma',
-              'cases/:id/workspace',
-              <Gate roles={['expert']}><RadiologistWorkspace /></Gate>,
-            )}
-            {dualRoutes('kuyruk', 'queue', <Gate roles={['expert']}><ReviewQueue /></Gate>)}
-            {dualRoutes('ai-tekrar', 'ai-resend', <Gate roles={['expert']}><ExpertAiResend /></Gate>)}
-            {dualRoutes('ai-dersleri', 'ai-lessons', <Gate roles={['expert', 'admin']}><AiLessons /></Gate>)}
-            {dualRoutes('hayvanlar', 'pets', <Gate roles={['owner']}><OwnerPets /></Gate>)}
-            {dualRoutes(
-              'basvurular',
-              'submissions',
-              <Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>,
-            )}
-            {dualRoutes(
-              'basvurular/:submissionId',
-              'submissions/:submissionId',
-              <Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>,
-            )}
-            {dualRoutes('mesajlar', 'messages', <Gate roles={['owner', 'expert', 'admin', 'vet', 'clinic_owner']}><Messages /></Gate>)}
-            {dualRoutes(
-              'mesajlar/:threadId',
-              'messages/:threadId',
-              <Gate roles={['owner', 'expert', 'admin', 'vet', 'clinic_owner']}><Messages /></Gate>,
-            )}
-            {dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>)}
-            {dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>)}
-            {dualRoutes(
-              'raporlar',
-              'reports',
-              <Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ReportList /></Gate>,
-            )}
-            {dualRoutes(
-              'raporlar/:id',
-              'reports/:id',
-              <Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ApprovedReport /></Gate>,
-            )}
-            {dualRoutes('moduller', 'modules', <Gate roles={['admin']}><Modules /></Gate>)}
-            {dualRoutes('bilgi-tabani', 'knowledge-base', <Gate roles={['admin']}><KnowledgeBase /></Gate>)}
-            {dualRoutes('sistem', 'system', <Gate roles={['admin']}><SystemStatus /></Gate>)}
-            {dualRoutes(
-              'model-performansi',
-              'model-performance',
-              <Gate roles={['admin']}><ModelPerformance /></Gate>,
-            )}
-            {dualRoutes(
-              'ayarlar',
-              'settings',
-              <Gate roles={['vet', 'expert', 'owner', 'clinic_owner', 'admin']}><Settings /></Gate>,
-            )}
-            <Route path="giris" element={<Navigate to="/" replace />} />
-            <Route path="login" element={<Navigate to="/" replace />} />
-            <Route path="kayit" element={<Navigate to="/" replace />} />
-            <Route path="register" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<AppFallback />} />
-          </Route>
-        </Routes>
+          <Routes>
+            {signedInResetRoutes}
+            {publicReportLinkRoutes}
+            <Route element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              {caseRoutes}
+              {dicomRoutes}
+              {analysisRoutes}
+              {expertRoutes}
+              {submissionRoutes}
+              {messagingRoutes}
+              {reportRoutes}
+              {ragAdminRoutes}
+              {adminRoutes}
+              {settingsRoutes}
+              <Route path="giris" element={<Navigate to="/" replace />} />
+              <Route path="login" element={<Navigate to="/" replace />} />
+              <Route path="kayit" element={<Navigate to="/" replace />} />
+              <Route path="register" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<AppFallback />} />
+            </Route>
+          </Routes>
         </Suspense>
       )}
       <Toasts />

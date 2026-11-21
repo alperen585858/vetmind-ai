@@ -13,23 +13,26 @@ function has(dict: Dict, key: string): boolean {
   return typeof node === 'string'
 }
 
-// Files added or rewritten for issue #31 step 6.
+// Auth screens moved out of pages/ into features; components stay until their re-exports are unused.
 const FILES = [
-  'pages/Register.tsx',
-  'pages/Login.tsx',
-  'pages/ForgotPassword.tsx',
-  'pages/ResetPassword.tsx',
-  'pages/AdminUsers.tsx',
+  'features/auth/Register.tsx',
+  'features/auth/Login.tsx',
+  'features/auth/ForgotPassword.tsx',
+  'features/auth/ResetPassword.tsx',
+  'features/admin/AdminUsers.tsx',
   'components/ChangePasswordCard.tsx',
   'components/PasswordStrength.tsx',
   'components/AuthCard.tsx',
 ]
 
-const SOURCES = import.meta.glob(['../pages/*.tsx', '../components/*.tsx'], {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
+const SOURCES = import.meta.glob(
+  ['../features/auth/*.tsx', '../features/admin/AdminUsers.tsx', '../components/*.tsx'],
+  {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  },
+) as Record<string, string>
 
 describe('auth pages translations', () => {
   const keys = new Set<string>()

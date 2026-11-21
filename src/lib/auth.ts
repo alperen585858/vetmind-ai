@@ -1,7 +1,7 @@
 import type { Locale } from '../i18n/types'
 import { localizePath } from '../i18n/paths'
 import type { Role, User } from '../types'
-import { USERS } from '../data/mock'
+import { USERS } from '../shared/demo/users'
 
 const LEGACY_ACCOUNTS_KEY = 'vetmind.demo.accounts'
 const SESSION_KEY = 'vetmind.demo.session'

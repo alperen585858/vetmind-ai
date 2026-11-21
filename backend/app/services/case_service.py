@@ -90,6 +90,8 @@ from app.services.repository import CaseRepository
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
 from app.workers.job_backend import JobBackend, ThreadJobBackend
+from app.services.host_bound import HostBound
+from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
 
 
 def _now() -> datetime:
@@ -97,6 +99,12 @@ def _now() -> datetime:
 
 
 class CaseService:
+    """Case records, assignment, and lifecycle.
+
+    Analysis, reporting, and collaboration live on dedicated services.
+    Methods here delegate so existing ``cases.*`` callers keep working.
+    """
+
     def __init__(
         self,
         repo: CaseRepository,
@@ -114,7 +122,11 @@ class CaseService:
         user_settings: object | None = None,
         default_report_language: str = "tr",
         evidence_store: object | None = None,
-        radiologist_payouts: object | None = None,
+        radiologist_payouts: PayoutPort | None = None,
+        owner_delivery: OwnerDeliveryPort | None = None,
+        analysis: object | None = None,
+        reports: object | None = None,
+        collaboration: object | None = None,
     ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
@@ -143,8 +155,36 @@ class CaseService:
         self._workflow_store: object | None = None
         self._smtp_configured = False
         self._public_base_url = "http://127.0.0.1:5173"
+        self._owner_delivery: OwnerDeliveryPort | None = None
+        if owner_delivery is not None:
+            self.bind_owner_delivery(
+                mailer=owner_delivery.mailer,
+                report_view_tokens=owner_delivery.report_view_tokens,
+                auth_users=owner_delivery.auth_users,
+                workflow_store=owner_delivery.workflow_store,
+                smtp_configured=bool(owner_delivery.smtp_configured),
+                public_base_url=owner_delivery.public_base_url,
+            )
+        self._wire_contexts(analysis=analysis, reports=reports, collaboration=collaboration)
 
-    def bind_radiologist_payouts(self, service: object | None) -> None:
+    def _wire_contexts(
+        self,
+        *,
+        analysis: object | None,
+        reports: object | None,
+        collaboration: object | None,
+    ) -> None:
+        from app.services.analysis_application import AnalysisApplication
+        from app.services.report_application import ReportApplication
+        from app.services.case_collaboration import CaseCollaborationService
+
+        self.analysis = analysis if analysis is not None else AnalysisApplication(self)
+        self.reports = reports if reports is not None else ReportApplication(self)
+        self.collaboration = (
+            collaboration if collaboration is not None else CaseCollaborationService(self)
+        )
+
+    def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
         """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
         self._radiologist_payouts = service
 
@@ -159,6 +199,14 @@ class CaseService:
         public_base_url: str,
     ) -> None:
         """Wire SMTP + magic-link delivery for non-member pet owners."""
+        self._owner_delivery = OwnerDelivery(
+            mailer=mailer,
+            report_view_tokens=report_view_tokens,
+            auth_users=auth_users,
+            workflow_store=workflow_store,
+            smtp_configured=bool(smtp_configured),
+            public_base_url=public_base_url,
+        )
         self._mailer = mailer
         self._report_view_tokens = report_view_tokens
         self._auth_users = auth_users
@@ -207,18 +255,10 @@ class CaseService:
         return self._default_report_language
 
     def _acquire_analyze_slot(self) -> None:
-        if not self._analyze_gate.try_acquire():
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=api_error(
-                    "concurrent_analyze_limit",
-                    f"Too many concurrent analyses (max {self._max_concurrent_analyze}).",
-                    max=self._max_concurrent_analyze,
-                ),
-            )
+        return self.analysis._acquire_analyze_slot()
 
     def _release_analyze_slot(self) -> None:
-        self._analyze_gate.release()
+        return self.analysis._release_analyze_slot()
 
     def _emit_feedback(self, case: CaseRecord, feedback: ReviewFeedback) -> None:
         """Append training-signal event (PHI-free). Separate from security audit."""
@@ -571,23 +611,7 @@ class CaseService:
     def list_messages(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[CaseMessageView]:
-        case = self.get_case(case_id, principal=principal)
-        subject = principal.subject if principal and principal.via != "disabled" else ""
-        views: list[CaseMessageView] = []
-        for m in case.messages:
-            unread = bool(subject and subject not in m.read_by and m.author_id != subject)
-            views.append(
-                CaseMessageView(
-                    message_id=m.message_id,
-                    case_id=m.case_id or case.case_id,
-                    author_id=m.author_id,
-                    author_role=m.author_role,
-                    body=m.body,
-                    created_at=m.created_at,
-                    unread=unread,
-                )
-            )
-        return views
+        return self.collaboration.list_messages(case_id, principal=principal)
 
     def post_message(
         self,
@@ -596,73 +620,17 @@ class CaseService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> CaseMessageView:
-        case = self.get_case(case_id, principal=principal)
-        author_id = principal.subject if principal and principal.via != "disabled" else "demo"
-        author_role = principal.role if principal else "demo"
-        msg = CaseMessage(
-            case_id=case.case_id,
-            author_id=author_id,
-            author_role=author_role,
-            body=payload.body.strip(),
-            read_by=[author_id],
-        )
-        case.messages.append(msg)
-        append_activity(case, kind="case_message", actor_subject=author_id, detail=msg.message_id)
-        case.updated_at = _now()
-        self._repo.save_case(case)
-        self._emit_audit("case.message", principal=principal, resource=case_id)
-        # Notify other authorized participants (not the author).
-        recipients = {
-            case.pet_owner_subject,
-            case.owner_subject,
-            case.assigned_reviewer_id,
-        }
-        # Clinic vets are notified via assigned/owner; also notify known vet subject if distinct.
-        for recipient in recipients:
-            if not recipient or recipient == author_id:
-                continue
-            self._notify(
-                recipient_subject=recipient,
-                kind="case_message",
-                title="Yeni vaka mesajı",
-                body=msg.body[:160],
-                link_path=f"/vakalar/{case.case_id}",
-                dedupe_key=f"case_message:{case.case_id}:{msg.message_id}:{recipient}",
-                case_id=case.case_id,
-                clinic_id=case.clinic_id,
-            )
-        return CaseMessageView(
-            message_id=msg.message_id,
-            case_id=msg.case_id,
-            author_id=msg.author_id,
-            author_role=msg.author_role,
-            body=msg.body,
-            created_at=msg.created_at,
-            unread=False,
-        )
+        return self.collaboration.post_message(case_id, payload, principal=principal)
 
     def mark_messages_read(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[CaseMessageView]:
-        case = self.get_case(case_id, principal=principal)
-        if principal is None or principal.via == "disabled":
-            return self.list_messages(case_id, principal=principal)
-        subject = principal.subject
-        changed = False
-        for m in case.messages:
-            if m.author_id != subject and subject not in m.read_by:
-                m.read_by.append(subject)
-                changed = True
-        if changed:
-            case.updated_at = _now()
-            self._repo.save_case(case)
-        return self.list_messages(case_id, principal=principal)
+        return self.collaboration.mark_messages_read(case_id, principal=principal)
 
     def list_ai_chat(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[AiChatTurn]:
-        case = self.get_case(case_id, principal=principal)
-        return list(case.ai_chat or [])
+        return self.collaboration.list_ai_chat(case_id, principal=principal)
 
     def ask_ai_chat(
         self,
@@ -672,101 +640,22 @@ class CaseService:
         settings: Settings,
         principal: AuthPrincipal | None = None,
     ) -> AiChatResponse:
-        """Radiologist Q&A over case context (ChatGPT-style). Caps history at 40 turns."""
-        from app.llm.case_chat import answer_case_question
-
-        case = self.get_case(case_id, principal=principal)
-        author_id = principal.subject if principal and principal.via != "disabled" else "demo"
-        history = list(case.ai_chat or [])
-        try:
-            reply, provider = answer_case_question(
-                case,
-                payload.message,
-                history,
-                settings,
-                language=self._resolve_report_language(case, principal=principal),
-            )
-        except LLMProviderError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=str(exc),
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-        user_turn = AiChatTurn(role="user", content=payload.message.strip(), author_id=author_id)
-        assistant_turn = AiChatTurn(role="assistant", content=reply, author_id="vetmind-ai")
-        # The model call can take a minute: reload and change only the chat, so an approval,
-        # draft save or analysis result written meanwhile is not overwritten by a stale copy.
-        with self._lock:
-            latest = self.get_case(case_id, principal=principal)
-            history = [*(latest.ai_chat or []), user_turn, assistant_turn]
-            # Bound growth for SQLite rows / demo DB size.
-            if len(history) > 40:
-                history = history[-40:]
-            latest.ai_chat = history
-            latest.updated_at = _now()
-            append_activity(latest, kind="ai_chat", actor_subject=author_id, detail=f"{len(payload.message)} chars")
-            self._repo.save_case(latest)
-        self._emit_audit("case.ai_chat", principal=principal, resource=case_id)
-        return AiChatResponse(
-            case_id=case.case_id,
-            reply=reply,
-            history=history,
-            provider=provider,
-        )
+        return self.collaboration.ask_ai_chat(case_id, payload, settings=settings, principal=principal)
 
     def clear_ai_chat(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[AiChatTurn]:
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            case.ai_chat = []
-            case.updated_at = _now()
-            self._repo.save_case(case)
-        self._emit_audit("case.ai_chat.clear", principal=principal, resource=case_id)
-        return []
+        return self.collaboration.clear_ai_chat(case_id, principal=principal)
 
     def mark_report_delivered(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> CaseRecord:
-        case = self.get_case(case_id, principal=principal)
-        if case.status != CaseLifecycleStatus.APPROVED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Report can only be marked delivered after approval.",
-            )
-        if case.report_available_at is None:
-            case.report_available_at = _now()
-        if case.report_delivered_at is None:
-            case.report_delivered_at = _now()
-            actor = principal.subject if principal else "system"
-            append_activity(case, kind="report_delivered", actor_subject=actor)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        self._emit_audit("report.delivered", principal=principal, resource=case_id)
-        return saved
+        return self.reports.mark_report_delivered(case_id, principal=principal)
 
     def mark_report_viewed(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> CaseRecord:
-        case = self.get_case(case_id, principal=principal)
-        if case.status != CaseLifecycleStatus.APPROVED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Report can only be marked viewed after approval.",
-            )
-        # Never mutates approved report content — only delivery metadata on the case.
-        if case.report_available_at is None:
-            case.report_available_at = _now()
-        if case.report_delivered_at is None:
-            case.report_delivered_at = _now()
-        if case.report_viewed_at is None:
-            case.report_viewed_at = _now()
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        self._emit_audit("report.viewed", principal=principal, resource=case_id)
-        return saved
+        return self.reports.mark_report_viewed(case_id, principal=principal)
 
     def update_assignment(
         self,
@@ -882,92 +771,7 @@ class CaseService:
         principal: AuthPrincipal | None = None,
         editor_id: str | None = None,
     ) -> DraftReport:
-        """Bootstrap a blank radiologist draft for failed/unsupported cases (no AI draft).
-
-        Moves the case to awaiting_review so normal save/approve apply. Provenance is
-        ``source_kind=manual`` — never claim mock/real model output.
-        """
-        case = self.get_case(case_id, principal=principal)
-        if case.draft_report is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Case already has a draft report; edit it instead of re-initializing.",
-            )
-        if case.status not in {
-            CaseLifecycleStatus.MANUAL_REVIEW,
-            CaseLifecycleStatus.FAILED,
-        }:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Manual report init is only for failed or unsupported (manual_review) cases "
-                    f"(current status={case.status.value})."
-                ),
-            )
-        author = editor_id or (principal.subject if principal else "manual-radiologist")
-        if principal is not None:
-            author = bind_reviewer_id(principal, author)
-        now = _now()
-        placeholder = (
-            "[Manuel taslak — radyolog doldurur. AI çıktısı değildir; klinik sertifikasyon iddiası yoktur.]"
-        )
-        report = DraftReport(
-            report_id=f"rpt-manual-{uuid4().hex[:12]}",
-            case_id=case.case_id,
-            status=ReportStatus.DRAFT,
-            generation=GenerationMetadata(
-                provider_id="manual-radiologist",
-                model_id="manual",
-                model_version="1.0.0",
-                source_kind=SourceKind.MANUAL,
-                generated_at=now,
-                synthetic=True,
-                clinically_validated=False,
-            ),
-            technique=ReportSection(text=placeholder),
-            findings=ReportSection(text=placeholder),
-            impression=ReportSection(text=placeholder),
-            recommendations=ReportSection(text=placeholder),
-            validation_warnings=[
-                "Manuel radyolog taslağı — AI draft değildir.",
-                "Yapısal doğrulama klinik doğruluğu kanıtlamaz.",
-            ],
-            expert_review_status=ExpertReviewStatus.PENDING,
-            synthetic=True,
-            clinically_validated=False,
-            rag_note=(
-                "Bu taslak manuel başlatıldı; RAG alıntısı yoktur. "
-                "Onay, AI model doğrulaması anlamına gelmez."
-            ),
-            ai_sections={},
-            version=1,
-            created_at=now,
-            updated_at=now,
-            revision_notes="manual-init",
-        )
-        case.draft_report = report
-        case.status = CaseLifecycleStatus.AWAITING_REVIEW
-        apply_review_sla(case)
-        upsert_version_snapshot(
-            case,
-            snapshot_from_draft(
-                case,
-                report,
-                author_or_source=author,
-                revision_notes="manual-init",
-                immutable=False,
-            ),
-        )
-        append_activity(
-            case,
-            kind="manual_report_init",
-            actor_subject=author,
-            detail="Manuel taslak başlatıldı (AI draft yok)",
-        )
-        case.updated_at = now
-        self._repo.save_case(case)
-        self._emit_audit("report.manual_init", principal=principal, resource=case_id)
-        return report
+        return self.reports.init_manual_report(case_id, principal=principal, editor_id=editor_id)
 
     def save_draft_report(
         self,
@@ -976,58 +780,7 @@ class CaseService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> DraftReport:
-        """Persist editable draft sections. Refuses immutable/approved reports."""
-        case = self.get_case(case_id, principal=principal)
-        if case.draft_report is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error("no_draft", "No draft report to save."),
-            )
-        report = case.draft_report.model_copy(deep=True)
-        try:
-            assert_mutable_for_edit(report)
-        except (PermissionError, ValueError) as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error("report_immutable", str(exc)),
-            ) from exc
-        if report.status == ReportStatus.APPROVED or report.immutable:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "report_immutable",
-                    "Approved reports are immutable and cannot be edited in place.",
-                ),
-            )
-        if payload.technique is not None:
-            report.technique.text = payload.technique
-        if payload.findings is not None:
-            report.findings.text = payload.findings
-        if payload.impression is not None:
-            report.impression.text = payload.impression
-        if payload.recommendations is not None:
-            report.recommendations.text = payload.recommendations
-        if payload.note:
-            report.revision_notes = payload.note
-        report.updated_at = _now()
-        case.draft_report = report
-        try:
-            upsert_version_snapshot(
-                case,
-                snapshot_from_draft(
-                    case,
-                    report,
-                    author_or_source=payload.editor_id,
-                    revision_notes=payload.note,
-                    immutable=False,
-                ),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-        case.updated_at = _now()
-        self._repo.save_case(case)
-        self._emit_audit("report.draft_save", principal=principal, resource=case_id)
-        return report
+        return self.reports.save_draft_report(case_id, payload, principal=principal)
 
     def get_case(self, case_id: str, *, principal: AuthPrincipal | None = None) -> CaseRecord:
         case_id = canonicalize_case_id(case_id)
@@ -1109,267 +862,24 @@ class CaseService:
         return principal.can(CAP_CASE_WRITE) and principal.role != "owner" and not approved
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
-        if getattr(case, "vet_verified", True) is False:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "needs_vet_verification",
-                    "Owner submissions require veterinary verification before analysis.",
-                ),
-            )
-        if case.status == CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "classification_unconfirmed",
-                    "Cannot analyze until DICOM metadata classification is confirmed.",
-                ),
-            )
-        if not case.classification_confirmed:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "classification_unconfirmed",
-                    "Cannot analyze: classification_confirmed is false.",
-                ),
-            )
-        if case.status == CaseLifecycleStatus.APPROVED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "approved_needs_revision",
-                    "Cannot re-analyze an approved case. "
-                    "Request revision first so a new mutable report version can be created.",
-                ),
-            )
-        if case.status == CaseLifecycleStatus.ANALYZING and case.latest_job_id:
-            active = self._repo.get_job(case.latest_job_id)
-            if active is not None and active.status in {
-                JobStatus.QUEUED,
-                JobStatus.RUNNING,
-                JobStatus.CANCEL_REQUESTED,
-            }:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=api_error(
-                        "analysis_in_progress",
-                        "Analysis already in progress for this case.",
-                    ),
-                )
+        return self.analysis._assert_analyzable(case)
 
     def analyze(self, case_id: str, *, principal: AuthPrincipal | None = None) -> PipelineResult:
-        """Run the pipeline synchronously and return the completed job result."""
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            self._assert_analyzable(case)
-            job = AIOrchestrator.new_job(case.case_id)
-            case.latest_job_id = job.job_id
-            case.status = CaseLifecycleStatus.ANALYZING
-            case.updated_at = _now()
-            self._repo.save_case(case)
-            self._repo.save_job(job)
-        self._acquire_analyze_slot()
-        try:
-            # Deep copy so orchestrator cannot mutate the repository's live case object
-            # (InMemoryCaseRepository returns the same reference — approve-race safety).
-            working = case.model_copy(deep=True)
-            report_language = self._resolve_report_language(working, principal=principal)
-            result = self._orchestrator.run(
-                working,
-                job,
-                cancel_probe=lambda: self._job_cancel_requested(job.job_id),
-                on_progress=self._persist_job_progress,
-                report_language=report_language,
-            )
-        finally:
-            self._release_analyze_slot()
-        result = self._persist_pipeline_result(case_id, working, result)
-        self._emit_audit("analysis.run", principal=principal, resource=case_id)
-        return result
+        return self.analysis.analyze(case_id, principal=principal)
 
     def _persist_job_progress(self, job: AnalysisJob) -> None:
-        """Persist checkpoint progress without clobbering cooperative cancel flags."""
-        with self._lock:
-            stored = self._repo.get_job(job.job_id)
-            if stored is None:
-                return
-            if stored.status in {
-                JobStatus.COMPLETED,
-                JobStatus.FAILED,
-                JobStatus.CANCELLED,
-                JobStatus.TIMED_OUT,
-            }:
-                return
-            if stored.cancel_requested or stored.status == JobStatus.CANCEL_REQUESTED:
-                job.cancel_requested = True
-                if job.status == JobStatus.RUNNING:
-                    job.status = JobStatus.CANCEL_REQUESTED
-            self._repo.save_job(job)
+        return self.analysis._persist_job_progress(job)
 
     def _job_cancel_requested(self, job_id: str) -> bool:
-        """Reload cancel flag from durable storage (SQLite/Postgres workers hold copies)."""
-        stored = self._repo.get_job(job_id)
-        return bool(
-            stored is not None
-            and (
-                stored.cancel_requested
-                or stored.status
-                in {JobStatus.CANCEL_REQUESTED, JobStatus.CANCELLED}
-            )
-        )
+        return self.analysis._job_cancel_requested(job_id)
 
     def _persist_pipeline_result(
         self, case_id: str, working: CaseRecord, result: PipelineResult
     ) -> PipelineResult:
-        """Merge pipeline outputs under lock; never clobber an approved immutable report."""
-        with self._lock:
-            latest = self._repo.get_case(case_id)
-            if latest is None:
-                self._repo.save_job(result.job)
-                return result
-            approved = latest.status == CaseLifecycleStatus.APPROVED or (
-                latest.draft_report is not None and latest.draft_report.immutable
-            )
-            has_immutable_history = any(v.immutable for v in (latest.report_versions or []))
-            if (approved or has_immutable_history) and latest.status == CaseLifecycleStatus.APPROVED:
-                # Never mutate an approved case / immutable snapshots from any analyze path.
-                if result.job.status not in {
-                    JobStatus.CANCELLED,
-                    JobStatus.FAILED,
-                    JobStatus.TIMED_OUT,
-                }:
-                    result.job.status = JobStatus.FAILED
-                    result.job.outcome = PipelineOutcome.FAILED
-                    result.job.error_message = (
-                        "Analysis discarded: case was approved while analysis was in flight. "
-                        "Approved immutable report was preserved."
-                    )
-                    result.job.completed_at = _now()
-                self._repo.save_job(result.job)
-                return result
-
-            # Failed/cancelled re-analyze must not wipe a prior approvable draft.
-            terminal_fail = result.job.status in {
-                JobStatus.CANCELLED,
-                JobStatus.FAILED,
-                JobStatus.TIMED_OUT,
-            }
-            prior_draft = latest.draft_report
-            latest.structured_findings = working.structured_findings or latest.structured_findings
-            latest.latest_job_id = working.latest_job_id
-            latest.updated_at = working.updated_at
-            latest.model_input = working.model_input or latest.model_input
-            if result.report is not None:
-                attach_pipeline_draft(latest, result.report)
-                result.report = latest.draft_report
-                latest.status = working.status
-            elif terminal_fail:
-                # Preserve previous draft when pipeline produced no new report.
-                latest.draft_report = prior_draft
-                if prior_draft is not None and prior_draft.status in {
-                    ReportStatus.AWAITING_REVIEW,
-                    ReportStatus.DRAFT,
-                }:
-                    latest.status = CaseLifecycleStatus.AWAITING_REVIEW
-                    apply_review_sla(latest)
-                else:
-                    latest.status = working.status
-            else:
-                latest.draft_report = working.draft_report
-                latest.status = working.status
-                if latest.status in OPEN_REVIEW_STATUSES:
-                    apply_review_sla(latest)
-            self._repo.save_job(result.job)
-            self._repo.save_case(latest)
-            return result
+        return self.analysis._persist_pipeline_result(case_id, working, result)
 
     def run_queued_analyze(self, case_id: str, job_id: str, *, hold_slot: bool = False) -> None:
-        """Thread/RQ worker entry: cancel-while-queued, cancel probe, approve-race guard.
-
-        When ``hold_slot`` is False (RQ / direct call), acquires the durable gate here.
-        Thread enqueue acquires the slot before scheduling and passes ``hold_slot=True``.
-        """
-        owns_slot = False
-        if not hold_slot:
-            if not self._analyze_gate.try_acquire():
-                with self._lock:
-                    queued = self._repo.get_job(job_id)
-                    case = self._repo.get_case(case_id)
-                    if queued is not None:
-                        queued.status = JobStatus.FAILED
-                        queued.outcome = PipelineOutcome.FAILED
-                        queued.error_message = (
-                            f"Too many concurrent analyses (max {self._max_concurrent_analyze})."
-                        )
-                        queued.completed_at = _now()
-                        self._repo.save_job(queued)
-                    if (
-                        case is not None
-                        and case.status == CaseLifecycleStatus.ANALYZING
-                        and case.latest_job_id == job_id
-                    ):
-                        case.status = CaseLifecycleStatus.FAILED
-                        case.updated_at = _now()
-                        self._repo.save_case(case)
-                return
-            owns_slot = True
-        try:
-            with self._lock:
-                current = self._repo.get_case(case_id)
-                queued = self._repo.get_job(job_id)
-                if current is None or queued is None:
-                    return
-                if queued.cancel_requested or queued.status == JobStatus.CANCELLED:
-                    queued.status = JobStatus.CANCELLED
-                    queued.outcome = PipelineOutcome.FAILED
-                    queued.error_message = queued.error_message or "Cancelled while queued."
-                    queued.completed_at = queued.completed_at or _now()
-                    if current.status == CaseLifecycleStatus.ANALYZING and current.latest_job_id == job_id:
-                        # Restore prior draft path via persist rules — mark failed job only.
-                        if current.draft_report is not None:
-                            current.status = CaseLifecycleStatus.AWAITING_REVIEW
-                            apply_review_sla(current)
-                        else:
-                            current.status = CaseLifecycleStatus.FAILED
-                        current.updated_at = _now()
-                        self._repo.save_case(current)
-                    self._repo.save_job(queued)
-                    return
-                # Approved while queued (or before worker start): discard without mutating case.
-                if current.status == CaseLifecycleStatus.APPROVED or (
-                    current.draft_report is not None and current.draft_report.immutable
-                ):
-                    queued.status = JobStatus.FAILED
-                    queued.outcome = PipelineOutcome.FAILED
-                    queued.error_message = (
-                        "Analysis discarded: case was approved while analysis was in flight. "
-                        "Approved immutable report was preserved."
-                    )
-                    queued.completed_at = _now()
-                    self._repo.save_job(queued)
-                    return
-                working = current.model_copy(deep=True)
-                job_working = queued.model_copy(deep=True)
-                # Expose running + 0–stage progress before the long orchestrator body.
-                if job_working.status == JobStatus.QUEUED:
-                    job_working.status = JobStatus.RUNNING
-                    job_working.started_at = job_working.started_at or _now()
-                    apply_pipeline_progress(job_working, "prep_metadata")
-                    self._repo.save_job(job_working)
-            report_language = self._resolve_report_language(working)
-            result = self._orchestrator.run(
-                working,
-                job_working,
-                cancel_probe=lambda: self._job_cancel_requested(job_id),
-                on_progress=self._persist_job_progress,
-                report_language=report_language,
-            )
-            # Preserve job_id identity for persistence (copy may diverge on cancel flags).
-            result.job.job_id = job_id
-            self._persist_pipeline_result(case_id, working, result)
-        finally:
-            if owns_slot or hold_slot:
-                self._release_analyze_slot()
+        return self.analysis.run_queued_analyze(case_id, job_id, hold_slot=hold_slot)
 
     def enqueue_analyze(
         self,
@@ -1378,115 +888,18 @@ class CaseService:
         idempotency_key: str | None = None,
         principal: AuthPrincipal | None = None,
     ) -> AnalysisJob:
-        """Queue analysis via job backend (thread default, optional RQ).
-
-        Idempotent while a job is queued/running for the case: returns the active job.
-        Poll GET /jobs/{job_id}. Cancel via POST /jobs/{job_id}/cancel (cooperative).
-        Shares the same durable concurrency gate as sync analyze.
-        """
-        key = (idempotency_key or "").strip() or None
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            # Duplicate submission: return in-flight job instead of starting another.
-            if case.status == CaseLifecycleStatus.ANALYZING and case.latest_job_id:
-                existing = self._repo.get_job(case.latest_job_id)
-                if existing is not None and existing.status in {
-                    JobStatus.QUEUED,
-                    JobStatus.RUNNING,
-                    JobStatus.CANCEL_REQUESTED,
-                }:
-                    return existing
-            # Same Idempotency-Key on latest job → return that job (completed or not).
-            if key and case.latest_job_id:
-                prior = self._repo.get_job(case.latest_job_id)
-                if prior is not None and prior.idempotency_key == key:
-                    return prior
-            self._assert_analyzable(case)
-            if getattr(self._jobs, "name", "") == "rq":
-                from app.services.repository import InMemoryCaseRepository
-
-                if isinstance(self._repo, InMemoryCaseRepository):
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="RQ job backend requires durable storage (sqlite/postgres), not memory.",
-                    )
-
-        # Fail-fast concurrency (same policy as sync). Slot held until worker finishes.
-        is_rq = getattr(self._jobs, "name", "") == "rq"
-        if not is_rq:
-            self._acquire_analyze_slot()
-        try:
-            with self._lock:
-                case = self.get_case(case_id, principal=principal)
-                self._assert_analyzable(case)
-                job = AIOrchestrator.new_job(case.case_id)
-                job.status = JobStatus.QUEUED
-                if key:
-                    job.idempotency_key = key
-                case.latest_job_id = job.job_id
-                case.status = CaseLifecycleStatus.ANALYZING
-                case.updated_at = _now()
-                self._repo.save_case(case)
-                self._repo.save_job(job)
-
-            def _worker() -> None:
-                # Thread path already holds the slot; RQ acquires inside run_queued_analyze.
-                self.run_queued_analyze(case_id, job.job_id, hold_slot=not is_rq)
-
-            self._jobs.enqueue_analyze(case_id, job.job_id, _worker)
-            return job
-        except Exception:
-            if not is_rq:
-                self._release_analyze_slot()
-            raise
+        return self.analysis.enqueue_analyze(case_id, idempotency_key=idempotency_key, principal=principal)
 
     def request_cancel_job(
         self, job_id: str, *, principal: AuthPrincipal | None = None
     ) -> AnalysisJob:
-        """Cooperative cancel request. Does not kill threads; orchestrator checks the flag."""
-        with self._lock:
-            job = self.get_job(job_id, principal=principal)
-            if job.status in {
-                JobStatus.COMPLETED,
-                JobStatus.FAILED,
-                JobStatus.CANCELLED,
-                JobStatus.TIMED_OUT,
-            }:
-                return job
-            job.cancel_requested = True
-            if job.status == JobStatus.QUEUED:
-                job.status = JobStatus.CANCELLED
-                job.outcome = PipelineOutcome.FAILED
-                job.error_message = "Cancelled while queued."
-                job.completed_at = _now()
-                case = self._repo.get_case(job.case_id)
-                if case is not None and case.latest_job_id == job.job_id:
-                    # Do not wipe a prior approvable draft when cancelling a queued re-analyze.
-                    if case.draft_report is not None and not case.draft_report.immutable:
-                        case.status = CaseLifecycleStatus.AWAITING_REVIEW
-                        apply_review_sla(case)
-                    else:
-                        case.status = CaseLifecycleStatus.FAILED
-                    case.updated_at = _now()
-                    self._repo.save_case(case)
-            else:
-                job.status = JobStatus.CANCEL_REQUESTED
-            self._repo.save_job(job)
-            return job
+        return self.analysis.request_cancel_job(job_id, principal=principal)
 
     def get_job(self, job_id: str, *, principal: AuthPrincipal | None = None) -> AnalysisJob:
-        job = self._repo.get_job(job_id)
-        if job is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.")
-        # Enforce case-level access for job status (prevents cross-tenant job polling).
-        self.get_case(job.case_id, principal=principal)
-        return job
+        return self.analysis.get_job(job_id, principal=principal)
 
     def get_findings(self, case_id: str, *, principal: AuthPrincipal | None = None) -> StructuredFindings:
-        case = self.get_case(case_id, principal=principal)
-        if case.structured_findings is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Structured findings are not available yet.")
-        return case.structured_findings
+        return self.analysis.get_findings(case_id, principal=principal)
 
     def review_case_evidence(
         self,
@@ -1598,87 +1011,7 @@ class CaseService:
         *,
         principal: AuthPrincipal,
     ) -> CaseRecord:
-        """Add selected evidence overlays to an approved report package (figures only).
-
-        Does not rewrite report text. Marks evidence accepted + include_in_report, renders
-        overlays when missing, then copies into the immutable report package.
-        """
-        from app.models.evidence_store import EvidenceArtifactStore
-        from app.services.report_evidence_snapshot import append_evidence_figures
-
-        ids = [str(x).strip() for x in evidence_ids if str(x).strip()]
-        if not ids:
-            raise HTTPException(status_code=400, detail="evidence_ids required")
-        if not isinstance(self._evidence_store, EvidenceArtifactStore):
-            raise HTTPException(status_code=503, detail="Evidence store unavailable.")
-
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            draft = case.draft_report
-            if (
-                case.status != CaseLifecycleStatus.APPROVED
-                or draft is None
-                or not draft.immutable
-                or draft.status != ReportStatus.APPROVED
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Figures can only be appended to an approved immutable report.",
-                )
-            sf = case.structured_findings
-            if sf is None:
-                raise HTTPException(status_code=404, detail="No findings on case.")
-
-            by_id = {
-                ev.evidence_id: ev
-                for finding in sf.findings
-                for ev in finding.evidence_references
-            }
-            missing = [eid for eid in ids if eid not in by_id]
-            if missing:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Unknown evidence_id(s): {', '.join(missing[:5])}",
-                )
-            for eid in ids:
-                ev = by_id[eid]
-                ev.review_status = "accepted"
-                ev.include_in_report = True
-                if ev.reviewed_by is None:
-                    ev.reviewed_by = principal.subject
-
-            sf = self._render_missing_overlays(case, sf)
-            before = {f.evidence_id for f in (draft.evidence_figures or [])}
-            draft = append_evidence_figures(
-                case,
-                draft.model_copy(deep=True),
-                store=self._evidence_store,
-                evidence_ids=ids,
-                findings=sf,
-            )
-            case.draft_report = draft
-            # Additive patch on immutable snapshot figures only (text stays frozen).
-            now = _now()
-            for idx, existing in enumerate(case.report_versions):
-                if existing.version != int(draft.version):
-                    continue
-                content = existing.content.model_copy(deep=True)
-                content.evidence_figures = list(draft.evidence_figures)
-                case.report_versions[idx] = existing.model_copy(
-                    update={"content": content, "updated_at": now}
-                )
-                break
-            added = len({f.evidence_id for f in (draft.evidence_figures or [])} - before)
-            append_activity(
-                case,
-                kind="report_figures_appended",
-                actor_subject=principal.subject,
-                detail=f"v{draft.version} +{added}",
-            )
-            case.updated_at = now
-            saved = self._repo.save_case(case)
-        self._emit_audit("report.figures.append", principal=principal, resource=case_id)
-        return saved
+        return self.reports.append_report_figures(case_id, evidence_ids, principal=principal)
 
     @staticmethod
     def _assert_evidence_editable(case: CaseRecord) -> None:
@@ -1693,39 +1026,17 @@ class CaseService:
     def get_report(
         self, case_id: str, *, version: int | None = None, principal: AuthPrincipal | None = None
     ) -> DraftReport:
-        case = self.get_case(case_id, principal=principal)
-        if version is not None:
-            snap = get_version(case, version)
-            if snap is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Report version {version} not found for this case.",
-                )
-            return snap.content
-        if case.draft_report is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Draft report is not available (failed/unsupported cases do not produce an AI draft).",
-            )
-        return case.draft_report
+        return self.reports.get_report(case_id, version=version, principal=principal)
 
     def list_report_versions(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[ReportVersionSummary]:
-        case = self.get_case(case_id, principal=principal)
-        return list_version_summaries(case)
+        return self.reports.list_report_versions(case_id, principal=principal)
 
     def get_report_version(
         self, case_id: str, version: int, *, principal: AuthPrincipal | None = None
     ) -> ReportVersionSnapshot:
-        case = self.get_case(case_id, principal=principal)
-        snap = get_version(case, version)
-        if snap is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Report version {version} not found for this case.",
-            )
-        return snap
+        return self.reports.get_report_version(case_id, version, principal=principal)
 
     def submit_review(
         self,
@@ -1734,92 +1045,7 @@ class CaseService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> CaseRecord:
-        """Apply expert review under lock (atomic version numbering vs concurrent analyzes)."""
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            if principal is not None:
-                bound = bind_reviewer_id(principal, feedback.reviewer_id)
-                feedback = feedback.model_copy(update={"reviewer_id": bound})
-
-            if feedback.action == ReviewAction.APPROVE:
-                result = self._approve_ai_draft(case, feedback)
-                self._emit_feedback(result, feedback)
-                self._emit_audit("review.approve", principal=principal, resource=case_id)
-                return result
-
-            if case.draft_report is None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        "Cannot reject/revise without an AI draft. "
-                        "Failed and unsupported cases have no approvable AI draft; use manual workflow outside AI approval."
-                    ),
-                )
-            if case.status == CaseLifecycleStatus.FAILED:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Cannot review a failed analysis as an AI draft.",
-                )
-            if case.status == CaseLifecycleStatus.MANUAL_REVIEW:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Unsupported case is for manual review only; AI draft reject/revision does not apply.",
-                )
-
-            report = case.draft_report.model_copy(deep=True)
-            try:
-                if report.immutable or report.status == ReportStatus.APPROVED:
-                    # Fork handled inside apply_reject_or_revision after edits.
-                    pass
-                else:
-                    assert_mutable_for_edit(report)
-            except PermissionError as exc:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-
-            self._apply_edits(report, feedback)
-            report.reviewer_comment = feedback.comment
-            report = apply_reject_or_revision(
-                case,
-                report,
-                reviewer_id=feedback.reviewer_id,
-                notes=feedback.comment,
-                reject=feedback.action == ReviewAction.REJECT,
-            )
-            if feedback.action == ReviewAction.REJECT:
-                case.status = CaseLifecycleStatus.REJECTED
-            else:
-                case.status = CaseLifecycleStatus.REVISION_REQUESTED
-                append_activity(
-                    case,
-                    kind="revision_requested",
-                    actor_subject=feedback.reviewer_id,
-                    detail=feedback.comment,
-                )
-            clear_review_sla(case)
-
-            case.review_history.append(feedback)
-            case.updated_at = _now()
-            saved = self._repo.save_case(case)
-            self._emit_feedback(saved, feedback)
-            event = "review.reject" if feedback.action == ReviewAction.REJECT else "review.revision"
-            self._emit_audit(event, principal=principal, resource=case_id)
-            if feedback.action == ReviewAction.REQUEST_REVISION:
-                # Revision is radiologist <-> referring vet workflow; pet owners only see approved
-                # reports (owner-submitted cases have owner_subject == pet_owner_subject).
-                for recipient in {saved.owner_subject, "vet@demo.local"}:
-                    if not recipient or recipient == feedback.reviewer_id or recipient == saved.pet_owner_subject:
-                        continue
-                    self._notify(
-                        recipient_subject=recipient,
-                        kind="revision_requested",
-                        title="Revizyon istendi",
-                        body=feedback.comment or f"Vaka {saved.case_id}",
-                        link_path=f"/vakalar/{saved.case_id}",
-                        dedupe_key=f"revision_requested:{saved.case_id}:{saved.updated_at.isoformat()}:{recipient}",
-                        case_id=saved.case_id,
-                        clinic_id=saved.clinic_id,
-                    )
-            return saved
+        return self.reports.submit_review(case_id, feedback, principal=principal)
 
     REGENERATABLE_STATUSES = {CaseLifecycleStatus.AWAITING_REVIEW, CaseLifecycleStatus.REVISION_REQUESTED}
 
@@ -1831,279 +1057,18 @@ class CaseService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> CaseRecord:
-        """Rewrite the AI draft with the expert's revision request (LLM only, imaging not re-run).
-
-        The new draft becomes a new report version awaiting review; the reviewed version stays
-        in history. On provider failure the current draft is left untouched.
-        """
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            if principal is not None:
-                reviewer_id = bind_reviewer_id(principal, reviewer_id)
-            if case.status not in self.REGENERATABLE_STATUSES or case.draft_report is None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="AI rewrite needs a draft awaiting review or with a revision request.",
-                )
-            if case.structured_findings is None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT, detail="Case has no imaging findings to rewrite from."
-                )
-            base_version = case.draft_report.version
-            working = case.model_copy(deep=True)
-
-        try:
-            report_language = self._resolve_report_language(working, principal=principal)
-            report = self._orchestrator.regenerate_report(
-                working, expert_note, report_language=report_language
-            )
-        except LLMProviderError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"LLM rewrite failed ({exc.kind.value}); the current draft is unchanged.",
-            ) from exc
-
-        with self._lock:
-            latest = self.get_case(case_id, principal=principal)
-            if (
-                latest.status not in self.REGENERATABLE_STATUSES
-                or latest.draft_report is None
-                or latest.draft_report.version != base_version
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="The draft changed while the rewrite was running; reload and try again.",
-                )
-            attach_pipeline_draft(latest, report, notes=f"Uzman revizyon talebiyle yeniden üretildi: {expert_note}")
-            latest.status = CaseLifecycleStatus.AWAITING_REVIEW
-            apply_review_sla(latest)
-            append_activity(latest, kind="ai_regenerated", actor_subject=reviewer_id, detail=expert_note)
-            latest.updated_at = _now()
-            saved = self._repo.save_case(latest)
-        self._emit_audit("report.regenerate", principal=principal, resource=case_id)
-        return saved
+        return self.reports.regenerate_report(case_id, expert_note, reviewer_id, principal=principal)
 
     def _approve_ai_draft(self, case: CaseRecord, feedback: ReviewFeedback) -> CaseRecord:
-        if case.status == CaseLifecycleStatus.FAILED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Cannot approve: analysis failed and produced no AI draft. "
-                    "Use POST .../report/manual-init then edit and approve the manual draft."
-                ),
-            )
-        if case.status == CaseLifecycleStatus.MANUAL_REVIEW:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Cannot approve an AI draft for an unsupported case. "
-                    "Use POST .../report/manual-init for a radiologist-authored draft, then approve."
-                ),
-            )
-        if case.draft_report is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Cannot approve: there is no draft report. "
-                    "For failed/unsupported cases call POST .../report/manual-init first."
-                ),
-            )
-
-        report = case.draft_report.model_copy(deep=True)
-        if report.immutable or report.status == ReportStatus.APPROVED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot approve: this report version is already approved and immutable.",
-            )
-        if case.status == CaseLifecycleStatus.APPROVED:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Case already has an approved report. Request revision to open a new version.",
-            )
-
-        self._apply_edits(report, feedback)
-        report.reviewer_comment = feedback.comment
-
-        validation = self._validator.validate(report, case.structured_findings)
-        if not validation.ok or report.status == ReportStatus.VALIDATION_FAILED:
-            case.updated_at = _now()
-            self._repo.save_case(case)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "message": "Cannot approve: draft failed structural revalidation.",
-                    "errors": validation.errors,
-                    "warnings": validation.warnings,
-                },
-            )
-
-        if report.status not in {
-            ReportStatus.AWAITING_REVIEW,
-            ReportStatus.DRAFT,
-            ReportStatus.REVISION_REQUESTED,
-        }:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot approve draft in status '{report.status.value}'.",
-            )
-
-        if self._evidence_store is not None:
-            try:
-                from app.models.evidence_store import EvidenceArtifactStore
-                from app.services.report_evidence_snapshot import freeze_evidence_into_report
-
-                if isinstance(self._evidence_store, EvidenceArtifactStore):
-                    freeze_evidence_into_report(
-                        case,
-                        report,
-                        store=self._evidence_store,
-                        findings=case.structured_findings,
-                    )
-            except Exception:
-                # Approval must not fail solely on evidence copy; PDF may omit figures.
-                report.validation_warnings = list(report.validation_warnings) + [
-                    "Evidence snapshot incomplete; PDF may omit AI evidence figures."
-                ]
-        freeze_approved(
-            case,
-            report,
-            reviewer_id=feedback.reviewer_id,
-            notes=feedback.comment,
-        )
-        case.status = CaseLifecycleStatus.APPROVED
-        # Keep assignee in sync so post-approve vet→expert questions notify the reviewer.
-        if not case.assigned_reviewer_id and feedback.reviewer_id:
-            case.assigned_reviewer_id = feedback.reviewer_id
-        clear_review_sla(case)
-        if case.report_available_at is None:
-            case.report_available_at = _now()
-        append_activity(
-            case,
-            kind="report_approved",
-            actor_subject=feedback.reviewer_id,
-            detail=f"v{report.version}",
-        )
-        case.review_history.append(feedback)
-        case.updated_at = _now()
-        self._deliver_owner_report_email(case, report_version=report.version)
-        saved = self._repo.save_case(case)
-        self._record_radiologist_payout(saved, feedback.reviewer_id)
-        for recipient in {saved.pet_owner_subject, saved.owner_subject, "vet@demo.local"}:
-            if not recipient or recipient == feedback.reviewer_id:
-                continue
-            self._notify(
-                recipient_subject=recipient,
-                kind="report_approved",
-                title="Rapor onaylandı",
-                body=f"{saved.patient_name} · {saved.case_id}",
-                link_path=f"/raporlar/{saved.case_id}",
-                dedupe_key=f"report_approved:{saved.case_id}:v{report.version}:{recipient}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        # Surface SMTP failure to the referring vet (never silent).
-        if saved.owner_email_delivery_status == "failed_smtp" and saved.owner_subject:
-            self._notify(
-                recipient_subject=saved.owner_subject,
-                kind="owner_email_failed",
-                title="Sahibe e-posta gönderilemedi",
-                body=saved.owner_email_delivery_detail
-                or "SMTP yapılandırılmamış veya gönderim başarısız. Raporu kendiniz iletin.",
-                link_path=f"/raporlar/{saved.case_id}",
-                dedupe_key=f"owner_email_failed:{saved.case_id}:v{report.version}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        return saved
+        return self.reports._approve_ai_draft(case, feedback)
 
     def _deliver_owner_report_email(self, case: CaseRecord, *, report_version: int) -> None:
-        """Email non-member owners a single-use report link when KVKK consent is set."""
-        email = (case.owner_contact_email or "").strip().lower()
-        if case.pet_owner_subject:
-            # Linked account gets in-app notification; skip outbound email by default.
-            case.owner_email_delivery_status = "skipped_linked"
-            case.owner_email_delivery_detail = "Owner has an account; in-app notification used."
-            return
-        if not email:
-            case.owner_email_delivery_status = "skipped_no_email"
-            case.owner_email_delivery_detail = "No owner email on case."
-            return
-        if not case.owner_email_consent:
-            case.owner_email_delivery_status = "skipped_no_consent"
-            case.owner_email_delivery_detail = "Owner email consent (KVKK) was not recorded."
-            return
-        if self._mailer is None or self._report_view_tokens is None:
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = "Mailer or report-view tokens are not configured."
-            return
-        if not self._smtp_configured:
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = (
-                "SMTP is not configured (VETMIND_SMTP_HOST). Report email was not sent."
-            )
-            return
-        try:
-            raw = self._report_view_tokens.issue(  # type: ignore[attr-defined]
-                case_id=case.case_id,
-                report_version=report_version,
-            )
-            minutes = max(1, int(getattr(self._report_view_tokens, "ttl_seconds", 72 * 3600)) // 60)
-            link = f"{self._public_base_url}/rapor-baglanti?token={raw}"
-            name = case.owner_contact_name or "Sayın sahip"
-            body = (
-                f"Merhaba {name},\n\n"
-                f"{case.patient_name} için veteriner radyoloji raporu hazır.\n\n"
-                f"Raporu görüntülemek için bu bağlantıyı {minutes} dakika içinde açın "
-                f"(tek kullanımlık):\n{link}\n\n"
-                "Bağlantıda sağlık verisi eki yoktur; yalnızca güvenli görüntüleme sunulur.\n"
-                "İsterseniz VetMind'e üye olarak raporlarınıza hesabınızdan ulaşabilirsiniz.\n\n"
-                f"Hello {name},\n"
-                f"The radiology report for {case.patient_name} is ready. "
-                f"Open the single-use link above within {minutes} minutes.\n"
-            )
-            self._mailer.send(  # type: ignore[attr-defined]
-                OutgoingMail(
-                    to=email,
-                    subject=f"VetMind rapor hazır · {case.patient_name}",
-                    body=body,
-                )
-            )
-            case.owner_email_delivery_status = "sent"
-            case.owner_email_delivery_detail = f"Report view link emailed to {email}."
-            append_activity(
-                case,
-                kind="owner_report_email_sent",
-                actor_subject="system",
-                detail=email,
-            )
-        except Exception as exc:  # noqa: BLE001 — never fail approval solely on mail
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = f"Email send failed: {exc}"
+        return self.reports._deliver_owner_report_email(case, report_version=report_version)
 
     def revoke_report_view_links(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> CaseRecord:
-        case = self.get_case(case_id, principal=principal)
-        if principal is not None and principal.role not in {
-            "vet",
-            "clinic_owner",
-            "admin",
-            "expert",
-            "demo",
-            "service",
-        } and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-        n = 0
-        if self._report_view_tokens is not None:
-            n = int(self._report_view_tokens.revoke_case(case_id))  # type: ignore[attr-defined]
-        append_activity(
-            case,
-            kind="report_view_links_revoked",
-            actor_subject=principal.subject if principal else "system",
-            detail=str(n),
-        )
-        case.updated_at = _now()
-        return self._repo.save_case(case)
+        return self.reports.revoke_report_view_links(case_id, principal=principal)
 
     def _notify(self, **kwargs) -> None:
         nsvc = self._notifications
@@ -2114,109 +1079,22 @@ class CaseService:
     def list_activity(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[CaseActivityEvent]:
-        case = self.get_case(case_id, principal=principal)
-        return list(case.activity)
+        return self.reports.list_activity(case_id, principal=principal)
 
     def append_clinical_note(
         self, case_id: str, payload: CaseNoteCreate, *, principal: AuthPrincipal
     ) -> CaseRecord:
-        if principal.role not in {"vet", "clinic_owner", "admin", "demo", "service", "expert"} and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-        case = self.get_case(case_id, principal=principal)
-        entry = ClinicalNoteEntry(
-            body=payload.body.strip(),
-            author_subject=principal.subject,
-            author_role=principal.role,
-            kind="clinical",
-        )
-        case.clinical_notes_log = [*case.clinical_notes_log, entry]
-        # Append to free-text history without losing prior content.
-        prior = (case.clinical_history or "").rstrip()
-        stamp = f"[{entry.created_at.isoformat()} · {principal.subject}] {entry.body}"
-        case.clinical_history = f"{prior}\n\n{stamp}".strip() if prior else stamp
-        append_activity(case, kind="clinical_note", actor_subject=principal.subject, detail=entry.note_id)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        recipients = {r for r in [saved.assigned_reviewer_id, saved.owner_subject] if r}
-        for recipient in recipients:
-            if recipient == principal.subject:
-                continue
-            self._notify(
-                recipient_subject=recipient,
-                kind="clinical_history_updated",
-                title="Klinik not eklendi",
-                body=entry.body[:200],
-                link_path=f"/vakalar/{saved.case_id}",
-                dedupe_key=f"clinical_history_updated:{saved.case_id}:{entry.note_id}:{recipient}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        return saved
+        return self.collaboration.append_clinical_note(case_id, payload, principal=principal)
 
     def append_internal_note(
         self, case_id: str, payload: CaseNoteCreate, *, principal: AuthPrincipal
     ) -> CaseRecord:
-        if principal.role not in {"expert", "admin", "demo", "service"} and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Internal notes are for radiologists.")
-        case = self.get_case(case_id, principal=principal)
-        entry = ClinicalNoteEntry(
-            body=payload.body.strip(),
-            author_subject=principal.subject,
-            author_role=principal.role,
-            kind="internal",
-        )
-        case.internal_notes = [*case.internal_notes, entry]
-        append_activity(case, kind="internal_note", actor_subject=principal.subject, detail=entry.note_id)
-        case.updated_at = _now()
-        return self._repo.save_case(case)
+        return self.collaboration.append_internal_note(case_id, payload, principal=principal)
 
     def create_info_request(
         self, case_id: str, payload: InfoRequestCreate, *, principal: AuthPrincipal
     ) -> CaseRecord:
-        if principal.role not in {"expert", "vet", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-        case = self.get_case(case_id, principal=principal)
-        to_role = payload.to_role
-        irq = InfoRequest(
-            status="OPEN",
-            from_role=principal.role,
-            from_subject=principal.subject,
-            to_role=to_role,
-            body=payload.body.strip(),
-        )
-        case.info_requests = [*case.info_requests, irq]
-        append_activity(case, kind="info_request_opened", actor_subject=principal.subject, detail=irq.request_id)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        recipients: set[str] = set()
-        if to_role == "vet":
-            if saved.owner_subject and saved.owner_subject != saved.pet_owner_subject:
-                recipients.add(saved.owner_subject)
-            recipients.add("vet@demo.local")
-        elif to_role == "owner":
-            if saved.pet_owner_subject:
-                recipients.add(saved.pet_owner_subject)
-            elif saved.owner_subject:
-                recipients.add(saved.owner_subject)
-        elif to_role == "expert":
-            if saved.assigned_reviewer_id:
-                recipients.add(saved.assigned_reviewer_id)
-            elif saved.draft_report and saved.draft_report.reviewed_by:
-                recipients.add(saved.draft_report.reviewed_by)
-        for recipient in recipients:
-            if recipient == principal.subject:
-                continue
-            self._notify(
-                recipient_subject=recipient,
-                kind="info_request_opened",
-                title="Bilgi isteği",
-                body=irq.body[:200],
-                link_path=f"/vakalar/{saved.case_id}",
-                dedupe_key=f"info_request_opened:{saved.case_id}:{irq.request_id}:{recipient}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        return saved
+        return self.collaboration.create_info_request(case_id, payload, principal=principal)
 
     def reply_info_request(
         self,
@@ -2226,81 +1104,12 @@ class CaseService:
         *,
         principal: AuthPrincipal,
     ) -> CaseRecord:
-        case = self.get_case(case_id, principal=principal)
-        found = False
-        updated: list[InfoRequest] = []
-        for irq in case.info_requests:
-            if irq.request_id == request_id:
-                if irq.status == "CLOSED":
-                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Info request is closed.")
-                found = True
-                updated.append(
-                    irq.model_copy(
-                        update={
-                            "status": "ANSWERED",
-                            "reply": payload.reply.strip(),
-                            "answered_at": _now(),
-                        }
-                    )
-                )
-            else:
-                updated.append(irq)
-        if not found:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Info request not found.")
-        case.info_requests = updated
-        append_activity(case, kind="info_request_answered", actor_subject=principal.subject, detail=request_id)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        # Notify original requester
-        for irq in saved.info_requests:
-            if irq.request_id == request_id:
-                self._notify(
-                    recipient_subject=irq.from_subject,
-                    kind="info_request_answered",
-                    title="Bilgi isteği yanıtlandı",
-                    body=payload.reply[:200],
-                    link_path=f"/vakalar/{saved.case_id}",
-                    dedupe_key=f"info_request_answered:{saved.case_id}:{request_id}",
-                    case_id=saved.case_id,
-                    clinic_id=saved.clinic_id,
-                )
-                break
-        return saved
+        return self.collaboration.reply_info_request(case_id, request_id, payload, principal=principal)
 
     def close_info_request(
         self, case_id: str, request_id: str, *, principal: AuthPrincipal
     ) -> CaseRecord:
-        if principal.role not in {"vet", "expert", "clinic_owner", "admin", "demo", "service"} and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-        case = self.get_case(case_id, principal=principal)
-        found = False
-        updated: list[InfoRequest] = []
-        target_from: str | None = None
-        for irq in case.info_requests:
-            if irq.request_id == request_id:
-                found = True
-                target_from = irq.from_subject
-                updated.append(irq.model_copy(update={"status": "CLOSED", "closed_at": _now()}))
-            else:
-                updated.append(irq)
-        if not found:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Info request not found.")
-        case.info_requests = updated
-        append_activity(case, kind="info_request_closed", actor_subject=principal.subject, detail=request_id)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        if target_from:
-            self._notify(
-                recipient_subject=target_from,
-                kind="info_request_closed",
-                title="Bilgi isteği kapatıldı",
-                body=f"Vaka {saved.case_id}",
-                link_path=f"/vakalar/{saved.case_id}",
-                dedupe_key=f"info_request_closed:{saved.case_id}:{request_id}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        return saved
+        return self.collaboration.close_info_request(case_id, request_id, principal=principal)
 
     def attach_document_ingest(
         self,
@@ -2310,81 +1119,24 @@ class CaseService:
         principal: AuthPrincipal,
         documents_svc: object | None = None,
     ) -> CaseRecord:
-        """Bind a quarantined document ingest to an existing case (never creates a new case)."""
-        if principal.role not in {"vet", "clinic_owner", "admin", "demo", "service", "expert"} and principal.via != "disabled":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
-        case = self.get_case(case_id, principal=principal)
-        if documents_svc is None:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Document service unavailable.")
-        record = documents_svc.get_ingestion(payload.ingest_id, principal=principal)  # type: ignore[attr-defined]
-        if record.blocked:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=record.block_reason or "Blocked ingest.")
-        if record.accepted and record.case_id and record.case_id != case_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Document already linked to case {record.case_id}.",
-            )
-        # Merge into document_context without creating a case.
-        new_docs = list(record.documents)
-        if case.document_context is None:
-            combined_parts = [
-                f"--- {d.filename} ({d.content_kind.value}) ---\n{(d.extracted_text or '').strip()}"
-                for d in new_docs
-            ]
-            combined = "\n\n".join(p for p in combined_parts if p.strip())
-            case.document_context = CaseDocumentContext(
-                document_ingest_id=record.ingest_id,
-                documents=new_docs,
-                combined_text_preview=(combined[:4000] + ("…[truncated]" if len(combined) > 4000 else "")) or None,
-            )
-        else:
-            ctx = case.document_context
-            if record.ingest_id != ctx.document_ingest_id and record.ingest_id not in ctx.additional_ingest_ids:
-                ctx.additional_ingest_ids = [*ctx.additional_ingest_ids, record.ingest_id]
-            # Deduplicate by filename+path
-            existing_paths = {d.quarantine_relative_path for d in ctx.documents}
-            for d in new_docs:
-                if d.quarantine_relative_path not in existing_paths:
-                    ctx.documents.append(d)
-            combined_parts = [
-                f"--- {d.filename} ({d.content_kind.value}) ---\n{(d.extracted_text or '').strip()}"
-                for d in ctx.documents
-            ]
-            combined = "\n\n".join(p for p in combined_parts if p.strip())
-            ctx.combined_text_preview = (combined[:4000] + ("…[truncated]" if len(combined) > 4000 else "")) or None
-            case.document_context = ctx
-        att = AttachmentRef(
-            kind="document",
-            ingest_id=record.ingest_id,
-            uploaded_by=principal.subject,
-        )
-        if att.ingest_id not in {a.ingest_id for a in case.attachment_refs}:
-            case.attachment_refs = [*case.attachment_refs, att]
-        record.accepted = True
-        record.case_id = case.case_id
-        documents_svc._repo.save_document_ingestion(record)  # type: ignore[attr-defined]  # noqa: SLF001
-        append_activity(case, kind="document_attached", actor_subject=principal.subject, detail=record.ingest_id)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        self._notify(
-            recipient_subject=saved.assigned_reviewer_id,
-            kind="attachment_added",
-            title="Belge eklendi",
-            body=f"Vaka {saved.case_id}",
-            link_path=f"/vakalar/{saved.case_id}",
-            dedupe_key=f"attachment_added:{saved.case_id}:{record.ingest_id}",
-            case_id=saved.case_id,
-            clinic_id=saved.clinic_id,
-        )
-        return saved
+        return self.collaboration.attach_document_ingest(case_id, payload, principal=principal, documents_svc=documents_svc)
 
     @staticmethod
     def _apply_edits(report: DraftReport, feedback: ReviewFeedback) -> None:
-        if feedback.edited_technique is not None:
-            report.technique.text = feedback.edited_technique
-        if feedback.edited_findings is not None:
-            report.findings.text = feedback.edited_findings
-        if feedback.edited_impression is not None:
-            report.impression.text = feedback.edited_impression
-        if feedback.edited_recommendations is not None:
-            report.recommendations.text = feedback.edited_recommendations
+        from app.services.report_application import ReportApplication
+        return ReportApplication._apply_edits(report, feedback)
+
+    def __getattr__(self, name: str) -> object:
+        """Forward helpers that live only on a bounded-context service."""
+        if name.startswith("__"):
+            raise AttributeError(name)
+        for key in ("analysis", "reports", "collaboration"):
+            svc = self.__dict__.get(key)
+            if svc is None:
+                continue
+            for cls in type(svc).__mro__:
+                if cls is HostBound or cls is object:
+                    continue
+                if name in cls.__dict__:
+                    return getattr(svc, name)
+        raise AttributeError(f"{type(self).__name__}.{name}")

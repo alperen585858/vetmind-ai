@@ -3,7 +3,7 @@
  * Does not introduce a PDF library — keeps browser print as the export path.
  */
 
-import { SECTION_LABELS } from '../data/mock'
+import { SECTION_LABELS } from '../shared/demo/clinic'
 import { translate } from '../i18n'
 import { isLocale } from '../i18n/types'
 import type { BackendDraftReport, BackendFindings, ReportSections, SectionKey, VetCase } from '../types'
