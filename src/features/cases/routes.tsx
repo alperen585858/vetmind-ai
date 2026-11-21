@@ -1,4 +1,4 @@
-import { lazyPage } from '../../lib/lazyPage'
+import { lazyPage } from '../../shared/shell/lazyPage'
 import { dualRoutes, Gate } from '../../shared/shell/routing'
 
 const CaseList = lazyPage(() => import('./CaseList'))

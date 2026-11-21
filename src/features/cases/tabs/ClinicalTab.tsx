@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LocalizedLink } from '../../../components/LocalizedLink'
+import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
 import {
   Brain,
   ClipboardList,
@@ -9,16 +9,16 @@ import {
   Stethoscope,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card, CardHeader } from '../../../components/Card'
-import { Button } from '../../../components/Button'
-import { CaseProgressTracker } from '../../../components/CaseProgressTracker'
-import { localize } from '../../../lib/neuroLocalization'
-import { toastErrorBody } from '../../../lib/apiErrors'
-import { OwnerContactFields, type OwnerContactValue } from '../../../components/OwnerContactFields'
-import { fmtDate } from '../../../lib/format'
-import { cleanClinicalHistory, displayClinic } from '../../../lib/displayClean'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { Button } from '../../../shared/ui/Button'
+import { CaseProgressTracker } from '../CaseProgressTracker'
+import { localize } from '../../../shared/lib/neuroLocalization'
+import { toastErrorBody } from '../../../shared/lib/apiErrors'
+import { OwnerContactFields, type OwnerContactValue } from '../../../shared/ui/OwnerContactFields'
+import { fmtDate } from '../../../shared/lib/format'
+import { cleanClinicalHistory, displayClinic } from '../../../shared/lib/displayClean'
 import {
   appendCaseClinicalNote,
   attachCaseDocument,
@@ -31,10 +31,10 @@ import {
   updateCaseOwner,
   uploadDocuments,
   type PetHistoryEntry,
-} from '../../../lib/backend'
-import type { BackendCaseRecord } from '../../../types'
-import { analysisStatusLabel, expertReviewLabel } from '../../../lib/caseMapper'
-import type { VetCase } from '../../../types'
+} from '../../../shared/api'
+import type { BackendCaseRecord } from '../../../shared/types'
+import { analysisStatusLabel, expertReviewLabel } from '../../../shared/lib/caseMapper'
+import type { VetCase } from '../../../shared/types'
 
 function Row({ k, v }: { k: string; v: ReactNode }) {
   return (

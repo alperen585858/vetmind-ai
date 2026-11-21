@@ -1,4 +1,4 @@
-import { getBackendRefreshToken } from '../../lib/auth'
+import { getBackendRefreshToken } from '../auth/session'
 import { API_BASE, request } from './client'
 
 /** Optional backend JWT login (used when VETMIND_AUTH_ENABLED=1). */

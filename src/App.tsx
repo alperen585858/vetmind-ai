@@ -1,14 +1,14 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Suspense } from 'react'
-import { useApp } from './context/AppContext'
-import { useLocale } from './context/LocaleContext'
+import { useApp } from './shared/shell/AppContext'
+import { useLocale } from './shared/shell/LocaleContext'
 import { Layout } from './shared/shell/Layout'
 import { LocalePathSync } from './shared/shell/LocalePathSync'
 import { Toasts } from './shared/ui/Toasts'
 import { isKnownAppPath, localizePath } from './i18n/paths'
-import { lazyPage } from './lib/lazyPage'
+import { lazyPage } from './shared/shell/lazyPage'
 import { PageLoader } from './shared/ui/PageLoader'
-import { safeInternalPath } from './lib/safePath'
+import { safeInternalPath } from './shared/lib/safePath'
 import { publicAuthRoutes, settingsRoutes, signedInResetRoutes } from './features/auth/routes'
 import { caseRoutes } from './features/cases/routes'
 import { dicomRoutes } from './features/dicom/routes'
@@ -19,10 +19,12 @@ import { submissionRoutes } from './features/submissions/routes'
 import { messagingRoutes } from './features/messaging/routes'
 import { ragAdminRoutes } from './features/rag-admin/routes'
 import { adminRoutes } from './features/admin/routes'
+import { NotificationBell } from './features/messaging/NotificationBell'
+import { SourcePanel } from './features/rag-admin/SourcePanel'
 
 const NotFound = lazyPage(() => import('./shared/shell/NotFound'))
 const Landing = lazyPage(() => import('./shared/shell/Landing'))
-const Dashboard = lazyPage(() => import('./features/dashboard/Dashboard'))
+const Dashboard = lazyPage(() => import('./app/Dashboard'))
 
 /** Signed out: known app URLs go to login with a safe return path; unknown URLs get a 404. */
 function PublicFallback() {
@@ -60,7 +62,9 @@ export default function App() {
           <Routes>
             {signedInResetRoutes}
             {publicReportLinkRoutes}
-            <Route element={<Layout />}>
+            <Route
+              element={<Layout notificationSlot={<NotificationBell />} sourcePanel={<SourcePanel />} />}
+            >
               <Route index element={<Dashboard />} />
               {caseRoutes}
               {dicomRoutes}

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Breadcrumbs, type Crumb } from '../../components/Breadcrumbs'
+import { Breadcrumbs, type Crumb } from './Breadcrumbs'
 
 export function PageHeader({
   title,

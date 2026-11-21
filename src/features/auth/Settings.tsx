@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { Bell, Loader2, LogOut, Monitor, Save, Settings as SettingsIcon, UserRound } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
-import { ChangePasswordCard } from '../../components/ChangePasswordCard'
+import { ChangePasswordCard } from './ChangePasswordCard'
 import { ROLE_BADGE } from '../../shared/shell/Topbar'
 import { isLocale } from '../../i18n/types'
 import {
@@ -14,7 +14,7 @@ import {
   getUserSettings,
   updateUserSettings,
   type BackendUserSettings,
-} from '../../lib/backend'
+} from '../../shared/api'
 
 const COLLAPSE_KEY = 'vetmind.sidebar.collapsed'
 

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, useParams } from 'react-router-dom'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from './AppContext'
+import { useLocale } from './LocaleContext'
 import { localizePath } from '../../i18n/paths'
-import type { Role } from '../../types'
+import type { Role } from '../types'
 
 export function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
   const { role } = useApp()

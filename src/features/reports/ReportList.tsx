@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertTriangle,
   Download,
@@ -10,18 +10,18 @@ import {
   Send,
   Trash2,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
-import { SpeciesIcon } from '../../components/CaseTable'
-import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../../lib/backend'
-import { toastErrorBody } from '../../lib/apiErrors'
-import { caseBelongsToOwner } from '../../lib/caseMapper'
-import { regionLabel } from '../../lib/displayClean'
-import { fmtDate } from '../../lib/format'
-import type { BackendModality, VetCase } from '../../types'
+import { SpeciesIcon } from '../../shared/ui/CaseTable'
+import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../../shared/api'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
+import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
+import { regionLabel } from '../../shared/lib/displayClean'
+import { fmtDate } from '../../shared/lib/format'
+import type { BackendModality, VetCase } from '../../shared/types'
 
 type DeliveryFilter = '' | 'ready' | 'delivered' | 'viewed'
 

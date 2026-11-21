@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import { LocalizedLink } from '../../components/LocalizedLink'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import { Loader2, PawPrint, Plus } from 'lucide-react'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { createPet, getPetMedicalHistory, listPets, type PetHistoryEntry } from '../../lib/backend'
-import { fmtDate } from '../../lib/format'
-import type { BackendPet } from '../../types'
+import { createPet, getPetMedicalHistory, listPets, type PetHistoryEntry } from '../../shared/api'
+import { fmtDate } from '../../shared/lib/format'
+import type { BackendPet } from '../../shared/types'
 
 export default function OwnerPets() {
   const { t, locale } = useLocale()

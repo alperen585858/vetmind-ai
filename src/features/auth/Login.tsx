@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { ArrowRight, Lock, Mail, UserRound } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { LanguageSwitcher } from '../../shared/shell/LanguageSwitcher'
 import { Button } from '../../shared/ui/Button'
 import {
   backendAccountSession,
@@ -14,11 +14,11 @@ import {
   setBackendTokens,
   setProtectedTokenMode,
   type DemoSession,
-} from '../../lib/auth'
-import { userErrorMessage } from '../../lib/apiErrors'
-import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../../lib/backend'
-import { safeInternalPath } from '../../lib/safePath'
-import type { Role } from '../../types'
+} from '../../shared/auth/session'
+import { userErrorMessage } from '../../shared/lib/apiErrors'
+import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../../shared/api'
+import { safeInternalPath } from '../../shared/lib/safePath'
+import type { Role } from '../../shared/types'
 
 export default function Login() {
   const { signIn, pushToast } = useApp()

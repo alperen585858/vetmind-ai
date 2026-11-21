@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import { safeInternalPath } from '../../lib/safePath'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { safeInternalPath } from '../../shared/lib/safePath'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { Bell, CheckCheck, Loader2, Trash2 } from 'lucide-react'
 import {
   clearAllNotifications,
@@ -10,8 +10,8 @@ import {
   markNotificationRead,
   type AppNotification,
 } from './api'
-import { useLocale } from '../../context/LocaleContext'
-import { fmtDate } from '../../lib/format'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { fmtDate } from '../../shared/lib/format'
 
 export function NotificationBell() {
   const { t } = useLocale()

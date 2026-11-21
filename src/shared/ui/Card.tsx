@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { LocalizedLink } from '../../components/LocalizedLink'
+import { LocalizedLink } from '../shell/LocalizedLink'
 
 export function Card({
   children,

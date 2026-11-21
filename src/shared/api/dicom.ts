@@ -1,6 +1,6 @@
-import { canonicalizeCaseId } from '../../lib/caseId'
-import { MAX_VIEWER_FRAMES } from '../../lib/dicomFolder'
-import type { Species } from '../../types'
+import { canonicalizeCaseId } from '../lib/caseId'
+import { MAX_VIEWER_FRAMES } from '../lib/dicomLimits'
+import type { Species } from '../types'
 import type {
   BackendAnatomicalRegion,
   BackendCaseRecord,
@@ -9,7 +9,7 @@ import type {
   DicomDemoKind,
   DicomIngestionRecord,
   DicomUploadResponse,
-} from '../../types'
+} from '../types'
 import { analyzeCaseAsyncAndWait, enqueueAnalyzeCase } from './analysis'
 import type { BackendAnalysisJob } from './analysis'
 import { toBackendSpecies, updateCaseOwner } from './cases'

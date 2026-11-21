@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { useLocalePath, useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalePath, useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   Activity,
   BookOpen,
@@ -24,10 +24,10 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { Logo } from '../../components/Logo'
-import type { Role } from '../../types'
+import { useApp } from './AppContext'
+import { useLocale } from './LocaleContext'
+import { Logo } from '../ui/Logo'
+import type { Role } from '../types'
 
 interface NavItem {
   to: string

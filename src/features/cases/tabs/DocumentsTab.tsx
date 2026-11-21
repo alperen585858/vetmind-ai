@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { CheckCircle2, FileText } from 'lucide-react'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card, CardHeader } from '../../../components/Card'
-import { EmptyState } from '../../../components/EmptyState'
-import type { VetCase } from '../../../types'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import type { VetCase } from '../../../shared/types'
 
 export function Documents({ c }: { c: VetCase }) {
   const { t } = useLocale()

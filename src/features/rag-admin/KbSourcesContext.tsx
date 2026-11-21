@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { KbSource } from '../../types'
+import type { KbSource } from '../../shared/types'
 import { KB_SOURCES } from './demoKb'
-import { listCustomRagDocuments } from '../../lib/backend'
-import { today } from '../../lib/format'
+import { listCustomRagDocuments } from '../../shared/api'
+import { today } from '../../shared/lib/format'
 import { SESSION_RESET_EVENT, useAuth } from '../../shared/auth/AuthContext'
 
 type KbSourcesContextValue = {

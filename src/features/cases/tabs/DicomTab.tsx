@@ -12,17 +12,17 @@ import {
   Info,
   UploadCloud,
 } from 'lucide-react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card } from '../../../components/Card'
-import { Button } from '../../../components/Button'
-import { DicomViewer } from '../../dicom/viewer/DicomViewer'
-import { toastErrorBody } from '../../../lib/apiErrors'
-import { BackendUnavailableError, fetchCaseDicomFiles, fetchDemoDicomFiles, resolveDemoKindForCase } from '../../../lib/backend'
-import { buildDicomPreviews, type DicomFramePreview } from '../../../lib/dicomPreview'
-import { MAX_VIEWER_FRAMES, collectFilesFromDataTransfer, collectFilesFromFileList } from '../../../lib/dicomFolder'
-import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../../../lib/dicomCaseCache'
-import type { VetCase } from '../../../types'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card } from '../../../shared/ui/Card'
+import { Button } from '../../../shared/ui/Button'
+import { DicomViewer } from '../../../shared/dicom/DicomViewer'
+import { toastErrorBody } from '../../../shared/lib/apiErrors'
+import { BackendUnavailableError, fetchCaseDicomFiles, fetchDemoDicomFiles, resolveDemoKindForCase } from '../../../shared/api'
+import { buildDicomPreviews, type DicomFramePreview } from '../../../shared/lib/dicomPreview'
+import { MAX_VIEWER_FRAMES, collectFilesFromDataTransfer, collectFilesFromFileList } from '../../../shared/lib/dicomFolder'
+import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../../../shared/lib/dicomCaseCache'
+import type { VetCase } from '../../../shared/types'
 
 export function Imaging({ c }: { c: VetCase }) {
   const { t } = useLocale()

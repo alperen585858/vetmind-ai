@@ -4,18 +4,18 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import {
   fetchRadiologistPayoutDetail,
   fetchRadiologistPayoutLedger,
   markRadiologistPaid,
   updateRadiologistPayoutFee,
-} from '../../lib/backend'
+} from '../../shared/api'
 import type {
   BackendRadiologistCasePayout,
   BackendRadiologistPayoutLedger,
   BackendRadiologistPayoutSummary,
-} from '../../types'
+} from '../../shared/types'
 
 function money(amount: number, currency: string) {
   return `${amount} ${currency}`

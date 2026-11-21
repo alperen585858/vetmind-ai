@@ -1,20 +1,20 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { ArrowLeft, ArrowRight, Brain, FileText, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { confidenceLabel, regionLabel, studyLabel } from '../../lib/displayClean'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { confidenceLabel, regionLabel, studyLabel } from '../../shared/lib/displayClean'
 import { Card } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
-import { StepIndicator } from '../../components/StepIndicator'
+import { StepIndicator } from '../../shared/ui/StepIndicator'
 import { CLINIC, EMPTY_NEURO, SAMPLE_FORM } from '../../shared/demo/clinic'
-import { buildAssessment, makeDocument } from '../../data/templates'
-import { localize } from '../../lib/neuroLocalization'
-import { nowStamp, today } from '../../lib/format'
-import { AI_PHASE_START, PIPELINE_MS } from '../../lib/pipeline'
-import { toastErrorBody } from '../../lib/apiErrors'
-import { OwnerContactFields, type OwnerContactValue } from '../../components/OwnerContactFields'
+import { buildAssessment, makeDocument } from '../../shared/demo/caseTemplates'
+import { localize } from '../../shared/lib/neuroLocalization'
+import { nowStamp, today } from '../../shared/lib/format'
+import { AI_PHASE_START, PIPELINE_MS } from '../../shared/lib/pipeline'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
+import { OwnerContactFields, type OwnerContactValue } from '../../shared/ui/OwnerContactFields'
 import {
   PollingCancelledError,
   confirmDicomAndAnalyze,
@@ -25,8 +25,8 @@ import {
   uploadDicomDemo,
   uploadDicomFiles,
   uploadDocuments,
-} from '../../lib/backend'
-import { caseStatusFromBackendOutcome } from '../../lib/caseStatusMap'
+} from '../../shared/api'
+import { caseStatusFromBackendOutcome } from './lib/caseStatusMap'
 import type {
   BackendAnatomicalRegion,
   BackendModality,
@@ -39,7 +39,7 @@ import type {
   Patient,
   Priority,
   VetCase,
-} from '../../types'
+} from '../../shared/types'
 
 const STEP_KEYS = ['cases.stepPatient', 'cases.stepClinical', 'cases.stepNeuro', 'cases.stepUpload', 'cases.stepSummary'] as const
 const DOC_TYPES: DocType[] = ['MR Raporu', 'BT Raporu', 'Laboratuvar Sonucu', 'Önceki Rapor']

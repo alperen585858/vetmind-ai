@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import en from './en.json'
 import tr from './tr.json'
-import { ROLE_LABELS, USERS } from '../data/mock'
+import { ROLE_LABELS, USERS } from '../shared/demo/users'
 
 const ROLES = ['vet', 'expert', 'owner', 'clinic_owner', 'admin'] as const
 

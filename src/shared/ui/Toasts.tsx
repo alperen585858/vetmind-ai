@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../shell/AppContext'
 
 export function Toasts() {
   const { toasts, dismissToast } = useApp()

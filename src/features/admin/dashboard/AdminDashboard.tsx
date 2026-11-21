@@ -1,5 +1,5 @@
-import { LocalizedLink } from '../../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import {
   Area,
   AreaChart,
@@ -25,14 +25,14 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../../i18n'
-import { Card } from '../../../components/Card'
-import { AdminCircuitAccent, AdminWaveAccent } from '../../../components/ExpertBrandMark'
-import { Button } from '../../../components/Button'
-import { StatusBadge } from '../../../components/StatusBadge'
-import { EmptyState } from '../../../components/EmptyState'
+import { Card } from '../../../shared/ui/Card'
+import { AdminCircuitAccent, AdminWaveAccent } from '../../../shared/ui/ExpertBrandMark'
+import { Button } from '../../../shared/ui/Button'
+import { StatusBadge } from '../../../shared/ui/StatusBadge'
+import { EmptyState } from '../../../shared/ui/EmptyState'
 import {
   BackendUnavailableError,
   fetchBackendHealth,
@@ -41,12 +41,12 @@ import {
   listManagedUsers,
   type BackendHealth,
   type BackendModelReadiness,
-} from '../../../lib/backend'
-import { fmtDate } from '../../../lib/format'
-import type { BackendManagedUser, BackendRadiologistPayoutLedger } from '../../../types'
+} from '../../../shared/api'
+import { fmtDate } from '../../../shared/lib/format'
+import type { BackendManagedUser, BackendRadiologistPayoutLedger } from '../../../shared/types'
 
 import { GpuChart } from './GpuChart'
-import { buildTrend } from '../../dashboard/trend'
+import { buildTrend } from '../../../shared/lib/trend'
 
 function adminGreeting(name: string, t: TranslateFn) {
   const h = new Date().getHours()

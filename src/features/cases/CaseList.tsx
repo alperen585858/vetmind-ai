@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   AlertTriangle,
@@ -13,15 +13,15 @@ import {
   UploadCloud,
   Users,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { Button } from '../../components/Button'
-import { CaseTable } from '../../components/CaseTable'
-import { EmptyState } from '../../components/EmptyState'
-import { Modal } from '../../components/Modal'
-import { STATUS_META, STATUS_ORDER } from '../../components/StatusBadge'
-import { deleteBackendCase } from '../../lib/backend'
-import type { BackendModality, CaseStatus, VetCase } from '../../types'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { Button } from '../../shared/ui/Button'
+import { CaseTable } from '../../shared/ui/CaseTable'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { Modal } from '../../shared/ui/Modal'
+import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
+import { deleteBackendCase } from '../../shared/api'
+import type { BackendModality, CaseStatus, VetCase } from '../../shared/types'
 
 function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (

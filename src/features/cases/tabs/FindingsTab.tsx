@@ -11,15 +11,15 @@ import {
   Stethoscope,
   XCircle,
 } from 'lucide-react'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card, CardHeader } from '../../../components/Card'
-import { SeverityBadge } from '../../../components/StatusBadge'
-import { Citations } from '../../../components/CitationChip'
-import { EmptyState } from '../../../components/EmptyState'
-import { fmtDate } from '../../../lib/format'
-import { displayFindingCode, displayFindingDescription } from '../../../lib/displayClean'
-import { CitedText } from '../../../components/CitedText'
-import type { ValidationItem, VetCase } from '../../../types'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { SeverityBadge } from '../../../shared/ui/StatusBadge'
+import { Citations } from '../../../shared/ui/CitationChip'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import { fmtDate } from '../../../shared/lib/format'
+import { displayFindingCode, displayFindingDescription } from '../../../shared/lib/displayClean'
+import { CitedText } from '../../../shared/ui/CitedText'
+import type { ValidationItem, VetCase } from '../../../shared/types'
 
 const LIKELIHOOD_STYLE = {
   high: 'bg-teal-100 text-teal-800',

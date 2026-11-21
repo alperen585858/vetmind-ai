@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   BookOpen,
@@ -18,26 +18,26 @@ import {
   Stethoscope,
   XCircle,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { Card } from '../../components/Card'
-import { Button } from '../../components/Button'
-import { PriorityBadge, StatusBadge } from '../../components/StatusBadge'
-import { EmptyState } from '../../components/EmptyState'
-import { CaseWorkflowStepper } from '../../components/CaseWorkflowStepper'
-import { CaseMessaging } from '../../components/CaseMessaging'
-import { toastErrorBody } from '../../lib/apiErrors'
-import { fmtDate } from '../../lib/format'
-import { displayClinic } from '../../lib/displayClean'
-import { PollingCancelledError, requestCancelAnalysisJob, resendCaseToAI } from '../../lib/backend'
-import { caseBelongsToOwner } from '../../lib/caseMapper'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { Card } from '../../shared/ui/Card'
+import { Button } from '../../shared/ui/Button'
+import { PriorityBadge, StatusBadge } from '../../shared/ui/StatusBadge'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { CaseWorkflowStepper } from '../../shared/ui/CaseWorkflowStepper'
+import { CaseMessaging } from '../../shared/ui/CaseMessaging'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
+import { fmtDate } from '../../shared/lib/format'
+import { displayClinic } from '../../shared/lib/displayClean'
+import { PollingCancelledError, requestCancelAnalysisJob, resendCaseToAI } from '../../shared/api'
+import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
 import {
   formatSlaRemaining,
   slaBadgeClass,
   slaHoursForPriority,
   slaLabelsFromT,
   slaTone,
-} from '../../lib/reviewSla'
+} from '../../shared/lib/reviewSla'
 
 import { Overview } from './tabs/ClinicalTab'
 import { Imaging } from './tabs/DicomTab'

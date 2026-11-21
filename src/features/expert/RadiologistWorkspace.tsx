@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { localizePath } from '../../i18n/paths'
 import {
   AlertTriangle,
@@ -21,22 +21,22 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { currentActorId } from '../../lib/auth'
-import { toastErrorBody } from '../../lib/apiErrors'
-import { vhsSpeciesFrom, type VhsResult } from '../../lib/vhs'
-import { canonicalizeCaseId, isBackendCaseId } from '../../lib/caseId'
-import { AIFindingsPanel, type EvidenceFocus } from '../../components/AIFindingsPanel'
-import { Button } from '../../components/Button'
-import { Card } from '../../components/Card'
-import { DicomViewer } from '../dicom/viewer/DicomViewer'
-import { EmptyState } from '../../components/EmptyState'
-import { Modal } from '../../components/Modal'
-import { PageHeader } from '../../components/PageHeader'
-import { ProvenanceBanner, provenanceKindFromSource } from '../../components/ProvenanceBanner'
-import { PriorityBadge } from '../../components/StatusBadge'
-import { ReportDocumentEditor } from '../../components/ReportDocumentEditor'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { currentActorId } from '../../shared/auth/session'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
+import { vhsSpeciesFrom, type VhsResult } from '../../shared/lib/vhs'
+import { canonicalizeCaseId, isBackendCaseId } from '../../shared/lib/caseId'
+import { AIFindingsPanel, type EvidenceFocus } from './AIFindingsPanel'
+import { Button } from '../../shared/ui/Button'
+import { Card } from '../../shared/ui/Card'
+import { DicomViewer } from '../../shared/dicom/DicomViewer'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { Modal } from '../../shared/ui/Modal'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { ProvenanceBanner, provenanceKindFromSource } from '../../shared/ui/ProvenanceBanner'
+import { PriorityBadge } from '../../shared/ui/StatusBadge'
+import { ReportDocumentEditor } from '../../shared/ui/ReportDocumentEditor'
 import {
   BackendUnavailableError,
   PollingCancelledError,
@@ -57,22 +57,22 @@ import {
   reviewCaseEvidence,
   submitBackendReview,
   type PetHistoryEntry,
-} from '../../lib/backend'
-import { buildDicomPreviews, type DicomFramePreview } from '../../lib/dicomPreview'
-import { MAX_VIEWER_FRAMES } from '../../lib/dicomFolder'
-import { cleanClinicalHistory, displayClinic } from '../../lib/displayClean'
+} from '../../shared/api'
+import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
+import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
+import { cleanClinicalHistory, displayClinic } from '../../shared/lib/displayClean'
 import {
   collectOverlayInputsFromFindings,
   eligibleOverlaysForFrame,
-} from '../../lib/overlayEligibility'
+} from '../../shared/lib/overlayEligibility'
 import {
   formatSlaRemaining,
   slaLabelsFromT,
   slaBadgeClass,
   slaHoursForPriority,
   slaTone,
-} from '../../lib/reviewSla'
-import type { BackendCaseSummary, ReportSections } from '../../types'
+} from '../../shared/lib/reviewSla'
+import type { BackendCaseSummary, ReportSections } from '../../shared/types'
 
 export default function RadiologistWorkspace() {
   const { id: routeId = '' } = useParams()

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { LocalizedLink } from '../../components/LocalizedLink'
+import { LocalizedLink } from './LocalizedLink'
 import { Lock, Menu, UserRound, X } from 'lucide-react'
-import { useLocale } from '../../context/LocaleContext'
-import { LanguageSwitcher } from '../../components/LanguageSwitcher'
+import { useLocale } from './LocaleContext'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 export default function Landing() {
   const { t } = useLocale()

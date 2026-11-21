@@ -1,4 +1,4 @@
-import { useLocale } from '../../../context/LocaleContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
 
 /** Placeholder — synthetic GPU curves were removed to avoid implying live telemetry. */
 export function GpuChart({ height = 180 }: { height?: number }) {

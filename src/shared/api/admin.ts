@@ -243,7 +243,7 @@ export async function deleteLesson(lessonId: string) {
 }
 
 export async function listManagedUsers() {
-  return request<import('../../types').BackendManagedUser[]>('/admin/users')
+  return request<import('../types').BackendManagedUser[]>('/admin/users')
 }
 
 export async function createManagedUser(payload: {
@@ -253,7 +253,7 @@ export async function createManagedUser(payload: {
   clinic_id?: string
   display_name?: string
 }) {
-  return request<import('../../types').BackendManagedUser>('/admin/users', {
+  return request<import('../types').BackendManagedUser>('/admin/users', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -270,24 +270,24 @@ export async function updateManagedUser(
   email: string,
   payload: Partial<{ role: string; clinic_id: string; display_name: string; active: boolean; password: string }>,
 ) {
-  return request<import('../../types').BackendManagedUser>(`/admin/users/${encodeURIComponent(email)}`, {
+  return request<import('../types').BackendManagedUser>(`/admin/users/${encodeURIComponent(email)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }
 
 export async function fetchRadiologistPayoutLedger() {
-  return request<import('../../types').BackendRadiologistPayoutLedger>('/admin/radiologist-payouts')
+  return request<import('../types').BackendRadiologistPayoutLedger>('/admin/radiologist-payouts')
 }
 
 export async function fetchRadiologistPayoutDetail(email: string) {
-  return request<import('../../types').BackendRadiologistPayoutDetail>(
+  return request<import('../types').BackendRadiologistPayoutDetail>(
     `/admin/radiologist-payouts/${encodeURIComponent(email)}`,
   )
 }
 
 export async function markRadiologistPaid(email: string, caseIds?: string[]) {
-  return request<import('../../types').BackendRadiologistPayoutDetail>(
+  return request<import('../types').BackendRadiologistPayoutDetail>(
     `/admin/radiologist-payouts/${encodeURIComponent(email)}/mark-paid`,
     {
       method: 'POST',
@@ -297,7 +297,7 @@ export async function markRadiologistPaid(email: string, caseIds?: string[]) {
 }
 
 export async function updateRadiologistPayoutFee(feePerCase: number, applyToUnpaid = true) {
-  return request<import('../../types').BackendRadiologistPayoutSettings>(
+  return request<import('../types').BackendRadiologistPayoutSettings>(
     '/admin/radiologist-payouts/settings',
     {
       method: 'PUT',

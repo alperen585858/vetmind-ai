@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from './LocaleContext'
 import { localizePath } from '../../i18n/paths'
-import { safeInternalPath } from '../../lib/safePath'
+import { safeInternalPath } from '../lib/safePath'
 
 /** Keep the address bar in sync with the active locale (on load and on language change). */
 export function LocalePathSync() {

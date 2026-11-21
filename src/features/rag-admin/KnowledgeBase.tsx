@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
@@ -13,10 +13,10 @@ import {
   listCustomRagDocuments,
   searchRag,
   type RagCustomDocument,
-} from '../../lib/backend'
+} from '../../shared/api'
 import { getKbSources, kbLicenseLabel, kbSourceText, kbTypeLabel } from './demoKb'
-import { fmtDate, today } from '../../lib/format'
-import type { KbSource } from '../../types'
+import { fmtDate, today } from '../../shared/lib/format'
+import type { KbSource } from '../../shared/types'
 
 interface Hit {
   source: KbSource

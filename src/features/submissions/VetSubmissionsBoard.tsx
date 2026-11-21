@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode, useRef } from 'react'
-import { LocalizedLink } from '../../components/LocalizedLink'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import { AlertTriangle, FileImage, Loader2, PawPrint, Search, Trash2, X } from 'lucide-react'
-import { Button } from '../../components/Button'
-import { EmptyState } from '../../components/EmptyState'
-import { fmtDate } from '../../lib/format'
-import { useLocale } from '../../context/LocaleContext'
+import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { fmtDate } from '../../shared/lib/format'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
-import { modalityLabel, regionLabel, studyLabel } from '../../lib/displayClean'
-import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord } from '../../types'
-import type { DicomFramePreview } from '../../lib/dicomPreview'
+import { modalityLabel, regionLabel, studyLabel } from '../../shared/lib/displayClean'
+import type { BackendImagingSubmission, BackendPet, DicomIngestionRecord } from '../../shared/types'
+import type { DicomFramePreview } from '../../shared/lib/dicomPreview'
 
 /** Soft clinical status chips — muted, not loud. */
 const STATUS_PILL: Record<string, string> = {

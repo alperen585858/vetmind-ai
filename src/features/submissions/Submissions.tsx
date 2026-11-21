@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type InputHTMLAttributes } from 'react'
 import { useParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,19 +14,19 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react'
-import { fmtDate } from '../../lib/format'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { fmtDate } from '../../shared/lib/format'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
-import { presentApiError } from '../../lib/apiErrors'
-import { demoEmailForRole } from '../../lib/auth'
-import { PageHeader } from '../../components/PageHeader'
-import { Card, CardHeader } from '../../components/Card'
-import { Button } from '../../components/Button'
-import { EmptyState } from '../../components/EmptyState'
-import { Modal } from '../../components/Modal'
-import { StepIndicator } from '../../components/StepIndicator'
-import { DEMO_PRICE_LABEL, DemoPaymentStep } from '../../components/DemoPaymentStep'
+import { presentApiError } from '../../shared/lib/apiErrors'
+import { demoEmailForRole } from '../../shared/auth/session'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { Card, CardHeader } from '../../shared/ui/Card'
+import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { Modal } from '../../shared/ui/Modal'
+import { StepIndicator } from '../../shared/ui/StepIndicator'
+import { DEMO_PRICE_LABEL, DemoPaymentStep } from '../../shared/ui/DemoPaymentStep'
 import { VetSubmissionsBoard } from './VetSubmissionsBoard'
 import {
   attachSubmission,
@@ -46,15 +46,15 @@ import {
   uploadDicomFiles,
   uploadDocuments,
   vetSubmissionAction,
-} from '../../lib/backend'
-import { buildDicomPreviews, type DicomFramePreview } from '../../lib/dicomPreview'
+} from '../../shared/api'
+import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
 import type {
   BackendDemoPayment,
   BackendImagingSubmission,
   BackendPet,
   DicomIngestionRecord,
   Species,
-} from '../../types'
+} from '../../shared/types'
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-700 ring-slate-200',

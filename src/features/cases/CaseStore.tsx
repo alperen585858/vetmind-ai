@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { VetCase } from '../../types'
-import { BackendUnavailableError, getBackendCase, listBackendCases } from '../../lib/backend'
-import { canonicalizeCaseId } from '../../lib/caseId'
-import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../../lib/caseMapper'
+import type { VetCase } from '../../shared/types'
+import { BackendUnavailableError, getBackendCase, listBackendCases } from '../../shared/api'
+import { canonicalizeCaseId } from '../../shared/lib/caseId'
+import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../../shared/lib/caseMapper'
 import { SESSION_RESET_EVENT } from '../../shared/auth/AuthContext'
 
 type CaseContextValue = {

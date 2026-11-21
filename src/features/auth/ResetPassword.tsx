@@ -1,14 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, KeyRound, ShieldAlert } from 'lucide-react'
-import { AuthCard, AuthError, authInputClass } from '../../components/AuthCard'
+import { AuthCard, AuthError, authInputClass } from '../../shared/ui/AuthCard'
 import { Button } from '../../shared/ui/Button'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { PasswordStrength, usePasswordError } from '../../components/PasswordStrength'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
-import { BackendUnavailableError, backendResetPassword } from '../../lib/backend'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { PasswordStrength, usePasswordError } from './PasswordStrength'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
+import { BackendUnavailableError, backendResetPassword } from '../../shared/api'
 
 // Kept in memory (not storage) so the page survives a remount, e.g. when signing out
 // re-renders the route tree after the token was already removed from the address bar.

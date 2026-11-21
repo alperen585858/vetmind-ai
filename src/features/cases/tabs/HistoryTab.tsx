@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import { ClipboardList, History } from 'lucide-react'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card, CardHeader } from '../../../components/Card'
-import { Button } from '../../../components/Button'
-import { ReportVersionCompare } from '../../../components/ReportVersionCompare'
-import { fmtDate } from '../../../lib/format'
-import { listCaseActivity } from '../../../lib/backend'
-import type { VetCase } from '../../../types'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { Button } from '../../../shared/ui/Button'
+import { ReportVersionCompare } from '../../../shared/ui/ReportVersionCompare'
+import { fmtDate } from '../../../shared/lib/format'
+import { listCaseActivity } from '../../../shared/api'
+import type { VetCase } from '../../../shared/types'
 
 export function CaseHistoryPanel({ c }: { c: VetCase }) {
   const { t, locale } = useLocale()

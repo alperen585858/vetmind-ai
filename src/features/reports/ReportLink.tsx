@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileText, ShieldAlert } from 'lucide-react'
-import { AuthCard, AuthError } from '../../components/AuthCard'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocale } from '../../context/LocaleContext'
-import { presentApiError } from '../../lib/apiErrors'
-import { BackendUnavailableError, fetchPublicReportView, type PublicReportView } from '../../lib/backend'
+import { AuthCard, AuthError } from '../../shared/ui/AuthCard'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { presentApiError } from '../../shared/lib/apiErrors'
+import { BackendUnavailableError, fetchPublicReportView, type PublicReportView } from '../../shared/api'
 
 /**
  * Public single-use report view opened from an emailed magic link

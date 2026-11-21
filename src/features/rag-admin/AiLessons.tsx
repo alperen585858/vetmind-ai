@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { GraduationCap, Info, Loader2, Power, RefreshCw, Trash2 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
 import { PageHeader } from '../../shared/ui/PageHeader'
-import { deleteLesson, listLessons, updateLesson, type RevisionLesson } from '../../lib/backend'
-import { modalityLabel, regionLabel } from '../../lib/displayClean'
-import { fmtDate } from '../../lib/format'
+import { deleteLesson, listLessons, updateLesson, type RevisionLesson } from '../../shared/api'
+import { modalityLabel, regionLabel } from '../../shared/lib/displayClean'
+import { fmtDate } from '../../shared/lib/format'
 
 export default function AiLessons() {
   const { pushToast } = useApp()

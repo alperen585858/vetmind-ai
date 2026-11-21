@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LocalizedLink } from '../../components/LocalizedLink'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import {
   ArrowUpRight,
   LayoutPanelLeft,
@@ -11,11 +11,11 @@ import {
   Square,
   Trash2,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { STATUS_META, statusLabel } from '../../shared/ui/StatusBadge'
-import type { CaseStatus } from '../../types'
+import type { CaseStatus } from '../../shared/types'
 import {
   askCaseAiChat,
   clearCaseAiChat,
@@ -24,10 +24,10 @@ import {
   PollingCancelledError,
   resendCaseToAI,
   type AiChatTurn,
-} from '../../lib/backend'
-import { toastErrorBody } from '../../lib/apiErrors'
-import { summaryToVetCase } from '../../lib/caseMapper'
-import type { BackendCaseSummary } from '../../types'
+} from '../../shared/api'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
+import { summaryToVetCase } from '../../shared/lib/caseMapper'
+import type { BackendCaseSummary } from '../../shared/types'
 
 const RESENDABLE_STATUSES = new Set([
   'created',

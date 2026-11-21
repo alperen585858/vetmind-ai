@@ -3,9 +3,9 @@ import { useLocation } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
-import { Logo } from '../../components/Logo'
-import { useLocale } from '../../context/LocaleContext'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { Logo } from '../ui/Logo'
+import { useLocale } from './LocaleContext'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 
 /**
  * 404 for unknown routes (issue #28). ``public`` = signed-out (standalone page with

@@ -5,7 +5,7 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { Modal } from '../../shared/ui/Modal'
 import { SERVICES } from './demoInfra'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import {
   BackendUnavailableError,
   applyRetentionPlan,
@@ -15,7 +15,7 @@ import {
   type BackendHealth,
   type BackendModelReadiness,
   type RetentionPlanResponse,
-} from '../../lib/backend'
+} from '../../shared/api'
 export default function SystemStatus() {
   const { t } = useLocale()
   const [health, setHealth] = useState<BackendHealth | null>(null)

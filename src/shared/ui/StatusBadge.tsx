@@ -1,5 +1,5 @@
-import type { CaseStatus, Priority, Severity } from '../../types'
-import { useLocale } from '../../context/LocaleContext'
+import type { CaseStatus, Priority, Severity } from '../types'
+import { useLocale } from '../shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
 
 export const STATUS_META: Record<CaseStatus, { labelKey: string; cls: string; dot: string }> = {

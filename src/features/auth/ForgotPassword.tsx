@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowRight, KeyRound, MailCheck } from 'lucide-react'
-import { AuthCard, AuthError, authInputClass } from '../../components/AuthCard'
+import { AuthCard, AuthError, authInputClass } from '../../shared/ui/AuthCard'
 import { Button } from '../../shared/ui/Button'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocale } from '../../context/LocaleContext'
-import { BackendUnavailableError, backendAuthStatus, backendForgotPassword } from '../../lib/backend'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { BackendUnavailableError, backendAuthStatus, backendForgotPassword } from '../../shared/api'
 
 export default function ForgotPassword() {
   const { t } = useLocale()

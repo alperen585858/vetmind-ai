@@ -1,10 +1,10 @@
 import { BookOpen } from 'lucide-react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card, CardHeader } from '../../../components/Card'
-import { RagCitations } from '../../../components/RagCitations'
-import { EmptyState } from '../../../components/EmptyState'
-import type { VetCase } from '../../../types'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { RagCitations } from '../../../shared/ui/RagCitations'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import type { VetCase } from '../../../shared/types'
 
 export function SourcesView({ c }: { c: VetCase }) {
   const { t } = useLocale()

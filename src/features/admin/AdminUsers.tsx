@@ -4,9 +4,9 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { useLocale } from '../../context/LocaleContext'
-import { createManagedUser, createPasswordResetLink, listManagedUsers, updateManagedUser } from '../../lib/backend'
-import type { BackendManagedUser } from '../../types'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { createManagedUser, createPasswordResetLink, listManagedUsers, updateManagedUser } from '../../shared/api'
+import type { BackendManagedUser } from '../../shared/types'
 
 /** Active accounts in these roles must belong to a clinic (the backend enforces it). */
 const CLINIC_REQUIRED_ROLES = new Set(['vet', 'expert', 'clinic_owner'])

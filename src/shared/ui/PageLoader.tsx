@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from '../shell/LocaleContext'
 
 /** Suspense fallback while a route page chunk downloads. */
 export function PageLoader({ fullScreen = false }: { fullScreen?: boolean }) {

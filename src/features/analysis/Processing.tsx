@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   Brain,
@@ -14,19 +14,19 @@ import {
   Square,
   XCircle,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { Card } from '../../components/Card'
-import { PageHeader } from '../../components/PageHeader'
-import { Button } from '../../components/Button'
-import { StatusBadge } from '../../components/StatusBadge'
-import { EmptyState } from '../../components/EmptyState'
-import { CaseWorkflowStepper } from '../../components/CaseWorkflowStepper'
-import { buildAssessment, makeDocument } from '../../data/templates'
-import { localize } from '../../lib/neuroLocalization'
-import { nowStamp, today } from '../../lib/format'
-import { studyLabel as formatStudyLabel } from '../../lib/displayClean'
-import { toastErrorBody, userErrorMessage } from '../../lib/apiErrors'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { Card } from '../../shared/ui/Card'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { Button } from '../../shared/ui/Button'
+import { StatusBadge } from '../../shared/ui/StatusBadge'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { CaseWorkflowStepper } from '../../shared/ui/CaseWorkflowStepper'
+import { buildAssessment, makeDocument } from '../../shared/demo/caseTemplates'
+import { localize } from '../../shared/lib/neuroLocalization'
+import { nowStamp, today } from '../../shared/lib/format'
+import { studyLabel as formatStudyLabel } from '../../shared/lib/displayClean'
+import { toastErrorBody, userErrorMessage } from '../../shared/lib/apiErrors'
 import {
   confirmDicomAndEnqueueAnalyze,
   enqueueAnalyzeCase,
@@ -36,13 +36,13 @@ import {
   uploadDicomDemo,
   uploadDicomFiles,
   type BackendAnalysisJob,
-} from '../../lib/backend'
-import { displayAnalysisProgress, estimateAnalysisDurationMs } from '../../lib/analysisProgress'
-import { clearAnalyzeHandoff, getAnalyzeHandoff, type AnalyzeHandoff } from '../../lib/analyzeHandoff'
-import { cacheCaseDicomFiles } from '../../lib/dicomCaseCache'
-import { MAX_VIEWER_FRAMES } from '../../lib/dicomFolder'
+} from '../../shared/api'
+import { displayAnalysisProgress, estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
+import { clearAnalyzeHandoff, getAnalyzeHandoff, type AnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
+import { cacheCaseDicomFiles } from '../../shared/lib/dicomCaseCache'
+import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
 import type { TranslateFn } from '../../i18n'
-import type { ClinicalInfo, NeuroExam, Patient, Priority, VetCase } from '../../types'
+import type { ClinicalInfo, NeuroExam, Patient, Priority, VetCase } from '../../shared/types'
 
 const EMPTY_NEURO: NeuroExam = {
   consciousness: 'Uyanık',

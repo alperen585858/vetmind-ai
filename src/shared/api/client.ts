@@ -4,7 +4,7 @@ import {
   loadSession,
   setBackendAccessToken,
   setBackendTokens,
-} from '../../lib/auth'
+} from '../auth/session'
 
 export const API_BASE = '/api/v1'
 

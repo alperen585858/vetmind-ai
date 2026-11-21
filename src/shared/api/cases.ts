@@ -1,5 +1,5 @@
-import { canonicalizeCaseId } from '../../lib/caseId'
-import type { Species } from '../../types'
+import { canonicalizeCaseId } from '../lib/caseId'
+import type { Species } from '../types'
 import type {
   BackendAnatomicalRegion,
   BackendCaseRecord,
@@ -8,7 +8,7 @@ import type {
   BackendPipelineResult,
   BackendScenario,
   BackendSpecies,
-} from '../../types'
+} from '../types'
 import { analyzeCaseAsyncAndWait } from './analysis'
 import { request } from './client'
 
@@ -168,7 +168,7 @@ export async function updateCaseAssignment(
 export async function getClinicDashboard(filters?: {
   status?: string
   q?: string
-}): Promise<import('../../types').ClinicDashboardStats> {
+}): Promise<import('../types').ClinicDashboardStats> {
   const params = new URLSearchParams()
   if (filters?.status) params.set('status', filters.status)
   if (filters?.q) params.set('q', filters.q)

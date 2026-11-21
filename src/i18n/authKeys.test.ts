@@ -13,20 +13,20 @@ function has(dict: Dict, key: string): boolean {
   return typeof node === 'string'
 }
 
-// Auth screens moved out of pages/ into features; components stay until their re-exports are unused.
+// Auth screens and auth form components live in features/auth.
 const FILES = [
   'features/auth/Register.tsx',
   'features/auth/Login.tsx',
   'features/auth/ForgotPassword.tsx',
   'features/auth/ResetPassword.tsx',
   'features/admin/AdminUsers.tsx',
-  'components/ChangePasswordCard.tsx',
-  'components/PasswordStrength.tsx',
-  'components/AuthCard.tsx',
+  'features/auth/ChangePasswordCard.tsx',
+  'features/auth/PasswordStrength.tsx',
+  'shared/ui/AuthCard.tsx',
 ]
 
 const SOURCES = import.meta.glob(
-  ['../features/auth/*.tsx', '../features/admin/AdminUsers.tsx', '../components/*.tsx'],
+  ['../features/auth/*.tsx', '../features/admin/AdminUsers.tsx', '../shared/ui/AuthCard.tsx'],
   {
     query: '?raw',
     import: 'default',

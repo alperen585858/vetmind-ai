@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   ArrowLeft,
   Loader2,
@@ -13,8 +13,8 @@ import {
   Stethoscope,
   Trash2,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
 import { Button } from '../../shared/ui/Button'
 import { Modal } from '../../shared/ui/Modal'
@@ -27,8 +27,8 @@ import {
   markSupportThreadRead,
   postSupportMessage,
 } from './api'
-import { fmtDate } from '../../lib/format'
-import type { BackendSupportThreadDetail, BackendSupportThreadSummary, SupportMessageChannel } from '../../types'
+import { fmtDate } from '../../shared/lib/format'
+import type { BackendSupportThreadDetail, BackendSupportThreadSummary, SupportMessageChannel } from '../../shared/types'
 
 function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
   return channel === 'admin' ? t('messages.channelAdmin') : t('messages.channelRadiologist')

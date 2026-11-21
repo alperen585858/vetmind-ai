@@ -1,4 +1,4 @@
-import type { BackendDraftReport, BackendFindings, BackendPipelineResult } from '../../types'
+import type { BackendDraftReport, BackendFindings, BackendPipelineResult } from '../types'
 import { getBackendCase } from './cases'
 import { ApiError, PollingCancelledError, request, sleep, throwIfAborted } from './client'
 import { submitBackendReview } from './reports'

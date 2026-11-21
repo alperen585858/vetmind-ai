@@ -2,7 +2,7 @@ import { request } from './client'
 
 export async function listCaseMessages(
   caseId: string,
-): Promise<import('../../types').BackendCaseMessage[]> {
+): Promise<import('../types').BackendCaseMessage[]> {
   return request(`/cases/${caseId}/messages`)
 }
 
@@ -44,7 +44,7 @@ export async function clearCaseAiChat(caseId: string): Promise<AiChatTurn[]> {
 export async function postCaseMessage(
   caseId: string,
   body: string,
-): Promise<import('../../types').BackendCaseMessage> {
+): Promise<import('../types').BackendCaseMessage> {
   return request(`/cases/${caseId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ body }),
@@ -53,7 +53,7 @@ export async function postCaseMessage(
 
 export async function markCaseMessagesRead(
   caseId: string,
-): Promise<import('../../types').BackendCaseMessage[]> {
+): Promise<import('../types').BackendCaseMessage[]> {
   return request(`/cases/${caseId}/messages/read`, { method: 'POST' })
 }
 
@@ -75,7 +75,7 @@ export interface AppNotification {
 }
 
 export async function listSupportThreads() {
-  return request<import('../../types').BackendSupportThreadSummary[]>('/messages/threads')
+  return request<import('../types').BackendSupportThreadSummary[]>('/messages/threads')
 }
 
 export async function createSupportThread(payload: {
@@ -85,32 +85,32 @@ export async function createSupportThread(payload: {
   related_case_id?: string
   related_submission_id?: string
 }) {
-  return request<import('../../types').BackendSupportThreadDetail>('/messages/threads', {
+  return request<import('../types').BackendSupportThreadDetail>('/messages/threads', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function getSupportThread(threadId: string) {
-  return request<import('../../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}`)
+  return request<import('../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}`)
 }
 
 export async function postSupportMessage(threadId: string, body: string) {
-  return request<import('../../types').BackendSupportMessage>(`/messages/threads/${threadId}/messages`, {
+  return request<import('../types').BackendSupportMessage>(`/messages/threads/${threadId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
 }
 
 export async function markSupportThreadRead(threadId: string) {
-  return request<import('../../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}/read`, {
+  return request<import('../types').BackendSupportThreadDetail>(`/messages/threads/${threadId}/read`, {
     method: 'POST',
   })
 }
 
 /** Returns remaining thread detail, or null when the conversation was removed (last message). */
 export async function deleteSupportMessage(threadId: string, messageId: string) {
-  return request<import('../../types').BackendSupportThreadDetail | void>(
+  return request<import('../types').BackendSupportThreadDetail | void>(
     `/messages/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
     { method: 'DELETE' },
   ).then((r) => (r ? r : null))

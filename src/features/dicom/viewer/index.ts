@@ -1,1 +1,1 @@
-export { DicomViewer, type AnnotateCommitPayload } from './DicomViewer'
+export { DicomViewer, type AnnotateCommitPayload } from '../../../shared/dicom/DicomViewer'

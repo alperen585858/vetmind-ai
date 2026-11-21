@@ -1,5 +1,5 @@
 import { Route } from 'react-router-dom'
-import { lazyPage } from '../../lib/lazyPage'
+import { lazyPage } from '../../shared/shell/lazyPage'
 import { dualRoutes, Gate } from '../../shared/shell/routing'
 
 const Login = lazyPage(() => import('./Login'))

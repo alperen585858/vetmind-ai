@@ -1,4 +1,4 @@
-import { lazyPage } from '../../lib/lazyPage'
+import { lazyPage } from '../../shared/shell/lazyPage'
 import { dualRoutes, ExpertReviewRedirect, Gate } from '../../shared/shell/routing'
 
 const RadiologistWorkspace = lazyPage(() => import('./RadiologistWorkspace'))

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { modalityLabel, regionLabel } from '../../lib/displayClean'
-import { toastErrorBody } from '../../lib/apiErrors'
+import { modalityLabel, regionLabel } from '../../shared/lib/displayClean'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { LocalizedLink } from '../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,16 +16,16 @@ import {
   Phone,
   Send,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import { Card } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
 import { PageHeader } from '../../shared/ui/PageHeader'
-import { Logo } from '../../components/Logo'
-import { ApprovedReportFigures } from '../../components/ApprovedReportFigures'
-import { ReportRevisionSimple } from '../../components/ReportRevisionSimple'
+import { Logo } from '../../shared/ui/Logo'
+import { ApprovedReportFigures } from './ApprovedReportFigures'
+import { ReportRevisionSimple } from './ReportRevisionSimple'
 import {
   createCaseInfoRequest,
   downloadApprovedReportPdf,
@@ -36,20 +36,20 @@ import {
   markReportViewed,
   replyCaseInfoRequest,
   submitBackendReview,
-} from '../../lib/backend'
-import { fmtDate } from '../../lib/format'
+} from '../../shared/api'
+import { fmtDate } from '../../shared/lib/format'
 import {
   canExportApprovedReport,
   caseWithDraftVersion,
   printSectionsForCase,
-} from '../../lib/reportPrint'
-import { caseBelongsToOwner } from '../../lib/caseMapper'
+} from './lib/reportPrint'
+import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
 import type {
   BackendDraftReport,
   BackendInfoRequest,
   BackendReportVersionSummary,
   VetCase,
-} from '../../types'
+} from '../../shared/types'
 
 export default function ApprovedReport() {
   const { id = '' } = useParams()

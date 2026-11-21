@@ -1,8 +1,8 @@
-import { currentActorId } from '../../lib/auth'
-import { canonicalizeCaseId } from '../../lib/caseId'
-import { splitRecommendations } from '../../lib/recommendations'
-import type { AIAssessment, DifferentialLikelihood, ReportSections } from '../../types'
-import type { BackendCaseRecord, BackendDraftReport, BackendFindings } from '../../types'
+import { currentActorId } from '../auth/session'
+import { canonicalizeCaseId } from '../lib/caseId'
+import { splitRecommendations } from '../lib/recommendations'
+import type { AIAssessment, DifferentialLikelihood, ReportSections } from '../types'
+import type { BackendCaseRecord, BackendDraftReport, BackendFindings } from '../types'
 import { fetchWithAuth, request, throwIfNotOk } from './client'
 
 export type PublicReportView = {
@@ -73,7 +73,7 @@ export async function saveBackendDraftReport(
 export async function listReportVersions(
   caseId: string,
   signal?: AbortSignal,
-): Promise<import('../../types').BackendReportVersionSummary[]> {
+): Promise<import('../types').BackendReportVersionSummary[]> {
   return request(`/cases/${caseId}/report/versions`, { signal })
 }
 
@@ -81,7 +81,7 @@ export async function getReportVersion(
   caseId: string,
   version: number,
   signal?: AbortSignal,
-): Promise<import('../../types').BackendReportVersionSnapshot> {
+): Promise<import('../types').BackendReportVersionSnapshot> {
   return request(`/cases/${caseId}/report/versions/${version}`, { signal })
 }
 
@@ -89,7 +89,7 @@ export async function getBackendReport(
   caseId: string,
   version?: number,
   signal?: AbortSignal,
-): Promise<import('../../types').BackendDraftReport> {
+): Promise<import('../types').BackendDraftReport> {
   const q = version != null ? `?version=${version}` : ''
   return request(`/cases/${caseId}/report${q}`, { signal })
 }
@@ -253,7 +253,7 @@ export async function reviewCaseEvidence(
     }
   },
 ) {
-  return request<import('../../types').BackendFindings>(`/cases/${caseId}/evidence/${evidenceId}/review`, {
+  return request<import('../types').BackendFindings>(`/cases/${caseId}/evidence/${evidenceId}/review`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -276,7 +276,7 @@ export async function addManualCaseEvidence(
     include_in_report?: boolean
   },
 ) {
-  return request<import('../../types').BackendFindings>(`/cases/${caseId}/evidence`, {
+  return request<import('../types').BackendFindings>(`/cases/${caseId}/evidence`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

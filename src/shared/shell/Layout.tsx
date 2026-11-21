@@ -1,15 +1,20 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
+import { useApp } from './AppContext'
+import { useLocale } from './LocaleContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
-import { SourcePanel } from '../../components/SourcePanel'
 import { PageLoader } from '../ui/PageLoader'
 
 const COLLAPSE_KEY = 'vetmind.sidebar.collapsed'
 
-export function Layout() {
+export function Layout({
+  notificationSlot,
+  sourcePanel,
+}: {
+  notificationSlot?: ReactNode
+  sourcePanel?: ReactNode
+} = {}) {
   const { t } = useLocale()
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
@@ -76,7 +81,7 @@ export function Layout() {
           collapsed ? 'lg:pl-[64px]' : role === 'expert' ? 'lg:pl-56' : 'lg:pl-64'
         }`}
       >
-        <Topbar onMenu={() => setMenu(true)} />
+        <Topbar onMenu={() => setMenu(true)} notificationSlot={notificationSlot} />
         <main
           id="main-content"
           tabIndex={-1}
@@ -90,7 +95,7 @@ export function Layout() {
           </Suspense>
         </main>
       </div>
-      <SourcePanel />
+      {sourcePanel}
     </div>
   )
 }

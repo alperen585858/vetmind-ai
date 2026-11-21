@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   Bone,
   Brain,
@@ -14,24 +14,24 @@ import {
   UploadCloud,
   XCircle,
 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../../lib/displayClean'
-import { toastErrorBody } from '../../lib/apiErrors'
+import { useApp } from '../../shared/shell/AppContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
+import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../../shared/lib/displayClean'
+import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { Card } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
-import { DicomViewer } from './viewer/DicomViewer'
-import { SeriesExplorer, buildSeriesItems } from '../../components/SeriesExplorer'
-import { OwnerContactFields } from '../../components/OwnerContactFields'
+import { DicomViewer } from '../../shared/dicom/DicomViewer'
+import { SeriesExplorer, buildSeriesItems } from './SeriesExplorer'
+import { OwnerContactFields } from '../../shared/ui/OwnerContactFields'
 import { CLINIC } from '../../shared/demo/clinic'
-import { nowStamp, today } from '../../lib/format'
+import { nowStamp, today } from '../../shared/lib/format'
 import {
   fetchDemoDicomFiles,
   uploadDicomDemo,
   uploadDicomFiles,
-} from '../../lib/backend'
-import { buildDicomPreviews, type DicomFramePreview } from '../../lib/dicomPreview'
+} from '../../shared/api'
+import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
 import {
   MAX_DICOM_FILES,
   MAX_DICOM_FILE_BYTES,
@@ -41,15 +41,15 @@ import {
   collectFilesFromFileList,
   rejectReasonLabel,
   validateDicomSelectionAsync,
-} from '../../lib/dicomFolder'
+} from '../../shared/lib/dicomFolder'
 import {
   PHASE_LABELS,
   classificationConfirmationLabel,
   deriveSelectionPhase,
   validatePatientForm,
-} from '../../lib/dicomWorkflow'
-import { setAnalyzeHandoff } from '../../lib/analyzeHandoff'
-import { estimateAnalysisDurationMs } from '../../lib/analysisProgress'
+} from './lib/dicomWorkflow'
+import { setAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
+import { estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
 import type {
   BackendAnatomicalRegion,
   BackendModality,
@@ -59,7 +59,7 @@ import type {
   NeuroExam,
   Patient,
   VetCase,
-} from '../../types'
+} from '../../shared/types'
 
 const EMPTY_NEURO: NeuroExam = {
   consciousness: 'Uyanık',

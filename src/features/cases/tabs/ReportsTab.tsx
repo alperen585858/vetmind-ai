@@ -1,12 +1,12 @@
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import { FileText } from 'lucide-react'
-import { useLocale } from '../../../context/LocaleContext'
-import { Card } from '../../../components/Card'
-import { Button } from '../../../components/Button'
-import { EmptyState } from '../../../components/EmptyState'
-import { CitedText } from '../../../components/CitedText'
-import { GroundingWarnings } from '../../../components/GroundingWarnings'
-import type { VetCase } from '../../../types'
+import { useLocale } from '../../../shared/shell/LocaleContext'
+import { Card } from '../../../shared/ui/Card'
+import { Button } from '../../../shared/ui/Button'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import { CitedText } from '../../../shared/ui/CitedText'
+import { GroundingWarnings } from '../../../shared/ui/GroundingWarnings'
+import type { VetCase } from '../../../shared/types'
 
 export function ReportWorkspace({ c }: { c: VetCase }) {
   const { t } = useLocale()

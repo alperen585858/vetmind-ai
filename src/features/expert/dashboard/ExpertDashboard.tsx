@@ -1,5 +1,5 @@
-import { LocalizedLink } from '../../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import {
   Area,
   AreaChart,
@@ -13,18 +13,18 @@ import {
   YAxis,
 } from 'recharts'
 import { useMemo, useState } from 'react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../../i18n'
-import { studyLabel } from '../../../lib/displayClean'
-import { Card } from '../../../components/Card'
-import { ExpertNodeAccent, ExpertWaveAccent } from '../../../components/ExpertBrandMark'
-import { ExpertWorklistTable } from '../../../components/ExpertWorklistTable'
-import { Button } from '../../../components/Button'
-import { StatusBadge } from '../../../components/StatusBadge'
-import { isSlaAttention } from '../../../lib/reviewSla'
+import { studyLabel } from '../../../shared/lib/displayClean'
+import { Card } from '../../../shared/ui/Card'
+import { ExpertNodeAccent, ExpertWaveAccent } from '../../../shared/ui/ExpertBrandMark'
+import { ExpertWorklistTable } from '../ExpertWorklistTable'
+import { Button } from '../../../shared/ui/Button'
+import { StatusBadge } from '../../../shared/ui/StatusBadge'
+import { isSlaAttention } from '../../../shared/lib/reviewSla'
 
-import { buildTrend } from '../../dashboard/trend'
+import { buildTrend } from '../../../shared/lib/trend'
 
 type ExpertQueueFilter = 'all' | 'sla' | 'urgent'
 

@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { useLocalizedNavigate } from '../../hooks/useLocalizedNavigate'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import { Check, ChevronDown, Menu, RefreshCcw } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useLocale } from '../../context/LocaleContext'
-import { DEMO_PASSWORD, demoEmailForRole, setBackendTokens } from '../../lib/auth'
-import { backendLogin } from '../../lib/backend'
+import { useApp } from './AppContext'
+import { useLocale } from './LocaleContext'
+import { DEMO_PASSWORD, demoEmailForRole, setBackendTokens } from '../auth/session'
+import { backendLogin } from '../api'
 import { USERS } from '../demo/users'
-import type { Role } from '../../types'
-import { LanguageSwitcher } from '../../components/LanguageSwitcher'
-import { NotificationBell } from '../../features/messaging/NotificationBell'
+import type { Role } from '../types'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 export const ROLE_BADGE: Record<Role, string> = {
   vet: 'bg-teal-50 text-teal-700 ring-teal-200',
@@ -18,7 +17,13 @@ export const ROLE_BADGE: Record<Role, string> = {
   admin: 'bg-slate-100 text-slate-700 ring-slate-300',
 }
 
-export function Topbar({ onMenu }: { onMenu: () => void }) {
+export function Topbar({
+  onMenu,
+  notificationSlot,
+}: {
+  onMenu: () => void
+  notificationSlot?: ReactNode
+}) {
   const { role, setRole, user, pushToast, authMode } = useApp()
   const { t } = useLocale()
   const nav = useLocalizedNavigate()
@@ -65,7 +70,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         <LanguageSwitcher persistRemote size="sm" />
-        <NotificationBell />
+        {notificationSlot}
 
         {showRoleSwitch ? (
           <div className="relative" ref={ref}>

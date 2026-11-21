@@ -1,5 +1,5 @@
-import { LocalizedLink } from '../../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import {
   CartesianGrid,
   Cell,
@@ -25,19 +25,19 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../../i18n'
-import { studyLabel } from '../../../lib/displayClean'
-import { Card, CardHeader } from '../../../components/Card'
-import { SpeciesIcon } from '../../../components/CaseTable'
-import { StatusBadge } from '../../../components/StatusBadge'
-import { EmptyState } from '../../../components/EmptyState'
-import { getClinicDashboard, listSubmissions } from '../../../lib/backend'
-import { fmtDate } from '../../../lib/format'
-import type { ClinicDashboardStats } from '../../../types'
+import { studyLabel } from '../../../shared/lib/displayClean'
+import { Card, CardHeader } from '../../../shared/ui/Card'
+import { SpeciesIcon } from '../../../shared/ui/CaseTable'
+import { StatusBadge } from '../../../shared/ui/StatusBadge'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import { getClinicDashboard, listSubmissions } from '../../../shared/api'
+import { fmtDate } from '../../../shared/lib/format'
+import type { ClinicDashboardStats } from '../../../shared/types'
 
-import { buildTrend } from '../../dashboard/trend'
+import { buildTrend } from '../../../shared/lib/trend'
 
 const PIE_COLORS = ['#0b807a', '#3e6895', '#94a3b8']
 

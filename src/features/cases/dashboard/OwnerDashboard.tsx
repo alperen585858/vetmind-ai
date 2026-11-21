@@ -1,5 +1,5 @@
-import { LocalizedLink } from '../../../components/LocalizedLink'
-import { useLocalizedNavigate } from '../../../hooks/useLocalizedNavigate'
+import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
+import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import {
   Area,
   AreaChart,
@@ -20,20 +20,20 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useApp } from '../../../context/AppContext'
-import { useLocale } from '../../../context/LocaleContext'
+import { useApp } from '../../../shared/shell/AppContext'
+import { useLocale } from '../../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../../i18n'
-import { Card } from '../../../components/Card'
-import { OwnerPawAccent, OwnerWaveAccent } from '../../../components/ExpertBrandMark'
-import { Button } from '../../../components/Button'
-import { StatusBadge } from '../../../components/StatusBadge'
-import { EmptyState } from '../../../components/EmptyState'
-import { listPets, listSubmissions } from '../../../lib/backend'
-import { fmtDate } from '../../../lib/format'
-import { caseBelongsToOwner } from '../../../lib/caseMapper'
-import type { BackendPet, BackendImagingSubmission } from '../../../types'
+import { Card } from '../../../shared/ui/Card'
+import { OwnerPawAccent, OwnerWaveAccent } from '../../../shared/ui/ExpertBrandMark'
+import { Button } from '../../../shared/ui/Button'
+import { StatusBadge } from '../../../shared/ui/StatusBadge'
+import { EmptyState } from '../../../shared/ui/EmptyState'
+import { listPets, listSubmissions } from '../../../shared/api'
+import { fmtDate } from '../../../shared/lib/format'
+import { caseBelongsToOwner } from '../../../shared/lib/caseMapper'
+import type { BackendPet, BackendImagingSubmission } from '../../../shared/types'
 
-import { buildTrend } from '../../dashboard/trend'
+import { buildTrend } from '../../../shared/lib/trend'
 
 function ownerStatusText(status: string, t: TranslateFn) {
   const map: Record<string, string> = {

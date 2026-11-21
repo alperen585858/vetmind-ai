@@ -3,7 +3,7 @@ import { request } from './client'
 // --- Phase 14 role workflows ---
 
 export async function listPets() {
-  return request<import('../../types').BackendPet[]>('/pets')
+  return request<import('../types').BackendPet[]>('/pets')
 }
 
 export async function createPet(payload: {
@@ -14,19 +14,19 @@ export async function createPet(payload: {
   sex?: string
   medical_history?: string
 }) {
-  return request<import('../../types').BackendPet>('/pets', { method: 'POST', body: JSON.stringify(payload) })
+  return request<import('../types').BackendPet>('/pets', { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export async function updatePet(
   petId: string,
   payload: Partial<{ name: string; breed: string; age_years: number; sex: string; medical_history: string }>,
 ) {
-  return request<import('../../types').BackendPet>(`/pets/${petId}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  return request<import('../types').BackendPet>(`/pets/${petId}`, { method: 'PATCH', body: JSON.stringify(payload) })
 }
 
 export async function listSubmissions(status?: string) {
   const q = status ? `?status=${encodeURIComponent(status)}` : ''
-  return request<import('../../types').BackendImagingSubmission[]>(`/submissions${q}`)
+  return request<import('../types').BackendImagingSubmission[]>(`/submissions${q}`)
 }
 
 export async function createSubmission(payload: {
@@ -34,7 +34,7 @@ export async function createSubmission(payload: {
   chief_complaint?: string
   clinical_notes?: string
 }) {
-  return request<import('../../types').BackendImagingSubmission>('/submissions', {
+  return request<import('../types').BackendImagingSubmission>('/submissions', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -45,7 +45,7 @@ export async function deleteSubmission(id: string) {
 }
 
 export async function finalizeSubmission(id: string) {
-  return request<import('../../types').BackendImagingSubmission>(`/submissions/${id}/finalize`, {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}/finalize`, {
     method: 'POST',
   })
 }
@@ -59,7 +59,7 @@ export async function updateSubmission(
     document_ingest_id: string
   }>,
 ) {
-  return request<import('../../types').BackendImagingSubmission>(`/submissions/${id}`, {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
@@ -69,21 +69,21 @@ export async function attachSubmission(
   id: string,
   payload: { kind: 'dicom' | 'document'; ingest_id: string; label?: string },
 ) {
-  return request<import('../../types').BackendImagingSubmission>(`/submissions/${id}/attachments`, {
+  return request<import('../types').BackendImagingSubmission>(`/submissions/${id}/attachments`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function replySubmissionInfoRequest(id: string, requestId: string, reply: string) {
-  return request<import('../../types').BackendImagingSubmission>(
+  return request<import('../types').BackendImagingSubmission>(
     `/submissions/${id}/info-requests/${requestId}/reply`,
     { method: 'POST', body: JSON.stringify({ reply }) },
   )
 }
 
 export async function closeSubmissionInfoRequest(id: string, requestId: string) {
-  return request<import('../../types').BackendImagingSubmission>(
+  return request<import('../types').BackendImagingSubmission>(
     `/submissions/${id}/info-requests/${requestId}/close`,
     { method: 'POST' },
   )
@@ -99,21 +99,21 @@ export async function vetSubmissionAction(
     run_analyze?: boolean
   },
 ) {
-  return request<import('../../types').BackendCaseRecord | import('../../types').BackendImagingSubmission>(
+  return request<import('../types').BackendCaseRecord | import('../types').BackendImagingSubmission>(
     `/submissions/${id}/vet-action`,
     { method: 'POST', body: JSON.stringify(payload) },
   )
 }
 
 export async function appendCaseClinicalNote(caseId: string, body: string) {
-  return request<import('../../types').BackendCaseRecord>(`/cases/${caseId}/clinical-notes`, {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/clinical-notes`, {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
 }
 
 export async function appendCaseInternalNote(caseId: string, body: string) {
-  return request<import('../../types').BackendCaseRecord>(`/cases/${caseId}/internal-notes`, {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/internal-notes`, {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
@@ -123,35 +123,35 @@ export async function createCaseInfoRequest(
   caseId: string,
   payload: { body: string; to_role?: 'vet' | 'owner' | 'expert' },
 ) {
-  return request<import('../../types').BackendCaseRecord>(`/cases/${caseId}/info-requests`, {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/info-requests`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export async function replyCaseInfoRequest(caseId: string, requestId: string, reply: string) {
-  return request<import('../../types').BackendCaseRecord>(
+  return request<import('../types').BackendCaseRecord>(
     `/cases/${caseId}/info-requests/${requestId}/reply`,
     { method: 'POST', body: JSON.stringify({ reply }) },
   )
 }
 
 export async function closeCaseInfoRequest(caseId: string, requestId: string) {
-  return request<import('../../types').BackendCaseRecord>(
+  return request<import('../types').BackendCaseRecord>(
     `/cases/${caseId}/info-requests/${requestId}/close`,
     { method: 'POST' },
   )
 }
 
 export async function attachCaseDocument(caseId: string, ingestId: string) {
-  return request<import('../../types').BackendCaseRecord>(`/cases/${caseId}/documents`, {
+  return request<import('../types').BackendCaseRecord>(`/cases/${caseId}/documents`, {
     method: 'POST',
     body: JSON.stringify({ ingest_id: ingestId }),
   })
 }
 
 export async function getClinicStats() {
-  return request<import('../../types').BackendClinicStats>('/clinic/stats')
+  return request<import('../types').BackendClinicStats>('/clinic/stats')
 }
 
 export interface PetHistoryEntry {
@@ -168,7 +168,7 @@ export interface PetHistoryEntry {
 
 export async function getPetMedicalHistory(petId: string) {
   return request<{
-    pet: import('../../types').BackendPet
+    pet: import('../types').BackendPet
     clinical_notes?: string | null
     timeline: PetHistoryEntry[]
   }>(`/pets/${petId}/medical-history`)

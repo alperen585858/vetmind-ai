@@ -5,7 +5,7 @@ import { Card, CardHeader, StatCard } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { useLocale } from '../../context/LocaleContext'
+import { useLocale } from '../../shared/shell/LocaleContext'
 import {
   exportTrainingDataset,
   fetchLatestClassificationEval,
@@ -20,7 +20,7 @@ import {
   type LlmStatus,
   type TrainingExportPolicy,
   type TrainingExportResult,
-} from '../../lib/backend'
+} from '../../shared/api'
 
 const EVAL_ROW_KEYS: { key: string; fmt: 'pct' | 'num' | 'sec' | 'score'; better: 'high' | 'low' }[] = [
   { key: 'score', fmt: 'score', better: 'high' },

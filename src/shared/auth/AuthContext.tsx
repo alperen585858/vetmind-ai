@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Role, User } from '../../types'
+import type { Role, User } from '../types'
 import { USERS } from '../demo/users'
 import {
   demoEmailForRole,
@@ -8,10 +8,10 @@ import {
   logout as clearAuthSession,
   userFromSession,
   type DemoSession,
-} from '../../lib/auth'
-import { AUTH_EXPIRED_EVENT, backendAuthStatus, backendLogout, getUserSettings } from '../../lib/backend'
-import { clearDicomCaseCache } from '../../lib/dicomCaseCache'
-import { applyLocaleFromSettings } from '../../context/LocaleContext'
+} from './session'
+import { AUTH_EXPIRED_EVENT, backendAuthStatus, backendLogout, getUserSettings } from '../api'
+import { clearDicomCaseCache } from '../lib/dicomCaseCache'
+import { applyLocaleFromSettings } from '../shell/LocaleContext'
 import { localizePath } from '../../i18n/paths'
 import { isLocale, LOCALE_STORAGE_KEY, type Locale } from '../../i18n/types'
 
