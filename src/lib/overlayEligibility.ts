@@ -38,16 +38,15 @@ function bboxFinite(b: OverlayBBox): boolean {
   return true
 }
 
-/** Native-space or invertibly chained model_input — otherwise refuse draw. */
+/** Native-space (empty chain) or invertibly chained model_input — otherwise refuse draw. */
 export function bboxCoordinateTrusted(bbox: OverlayBBox): boolean {
   const space = (bbox.coordinate_space || 'pixel_2d_native').toLowerCase()
+  const chain = bbox.transform_chain || []
   if (space === 'pixel_2d_native' || space === 'pixel_2d') {
-    const chain = bbox.transform_chain || []
-    // Native with empty chain is trusted; non-empty chain still OK if renderer can invert.
-    return true
+    // Native coords must not carry a model transform chain — that usually means model space mislabeled.
+    return chain.length === 0
   }
   if (space === 'model_input') {
-    const chain = bbox.transform_chain || []
     return chain.length > 0
   }
   return false

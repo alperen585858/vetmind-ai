@@ -111,37 +111,46 @@ export default function Messages() {
     }
   }
 
-  const loadDetail = async (id: string) => {
-    setDetailLoading(true)
-    try {
-      const d = await getSupportThread(id)
-      setDetail(d)
-      if (d.messages.some((m) => m.unread)) {
-        const marked = await markSupportThreadRead(id)
-        setDetail(marked)
-      }
-      void loadThreads()
-    } catch (e) {
-      pushToast({ tone: 'error', title: t('messages.threadOpenFailed'), body: e instanceof Error ? e.message : undefined })
-      setDetail(null)
-    } finally {
-      setDetailLoading(false)
-    }
-  }
-
   useEffect(() => {
     void loadThreads()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role])
 
   useEffect(() => {
-    if (threadId) void loadDetail(threadId)
-    else setDetail(null)
+    if (!threadId) {
+      setDetail(null)
+      return
+    }
+    let cancelled = false
+    setDetailLoading(true)
+    void (async () => {
+      try {
+        const d = await getSupportThread(threadId)
+        if (cancelled) return
+        setDetail(d)
+        if (d.messages.some((m) => m.unread)) {
+          const marked = await markSupportThreadRead(threadId)
+          if (!cancelled) setDetail(marked)
+        }
+        if (!cancelled) void loadThreads()
+      } catch (e) {
+        if (cancelled) return
+        pushToast({ tone: 'error', title: t('messages.threadOpenFailed'), body: e instanceof Error ? e.message : undefined })
+        setDetail(null)
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const reduceMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    endRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' })
   }, [detail?.messages.length, threadId])
 
   const sorted = useMemo(

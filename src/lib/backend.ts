@@ -176,7 +176,14 @@ export function refreshBackendSession(): Promise<boolean> {
         endBackendSession()
         return false
       }
-      setBackendTokens((await res.json()) as { access_token: string; refresh_token: string })
+      let pair: { access_token: string; refresh_token: string }
+      try {
+        pair = (await res.json()) as { access_token: string; refresh_token: string }
+      } catch {
+        return false
+      }
+      if (!pair?.access_token || !pair?.refresh_token) return false
+      setBackendTokens(pair)
       return true
     } catch {
       // Network error: keep the tokens, the next request can try again.
@@ -186,6 +193,76 @@ export function refreshBackendSession(): Promise<boolean> {
     }
   })()
   return refreshInFlight
+}
+
+function applySessionDemoHeaders(headers: Headers): void {
+  const session = loadSession()
+  if (session?.role && session?.email) {
+    if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
+    if (!headers.has('X-VetMind-Demo-Subject')) headers.set('X-VetMind-Demo-Subject', session.email)
+  }
+}
+
+/** Authenticated fetch with one 401→refresh→retry (for binary/PDF/DICOM paths that skip request()). */
+async function fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
+  let sentToken: string | null = null
+  const send = async (): Promise<Response> => {
+    const headers = new Headers(init?.headers)
+    const token = getBackendAccessToken()
+    sentToken = null
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`)
+      sentToken = token
+    }
+    applySessionDemoHeaders(headers)
+    try {
+      if (init?.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
+      return await fetch(`${API_BASE}${path}`, { ...init, headers })
+    } catch (err) {
+      const name = err instanceof Error ? err.name : ''
+      if (name === 'AbortError') throw err
+      throw new BackendUnavailableError()
+    }
+  }
+
+  let res = await send()
+  const canRefresh =
+    res.status === 401 && !path.startsWith('/auth/') && (Boolean(sentToken) || Boolean(getBackendRefreshToken()))
+  if (canRefresh) {
+    const current = getBackendAccessToken()
+    if (sentToken && current && current !== sentToken) {
+      res = await send()
+    } else if (await refreshBackendSession()) {
+      res = await send()
+    }
+  }
+  return res
+}
+
+async function throwIfNotOk(res: Response, fallback: string): Promise<void> {
+  if (res.ok) return
+  let rawDetail: unknown = res.statusText
+  try {
+    const body = (await res.json()) as { detail?: unknown }
+    if (body.detail !== undefined) rawDetail = body.detail
+  } catch {
+    try {
+      const text = await res.text()
+      if (text) rawDetail = text
+    } catch {
+      /* ignore */
+    }
+  }
+  const parsed = parseApiDetail(rawDetail)
+  throw new ApiError({
+    status: res.status,
+    message: parsed.message || res.statusText || fallback,
+    code: parsed.code,
+    params: parsed.params,
+    detail: rawDetail,
+  })
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -204,11 +281,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       sentToken = token
     }
     // When auth is disabled, attribute support messages to the active demo session.
-    const session = loadSession()
-    if (session?.role && session?.email) {
-      if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
-      if (!headers.has('X-VetMind-Demo-Subject')) headers.set('X-VetMind-Demo-Subject', session.email)
-    }
+    applySessionDemoHeaders(headers)
     try {
       if (init?.signal?.aborted) {
         throw new DOMException('Aborted', 'AbortError')
@@ -222,10 +295,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   let res = await send()
-  // Expired access token: renew once with the refresh token and retry the same request.
-  if (res.status === 401 && sentToken && !path.startsWith('/auth/')) {
+  // Expired / missing access token: renew once with the refresh token and retry.
+  const canRefresh =
+    res.status === 401 &&
+    !path.startsWith('/auth/') &&
+    (Boolean(sentToken) || Boolean(getBackendRefreshToken()))
+  if (canRefresh) {
     const current = getBackendAccessToken()
-    if (current && current !== sentToken) {
+    if (sentToken && current && current !== sentToken) {
       // Renewed meanwhile (another request or tab): just retry with the newer token.
       res = await send()
     } else if (await refreshBackendSession()) {
@@ -254,7 +331,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const text = await res.text()
   if (!text) return undefined as T
-  return JSON.parse(text) as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    throw new ApiError({
+      status: res.status,
+      message: 'Invalid JSON response from server',
+      detail: text.slice(0, 200),
+    })
+  }
 }
 
 export function toBackendSpecies(species: Species): BackendSpecies {
@@ -700,19 +785,11 @@ const DEMO_FILE_PREFIX: Record<DicomDemoKind, string> = {
 export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 12): Promise<File[]> {
   const out: File[] = []
   const n = kind === 'thorax_xr' ? Math.min(count, 1) : Math.min(count, 24)
-  const headers = new Headers()
-  const token = getBackendAccessToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
   let available = n
   for (let i = 0; i < available; i++) {
-    let res: Response
-    try {
-      res = await fetch(`${API_BASE}/dicom/fixtures/${kind}/${i}?count=${n}`, { headers })
-    } catch {
-      throw new BackendUnavailableError()
-    }
+    const res = await fetchWithAuth(`/dicom/fixtures/${kind}/${i}?count=${n}`)
     if (!res.ok) {
-      if (i === 0) throw new Error(`Örnek DICOM indirilemedi (${kind} #${i})`)
+      if (i === 0) await throwIfNotOk(res, `Demo DICOM download failed (${kind} #${i})`)
       break
     }
     const headerCount = Number(res.headers.get('X-VetMind-Fixture-Count'))
@@ -1418,20 +1495,12 @@ export async function listIngestDicomFiles(ingestId: string): Promise<IngestDico
 export async function fetchIngestDicomFiles(ingestId: string, maxFiles = MAX_VIEWER_FRAMES): Promise<File[]> {
   const listing = await listIngestDicomFiles(ingestId)
   if (!listing.files.length) return []
-  const headers = new Headers()
-  const token = getBackendAccessToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
   const out: File[] = []
   const limit = Math.min(listing.files.length, maxFiles)
   for (let i = 0; i < limit; i++) {
     const meta = listing.files[i]
-    let res: Response
-    try {
-      res = await fetch(`${API_BASE}/dicom/ingestions/${ingestId}/files/${meta.index}`, { headers })
-    } catch {
-      throw new BackendUnavailableError()
-    }
-    if (!res.ok) throw new Error(`DICOM indirilemedi (#${meta.index})`)
+    const res = await fetchWithAuth(`/dicom/ingestions/${ingestId}/files/${meta.index}`)
+    await throwIfNotOk(res, `DICOM download failed (#${meta.index})`)
     const blob = await res.blob()
     out.push(new File([blob], meta.filename || `instance_${i + 1}.dcm`, { type: 'application/dicom' }))
   }
@@ -1452,20 +1521,12 @@ export async function fetchCaseDicomFiles(caseId: string, maxFiles = MAX_VIEWER_
   const id = canonicalizeCaseId(caseId)
   const listing = await listCaseDicomFiles(id)
   if (!listing.files.length) return []
-  const headers = new Headers()
-  const token = getBackendAccessToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
   const out: File[] = []
   const limit = Math.min(listing.files.length, maxFiles)
   for (let i = 0; i < limit; i++) {
     const meta = listing.files[i]
-    let res: Response
-    try {
-      res = await fetch(`${API_BASE}/cases/${id}/dicom/files/${meta.index}`, { headers })
-    } catch {
-      throw new BackendUnavailableError()
-    }
-    if (!res.ok) throw new Error(`Vaka DICOM indirilemedi (#${meta.index})`)
+    const res = await fetchWithAuth(`/cases/${id}/dicom/files/${meta.index}`)
+    await throwIfNotOk(res, `Case DICOM download failed (#${meta.index})`)
     const blob = await res.blob()
     out.push(new File([blob], meta.filename || `instance_${i + 1}.dcm`, { type: 'application/dicom' }))
   }
@@ -2027,47 +2088,18 @@ export async function getPetMedicalHistory(petId: string) {
 
 export async function downloadApprovedReportPdf(caseId: string, version?: number): Promise<Blob> {
   const q = version != null ? `?version=${version}` : ''
-  const headers = new Headers()
-  const token = getBackendAccessToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-  let res: Response
-  try {
-    res = await fetch(`${API_BASE}/cases/${caseId}/report/pdf${q}`, { headers })
-  } catch {
-    throw new BackendUnavailableError()
-  }
-  if (!res.ok) {
-    const detail = await res.text()
-    throw new Error(detail || 'PDF indirilemedi')
-  }
+  const id = canonicalizeCaseId(caseId)
+  const res = await fetchWithAuth(`/cases/${id}/report/pdf${q}`)
+  await throwIfNotOk(res, 'PDF download failed')
   return res.blob()
-}
-
-function evidenceAuthHeaders(): Headers {
-  const headers = new Headers()
-  const token = getBackendAccessToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-  const session = loadSession()
-  if (session?.role && session?.email) {
-    headers.set('X-VetMind-Demo-Role', session.role)
-    headers.set('X-VetMind-Demo-Subject', session.email)
-  }
-  return headers
 }
 
 /** Working-store overlay PNG for an evidence id (auth required). Caller must revokeObjectURL. */
 export async function fetchEvidenceOverlayObjectUrl(caseId: string, evidenceId: string): Promise<string> {
-  let res: Response
-  try {
-    res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}`, {
-      headers: evidenceAuthHeaders(),
-    })
-  } catch {
-    throw new BackendUnavailableError()
-  }
-  if (!res.ok) {
-    throw new Error(res.status === 404 ? 'Evidence overlay not found' : `Evidence overlay failed (${res.status})`)
-  }
+  const res = await fetchWithAuth(
+    `/cases/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}`,
+  )
+  await throwIfNotOk(res, res.status === 404 ? 'Evidence overlay not found' : `Evidence overlay failed (${res.status})`)
   const blob = await res.blob()
   return URL.createObjectURL(blob)
 }
@@ -2078,20 +2110,13 @@ export async function fetchApprovedEvidenceOverlayObjectUrl(
   version: number,
   evidenceId: string,
 ): Promise<string> {
-  let res: Response
-  try {
-    res = await fetch(
-      `${API_BASE}/cases/${encodeURIComponent(caseId)}/reports/${version}/evidence/${encodeURIComponent(evidenceId)}`,
-      { headers: evidenceAuthHeaders() },
-    )
-  } catch {
-    throw new BackendUnavailableError()
-  }
-  if (!res.ok) {
-    throw new Error(
-      res.status === 404 ? 'Approved evidence overlay not found' : `Approved evidence overlay failed (${res.status})`,
-    )
-  }
+  const res = await fetchWithAuth(
+    `/cases/${encodeURIComponent(caseId)}/reports/${version}/evidence/${encodeURIComponent(evidenceId)}`,
+  )
+  await throwIfNotOk(
+    res,
+    res.status === 404 ? 'Approved evidence overlay not found' : `Approved evidence overlay failed (${res.status})`,
+  )
   const blob = await res.blob()
   return URL.createObjectURL(blob)
 }

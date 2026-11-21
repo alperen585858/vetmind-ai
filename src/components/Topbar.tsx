@@ -39,15 +39,15 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const switchRole = (r: Role) => {
     setOpen(false)
     if (r === role) return
-    setRole(r)
     void (async () => {
       try {
-        // Await JWT rebind so subsequent API calls (e.g. mesajlar) use the new role.
+        // Rebind JWT before flipping UI role so Layout refresh / APIs never use the prior token.
         const tokenRes = await backendLogin(demoEmailForRole(r), DEMO_PASSWORD)
         setBackendTokens(tokenRes)
       } catch {
         /* backend down or auth disabled — UI role still switches; demo headers attribute actors */
       }
+      setRole(r)
       nav('/')
       pushToast({ tone: 'info', title: t('topbar.roleChanged', { role: roleLabel(r) }), body: USERS[r].name })
     })()

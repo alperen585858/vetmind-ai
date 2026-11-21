@@ -19,6 +19,7 @@ import { SpeciesIcon } from '../components/CaseTable'
 import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../lib/backend'
 import { toastErrorBody } from '../lib/apiErrors'
 import { caseBelongsToOwner } from '../lib/caseMapper'
+import { regionLabel } from '../lib/displayClean'
 import { fmtDate } from '../lib/format'
 import type { BackendModality, VetCase } from '../types'
 
@@ -28,15 +29,6 @@ function reportCaseId(c: VetCase): string {
   return c.backendCaseId || c.id
 }
 
-function regionLabel(region: string): string {
-  if (region === 'BRAIN') return 'Beyin'
-  if (region === 'CERVICAL') return 'Servikal'
-  if (region === 'THORAX') return 'Toraks'
-  if (region === 'THORACOLUMBAR') return 'Torakolomber'
-  if (region === 'OTHER') return 'Diğer'
-  if (region === 'UNKNOWN') return 'Bilinmiyor'
-  return region
-}
 
 export default function ReportList() {
   const { cases, role, session, user, refreshBackendCases, removeCase, hydrateBackendCase, pushToast } =
@@ -369,7 +361,7 @@ export default function ReportList() {
               <option value="">{t('reports.filterAllCategories')}</option>
               {regions.map((r) => (
                 <option key={r} value={r}>
-                  {regionLabel(r)}
+                  {regionLabel(t, r)}
                 </option>
               ))}
             </select>
@@ -519,7 +511,7 @@ export default function ReportList() {
                             ) : null}
                             {c.anatomicalRegion ? (
                               <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
-                                {regionLabel(c.anatomicalRegion)}
+                                {regionLabel(t, c.anatomicalRegion)}
                               </span>
                             ) : null}
                             <span className="font-mono text-[11px] text-slate-400">{c.reportNo ?? c.no}</span>

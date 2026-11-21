@@ -24,6 +24,7 @@
     "priority": "Öncelik",
     "date": "Tarih",
     "name": "Ad",
+    "viewSource": "Kaynağı görüntüle",
     "email": "E-posta",
     "password": "Şifre",
     "phone": "Telefon",
@@ -125,6 +126,7 @@
     "Düşük": "Düşük"
   },
   "nav": {
+    "menuAria": "Ana menü",
     "dashboard": "Kontrol Paneli",
     "expertOverview": "Genel Bakış",
     "ownerHome": "Ana Sayfa",
@@ -796,6 +798,10 @@
       "slaTitle": "Uzman yanıt süresi · {hours} saat",
       "slaUrgent": " (acil)",
       "slaBody": "{remaining}. Süre azalınca bildirim gönderilir; gecikmede kırmızı uyarı yanar.",
+      "slaOverdue": "Süresi geçmiş",
+      "slaHoursMins": "{h} sa {m} dk",
+      "slaMins": "{m} dk",
+      "slaRemainingSuffix": "kaldı",
       "toastStoppingAnalysis": "Analiz durduruluyor",
       "toastCancelSent": "İptal isteği gönderildi.",
       "toastStopFailed": "Analiz durdurulamadı",
@@ -1039,7 +1045,17 @@
     "deleteConfirmYes": "Evet, sil",
     "deleting": "Siliniyor…",
     "deleteConfirmBody": "{name} vakasını ({no}) kalıcı olarak silmek istediğinize emin misiniz?",
-    "deleteIrreversible": "Bu işlem geri alınamaz. Rapor, bulgular ve sohbet geçmişi de silinir."
+    "deleteIrreversible": "Bu işlem geri alınamaz. Rapor, bulgular ve sohbet geçmişi de silinir.",
+    "deleted": "Vaka silindi",
+    "deleteFailed": "Silinemedi",
+    "serverError": "Sunucu hatası",
+    "bulkDeleteTitle": "Seçilen vakaları silmek istediğinize emin misiniz?",
+    "bulkDeleteConfirm": "{count} vaka kalıcı olarak silinecek. Emin misiniz?",
+    "bulkDeleteConfirmBtn": "Evet, {count} vakayı sil",
+    "bulkDeleteMore": "… +{count} daha",
+    "bulkDeleted": "{count} vaka silindi",
+    "bulkDeletePartial": "{count} vaka silinemedi.",
+    "bulkDeleteNone": "Hiçbir vaka silinemedi"
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",
@@ -1189,6 +1205,7 @@
       "manualDraftStart": "Manuel taslak başlat",
       "caseDetailLink": "Vaka detayı",
       "toastDraftSaved": "Taslak kaydedildi",
+      "toastDraftSaveFailed": "Taslak kaydedilemedi",
       "toastApproved": "Rapor onaylandı",
       "nextCaseOpening": "Sonraki vaka açılıyor…",
       "openingApprovedReport": "Onaylı rapor açılıyor…",
@@ -1426,7 +1443,9 @@
       "viewed": "Görüldü",
       "delivered": "İletildi",
       "ready": "Hazır",
-      "ageWeightValue": "{age} yaş · {weight} kg"
+      "ageWeightValue": "{age} yaş · {weight} kg",
+      "fullscreenHint": "A4 rapor · tam ekran · Esc ile çık",
+      "afterApproval": "— (onay sonrası)"
     },
     "radiologyReportTitle": "Radyoloji Değerlendirme Raporu"
   },
@@ -2230,5 +2249,13 @@
       "OTHER": "Diğer",
       "UNKNOWN": "Bilinmiyor"
     }
+  },
+  "kb": {
+    "sourcePanelTitle": "Kaynak [{id}]",
+    "licenseLabel": "Lisans: {license}",
+    "section": "Bölüm",
+    "passage": "İlgili pasaj",
+    "chunks": "Parça (chunk) sayısı",
+    "demoDisclaimer": "Bu pasaj demo amaçlı örnek metindir; klinik kanıt değildir."
   }
 }

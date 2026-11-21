@@ -12,7 +12,7 @@ describe('overlayEligibility', () => {
     expect(findingOverlayLabel(1, 'abc')).toBe('F2')
   })
 
-  it('trusts native coords and model_input only with chain', () => {
+  it('trusts native coords without chain and model_input only with chain', () => {
     expect(
       bboxCoordinateTrusted({
         x_min: 1,
@@ -22,6 +22,16 @@ describe('overlayEligibility', () => {
         coordinate_space: 'pixel_2d_native',
       }),
     ).toBe(true)
+    expect(
+      bboxCoordinateTrusted({
+        x_min: 1,
+        y_min: 1,
+        x_max: 10,
+        y_max: 10,
+        coordinate_space: 'pixel_2d_native',
+        transform_chain: [{ name: 'resize', params: { sx: 0.5, sy: 0.5 } }],
+      }),
+    ).toBe(false)
     expect(
       bboxCoordinateTrusted({
         x_min: 1,

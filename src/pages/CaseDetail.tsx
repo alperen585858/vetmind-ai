@@ -58,11 +58,12 @@ import {
   collectFilesFromFileList,
 } from '../lib/dicomFolder'
 import { cacheCaseDicomFiles, loadCachedCaseDicomFiles } from '../lib/dicomCaseCache'
-import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
+import { analysisStatusLabel, caseBelongsToOwner, expertReviewLabel } from '../lib/caseMapper'
 import {
   formatSlaRemaining,
   slaBadgeClass,
   slaHoursForPriority,
+  slaLabelsFromT,
   slaTone,
 } from '../lib/reviewSla'
 import { CitedText } from '../components/CitedText'
@@ -115,8 +116,9 @@ function DetailSkeleton({ loadingLabel }: { loadingLabel: string }) {
 export default function CaseDetail() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
-  const { getCase, role, hydrateBackendCase, pushToast } = useApp()
+  const { getCase, role, user, session, hydrateBackendCase, pushToast } = useApp()
   const { t, locale } = useLocale()
+  const canControlAnalysis = role === 'vet' || role === 'expert'
   const tabs = useMemo(
     () => TAB_DEFS.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
     [t],
@@ -229,6 +231,26 @@ export default function CaseDetail() {
     )
   }
 
+  if (
+    role === 'owner' &&
+    !caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name })
+  ) {
+    return (
+      <Card>
+        <EmptyState
+          icon={<FileSearch className="h-6 w-6" />}
+          title={t('cases.detail.notFound')}
+          text={t('cases.detail.notFoundHint')}
+          action={
+            <LocalizedLink className="text-sm font-medium text-teal-700" to="/">
+              {t('reports.backHome')}
+            </LocalizedLink>
+          }
+        />
+      </Card>
+    )
+  }
+
   const workflowStep =
     c.status === 'onaylandi'
       ? 4
@@ -279,7 +301,7 @@ export default function CaseDetail() {
           >
             {t('cases.detail.viewDicom')}
           </Button>
-          {(c.status === 'isleniyor' || c.status === 'ai_analizi') && (
+          {canControlAnalysis && (c.status === 'isleniyor' || c.status === 'ai_analizi') && (
             <>
               <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
                 {t('cases.detail.watchPipeline')}
@@ -339,7 +361,7 @@ export default function CaseDetail() {
                 : t('cases.detail.workspace')}
             </Button>
           )}
-          {role === 'vet' && (
+          {(role === 'vet' || role === 'clinic_owner') && (
             <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => selectSummaryModule('mesajlar')}>
               {t('cases.detail.messages')}
             </Button>
@@ -441,11 +463,13 @@ export default function CaseDetail() {
                 {(c.priority === 'STAT' || c.priority === 'Acil') ? t('cases.detail.slaUrgent') : ''}
               </p>
               <p className="mt-1">
-                {t('cases.detail.slaBody', { remaining: formatSlaRemaining(c.reviewDueAt) })}
+                {t('cases.detail.slaBody', {
+                  remaining: formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t)),
+                })}
               </p>
             </div>
             <span className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}>
-              {formatSlaRemaining(c.reviewDueAt)}
+              {formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))}
             </span>
           </div>
         )}
@@ -749,12 +773,12 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
           <Card>
             <CardHeader title={t('cases.detail.patient')} icon={<ClipboardList className="h-5 w-5" />} />
             <dl className="divide-y divide-slate-50 px-5 py-2">
-              <Row k="Ad" v={p.name} />
+              <Row k={t('reports.doc.name')} v={p.name} />
               <Row k={t('cases.detail.rowSpeciesBreed')} v={`${p.species} · ${p.breed}`} />
               <Row k={t('cases.detail.rowSex')} v={`${p.sex}, ${p.neutered ? t('cases.detail.neutered') : t('cases.detail.intact')}`} />
               <Row k={t('cases.detail.rowAgeWeight')} v={t('cases.detail.ageWeight', { age: p.age, weight: p.weight })} />
               <Row
-                k="Sahip"
+                k={t('reports.doc.owner')}
                 v={
                   c.petOwnerSubject ||
                   c.ownerContactName ||

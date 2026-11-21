@@ -62,8 +62,10 @@ export default function ExpertAiResend() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const abortByIdRef = useRef<Record<string, AbortController>>({})
   const chatAbortRef = useRef<AbortController | null>(null)
+  const loadGenRef = useRef(0)
 
   const load = () => {
+    const gen = ++loadGenRef.current
     setLoading(true)
     setError(null)
     void listBackendWorklist({
@@ -71,12 +73,18 @@ export default function ExpertAiResend() {
       modality: modality || undefined,
       q: q || undefined,
     })
-      .then(setRows)
+      .then((next) => {
+        if (gen !== loadGenRef.current) return
+        setRows(next)
+      })
       .catch((err) => {
+        if (gen !== loadGenRef.current) return
         setError(err instanceof Error ? err.message : t('ai.resend.listFailed'))
         setRows([])
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (gen === loadGenRef.current) setLoading(false)
+      })
   }
 
   useEffect(() => {

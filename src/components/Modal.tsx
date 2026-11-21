@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { useLocale } from '../context/LocaleContext'
 
 export function Modal({
   open,
@@ -15,6 +16,7 @@ export function Modal({
   children: ReactNode
   footer?: ReactNode
 }) {
+  const { t } = useLocale()
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
@@ -26,6 +28,8 @@ export function Modal({
   useEffect(() => {
     if (!open) return
     previouslyFocused.current = document.activeElement as HTMLElement | null
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const t = window.setTimeout(() => {
       const root = panelRef.current
       if (!root) return
@@ -62,6 +66,7 @@ export function Modal({
     return () => {
       window.clearTimeout(t)
       document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
       previouslyFocused.current?.focus?.()
     }
   }, [open])
@@ -88,7 +93,7 @@ export function Modal({
           <button
             type="button"
             onClick={() => onCloseRef.current()}
-            aria-label="Kapat"
+            aria-label={t('common.close')}
             className="rounded-md p-1 text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
           >
             <X className="h-5 w-5" aria-hidden />

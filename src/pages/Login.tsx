@@ -17,6 +17,7 @@ import {
 } from '../lib/auth'
 import { userErrorMessage } from '../lib/apiErrors'
 import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../lib/backend'
+import { safeInternalPath } from '../lib/safePath'
 import type { Role } from '../types'
 
 export default function Login() {
@@ -32,6 +33,7 @@ export default function Login() {
   const [statusLoaded, setStatusLoaded] = useState(false)
   const [params] = useSearchParams()
   const sessionExpired = params.get('expired') === '1'
+  const returnPath = safeInternalPath(params.get('next'))
 
   const roleLabel = (role: Role) => t(`roles.${role}`)
   const lockedMode = authEnabled || deploymentMode === 'protected'
@@ -71,7 +73,7 @@ export default function Login() {
         title: t('auth.loginSuccess'),
         body: `${session.name} · ${roleLabel(session.role)}`,
       })
-      nav(postLoginPath(session.role, locale))
+      nav(returnPath !== '/' ? returnPath : postLoginPath(session.role, locale))
     } catch (err) {
       setError(err instanceof BackendUnavailableError ? t('auth.backendUnreachable') : userErrorMessage(err, t) || t('auth.loginFailed'))
     } finally {
@@ -256,16 +258,22 @@ export default function Login() {
               <ul className="mt-2 space-y-1">
                 {listDemoCredentials().map((c) => (
                   <li key={c.email}>
-                    <button
-                      type="button"
-                      className="text-left transition hover:text-sky-700"
-                      onClick={() => {
-                        setEmail(c.email)
-                        setPassword(c.password)
-                      }}
-                    >
-                      {c.email} · {roleLabel(c.role)}
-                    </button>
+                    {lockedMode ? (
+                      <span className="text-navy-500">
+                        {c.email} · {roleLabel(c.role)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-left transition hover:text-sky-700"
+                        onClick={() => {
+                          setEmail(c.email)
+                          setPassword(c.password)
+                        }}
+                      >
+                        {c.email} · {roleLabel(c.role)}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

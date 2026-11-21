@@ -125,7 +125,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const roleSwitchAllowed = !authEnabled && deploymentMode !== 'protected'
       setAuthMode({ authEnabled, deploymentMode, roleSwitchAllowed })
     } catch {
-      setAuthMode(DEFAULT_AUTH_MODE)
+      // Fail closed on status errors: do not enable demo role switch during outages.
+      setAuthMode({
+        authEnabled: true,
+        deploymentMode: 'protected',
+        roleSwitchAllowed: false,
+      })
     }
   }, [])
 
@@ -210,7 +215,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Backend senkronizasyonu başarısız'
+            : 'Backend sync failed'
       return { ok: false, count: 0, error }
     } finally {
       setBackendSyncing(false)
@@ -232,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback((next: DemoSession) => {
+    setCases([])
     setSession(next)
     setRoleState(next.role)
     setSourceId(null)
@@ -242,6 +248,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void clearDicomCaseCache()
     setSession(null)
     setRoleState(null)
+    setCases([])
     setSourceId(null)
     setProfileOverride({})
   }, [])
@@ -272,10 +279,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void clearDicomCaseCache()
       setSession(null)
       setRoleState(null)
+      setCases([])
       setSourceId(null)
       setProfileOverride({})
       return
     }
+    // Drop prior role's cases before JWT/list refresh so UI never shows another actor's PHI.
+    setCases([])
     setRoleState(r)
     setProfileOverride({})
     setSession(() => {

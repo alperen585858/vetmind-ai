@@ -9,6 +9,7 @@ import {
   isSlaAttention,
   slaBadgeClass,
   slaHoursForPriority,
+  slaLabelsFromT,
   slaTone,
 } from '../lib/reviewSla'
 import type { TranslateFn } from '../i18n'
@@ -23,7 +24,7 @@ function studyLine(c: VetCase, t: TranslateFn) {
 }
 
 function waitLabel(c: VetCase, t: TranslateFn) {
-  if (c.reviewDueAt) return formatSlaRemaining(c.reviewDueAt)
+  if (c.reviewDueAt) return formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))
   return t('dashboard.queueSlaShort', { hours: String(slaHoursForPriority(c.priority)) })
 }
 
@@ -135,7 +136,6 @@ export function ExpertWorklistTable({
             return (
               <tr
                 key={c.id}
-                role="link"
                 tabIndex={0}
                 aria-label={`${c.patient.name} — ${t('dashboard.expertOpen')}`}
                 onClick={(e) => {

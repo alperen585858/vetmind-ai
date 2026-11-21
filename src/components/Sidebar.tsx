@@ -23,7 +23,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { useLocale } from '../context/LocaleContext'
 import { Logo } from './Logo'
@@ -111,10 +111,26 @@ export function Sidebar({
   }
   const items = role ? menus[role] : []
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   return (
     <>
-      {open && <div className="fixed inset-0 z-30 bg-navy-950/40 lg:hidden no-print" onClick={onClose} />}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-navy-950/40 lg:hidden no-print"
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
       <aside
+        aria-label={t('nav.menuAria')}
         className={`vm-sidebar no-print fixed inset-y-0 left-0 z-40 flex flex-col bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
           collapsed ? 'lg:w-[64px]' : isExpert ? 'lg:w-56' : 'lg:w-64'
         } w-64 ${open ? 'translate-x-0' : '-translate-x-full'}`}

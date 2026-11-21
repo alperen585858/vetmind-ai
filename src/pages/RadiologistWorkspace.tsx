@@ -67,6 +67,7 @@ import {
 } from '../lib/overlayEligibility'
 import {
   formatSlaRemaining,
+  slaLabelsFromT,
   slaBadgeClass,
   slaHoursForPriority,
   slaTone,
@@ -243,18 +244,6 @@ export default function RadiologistWorkspace() {
       })
   }, [c?.petId, pushToast, t])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault()
-        void onSaveDraft()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, c?.id])
-
   const contextBits = useMemo(() => {
     if (!c) return []
     const clinic = displayClinic(c.clinic)
@@ -398,7 +387,7 @@ export default function RadiologistWorkspace() {
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Taslak kaydedilemedi',
+        title: t('review.workspace.toastDraftSaveFailed'),
         body: toastErrorBody(err, t),
       })
       return false
@@ -406,6 +395,20 @@ export default function RadiologistWorkspace() {
       setSaving(false)
     }
   }
+
+  const onSaveDraftRef = useRef(onSaveDraft)
+  onSaveDraftRef.current = onSaveDraft
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void onSaveDraftRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   async function goAssigned(target: BackendCaseSummary | null) {
     if (!target) return
@@ -678,7 +681,7 @@ export default function RadiologistWorkspace() {
                 title={t('review.workspace.slaTitle', { hours: slaHoursForPriority(c.priority) })}
               >
                 <Clock className="h-3 w-3" aria-hidden />
-                {formatSlaRemaining(c.reviewDueAt)}
+                {formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))}
               </span>
             ) : null}
             <Button

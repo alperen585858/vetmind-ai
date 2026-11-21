@@ -43,6 +43,7 @@ import {
   caseWithDraftVersion,
   printSectionsForCase,
 } from '../lib/reportPrint'
+import { caseBelongsToOwner } from '../lib/caseMapper'
 import type {
   BackendDraftReport,
   BackendInfoRequest,
@@ -55,7 +56,7 @@ export default function ApprovedReport() {
   const [params, setParams] = useSearchParams()
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
-  const { getCase, role, user, hydrateBackendCase, pushToast, updateCase } = useApp()
+  const { getCase, role, user, session, hydrateBackendCase, pushToast, updateCase } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const base = getCase(id)
@@ -284,13 +285,11 @@ export default function ApprovedReport() {
     )
   }
 
-  // Seed owner gate: match owner name. Backend cases rely on route Gate roles.
+  // Owner defense-in-depth: list pages filter by ownership; detail/report must too (incl. backend IDs).
   if (
     !c ||
     (role === 'owner' &&
-      !c.fromBackend &&
-      c.patient.ownerName !== user?.name &&
-      c.petOwnerSubject !== user?.email)
+      !caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name }))
   ) {
     return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title={t('reports.empty')} /></Card>
   }

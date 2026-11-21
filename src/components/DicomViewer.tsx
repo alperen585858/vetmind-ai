@@ -435,6 +435,7 @@ export function DicomViewer({
     const vp = viewportRef.current
     if (!canvas || !frame?.cols || !frame.rows) return { x: 0, y: 0 }
     // Prefer explicit inverse when annotate / non-zero view transform; else AABB map.
+    // Never fall back to AABB under rotation/flip — that maps the wrong pixels.
     try {
       assertAnnotateViewAllowed({
         panX: pan.x,
@@ -462,7 +463,9 @@ export function DicomViewer({
         })
       }
     } catch {
-      /* fall through */
+      if (rotation !== 0 || flipH || flipV) {
+        return { x: Number.NaN, y: Number.NaN }
+      }
     }
     const rect = canvas.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * frame.cols
@@ -510,11 +513,13 @@ export function DicomViewer({
     }
     if (tool === 'vhs') {
       const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
       setVhsPts((prev) => (prev.length >= VHS_POINT_COUNT ? [pt] : [...prev, pt]))
       return
     }
     if (tool === 'measure') {
       const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
       measureStartRef.current = pt
       setMeasurePts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
       setMeasureLabel(null)
@@ -522,6 +527,7 @@ export function DicomViewer({
     }
     if (tool === 'roi') {
       const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
       roiStartRef.current = pt
       setRoiPts({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
       setRoiLabel(null)
@@ -529,6 +535,7 @@ export function DicomViewer({
     }
     if (tool === 'angle') {
       const pt = canvasLocalPoint(e)
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return
       setAnglePts((prev) => {
         if (!prev || prev.c) return { a: pt, b: pt }
         if (!prev.c && (prev.a.x !== prev.b.x || prev.a.y !== prev.b.y)) {
@@ -650,7 +657,7 @@ export function DicomViewer({
         bbox: draftAnnotate.box,
         evidenceId: draftAnnotate.evidenceId,
         sopInstanceUid: frame.sopInstanceUid,
-        frameIndex: 0,
+        frameIndex: safeIndex,
       })
       setDraftAnnotate(null)
     } catch (err) {

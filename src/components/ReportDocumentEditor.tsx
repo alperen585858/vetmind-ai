@@ -4,7 +4,7 @@ import { Logo } from './Logo'
 import { useLocale } from '../context/LocaleContext'
 import { modalityLabel, regionLabel } from '../lib/displayClean'
 import { ReportEvidenceFigures } from './ReportEvidenceFigures'
-import { SECTION_LABELS } from '../data/mock'
+import { getSectionLabels } from '../data/mock'
 import type { DicomFramePreview } from '../lib/dicomPreview'
 import { fmtDate } from '../lib/format'
 import type { BackendFindings, ReportSections, SectionKey, VetCase } from '../types'
@@ -73,15 +73,16 @@ export function ReportDocumentEditor({
 }) {
   const deskRef = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
+  const sectionLabels = getSectionLabels(t)
   const p = caseData.patient
   const reviewStatus =
     caseData.status === 'onaylandi'
-      ? `Onaylandı${caseData.approvedBy ? ` · ${caseData.approvedBy}` : ''}`
+      ? `${t('status.onaylandi')}${caseData.approvedBy ? ` · ${caseData.approvedBy}` : ''}`
       : caseData.status === 'reddedildi'
-        ? 'Reddedildi'
+        ? t('status.reddedildi')
         : caseData.status === 'revizyon'
-          ? 'Revizyon istendi'
+          ? t('status.revizyon')
           : t(`status.${caseData.status}`)
 
   useEffect(() => {
@@ -155,14 +156,14 @@ export function ReportDocumentEditor({
       >
         {fullscreen && (
           <div className="no-print sticky top-0 z-10 mb-4 flex items-center justify-between gap-2 rounded-lg bg-navy-950/90 px-3 py-2 text-white backdrop-blur">
-            <p className="text-xs font-medium text-sky-100">A4 rapor · tam ekran · Esc ile çık</p>
+            <p className="text-xs font-medium text-sky-100">{t('reports.doc.fullscreenHint')}</p>
             <button
               type="button"
               onClick={() => void toggleFullscreen()}
               className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium hover:bg-white/20"
             >
               <X className="h-3.5 w-3.5" />
-              Kapat
+              {t('common.close')}
             </button>
           </div>
         )}
@@ -237,7 +238,7 @@ export function ReportDocumentEditor({
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-slate-500">Başvuru</dt>
-                  <dd className="text-navy-900">{fmtDate(caseData.createdAt)}</dd>
+                  <dd className="text-navy-900">{fmtDate(caseData.createdAt, locale)}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-slate-500">İnceleme</dt>
@@ -251,7 +252,7 @@ export function ReportDocumentEditor({
             {DOC_KEYS.map((key) => (
               <div key={key} className="group">
                 <h3 className="mb-2 border-b border-slate-100 pb-1 text-sm font-semibold uppercase tracking-wide text-teal-700">
-                  {SECTION_LABELS[key]}
+                  {sectionLabels[key]}
                 </h3>
                 <div
                   className={`rounded-sm transition ${
@@ -295,7 +296,7 @@ export function ReportDocumentEditor({
               <div className="text-sm sm:text-right">
                 <p className="text-slate-500">Onay tarihi</p>
                 <p className="font-semibold text-navy-900">
-                  {caseData.approvedAt ? fmtDate(caseData.approvedAt) : '— (onay sonrası)'}
+                  {caseData.approvedAt ? fmtDate(caseData.approvedAt, locale) : t('reports.doc.afterApproval')}
                 </p>
               </div>
             </div>

@@ -194,8 +194,17 @@ export function CaseTable({
           {cases.map((c) => (
             <tr
               key={c.id}
+              tabIndex={0}
+              aria-label={`${c.patient.name} — ${c.no}`}
               onClick={() => nav(`/vakalar/${c.id}`)}
-              className="cursor-pointer transition hover:bg-teal-50/40"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                const target = e.target as HTMLElement
+                if (target.closest('button, a, input')) return
+                e.preventDefault()
+                nav(`/vakalar/${c.id}`)
+              }}
+              className="cursor-pointer transition hover:bg-teal-50/40 focus-visible:bg-teal-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600"
             >
               {selectable && (
                 <td className="td" onClick={(e) => e.stopPropagation()}>

@@ -1,18 +1,16 @@
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { isKnownAppPath } from './i18n/paths'
 import { Suspense, type ReactNode } from 'react'
-import { ShieldAlert } from 'lucide-react'
 import { useApp } from './context/AppContext'
 import { useLocale } from './context/LocaleContext'
 import { Layout } from './components/Layout'
 import { LocalePathSync } from './components/LocalePathSync'
 import { Toasts } from './components/Toasts'
-import { Card } from './components/Card'
-import { EmptyState } from './components/EmptyState'
 import { localizePath } from './i18n/paths'
 import type { Role } from './types'
 import { lazyPage } from './lib/lazyPage'
 import { PageLoader } from './components/PageLoader'
+import { safeInternalPath } from './lib/safePath'
 
 // Each page is its own chunk (issue #25); only the visited page is downloaded.
 const NotFound = lazyPage(() => import('./pages/NotFound'))
@@ -46,21 +44,19 @@ const AdminRadiologists = lazyPage(() => import('./pages/AdminRadiologists'))
 const Settings = lazyPage(() => import('./pages/Settings'))
 
 function Gate({ roles, children }: { roles: Role[]; children: ReactNode }) {
-  const { role, authMode } = useApp()
-  const { t } = useLocale()
+  const { role } = useApp()
+  const { locale } = useLocale()
   if (role && roles.includes(role)) return <>{children}</>
-  const hint = authMode.roleSwitchAllowed ? t('gate.hintDemo') : t('gate.hintAuth')
-  return (
-    <Card>
-      <EmptyState icon={<ShieldAlert className="h-6 w-6" />} title={t('gate.title')} text={hint} />
-    </Card>
-  )
+  return <Navigate to={localizePath('/', locale)} replace />
 }
 
 /** Legacy /inceleme|/review → canonical radiologist workspace. */
 function ExpertReviewRedirect() {
   const { id } = useParams()
   const { locale } = useLocale()
+  if (!id || id === 'undefined') {
+    return <Navigate to={localizePath('/kuyruk', locale)} replace />
+  }
   return <Navigate to={localizePath(`/vakalar/${id}/calisma`, locale)} replace />
 }
 
@@ -72,10 +68,15 @@ function dualRoutes(tr: string, en: string, element: ReactNode) {
   ]
 }
 
-/** Signed out: app pages (e.g. a shared case link) still go to the landing page; unknown URLs get a 404. */
+/** Signed out: known app URLs go to login with a safe return path; unknown URLs get a 404. */
 function PublicFallback() {
-  const { pathname } = useLocation()
-  return isKnownAppPath(pathname) ? <Navigate to="/" replace /> : <NotFound variant="public" />
+  const { pathname, search } = useLocation()
+  const { locale } = useLocale()
+  if (!isKnownAppPath(pathname)) return <NotFound variant="public" />
+  const next = safeInternalPath(`${pathname}${search}`)
+  const login = localizePath('/giris', locale)
+  const to = next && next !== '/' ? `${login}?next=${encodeURIComponent(next)}` : login
+  return <Navigate to={to} replace />
 }
 
 /** Signed in: login/register links (known but public) go to the dashboard; unknown URLs get a 404. */
@@ -148,11 +149,11 @@ export default function App() {
               'submissions/:submissionId',
               <Gate roles={['owner', 'vet', 'clinic_owner']}><Submissions /></Gate>,
             )}
-            {dualRoutes('mesajlar', 'messages', <Gate roles={['owner', 'expert', 'admin', 'vet']}><Messages /></Gate>)}
+            {dualRoutes('mesajlar', 'messages', <Gate roles={['owner', 'expert', 'admin', 'vet', 'clinic_owner']}><Messages /></Gate>)}
             {dualRoutes(
               'mesajlar/:threadId',
               'messages/:threadId',
-              <Gate roles={['owner', 'expert', 'admin', 'vet']}><Messages /></Gate>,
+              <Gate roles={['owner', 'expert', 'admin', 'vet', 'clinic_owner']}><Messages /></Gate>,
             )}
             {dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>)}
             {dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>)}

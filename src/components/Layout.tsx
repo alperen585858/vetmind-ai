@@ -19,13 +19,17 @@ export function Layout() {
       return false
     }
   })
-  const { role, refreshBackendCases } = useApp()
+  const { role, refreshBackendCases, pushToast } = useApp()
 
   // Cases start empty after a page refresh; load them once for every signed-in page
   // (dashboards, sidebar badge) instead of relying on each page to fetch.
   useEffect(() => {
-    void refreshBackendCases()
-  }, [role, refreshBackendCases])
+    void refreshBackendCases().then((r) => {
+      if (!r.ok && r.error) {
+        pushToast({ tone: 'warning', title: r.error })
+      }
+    })
+  }, [role, refreshBackendCases, pushToast])
 
   useEffect(() => {
     const sync = () => {

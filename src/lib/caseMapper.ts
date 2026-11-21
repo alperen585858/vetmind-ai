@@ -239,7 +239,8 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     statusNote: modalityNote(s.modality, s.anatomical_region),
     modality: s.modality,
     anatomicalRegion: s.anatomical_region,
-    classificationConfirmed: s.classification_confirmed ?? true,
+    // Omit → false so list rows do not hide "confirm classification" when API leaves the field unset.
+    classificationConfirmed: s.classification_confirmed ?? false,
     studyInstanceUid: s.study_instance_uid ?? undefined,
     seriesCount: s.series_count ?? undefined,
     instanceCount: s.instance_count ?? undefined,
@@ -500,6 +501,16 @@ export function mergeBackendCases(local: VetCase[], backend: VetCase[]): VetCase
   const mergedBackend = backend.map((row) => {
     const prev = hydrated.get(row.id)
     if (!prev) return row
+    // Crossing into approved: keep AI/findings but drop draft/report so print/detail re-hydrate
+    // instead of showing "approved" with a stale draft body.
+    if (row.status === 'onaylandi' && prev.status !== 'onaylandi') {
+      return {
+        ...row,
+        ai: prev.ai,
+        backendFindings: prev.backendFindings,
+        fromBackend: true,
+      }
+    }
     return {
       ...prev,
       status: row.status,

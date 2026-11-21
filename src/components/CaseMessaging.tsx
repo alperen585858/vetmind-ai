@@ -18,42 +18,48 @@ export function CaseMessaging({
   const [messages, setMessages] = useState<BackendCaseMessage[]>([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const unread = messages.filter((m) => m.unread).length
 
-  const load = async () => {
+  useEffect(() => {
     if (!enabled) return
+    let cancelled = false
     setLoading(true)
     setError(null)
-    try {
-      const rows = await listCaseMessages(caseId)
-      setMessages(rows)
-      if (rows.some((m) => m.unread)) {
-        const marked = await markCaseMessagesRead(caseId)
-        setMessages(marked)
+    void (async () => {
+      try {
+        const rows = await listCaseMessages(caseId)
+        if (cancelled) return
+        setMessages(rows)
+        if (rows.some((m) => m.unread)) {
+          const marked = await markCaseMessagesRead(caseId)
+          if (!cancelled) setMessages(marked)
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : t('cases.messaging.loadFailed'))
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('cases.messaging.loadFailed'))
-    } finally {
-      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
-
-  useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId, enabled])
+  }, [caseId, enabled, t])
 
   const send = async () => {
     const body = text.trim()
-    if (!body) return
+    if (!body || sending) return
     setError(null)
+    setSending(true)
     try {
       const msg = await postCaseMessage(caseId, body)
       setMessages((prev) => [...prev, msg])
       setText('')
     } catch (err) {
       setError(err instanceof Error ? err.message : t('cases.messaging.sendFailed'))
+    } finally {
+      setSending(false)
     }
   }
 
@@ -124,7 +130,13 @@ export function CaseMessaging({
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <Button className="self-end" size="sm" icon={<Send className="h-3.5 w-3.5" />} onClick={() => void send()}>
+        <Button
+          className="self-end"
+          size="sm"
+          disabled={sending || !text.trim()}
+          icon={sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          onClick={() => void send()}
+        >
           {t('common.send')}
         </Button>
       </div>

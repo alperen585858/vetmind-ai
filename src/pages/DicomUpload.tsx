@@ -95,9 +95,9 @@ export default function DicomUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
-  const [patientName, setPatientName] = useState('Pax')
+  const [patientName, setPatientName] = useState('')
   const [species, setSpecies] = useState<Patient['species']>('Köpek')
-  const [breed, setBreed] = useState('Golden Retriever')
+  const [breed, setBreed] = useState('')
   const [ageYears, setAgeYears] = useState('')
   const [history, setHistory] = useState('')
   const [consent, setConsent] = useState(false)

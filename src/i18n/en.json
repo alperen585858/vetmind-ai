@@ -24,6 +24,7 @@
     "priority": "Priority",
     "date": "Date",
     "name": "Name",
+    "viewSource": "View source",
     "email": "Email",
     "password": "Password",
     "phone": "Phone",
@@ -125,6 +126,7 @@
     "Düşük": "Low"
   },
   "nav": {
+    "menuAria": "Main menu",
     "dashboard": "Dashboard",
     "expertOverview": "Overview",
     "ownerHome": "Home",
@@ -796,6 +798,10 @@
       "slaTitle": "Specialist response SLA · {hours} hours",
       "slaUrgent": " (urgent)",
       "slaBody": "{remaining}. Notifications fire as time runs down; overdue turns red.",
+      "slaOverdue": "Overdue",
+      "slaHoursMins": "{h}h {m}m",
+      "slaMins": "{m}m",
+      "slaRemainingSuffix": "left",
       "toastStoppingAnalysis": "Stopping analysis",
       "toastCancelSent": "Cancel request sent.",
       "toastStopFailed": "Could not stop analysis",
@@ -1039,7 +1045,17 @@
     "deleteConfirmYes": "Yes, delete",
     "deleting": "Deleting…",
     "deleteConfirmBody": "Permanently delete case {name} ({no})?",
-    "deleteIrreversible": "This cannot be undone. Reports, findings, and chat history are removed."
+    "deleteIrreversible": "This cannot be undone. Reports, findings, and chat history are removed.",
+    "deleted": "Case deleted",
+    "deleteFailed": "Could not delete",
+    "serverError": "Server error",
+    "bulkDeleteTitle": "Delete the selected cases?",
+    "bulkDeleteConfirm": "{count} cases will be permanently deleted. Continue?",
+    "bulkDeleteConfirmBtn": "Yes, delete {count} cases",
+    "bulkDeleteMore": "… +{count} more",
+    "bulkDeleted": "{count} cases deleted",
+    "bulkDeletePartial": "{count} cases could not be deleted.",
+    "bulkDeleteNone": "No cases could be deleted"
   },
   "sections": {
     "klinikOzet": "Technical / Clinical summary",
@@ -1189,6 +1205,7 @@
       "manualDraftStart": "Start manual draft",
       "caseDetailLink": "Case details",
       "toastDraftSaved": "Draft saved",
+      "toastDraftSaveFailed": "Could not save draft",
       "toastApproved": "Report approved",
       "nextCaseOpening": "Opening next case…",
       "openingApprovedReport": "Opening approved report…",
@@ -1426,7 +1443,9 @@
       "viewed": "Viewed",
       "delivered": "Delivered",
       "ready": "Ready",
-      "ageWeightValue": "{age} y · {weight} kg"
+      "ageWeightValue": "{age} y · {weight} kg",
+      "fullscreenHint": "A4 report · fullscreen · Esc to exit",
+      "afterApproval": "— (after approval)"
     },
     "radiologyReportTitle": "Radiology assessment report"
   },
@@ -2230,5 +2249,13 @@
       "OTHER": "Other",
       "UNKNOWN": "Unknown"
     }
+  },
+  "kb": {
+    "sourcePanelTitle": "Source [{id}]",
+    "licenseLabel": "License: {license}",
+    "section": "Section",
+    "passage": "Relevant passage",
+    "chunks": "Chunk count",
+    "demoDisclaimer": "This passage is demo sample text and is not clinical evidence."
   }
 }

@@ -49,7 +49,7 @@ export default function CaseList() {
   const { t, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
   const [q, setQ] = useState('')
-  const [status, setStatus] = useState<CaseStatus | ''>('')
+  const [status, setStatus] = useState<CaseStatus | '' | 'failed'>('')
   const [species, setSpecies] = useState('')
   const [modality, setModality] = useState<BackendModality | ''>('')
   const [expert, setExpert] = useState('')
@@ -97,7 +97,10 @@ export default function CaseList() {
     const s = q.trim().toLocaleLowerCase(intlLocale)
     return cases.filter(
       (c) =>
-        (!status || c.status === status) &&
+        (!status ||
+          (status === 'failed'
+            ? c.status === 'analiz_basarisiz' || c.status === 'reddedildi'
+            : c.status === status)) &&
         (!species || c.patient.species === species) &&
         (!modality || c.modality === modality) &&
         (!expert || expertKey(c) === expert) &&
@@ -142,14 +145,14 @@ export default function CaseList() {
       setPendingDelete(null)
       pushToast({
         tone: 'success',
-        title: 'Vaka silindi',
+        title: t('cases.deleted'),
         body: `${target.patient.name} · ${target.no}`,
       })
     } catch (err) {
       pushToast({
         tone: 'error',
-        title: 'Silinemedi',
-        body: err instanceof Error ? err.message : 'Sunucu hatası',
+        title: t('cases.deleteFailed'),
+        body: err instanceof Error ? err.message : t('cases.serverError'),
       })
     } finally {
       setDeleting(false)
@@ -170,7 +173,7 @@ export default function CaseList() {
           ok += 1
         } catch (err) {
           failures.push(
-            `${target.no}: ${err instanceof Error ? err.message : 'hata'}`,
+            `${target.no}: ${err instanceof Error ? err.message : t('cases.serverError')}`,
           )
         }
       }
@@ -178,13 +181,13 @@ export default function CaseList() {
       if (ok > 0) {
         pushToast({
           tone: failures.length ? 'warning' : 'success',
-          title: `${ok} vaka silindi`,
-          body: failures.length ? `${failures.length} vaka silinemedi.` : undefined,
+          title: t('cases.bulkDeleted', { count: ok }),
+          body: failures.length ? t('cases.bulkDeletePartial', { count: failures.length }) : undefined,
         })
       } else {
         pushToast({
           tone: 'error',
-          title: 'Hiçbir vaka silinemedi',
+          title: t('cases.bulkDeleteNone'),
           body: failures[0],
         })
       }
@@ -243,9 +246,9 @@ export default function CaseList() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStatus(status === 'analiz_basarisiz' ? '' : 'analiz_basarisiz')}
+                  onClick={() => setStatus(status === 'failed' ? '' : 'failed')}
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    status === 'analiz_basarisiz' ? 'bg-rose-400 text-rose-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
+                    status === 'failed' ? 'bg-rose-400 text-rose-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
                   }`}
                 >
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
@@ -292,7 +295,7 @@ export default function CaseList() {
                 aria-label={t('common.status')}
                 className={filterClass}
                 value={status}
-                onChange={(e) => setStatus(e.target.value as CaseStatus | '')}
+                onChange={(e) => setStatus(e.target.value as CaseStatus | '' | 'failed')}
               >
                 <option value="">{t('cases.filterAllStatuses')}</option>
                 {STATUS_ORDER.map((s) => (
@@ -447,11 +450,11 @@ export default function CaseList() {
         onClose={() => {
           if (!deleting) setPendingBulk(null)
         }}
-        title="Seçilen vakaları silmek istediğinize emin misiniz?"
+        title={t('cases.bulkDeleteTitle')}
         footer={
           <>
             <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingBulk(null)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -460,26 +463,27 @@ export default function CaseList() {
               icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               onClick={() => void confirmBulkDelete()}
             >
-              {deleting ? 'Siliniyor…' : `Evet, ${pendingBulk?.length ?? 0} vakayı sil`}
+              {deleting
+                ? t('cases.deleting')
+                : t('cases.bulkDeleteConfirmBtn', { count: pendingBulk?.length ?? 0 })}
             </Button>
           </>
         }
       >
         {pendingBulk?.length ? (
           <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              <strong className="text-navy-900">{pendingBulk.length} vaka</strong> kalıcı olarak silinecek. Emin
-              misiniz?
-            </p>
+            <p>{t('cases.bulkDeleteConfirm', { count: pendingBulk.length })}</p>
             <ul className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
               {pendingBulk.slice(0, 20).map((c) => (
                 <li key={c.id}>
                   {c.no} · {c.patient.name}
                 </li>
               ))}
-              {pendingBulk.length > 20 ? <li>… +{pendingBulk.length - 20} daha</li> : null}
+              {pendingBulk.length > 20 ? (
+                <li>{t('cases.bulkDeleteMore', { count: pendingBulk.length - 20 })}</li>
+              ) : null}
             </ul>
-            <p className="text-xs text-rose-700">Bu işlem geri alınamaz.</p>
+            <p className="text-xs text-rose-700">{t('cases.deleteIrreversible')}</p>
           </div>
         ) : null}
       </Modal>

@@ -5,6 +5,7 @@ import { useLocale } from '../context/LocaleContext'
 import { Button } from '../components/Button'
 import { Card, CardHeader } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
 import { PageHeader } from '../components/PageHeader'
 import { deleteLesson, listLessons, updateLesson, type RevisionLesson } from '../lib/backend'
 import { modalityLabel, regionLabel } from '../lib/displayClean'
@@ -16,6 +17,7 @@ export default function AiLessons() {
   const [rows, setRows] = useState<RevisionLesson[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<RevisionLesson | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -42,11 +44,15 @@ export default function AiLessons() {
       .finally(() => setBusy(null))
   }
 
-  const remove = (lesson: RevisionLesson) => {
-    if (!window.confirm(t('lessons.deleteConfirm'))) return
+  const confirmRemove = () => {
+    const lesson = pendingDelete
+    if (!lesson) return
     setBusy(lesson.lesson_id)
     void deleteLesson(lesson.lesson_id)
-      .then(() => setRows((all) => all.filter((x) => x.lesson_id !== lesson.lesson_id)))
+      .then(() => {
+        setRows((all) => all.filter((x) => x.lesson_id !== lesson.lesson_id))
+        setPendingDelete(null)
+      })
       .catch((err) =>
         pushToast({ tone: 'error', title: t('lessons.updateFailed'), body: err instanceof Error ? err.message : undefined }),
       )
@@ -123,7 +129,7 @@ export default function AiLessons() {
                     className="inline-flex items-center text-slate-400 hover:text-[color:var(--vm-danger)] disabled:opacity-50"
                     aria-label={t('lessons.delete')}
                     disabled={busy === lesson.lesson_id}
-                    onClick={() => remove(lesson)}
+                    onClick={() => setPendingDelete(lesson)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -133,6 +139,32 @@ export default function AiLessons() {
           </ul>
         )}
       </Card>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => {
+          if (!busy) setPendingDelete(null)
+        }}
+        title={t('lessons.delete')}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => setPendingDelete(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={Boolean(busy)}
+              icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              onClick={confirmRemove}
+            >
+              {t('common.delete')}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">{t('lessons.deleteConfirm')}</p>
+      </Modal>
     </>
   )
 }

@@ -55,7 +55,7 @@ export default function Modules() {
                     <dt className="flex items-center justify-center gap-1 text-[11px] text-slate-500">
                       <Database className="h-3 w-3" /> {t('admin.cases')}
                     </dt>
-                    <dd className="mt-0.5 text-lg font-semibold text-navy-900">{m.cases + cases.length}</dd>
+                    <dd className="mt-0.5 text-lg font-semibold text-navy-900">{cases.length}</dd>
                   </div>
                   <div>
                     <dt className="text-[11px] text-slate-500">{t('admin.model')}</dt>

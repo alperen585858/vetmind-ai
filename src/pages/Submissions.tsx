@@ -24,6 +24,7 @@ import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/Card'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
 import { StepIndicator } from '../components/StepIndicator'
 import { DEMO_PRICE_LABEL, DemoPaymentStep } from '../components/DemoPaymentStep'
 import { VetSubmissionsBoard } from '../components/VetSubmissionsBoard'
@@ -146,6 +147,7 @@ export default function Submissions() {
   const [paymentReady, setPaymentReady] = useState(false)
   const [drag, setDrag] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<BackendImagingSubmission | null>(null)
   const [submitLock, setSubmitLock] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -511,19 +513,19 @@ export default function Submissions() {
   const canDelete = (s: BackendImagingSubmission) =>
     (isOwner || isVet) && s.status !== 'linked' && !s.linked_case_id
 
-  const removeSubmission = async (s: BackendImagingSubmission) => {
+  const requestRemoveSubmission = (s: BackendImagingSubmission) => {
     if (!canDelete(s)) return
-    const ok = window.confirm(
-      t('submissions.toast.deleteConfirm', {
-        id: s.submission_id,
-        label: s.chief_complaint || s.clinical_notes || t('submissions.submissionFallback'),
-      }),
-    )
-    if (!ok) return
+    setPendingDelete(s)
+  }
+
+  const confirmRemoveSubmission = async () => {
+    const s = pendingDelete
+    if (!s || !canDelete(s)) return
     setBusy(`del-${s.submission_id}`)
     try {
       await deleteSubmission(s.submission_id)
       pushToast({ tone: 'success', title: t('submissions.toast.deleted'), body: s.submission_id })
+      setPendingDelete(null)
       if (routeSubmissionId === s.submission_id) navigate('/basvurular', { replace: true })
       load()
     } catch (e) {
@@ -654,7 +656,7 @@ export default function Submissions() {
           onAccept={(id) => void act(id, 'accept')}
           onRequestInfo={(id) => void act(id, 'request_info')}
           onReject={(id) => void act(id, 'reject')}
-          onDelete={(s) => void removeSubmission(s)}
+          onDelete={(s) => requestRemoveSubmission(s)}
           canDelete={canDelete}
           detail={detail}
           detailFrames={detailFrames}
@@ -1102,7 +1104,7 @@ export default function Submissions() {
                           className="text-slate-400 hover:bg-rose-50 hover:text-rose-700"
                           icon={<Trash2 className="h-3.5 w-3.5" />}
                           disabled={busy === `del-${s.submission_id}`}
-                          onClick={() => void removeSubmission(s)}
+                          onClick={() => requestRemoveSubmission(s)}
                         >
                           {t('common.delete')}
                         </Button>
@@ -1256,6 +1258,42 @@ export default function Submissions() {
           </ul>
         )}
       </Card>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => {
+          if (!busy) setPendingDelete(null)
+        }}
+        title={t('common.delete')}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => setPendingDelete(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={Boolean(busy)}
+              icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              onClick={() => void confirmRemoveSubmission()}
+            >
+              {t('common.delete')}
+            </Button>
+          </>
+        }
+      >
+        {pendingDelete ? (
+          <p className="whitespace-pre-wrap text-sm text-slate-600">
+            {t('submissions.toast.deleteConfirm', {
+              id: pendingDelete.submission_id,
+              label:
+                pendingDelete.chief_complaint ||
+                pendingDelete.clinical_notes ||
+                t('submissions.submissionFallback'),
+            })}
+          </p>
+        ) : null}
+      </Modal>
     </>
   )
 }

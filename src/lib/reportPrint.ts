@@ -67,9 +67,7 @@ export function reportProvenance(c: VetCase): ProvenanceLabel {
     sourceKindRaw === 'mock' ||
     sourceKindRaw === 'manual'
       ? sourceKindRaw
-      : c.fromBackend
-        ? 'mock'
-        : 'unknown'
+      : 'unknown'
 
   const synthetic = draft?.synthetic ?? findings?.findings?.some((f) => f.synthetic) ?? true
   const modelId = findings?.source_model_id || draft?.generation?.model_id || c.ai?.model || '—'

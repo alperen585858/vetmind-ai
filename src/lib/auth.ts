@@ -199,5 +199,9 @@ export function demoEmailForRole(role: Role): string {
  * worklist filters and notifications all use one id.
  */
 export function currentActorId(): string {
-  return loadSession()?.email ?? demoEmailForRole('expert')
+  const email = loadSession()?.email?.trim()
+  if (!email) {
+    throw new Error('No signed-in session for actor identity')
+  }
+  return email
 }

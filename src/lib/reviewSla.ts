@@ -49,14 +49,39 @@ export function compareBySlaUrgency(
   return a - b
 }
 
-export function formatSlaRemaining(reviewDueAt: string | null | undefined, now = Date.now()): string {
+export type SlaFormatLabels = {
+  overdue?: string
+  hoursMins?: (h: number, m: number) => string
+  minsOnly?: (m: number) => string
+  remainingSuffix?: string
+}
+
+/** Build SLA labels from `t('cases.detail.sla*')` keys. */
+export function slaLabelsFromT(t: (key: string, params?: Record<string, string | number>) => string): SlaFormatLabels {
+  return {
+    overdue: t('cases.detail.slaOverdue'),
+    hoursMins: (h, m) => t('cases.detail.slaHoursMins', { h, m }),
+    minsOnly: (m) => t('cases.detail.slaMins', { m }),
+    remainingSuffix: t('cases.detail.slaRemainingSuffix'),
+  }
+}
+
+export function formatSlaRemaining(
+  reviewDueAt: string | null | undefined,
+  now = Date.now(),
+  labels?: SlaFormatLabels,
+): string {
   const rem = remainingMs(reviewDueAt, now)
   if (rem == null) return '—'
-  if (rem <= 0) return 'Süresi geçmiş'
+  if (rem <= 0) return labels?.overdue ?? 'Süresi geçmiş'
   const h = Math.floor(rem / 3_600_000)
   const m = Math.floor((rem % 3_600_000) / 60_000)
-  const label = h > 0 ? `${h} sa ${m} dk` : `${Math.max(1, m)} dk`
-  return `${label} kaldı`
+  const label =
+    h > 0
+      ? labels?.hoursMins?.(h, m) ?? `${h} sa ${m} dk`
+      : labels?.minsOnly?.(Math.max(1, m)) ?? `${Math.max(1, m)} dk`
+  const suffix = labels?.remainingSuffix ?? 'kaldı'
+  return `${label} ${suffix}`.trim()
 }
 
 export function slaRowClass(tone: SlaTone): string {
