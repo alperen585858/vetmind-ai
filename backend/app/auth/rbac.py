@@ -20,8 +20,27 @@ CAP_CLINIC_MANAGE = "clinic:manage"
 CAP_USERS_ADMIN = "users:admin"
 CAP_MESSAGES = "messages:write"
 
+# Auth-off "demo" principal: enough for bitirme demo flows, NOT full admin (*).
+# Full open admin when auth is off requires VETMIND_ALLOW_INSECURE_DEMO=1
+# (see require_auth → role "service").
+_DEMO_CAPS = frozenset(
+    {
+        CAP_CASE_WRITE,
+        CAP_CASE_READ,
+        CAP_ANALYZE,
+        CAP_REVIEW,
+        CAP_DICOM,
+        CAP_DOCUMENTS,
+        CAP_RAG_SEARCH,
+        CAP_MESSAGES,
+        CAP_SUBMISSIONS,
+        CAP_PETS,
+        CAP_CLINIC_MANAGE,
+    }
+)
+
 ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
-    "demo": frozenset({"*"}),
+    "demo": _DEMO_CAPS,
     "service": frozenset({"*"}),
     "admin": frozenset({"*"}),
     "vet": frozenset(

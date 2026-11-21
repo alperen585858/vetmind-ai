@@ -4,10 +4,10 @@ import {
   ArrowUpRight,
   LayoutPanelLeft,
   Loader2,
+  MessagesSquare,
   RefreshCw,
   Search,
   Send,
-  Sparkles,
   Square,
   Trash2,
 } from 'lucide-react'
@@ -80,14 +80,20 @@ export default function ExpertAiResend() {
   }
 
   useEffect(() => {
-    load()
+    const delay = q ? 350 : 0
+    const handle = window.setTimeout(() => load(), delay)
+    return () => window.clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, modality])
+  }, [status, modality, q])
 
   const display = useMemo(() => {
-    const filtered = rows.filter((r) => RESENDABLE_STATUSES.has(String(r.status || '').toLowerCase()))
+    // When a specific status filter is set, trust the API rows. Only apply the
+    // client "resendable" gate for the default empty status (all resendable).
+    const filtered = status
+      ? rows
+      : rows.filter((r) => RESENDABLE_STATUSES.has(String(r.status || '').toLowerCase()))
     return filtered.map(summaryToVetCase)
-  }, [rows])
+  }, [rows, status])
 
   // Prefer a selected case so the stage is never a blank white void after load.
   useEffect(() => {
@@ -288,19 +294,14 @@ export default function ExpertAiResend() {
   return (
     <div className="vm-fade-up relative -mx-2 sm:-mx-1">
       {/* Viewport-locked shell: long case lists scroll inside; composer stays on screen. */}
-      <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.75rem] shadow-[0_20px_50px_-28px_rgba(11,23,40,0.45)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
-        {/* Dark case rail */}
-        <aside className="relative flex min-h-0 flex-col overflow-hidden bg-[color:var(--vm-midnight,#0b1728)] text-white">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(45,212,191,0.22),transparent_55%),radial-gradient(ellipse_at_100%_100%,rgba(14,165,233,0.12),transparent_40%)]"
-          />
-          <div className="relative border-b border-white/10 px-5 pb-4 pt-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-300/90">AI</p>
-            <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight">
+      <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+        {/* Clinical case list */}
+        <aside className="relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white text-navy-950">
+          <div className="relative border-b border-slate-200 px-5 pb-4 pt-5">
+            <h1 className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
               {t('ai.resend.title')}
             </h1>
-            <p className="mt-1 text-sm text-slate-300">{t('ai.resend.subtitle')}</p>
+            <p className="mt-1 text-sm text-slate-500">{t('ai.resend.subtitle')}</p>
 
             <div className="mt-4 space-y-2">
               <label className="relative block">
@@ -308,7 +309,7 @@ export default function ExpertAiResend() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
                 <input
                   id="ai-resend-q"
-                  className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/15 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-400/50"
+                  className="w-full rounded-lg border-0 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-navy-900 outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-navy-900/15"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && load()}
@@ -319,7 +320,7 @@ export default function ExpertAiResend() {
                 <select
                   id="ai-resend-status"
                   aria-label={t('common.status')}
-                  className="min-w-0 flex-1 rounded-xl border-0 bg-white/10 px-2.5 py-2 text-xs text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-teal-400/50 [&>option]:bg-navy-900 [&>option]:text-white"
+                  className="min-w-0 flex-1 rounded-lg border-0 bg-slate-50 px-2.5 py-2 text-xs text-navy-900 outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-navy-900/15"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                 >
@@ -334,7 +335,7 @@ export default function ExpertAiResend() {
                 <select
                   id="ai-resend-modality"
                   aria-label={t('cases.modality')}
-                  className="rounded-xl border-0 bg-white/10 px-2.5 py-2 text-xs text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-teal-400/50 [&>option]:bg-navy-900 [&>option]:text-white"
+                  className="rounded-lg border-0 bg-slate-50 px-2.5 py-2 text-xs text-navy-900 outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-navy-900/15"
                   value={modality}
                   onChange={(e) => setModality(e.target.value)}
                 >
@@ -349,7 +350,7 @@ export default function ExpertAiResend() {
                   onClick={load}
                   disabled={loading}
                   title={t('common.refresh')}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-400 text-navy-950 transition hover:bg-teal-300 disabled:opacity-50"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-navy-800 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
                 </button>
@@ -358,28 +359,28 @@ export default function ExpertAiResend() {
           </div>
 
           <div className="relative flex items-center justify-between px-5 py-3">
-            <p className="text-xs font-semibold text-slate-300">
+            <p className="text-xs font-semibold text-slate-600">
               {t('ai.resend.caseCount', { count: String(display.length) })}
             </p>
-            <p className="text-[11px] text-slate-500">{t('ai.resend.listHint')}</p>
+            <p className="text-[11px] text-slate-400">{t('ai.resend.listHint')}</p>
           </div>
 
           {error && (
-            <p className="relative mx-4 mb-2 rounded-xl bg-amber-400/15 px-3 py-2 text-xs text-amber-100" role="alert">
+            <p className="relative mx-4 mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200" role="alert">
               {error}
             </p>
           )}
 
           {loading ? (
-            <p className="relative flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-slate-400" role="status">
-              <Loader2 className="h-4 w-4 animate-spin text-teal-300" aria-hidden />
+            <p className="relative flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-slate-500" role="status">
+              <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-hidden />
               {t('ai.resend.listLoading')}
             </p>
           ) : display.length === 0 ? (
             <div className="relative flex min-h-0 flex-1 items-center justify-center p-6 text-center">
               <div>
-                <p className="font-[family-name:var(--vm-font-display)] text-base font-semibold">{t('ai.resend.emptyTitle')}</p>
-                <p className="mt-1 text-sm text-slate-400">{t('ai.resend.emptyText')}</p>
+                <p className="font-[family-name:var(--vm-font-display)] text-base font-semibold text-navy-950">{t('ai.resend.emptyTitle')}</p>
+                <p className="mt-1 text-sm text-slate-500">{t('ai.resend.emptyText')}</p>
               </div>
             </div>
           ) : (
@@ -401,24 +402,24 @@ export default function ExpertAiResend() {
                       role="option"
                       aria-selected={active}
                       onClick={() => setSelectedId(caseId)}
-                      className={`group flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                      className={`group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${
                         active
-                          ? 'bg-gradient-to-r from-teal-400 to-teal-500 text-navy-950 shadow-lg shadow-teal-900/30'
-                          : 'text-slate-200 hover:bg-white/10'
+                          ? 'bg-slate-100 text-navy-950 ring-1 ring-slate-200'
+                          : 'text-navy-800 hover:bg-slate-50'
                       }`}
                     >
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold tracking-wide ${
-                          active ? 'bg-navy-950/15 text-navy-950' : 'bg-white/10 text-teal-200'
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold tracking-wide ${
+                          active ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         {(c.modality || '—').slice(0, 2)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className={`block truncate text-sm font-semibold ${active ? 'text-navy-950' : 'text-white'}`}>
+                        <span className="block truncate text-sm font-semibold text-navy-950">
                           {c.patient.name}
                         </span>
-                        <span className={`mt-0.5 flex items-center gap-1.5 text-[11px] ${active ? 'text-navy-900/70' : 'text-slate-400'}`}>
+                        <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden />
                           <span className="truncate">{statusLabel(c.status, t)}</span>
                           {busy && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
@@ -431,7 +432,7 @@ export default function ExpertAiResend() {
                       <button
                         type="button"
                         onClick={() => stopResend(caseId)}
-                        className="shrink-0 self-center rounded-xl px-2 py-1.5 text-[11px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white"
+                        className="shrink-0 self-center rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-navy-900"
                       >
                         {t('ai.resend.stop')}
                       </button>
@@ -444,20 +445,11 @@ export default function ExpertAiResend() {
         </aside>
 
         {/* Light stage */}
-        <section className="relative flex min-h-0 flex-col overflow-hidden bg-gradient-to-br from-[#f3fbfa] via-white to-[#eef6fb]">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-16 top-0 h-56 w-56 rounded-full bg-teal-300/20 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-10 -left-10 h-40 w-40 rounded-full bg-cyan-300/15 blur-3xl"
-          />
-
+        <section className="relative flex min-h-0 flex-col overflow-hidden bg-slate-50">
           {!selectedId || !selected ? (
             <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-xl shadow-teal-600/30">
-                <Sparkles className="h-9 w-9" aria-hidden />
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-navy-900 text-white">
+                <MessagesSquare className="h-9 w-9" aria-hidden />
               </div>
               <div>
                 <p className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold text-navy-950">
@@ -468,13 +460,13 @@ export default function ExpertAiResend() {
             </div>
           ) : (
             <>
-              <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-teal-900/5 px-6 py-5">
+              <header className="relative flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-6 py-5">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
                       {selected.patient.name}
                     </h2>
-                    <span className="rounded-lg bg-teal-500/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-teal-800">
+                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-navy-800">
                       {selected.modality || '—'}
                     </span>
                   </div>
@@ -499,7 +491,7 @@ export default function ExpertAiResend() {
                   ) : (
                     <Button
                       size="sm"
-                      icon={<Sparkles className="h-3.5 w-3.5" />}
+                      icon={<RefreshCw className="h-3.5 w-3.5" />}
                       disabled={selectedAnalyzing}
                       onClick={() => void resend(selectedId)}
                     >
@@ -508,7 +500,7 @@ export default function ExpertAiResend() {
                   )}
                   <LocalizedLink
                     to={`/vakalar/${selected.id}/calisma`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/80 px-3 py-2 text-xs font-semibold text-teal-800 ring-1 ring-teal-900/10 transition hover:bg-white hover:ring-teal-500/30"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-navy-800 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:ring-slate-300"
                   >
                     <LayoutPanelLeft className="h-3.5 w-3.5" aria-hidden />
                     {t('ai.resend.workspaceLink')}
@@ -517,7 +509,7 @@ export default function ExpertAiResend() {
                     type="button"
                     onClick={() => void clearChat()}
                     disabled={!chat.length}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-slate-700 disabled:opacity-30"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
                     title={t('ai.resend.clearChat')}
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -528,7 +520,7 @@ export default function ExpertAiResend() {
               <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-6 py-4">
                 {chatLoading ? (
                   <p className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-teal-600" aria-hidden />
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-hidden />
                     {t('ai.resend.chatLoading')}
                   </p>
                 ) : chat.length === 0 ? (
@@ -543,10 +535,10 @@ export default function ExpertAiResend() {
                           key={qText}
                           type="button"
                           onClick={() => setDraft(qText)}
-                          className="group flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-navy-900 shadow-sm ring-1 ring-slate-200/70 transition hover:ring-teal-400/40"
+                          className="group flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-navy-900 shadow-sm ring-1 ring-slate-200/70 transition hover:ring-slate-300"
                         >
                           <span>{qText}</span>
-                          <ArrowUpRight className="h-4 w-4 shrink-0 text-teal-600 opacity-60 group-hover:opacity-100" aria-hidden />
+                          <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 opacity-60 group-hover:opacity-100" aria-hidden />
                         </button>
                       ))}
                     </div>
@@ -572,7 +564,7 @@ export default function ExpertAiResend() {
                 {sending && (
                   <div className="flex justify-start">
                     <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200/80">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-600" aria-hidden />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" aria-hidden />
                       {t('ai.resend.typing')}
                       <span className="font-mono tabular-nums">
                         {Math.floor(chatElapsedSec / 60)}:{String(chatElapsedSec % 60).padStart(2, '0')}
@@ -584,7 +576,7 @@ export default function ExpertAiResend() {
               </div>
 
               <form
-                className="relative shrink-0 border-t border-teal-900/5 bg-white/95 px-6 pb-4 pt-3 backdrop-blur"
+                className="relative shrink-0 border-t border-slate-200 bg-white px-6 pb-4 pt-3"
                 onSubmit={(e) => {
                   e.preventDefault()
                   if (sending) {
@@ -594,7 +586,7 @@ export default function ExpertAiResend() {
                   void sendChat()
                 }}
               >
-                <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl bg-white p-1.5 shadow-md shadow-teal-900/5 ring-1 ring-slate-200/70 transition focus-within:ring-2 focus-within:ring-teal-500/35">
+                <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200/70 transition focus-within:ring-2 focus-within:ring-navy-900/15">
                   <input
                     className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-sm text-navy-900 outline-none placeholder:text-slate-400"
                     value={draft}

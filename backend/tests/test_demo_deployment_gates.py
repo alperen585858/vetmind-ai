@@ -35,6 +35,11 @@ def _settings(tmp_path: Path, **kwargs) -> Settings:
 
 
 def _client(tmp_path: Path, **kwargs) -> TestClient:
+    import os
+
+    # Protected mode now requires an explicit scanner name (no UnavailableScanner-only boot).
+    if kwargs.get("deployment_mode") == "protected":
+        os.environ.setdefault("VETMIND_MALWARE_SCANNER", "fake_clean")
     return TestClient(
         create_app(AppContainer(repo=InMemoryCaseRepository(), settings=_settings(tmp_path, **kwargs)))
     )

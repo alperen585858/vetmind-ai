@@ -651,6 +651,16 @@ def validate_security_settings(settings: Settings) -> None:
             raise RuntimeError(
                 "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
             )
+        from app.storage.malware_scan import configured_scanner_name
+
+        scanner_name = configured_scanner_name()
+        if scanner_name not in {"fake_clean", "test", "noop_insecure"}:
+            raise RuntimeError(
+                "Protected deployment requires a configured malware scanner, but none is wired. "
+                "Set VETMIND_MALWARE_SCANNER=fake_clean only for local/CI readiness tests "
+                "(never for real PHI), or implement a real scanner adapter. "
+                "Refusing to start with UnavailableScanner-only protected mode."
+            )
         if settings.self_registration_enabled:
             clinic = (settings.self_registration_owner_clinic_id or "").strip().lower()
             if not clinic or clinic in {"clinic-demo-a", "clinic-demo", "demo"}:

@@ -13,6 +13,7 @@ from app.api.deps import get_container
 from app.auth.deps import require_capability
 from app.auth.principal import AuthPrincipal
 from app.auth.rbac import CAP_TRAINING_VERIFY
+from app.auth.tenancy import can_access_owned
 from app.container import AppContainer
 from app.ml.export_manifest import build_export_manifest
 from app.ml.training_export import (
@@ -47,14 +48,23 @@ def post_training_export(
 ) -> dict:
     """Export verified annotations as JSONL + manifest. No PatientName in rows."""
     repo = container.repo
+    isolation = bool(container.settings.tenant_isolation and container.settings.auth_enabled)
+    cases = []
     if body.case_ids:
-        cases = []
         for cid in body.case_ids[: body.max_cases]:
             row = repo.get_case(cid)
-            if row is not None:
-                cases.append(row)
+            if row is None:
+                continue
+            if not can_access_owned(principal, row, isolation=isolation):
+                continue
+            cases.append(row)
     else:
-        cases = list(repo.list_cases())[: body.max_cases]
+        for row in repo.list_cases():
+            if not can_access_owned(principal, row, isolation=isolation):
+                continue
+            cases.append(row)
+            if len(cases) >= body.max_cases:
+                break
 
     policy: VerificationFilter = body.policy  # type: ignore[assignment]
     try:

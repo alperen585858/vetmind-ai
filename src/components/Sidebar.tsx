@@ -162,7 +162,7 @@ export function Sidebar({
                     isOwner
                       ? 'bg-sky-500/15 text-sky-200 ring-sky-400/30'
                       : isExpert
-                        ? 'bg-teal-400/10 text-teal-200 ring-teal-300/25'
+                        ? 'bg-white/10 text-slate-200 ring-white/10'
                         : isClinic
                           ? 'bg-indigo-400/15 text-indigo-200 ring-indigo-300/30'
                           : isAdmin
@@ -197,9 +197,9 @@ export function Sidebar({
           </div>
         </div>
         {!collapsed && (
-          <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-navy-400 lg:block">Menü</p>
+          <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-navy-400 lg:block">{t('nav.menu')}</p>
         )}
-        <nav className={`flex-1 space-y-1 ${collapsed ? 'lg:px-2' : 'px-3'}`} aria-label="Ana menü">
+        <nav className={`flex-1 space-y-1 ${collapsed ? 'lg:px-2' : 'px-3'}`} aria-label={t('nav.mainMenuAria')}>
           {items.map((it) => (
             <NavLink
               key={it.to}
@@ -215,7 +215,7 @@ export function Sidebar({
                     ? isOwner
                       ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
                       : isExpert
-                        ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
+                        ? 'bg-white/10 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
                         : isClinic
                           ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
                           : isAdmin
@@ -252,7 +252,7 @@ export function Sidebar({
                   ? isOwner
                     ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
                     : isExpert
-                      ? 'bg-teal-500/20 text-white shadow-[inset_3px_0_0_0_#5eead4]'
+                      ? 'bg-white/10 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
                       : isClinic
                         ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
                         : isAdmin

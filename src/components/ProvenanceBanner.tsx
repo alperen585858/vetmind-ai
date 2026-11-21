@@ -91,6 +91,11 @@ export function provenanceKindFromSource(
   if (sk === 'mixed') return 'mixed'
   if (opts?.synthetic || sk === 'synthetic') return sk === 'mock' ? 'mock' : 'synthetic'
   if (sk === 'mock') return 'mock'
-  if (!sk && mode !== 'real' && mode !== 'mixed') return 'not_configured'
+  // Missing provenance must not be labeled mock/demo — show unknown/unverified.
+  if (!sk && !mode) return 'unknown'
+  if (!sk && mode !== 'real' && mode !== 'mixed' && mode !== 'mock' && mode !== 'synthetic') {
+    return 'unknown'
+  }
+  if (!sk && (mode === 'mock' || mode === 'synthetic')) return 'unknown'
   return 'unknown'
 }

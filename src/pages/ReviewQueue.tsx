@@ -57,9 +57,10 @@ export default function ReviewQueue() {
     [cases],
   )
 
+  const usingStaleFallback = Boolean(error && rows.length === 0 && localFallback.length > 0)
   const baseDisplay = rows.length
     ? rows.map(summaryToVetCase)
-    : error
+    : usingStaleFallback
       ? localFallback
       : rows.map(summaryToVetCase)
 
@@ -135,20 +136,21 @@ export default function ReviewQueue() {
   return (
     <>
       <div className="vm-fade-up relative -mx-1 space-y-4">
-        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.32),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(248,113,113,0.12),transparent_45%)]"
-          />
+        <section className="relative overflow-hidden rounded-xl border border-slate-200 bg-navy-950 px-5 py-6 text-white shadow-soft sm:px-7">
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                 {t('review.caseCountTitle', { count: display.length })}
               </p>
               <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
                 {t('review.worklistTitle')}
               </h1>
               <p className="mt-1.5 max-w-md text-sm text-slate-300">{t('review.worklistSubtitle')}</p>
+              {usingStaleFallback ? (
+                <p className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs text-amber-100 ring-1 ring-amber-300/30" role="status">
+                  {t('review.staleFallbackBanner')}
+                </p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={t('dashboard.expertFilterAria')}>
                 <button
                   type="button"

@@ -73,9 +73,7 @@ def view_report_by_token(
         if snaps:
             content = snaps[0].content
             version = snaps[0].version
-        elif draft is not None and draft.immutable and draft.status == ReportStatus.APPROVED:
-            content = draft
-            version = draft.version
+        # Do not fall back to a different approved version — token promises a specific snapshot.
     if content is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
