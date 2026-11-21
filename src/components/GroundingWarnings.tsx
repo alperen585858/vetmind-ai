@@ -1,5 +1,6 @@
 import { AlertOctagon, AlertTriangle, Info, ShieldCheck } from 'lucide-react'
 import { Card, CardHeader } from './Card'
+import { useLocale } from '../context/LocaleContext'
 import { parseWarnings, type ReviewWarning, type WarningKind } from '../lib/grounding'
 
 const STYLE: Record<WarningKind, string> = {
@@ -27,13 +28,14 @@ function Item({ w }: { w: ReviewWarning }) {
 }
 
 function isDisclaimerNote(w: { detail: string; raw: string }): boolean {
-  return /SENTETİK|klinik doğrulan|tıbbi görüntü|sentetiktir|demo \/ karma|radyolog incelemesi/i.test(
+  return /SENTETİK|klinik doğrulan|tıbbi görüntü|sentetiktir|demo \/ karma|radyolog incelemesi|SYNTHETIC|not clinical/i.test(
     `${w.detail} ${w.raw}`,
   )
 }
 
 /** Validation-layer card: grounding issues first, structural/system notes collapsed. */
 export function GroundingWarnings({ warnings, checked }: { warnings?: string[] | null; checked: boolean }) {
+  const { t } = useLocale()
   const items = parseWarnings(warnings).filter((w) => !isDisclaimerNote(w))
   const issues = items.filter((w) => w.kind !== 'system')
   const system = items.filter((w) => w.kind === 'system')
@@ -41,8 +43,14 @@ export function GroundingWarnings({ warnings, checked }: { warnings?: string[] |
   return (
     <Card className={issues.length ? 'border-amber-200' : ''}>
       <CardHeader
-        title="Doğrulama katmanı"
-        subtitle={issues.length ? `${issues.length} konu uzman dikkatini bekliyor` : checked ? 'Atıf ve ifade kontrollerinden geçti' : 'Yapısal kontroller'}
+        title={t('kb.groundingTitle')}
+        subtitle={
+          issues.length
+            ? t('kb.groundingIssues', { count: issues.length })
+            : checked
+              ? t('kb.groundingPassed')
+              : t('kb.groundingStructural')
+        }
         icon={issues.length ? <AlertTriangle className="h-5 w-5 text-amber-600" /> : <ShieldCheck className="h-5 w-5 text-emerald-600" />}
       />
       {issues.length > 0 && (
@@ -53,7 +61,7 @@ export function GroundingWarnings({ warnings, checked }: { warnings?: string[] |
       {system.length > 0 && (
         <details className="border-t border-slate-100 px-5 py-3 text-xs text-slate-600">
           <summary className="flex cursor-pointer items-center gap-1.5 font-medium">
-            <Info className="h-3.5 w-3.5" /> Sistem notları ({system.length})
+            <Info className="h-3.5 w-3.5" /> {t('kb.groundingSystemNotes', { count: system.length })}
           </summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {system.map((w) => <li key={w.raw}>{w.detail}</li>)}

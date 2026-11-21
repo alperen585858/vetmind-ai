@@ -383,8 +383,8 @@ export default function ReportList() {
               onChange={(e) => setSpecies(e.target.value)}
             >
               <option value="">{t('cases.filterAllSpecies')}</option>
-              <option>Köpek</option>
-              <option>Kedi</option>
+              <option value="Köpek">{t('species.dog')}</option>
+              <option value="Kedi">{t('species.cat')}</option>
             </select>
             <select
               aria-label={t('reports.filterDelivery')}
@@ -545,14 +545,16 @@ export default function ReportList() {
                             {t('reports.revise')}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-700"
-                          onClick={() => setPendingDelete(c)}
-                          aria-label={t('reports.deleteReportAria', { name: c.patient.name })}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </button>
+                        {canBulkDelete ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-700"
+                            onClick={() => setPendingDelete(c)}
+                            aria-label={t('reports.deleteReportAria', { name: c.patient.name })}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </li>

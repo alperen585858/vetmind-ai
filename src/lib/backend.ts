@@ -116,7 +116,24 @@ function parseApiDetail(detail: unknown): {
   if (typeof detail === 'string') {
     return { message: detail }
   }
-  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+  // FastAPI 422 validation: detail is [{ loc, msg, type }, ...]
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((item) => {
+        if (!item || typeof item !== 'object') return formatDetail(item)
+        const row = item as Record<string, unknown>
+        if (typeof row.msg === 'string') return row.msg
+        if (typeof row.message === 'string') return row.message
+        return formatDetail(item)
+      })
+      .filter(Boolean)
+    return {
+      message: msgs.length ? msgs.join('; ') : 'Validation failed',
+      code: 'validation_error',
+      params: msgs.length > 1 ? { count: msgs.length } : undefined,
+    }
+  }
+  if (detail && typeof detail === 'object') {
     const obj = detail as Record<string, unknown>
     const message =
       typeof obj.message === 'string'
@@ -196,6 +213,9 @@ export function refreshBackendSession(): Promise<boolean> {
 }
 
 function applySessionDemoHeaders(headers: Headers): void {
+  // Never send demo attribution alongside a JWT — backend ignores it when auth is on,
+  // but the client must not imply a different actor than Authorization.
+  if (getBackendAccessToken()) return
   const session = loadSession()
   if (session?.role && session?.email) {
     if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)
@@ -944,10 +964,31 @@ export async function analyzeCaseAsyncAndWait(
         status === 'timed_out'
       if (terminal) {
         throwIfAborted(signal, job.job_id)
-        // Findings/report are often absent on failed jobs — never let those 404s mask the job error.
+        if (status === 'failed' || status === 'cancelled' || status === 'timed_out') {
+          // Findings/report are often absent on failed jobs — never let those 404s mask the job error.
+          void request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal }).catch(() => null)
+          const detail =
+            (polled.error_message && String(polled.error_message).trim()) ||
+            `Async analyze ended with status=${status}.`
+          throw new ApiError({
+            status: status === 'timed_out' ? 504 : 502,
+            message: detail,
+            code: status === 'timed_out' ? 'analyze_job_timed_out' : 'analyze_job_failed',
+            detail: polled,
+          })
+        }
+        // Completed: allow missing findings/report (404) but surface auth/server failures.
+        const softGet = async <T,>(path: string): Promise<T | null> => {
+          try {
+            return await request<T>(path, { signal })
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 404) return null
+            throw err
+          }
+        }
         const [findings, report, caseRecord] = await Promise.all([
-          request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal }).catch(() => null),
-          request<BackendDraftReport | null>(`/cases/${caseId}/report`, { signal }).catch(() => null),
+          softGet<BackendFindings | null>(`/cases/${caseId}/findings`),
+          softGet<BackendDraftReport | null>(`/cases/${caseId}/report`),
           (async () => {
             let lastErr: unknown
             for (let attempt = 0; attempt < 3; attempt++) {
@@ -958,19 +999,9 @@ export async function analyzeCaseAsyncAndWait(
                 await sleep(150 * (attempt + 1), signal)
               }
             }
-            // Job already finished; prefer surfacing the pipeline error over a transient case GET miss.
-            if (status === 'failed' || status === 'cancelled' || status === 'timed_out') {
-              return null
-            }
             throw lastErr instanceof Error ? lastErr : new Error('Case not found.')
           })(),
         ])
-        if (status === 'failed' || status === 'cancelled' || status === 'timed_out') {
-          const detail =
-            (polled.error_message && String(polled.error_message).trim()) ||
-            `Async analyze ended with status=${status}.`
-          throw new Error(detail)
-        }
         const outcome =
           (polled.outcome as BackendPipelineResult['outcome'] | null) ??
           (caseRecord?.status === 'manual_review' ? 'unsupported' : 'success')
@@ -987,9 +1018,7 @@ export async function analyzeCaseAsyncAndWait(
           findings,
           report,
           messages: [
-            status === 'completed'
-              ? 'Async analyze completed.'
-              : `Async analyze ended with status=${status}.`,
+            'Async analyze completed.',
             opts?.cancelBackendOnAbort
               ? 'Client abort also requests backend job cancel when enabled.'
               : 'Client poll abort does not cancel the backend job.',
@@ -999,7 +1028,12 @@ export async function analyzeCaseAsyncAndWait(
       await sleep(intervalMs, signal)
       intervalMs = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5))
     }
-    throw new Error(`Analyze job ${job.job_id} timed out (last status=${status}).`)
+    throw new ApiError({
+      status: 504,
+      message: `Analyze job ${job.job_id} timed out (last status=${status}).`,
+      code: 'analyze_job_timed_out',
+      detail: { job_id: job.job_id, status },
+    })
   } catch (err) {
     if (err instanceof PollingCancelledError) {
       await cancelBackendIfNeeded()
@@ -1253,6 +1287,7 @@ export async function listBackendWorklist(filters?: {
   priority?: string
   assigned_to?: string
   q?: string
+  signal?: AbortSignal
 }): Promise<BackendCaseSummary[]> {
   const params = new URLSearchParams()
   if (filters?.status) params.set('status', filters.status)
@@ -1261,7 +1296,9 @@ export async function listBackendWorklist(filters?: {
   if (filters?.assigned_to) params.set('assigned_to', filters.assigned_to)
   if (filters?.q) params.set('q', filters.q)
   const qs = params.toString()
-  return request<BackendCaseSummary[]>(`/cases/worklist${qs ? `?${qs}` : ''}`)
+  return request<BackendCaseSummary[]>(`/cases/worklist${qs ? `?${qs}` : ''}`, {
+    signal: filters?.signal,
+  })
 }
 
 export async function updateCaseAssignment(

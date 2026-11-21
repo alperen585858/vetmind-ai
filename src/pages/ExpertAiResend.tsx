@@ -63,22 +63,27 @@ export default function ExpertAiResend() {
   const abortByIdRef = useRef<Record<string, AbortController>>({})
   const chatAbortRef = useRef<AbortController | null>(null)
   const loadGenRef = useRef(0)
+  const loadAbortRef = useRef<AbortController | null>(null)
 
   const load = () => {
     const gen = ++loadGenRef.current
+    loadAbortRef.current?.abort()
+    const ac = new AbortController()
+    loadAbortRef.current = ac
     setLoading(true)
     setError(null)
     void listBackendWorklist({
       status: status || undefined,
       modality: modality || undefined,
       q: q || undefined,
+      signal: ac.signal,
     })
       .then((next) => {
         if (gen !== loadGenRef.current) return
         setRows(next)
       })
       .catch((err) => {
-        if (gen !== loadGenRef.current) return
+        if (gen !== loadGenRef.current || ac.signal.aborted) return
         setError(err instanceof Error ? err.message : t('ai.resend.listFailed'))
         setRows([])
       })
@@ -90,7 +95,10 @@ export default function ExpertAiResend() {
   useEffect(() => {
     const delay = q ? 350 : 0
     const handle = window.setTimeout(() => load(), delay)
-    return () => window.clearTimeout(handle)
+    return () => {
+      window.clearTimeout(handle)
+      loadAbortRef.current?.abort()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, modality, q])
 

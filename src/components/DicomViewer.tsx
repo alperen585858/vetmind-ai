@@ -66,13 +66,13 @@ export type AnnotateCommitPayload = {
   frameIndex?: number | null
 }
 
-const PRESETS: { id: string; label: string; wc: number; ww: number }[] = [
-  { id: 'auto', label: 'Otomatik', wc: 0, ww: 0 },
-  { id: 'soft', label: 'Yumuşak', wc: 40, ww: 400 },
-  { id: 'brain', label: 'Beyin', wc: 40, ww: 80 },
-  { id: 'bone', label: 'Kemik', wc: 300, ww: 1500 },
-  { id: 'lung', label: 'Akciğer', wc: -600, ww: 1500 },
-  { id: 'abdomen', label: 'Batın', wc: 40, ww: 350 },
+const PRESET_DEFS: { id: string; labelKey: string; wc: number; ww: number }[] = [
+  { id: 'auto', labelKey: 'dicom.viewer.presetAuto', wc: 0, ww: 0 },
+  { id: 'soft', labelKey: 'dicom.viewer.presetSoft', wc: 40, ww: 400 },
+  { id: 'brain', labelKey: 'dicom.viewer.presetBrain', wc: 40, ww: 80 },
+  { id: 'bone', labelKey: 'dicom.viewer.presetBone', wc: 300, ww: 1500 },
+  { id: 'lung', labelKey: 'dicom.viewer.presetLung', wc: -600, ww: 1500 },
+  { id: 'abdomen', labelKey: 'dicom.viewer.presetAbdomen', wc: 40, ww: 350 },
 ]
 
 function ToolButton({
@@ -487,7 +487,7 @@ export function DicomViewer({
           flipV,
         })
       } catch (err) {
-        setAnnotateError(err instanceof Error ? err.message : 'Annotate view not allowed')
+        setAnnotateError(err instanceof Error ? err.message : t('dicom.viewer.annotateViewBlocked'))
         return
       }
       const pt = canvasLocalPoint(e)
@@ -646,7 +646,7 @@ export function DicomViewer({
   const commitAnnotate = async () => {
     if (!draftAnnotate || !frame?.cols || !frame.rows || !onAnnotateCommit) return
     if (!bboxValidForSave(draftAnnotate.box, frame.cols, frame.rows)) {
-      setAnnotateError('Kutu çok küçük veya görüntü dışında.')
+      setAnnotateError(t('dicom.viewer.annotateTooSmall'))
       return
     }
     setAnnotateBusy(true)
@@ -661,7 +661,7 @@ export function DicomViewer({
       })
       setDraftAnnotate(null)
     } catch (err) {
-      setAnnotateError(err instanceof Error ? err.message : 'Kayıt başarısız')
+      setAnnotateError(err instanceof Error ? err.message : t('dicom.viewer.annotateSaveFailed'))
     } finally {
       setAnnotateBusy(false)
     }
@@ -732,7 +732,7 @@ export function DicomViewer({
       setWw(aw.width)
       return
     }
-    const p = PRESETS.find((x) => x.id === id)
+    const p = PRESET_DEFS.find((x) => x.id === id)
     if (p) {
       setWc(p.wc)
       setWw(p.ww)
@@ -907,15 +907,15 @@ export function DicomViewer({
           {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </ToolButton>
         <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
-        {PRESETS.map((p) => (
+        {PRESET_DEFS.map((p) => (
           <button
             key={p.id}
             type="button"
-            title={`${p.label} preset`}
+            title={t(p.labelKey)}
             onClick={() => applyPreset(p.id)}
             className="rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 hover:text-white"
           >
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
         <span className="ml-auto max-w-[50%] truncate font-mono text-[10px] tabular-nums text-slate-400">

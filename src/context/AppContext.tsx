@@ -17,7 +17,9 @@ import {
   getBackendCase,
   getUserSettings,
   listBackendCases,
+  listCustomRagDocuments,
 } from '../lib/backend'
+import { today } from '../lib/format'
 import { canonicalizeCaseId } from '../lib/caseId'
 import { mergeBackendCases, recordToVetCase, summaryToVetCase } from '../lib/caseMapper'
 import { clearDicomCaseCache } from '../lib/dicomCaseCache'
@@ -137,6 +139,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshAuthMode()
   }, [refreshAuthMode])
+
+  // Merge seed KB with custom RAG documents so admin Modules / SourcePanel stay in sync with the API.
+  useEffect(() => {
+    if (!session && !role) {
+      setKb(KB_SOURCES)
+      return
+    }
+    let cancelled = false
+    void listCustomRagDocuments()
+      .then((docs) => {
+        if (cancelled) return
+        const custom: KbSource[] = docs.map((d, i) => {
+          const [type, license] = d.section.split(' · ')
+          return {
+            id: 20_000 + i,
+            title: d.title,
+            type: (['Kitap', 'Bilimsel yayın', 'VRM örnek rapor'].includes(type)
+              ? type
+              : 'Bilimsel yayın') as KbSource['type'],
+            license: license === 'İzinli' ? 'İzinli' : 'Beklemede',
+            section: d.section || 'Custom',
+            passage: d.passage,
+            chunks: 1,
+            indexedAt: today(),
+            keywords: d.keywords || [],
+            ragApproved: Boolean(d.approved),
+          }
+        })
+        setKb([...custom, ...KB_SOURCES])
+      })
+      .catch(() => {
+        if (!cancelled) setKb(KB_SOURCES)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session?.email, role])
 
   const applyUserProfile = useCallback((patch: UserProfilePatch) => {
     setProfileOverride((prev) => ({

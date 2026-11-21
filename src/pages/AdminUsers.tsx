@@ -22,7 +22,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('demo1234')
+  const [password, setPassword] = useState('')
   const [role, setRole] = useState('vet')
   const [clinic, setClinic] = useState(DEFAULT_CLINIC)
   const [saving, setSaving] = useState(false)
@@ -57,6 +57,7 @@ export default function AdminUsers() {
         display_name: email.split('@')[0],
       })
       setEmail('')
+      setPassword('')
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('admin.createFail'))
@@ -171,7 +172,7 @@ export default function AdminUsers() {
               {t('admin.clinicId')}
               <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
             </label>
-            <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@')}>
+            <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@') || password.length < 8}>
               {saving ? t('admin.saving') : t('admin.create')}
             </Button>
           </div>

@@ -108,7 +108,7 @@ export default function KnowledgeBase() {
       } catch (err) {
         setHits(localSearch(query, kbSources))
         if (!(err instanceof BackendUnavailableError)) {
-          pushToast({ tone: 'warning', title: 'Sunucu araması kullanılamadı', body: 'Örnek kaynaklarda arandı.' })
+          pushToast({ tone: 'warning', title: t('kb.serverSearchUnavailable'), body: t('kb.serverSearchFallback') })
         }
       } finally {
         setLoading(false)
@@ -126,11 +126,11 @@ export default function KnowledgeBase() {
       setForm(emptyForm)
       pushToast({
         tone: 'success',
-        title: 'Kaynak indekslendi',
-        body: 'Demo vektör deposuna eklendi; klinik onaylı bilgi bankası değildir.',
+        title: t('kb.sourceIndexed'),
+        body: t('kb.sourceIndexedBody'),
       })
     } catch (err) {
-      pushToast({ tone: 'error', title: 'Kaynak eklenemedi', body: err instanceof Error ? err.message : undefined })
+      pushToast({ tone: 'error', title: t('kb.sourceAddFailed'), body: err instanceof Error ? err.message : undefined })
     } finally {
       setSaving(false)
     }

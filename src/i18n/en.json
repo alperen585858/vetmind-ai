@@ -823,6 +823,10 @@
       "rowAgeWeight": "Age / weight",
       "rowComplaint": "Complaint",
       "rowOnset": "Onset",
+      "rowCourse": "Course",
+      "rowClinicVet": "Clinic / Vet",
+      "rowReport": "Report",
+      "rowHyperesthesia": "Spinal hyperesthesia",
       "rowHistory": "Clinical history",
       "rowMedications": "Medications",
       "addClinicalNote": "Add clinical note (previous history is kept)",
@@ -1073,6 +1077,11 @@
     "approve": "Approve",
     "reject": "Reject",
     "requestRevision": "Request revision",
+    "overlayOn": "Overlay: on",
+    "overlayOff": "Overlay: off",
+    "overlayBoxes": "{count} verified boxes",
+    "overlayHidden": "Markings hidden",
+    "approveBlockedValidation": "Draft validation_failed — approval blocked; fix citations.",
     "queue": "Worklist",
     "queueEmpty": "No cases in queue",
     "slaOk": "Within SLA",
@@ -1292,7 +1301,18 @@
     "preconditions": "Preconditions not met",
     "analysisRunning": "Analysis running… Press Cancel to stop.",
     "operationFailed": "Operation failed",
-    "validationError": "Validation error"
+    "validationError": "Validation error",
+    "viewer": {
+      "annotateTooSmall": "Box is too small or outside the image.",
+      "annotateSaveFailed": "Save failed",
+      "annotateViewBlocked": "Annotation is not allowed with this view transform.",
+      "presetAuto": "Auto",
+      "presetSoft": "Soft tissue",
+      "presetBrain": "Brain",
+      "presetBone": "Bone",
+      "presetLung": "Lung",
+      "presetAbdomen": "Abdomen"
+    }
   },
   "reports": {
     "title": "Reports",
@@ -2256,6 +2276,16 @@
     "section": "Section",
     "passage": "Relevant passage",
     "chunks": "Chunk count",
-    "demoDisclaimer": "This passage is demo sample text and is not clinical evidence."
+    "demoDisclaimer": "This passage is demo sample text and is not clinical evidence.",
+    "serverSearchUnavailable": "Server search unavailable",
+    "serverSearchFallback": "Searched sample sources instead.",
+    "sourceIndexed": "Source indexed",
+    "sourceIndexedBody": "Added to the demo vector store; not a clinically approved knowledge base.",
+    "sourceAddFailed": "Could not add source",
+    "groundingTitle": "Validation layer",
+    "groundingIssues": "{count} issues need specialist attention",
+    "groundingPassed": "Passed citation and wording checks",
+    "groundingStructural": "Structural checks",
+    "groundingSystemNotes": "System notes ({count})"
   }
 }

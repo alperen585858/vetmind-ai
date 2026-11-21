@@ -760,12 +760,12 @@ export default function RadiologistWorkspace() {
                 aria-pressed={overlaysVisible}
                 onClick={() => setOverlaysVisible((v) => !v)}
               >
-                {overlaysVisible ? 'Overlay: açık' : 'Overlay: kapalı'}
+                {overlaysVisible ? t('review.overlayOn') : t('review.overlayOff')}
               </Button>
               <span className="text-[11px] text-slate-500">
                 {overlaysVisible
-                  ? `${viewerOverlays.length} doğrulanmış kutu`
-                  : 'İşaretlemeler gizli'}
+                  ? t('review.overlayBoxes', { count: viewerOverlays.length })
+                  : t('review.overlayHidden')}
               </span>
             </div>
             <DicomViewer
@@ -919,7 +919,7 @@ export default function RadiologistWorkspace() {
                 onClick={() => setModal('approve')}
                 title={
                   validationFailed
-                    ? 'Taslak validation_failed — onay kapalı; alıntıları düzeltin.'
+                    ? t('review.approveBlockedValidation')
                     : undefined
                 }
               >

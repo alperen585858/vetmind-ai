@@ -222,6 +222,16 @@ body:has([data-role='expert']) {
 html {
   -webkit-font-smoothing: antialiased;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-pulse,
+  .animate-fade-up,
+  .animate-slide-in {
+    animation: none !important;
+  }
+}
+
 body {
   font-family: var(--vm-font-body);
   background:

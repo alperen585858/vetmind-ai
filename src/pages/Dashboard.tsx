@@ -145,10 +145,17 @@ function VetDashboard() {
 
   useEffect(() => {
     void refreshBackendCases()
-    void getClinicDashboard({ q: q || undefined })
-      .then(setStats)
-      .catch(() => setStats(null))
-  }, [refreshBackendCases, q])
+  }, [refreshBackendCases])
+
+  // Debounce clinic dashboard search so typing does not spam the API (local filter still uses `q`).
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void getClinicDashboard({ q: q || undefined })
+        .then(setStats)
+        .catch(() => setStats(null))
+    }, q ? 350 : 0)
+    return () => window.clearTimeout(handle)
+  }, [q])
 
   useEffect(() => {
     void listSubmissions()

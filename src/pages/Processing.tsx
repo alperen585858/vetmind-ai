@@ -22,7 +22,6 @@ import { Button } from '../components/Button'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { CaseWorkflowStepper } from '../components/CaseWorkflowStepper'
-import { CLINIC } from '../data/mock'
 import { buildAssessment, makeDocument } from '../data/templates'
 import { localize } from '../lib/neuroLocalization'
 import { nowStamp, today } from '../lib/format'
@@ -140,11 +139,11 @@ function buildCaseFromHandoff(
     neutered: true,
     age: Number.isFinite(parsedAge) ? parsedAge : 0,
     weight: 0,
-    ownerName: handoff.ownerName || 'Sahip',
+    ownerName: handoff.ownerName || t('reports.doc.owner'),
     ownerPhone: '',
   }
   const clinical: ClinicalInfo = {
-    complaint: handoff.history.split('\n')[0] || 'DICOM inceleme',
+    complaint: handoff.history.split('\n')[0] || t('dicom.title'),
     onset: 'Akut',
     course: 'Progresif',
     history: handoff.history,
@@ -203,7 +202,7 @@ function buildCaseFromHandoff(
     module: 'Nöroloji',
     priority,
     createdAt: today(),
-    clinic: CLINIC,
+    clinic: '',
     vetName: handoff.vetName,
     ai: built.ai,
     aiDraft: built.draft,

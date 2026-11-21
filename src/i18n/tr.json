@@ -823,6 +823,10 @@
       "rowAgeWeight": "Yaş / Kilo",
       "rowComplaint": "Şikâyet",
       "rowOnset": "Başlangıç",
+      "rowCourse": "Seyir",
+      "rowClinicVet": "Klinik / Hekim",
+      "rowReport": "Rapor",
+      "rowHyperesthesia": "Spinal hiperestezi",
       "rowHistory": "Klinik geçmiş",
       "rowMedications": "İlaçlar",
       "addClinicalNote": "Klinik not ekle (önceki öykü korunur)",
@@ -1073,6 +1077,11 @@
     "approve": "Onayla",
     "reject": "Reddet",
     "requestRevision": "Revizyon iste",
+    "overlayOn": "Overlay: açık",
+    "overlayOff": "Overlay: kapalı",
+    "overlayBoxes": "{count} doğrulanmış kutu",
+    "overlayHidden": "İşaretlemeler gizli",
+    "approveBlockedValidation": "Taslak validation_failed — onay kapalı; alıntıları düzeltin.",
     "queue": "İş listesi",
     "queueEmpty": "Kuyrukta vaka yok",
     "slaOk": "SLA içinde",
@@ -1292,7 +1301,18 @@
     "preconditions": "Önkoşullar sağlanmadı",
     "analysisRunning": "Analiz sürüyor… Durdurmak için İptal'e basın.",
     "operationFailed": "İşlem başarısız",
-    "validationError": "Doğrulama hatası"
+    "validationError": "Doğrulama hatası",
+    "viewer": {
+      "annotateTooSmall": "Kutu çok küçük veya görüntü dışında.",
+      "annotateSaveFailed": "Kayıt başarısız",
+      "annotateViewBlocked": "Bu görünüm dönüşümünde işaretleme yapılamaz.",
+      "presetAuto": "Otomatik",
+      "presetSoft": "Yumuşak",
+      "presetBrain": "Beyin",
+      "presetBone": "Kemik",
+      "presetLung": "Akciğer",
+      "presetAbdomen": "Batın"
+    }
   },
   "reports": {
     "title": "Raporlar",
@@ -2256,6 +2276,16 @@
     "section": "Bölüm",
     "passage": "İlgili pasaj",
     "chunks": "Parça (chunk) sayısı",
-    "demoDisclaimer": "Bu pasaj demo amaçlı örnek metindir; klinik kanıt değildir."
+    "demoDisclaimer": "Bu pasaj demo amaçlı örnek metindir; klinik kanıt değildir.",
+    "serverSearchUnavailable": "Sunucu araması kullanılamadı",
+    "serverSearchFallback": "Örnek kaynaklarda arandı.",
+    "sourceIndexed": "Kaynak indekslendi",
+    "sourceIndexedBody": "Demo vektör deposuna eklendi; klinik onaylı bilgi bankası değildir.",
+    "sourceAddFailed": "Kaynak eklenemedi",
+    "groundingTitle": "Doğrulama katmanı",
+    "groundingIssues": "{count} konu uzman dikkatini bekliyor",
+    "groundingPassed": "Atıf ve ifade kontrollerinden geçti",
+    "groundingStructural": "Yapısal kontroller",
+    "groundingSystemNotes": "Sistem notları ({count})"
   }
 }

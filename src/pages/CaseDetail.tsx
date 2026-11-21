@@ -805,7 +805,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
                   }
                 />
               ) : null}
-              <Row k="Klinik / Hekim" v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
+              <Row k={t('cases.detail.rowClinicVet')} v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
               <Row k={t('cases.detail.rowPriorityAssign')} v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
             </dl>
             {isVet && c.fromBackend && caseKey.startsWith('case-') && (
@@ -887,7 +887,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
             <dl className="divide-y divide-slate-50 px-5 py-2">
               <Row k={t('cases.detail.rowComplaint')} v={cleanClinicalHistory(c.clinical.complaint) || '—'} />
               <Row k={t('cases.detail.rowOnset')} v={c.clinical.onset} />
-              <Row k="Seyir" v={c.clinical.course} />
+              <Row k={t('cases.detail.rowCourse')} v={c.clinical.course} />
               <Row k={t('cases.detail.rowHistory')} v={cleanClinicalHistory(c.clinical.history) || '—'} />
               <Row k={t('cases.detail.rowMedications')} v={c.clinical.medications || '—'} />
             </dl>
@@ -1097,7 +1097,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
             <Row k={t('cases.detail.rowAnalysis')} v={analysisStatusLabel(c.status, t)} />
             <Row k={t('cases.detail.rowExpertReview')} v={expertReviewLabel(c.status, t)} />
             <Row
-              k="Rapor"
+              k={t('cases.detail.rowReport')}
               v={
                 c.status === 'onaylandi' ? (
                   <LocalizedLink className="font-medium text-teal-700 hover:underline" to={`/raporlar/${c.id}`}>
@@ -1134,7 +1134,7 @@ function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
             <dl className="divide-y divide-slate-50">
               <Row k={t('cases.detail.rowCranialNerves')} v={n.cranialNerves.join(', ') || 'Normal'} />
               <Row k={t('cases.detail.rowDeepPain')} v={n.deepPain === 'Değerlendirilmedi' ? <span className="font-medium text-amber-700">{t('cases.detail.notAssessed')}</span> : n.deepPain} />
-              <Row k="Spinal hiperestezi" v={n.hyperesthesia} />
+              <Row k={t('cases.detail.rowHyperesthesia')} v={n.hyperesthesia} />
             </dl>
           </div>
         </Card>

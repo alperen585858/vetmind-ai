@@ -5,7 +5,6 @@ import {
   ChevronRight,
   FolderOpen,
   Image as ImageIcon,
-  MoreHorizontal,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -290,16 +289,7 @@ export function CaseTable({
                       <Trash2 className="h-3.5 w-3.5" aria-hidden />
                       {t('common.delete')}
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-navy-700"
-                      aria-label={t('cases.moreActions')}
-                      onClick={() => nav(`/vakalar/${c.id}`)}
-                    >
-                      <MoreHorizontal className="h-4 w-4" aria-hidden />
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </td>
             </tr>
