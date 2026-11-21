@@ -310,14 +310,15 @@ export default function ExpertAiResend() {
   return (
     <div className="vm-fade-up relative -mx-2 sm:-mx-1">
       {/* Viewport-locked shell: long case lists scroll inside; composer stays on screen. */}
-      <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+      <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_16px_48px_-24px_rgba(11,23,40,0.35)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
         {/* Clinical case list */}
-        <aside className="relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white text-navy-950">
-          <div className="relative border-b border-slate-200 px-5 pb-4 pt-5">
-            <h1 className="font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
+        <aside className="relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-gradient-to-b from-violet-50/50 to-white text-navy-950">
+          <div className="relative border-b border-slate-200/80 px-5 pb-4 pt-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700/80">AI</p>
+            <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-navy-950">
               {t('ai.resend.title')}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">{t('ai.resend.subtitle')}</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">{t('ai.resend.subtitle')}</p>
 
             <div className="mt-4 space-y-2">
               <label className="relative block">

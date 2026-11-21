@@ -34,9 +34,14 @@ export default function Modules() {
         {MODULES.map((m) => {
           const active = m.status === 'Aktif'
           return (
-            <Card key={m.key} className={`flex flex-col p-6 ${active ? 'ring-2 ring-teal-500' : 'bg-slate-50/60'}`}>
+            <Card
+              key={m.key}
+              className={`flex flex-col p-6 transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                active ? 'ring-2 ring-teal-500/80' : 'opacity-95'
+              }`}
+            >
               <div className="flex items-start justify-between">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${active ? 'bg-gradient-to-br from-teal-400 to-teal-700 text-white' : 'bg-slate-200 text-slate-400'}`}>{ICONS[m.key]}</div>
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-sm ${active ? 'bg-gradient-to-br from-teal-400 to-teal-700 text-white' : 'bg-slate-200 text-slate-400'}`}>{ICONS[m.key]}</div>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
                   {t(moduleStatusKey(m.status))}
                 </span>

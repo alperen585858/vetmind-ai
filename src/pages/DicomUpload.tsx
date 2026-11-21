@@ -950,6 +950,11 @@ export default function DicomUpload() {
         }
       />
 
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-navy-950 to-teal-900 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('dicom.title')}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('dicom.pageSubtitle')}</p>
+      </div>
+
       {/* STATE A — before upload */}
       {!hasStudy && (
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)]">
@@ -960,8 +965,8 @@ export default function DicomUpload() {
             {demoSection}
           </div>
           <Card className="overflow-hidden lg:sticky lg:top-4">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 sm:px-6">
-              <h2 className="text-base font-semibold text-navy-900">Hasta ve sipariş</h2>
+            <div className="border-b border-slate-100 bg-gradient-to-r from-teal-50/80 to-white px-5 py-4 sm:px-6">
+              <h2 className="font-display text-base font-bold text-navy-900">Hasta ve sipariş</h2>
               <p className="mt-0.5 text-sm text-slate-500">Analiz öncesi klinik bilgiler</p>
             </div>
             <div className="p-5 sm:p-6">{clinicalPanel}</div>

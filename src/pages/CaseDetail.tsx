@@ -273,9 +273,9 @@ export default function CaseDetail() {
             >
               ← {role === 'expert' ? t('cases.detail.backToQueue') : t('cases.detail.backToCases')}
             </LocalizedLink>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">{t('cases.detail.patientCaseHeader')}</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">{c.patient.name}</h1>
-            <p className="mt-1 text-sm text-slate-300">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">{t('cases.detail.patientCaseHeader')}</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-[2rem]">{c.patient.name}</h1>
+            <p className="mt-1.5 text-sm text-slate-300">
               {c.patient.species} · {c.patient.breed} · {t('cases.detail.ageWeight', { age: c.patient.age, weight: c.patient.weight })} · {c.patient.sex}
             </p>
             <p className="mt-1 text-sm text-slate-400">

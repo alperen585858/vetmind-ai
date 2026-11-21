@@ -675,6 +675,10 @@ export default function Submissions() {
         subtitle={t('submissions.uploadSubtitle', { price: DEMO_PRICE_LABEL })}
         crumbs={[{ label: t('common.home'), to: '/' }, { label: t('submissions.uploadTitle') }]}
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-sky-950 via-navy-900 to-teal-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300/90">{t('submissions.uploadTitle')}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('submissions.uploadSubtitleShort', { price: DEMO_PRICE_LABEL })}</p>
+      </div>
       {error && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           <ErrorDetails raw={error} />

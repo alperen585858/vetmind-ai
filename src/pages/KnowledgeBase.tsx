@@ -209,14 +209,14 @@ export default function KnowledgeBase() {
         }
       />
 
-      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] border border-amber-200/80 bg-gradient-to-r from-amber-50 to-white px-5 py-4 text-sm text-amber-950 shadow-sm">
         <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-300">
           {t('admin.demoFiction')}
         </span>
         {t('admin.kbDemoNote', { count: seedSources.length })}
       </div>
 
-      <Card className="mb-6">
+      <Card className="mb-6 overflow-hidden">
         <CardHeader title={t('admin.lexicalSearch')} subtitle={t('admin.lexicalSearchSub')} icon={<Sparkles className="h-5 w-5" />} />
         <div className="p-5">
           <form
@@ -227,14 +227,14 @@ export default function KnowledgeBase() {
             className="flex flex-col gap-3 sm:flex-row"
           >
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('admin.searchPlaceholder')} />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600/70" />
+              <input className="input pl-10" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('admin.searchPlaceholder')} />
             </div>
             <Button type="submit" disabled={!q.trim() || loading}>{t('common.search')}</Button>
           </form>
           <div className="mt-3 flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => run(s)} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600 hover:bg-teal-50 hover:text-teal-700">{s}</button>
+              <button key={s} type="button" onClick={() => run(s)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-teal-50 hover:text-teal-800">{s}</button>
             ))}
           </div>
 

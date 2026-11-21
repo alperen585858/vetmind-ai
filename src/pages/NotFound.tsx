@@ -23,7 +23,7 @@ export default function NotFound({ variant }: { variant: 'public' | 'app' }) {
       text={t(variant === 'app' ? 'notFound.textApp' : 'notFound.textPublic')}
       action={
         <div className="flex flex-col items-center gap-3">
-          <code className="max-w-xs truncate rounded bg-slate-100 px-2 py-1 text-xs text-slate-500" title={pathname}>
+          <code className="max-w-xs truncate rounded-lg bg-slate-100/90 px-2.5 py-1.5 font-mono text-xs text-slate-500 ring-1 ring-inset ring-slate-200" title={pathname}>
             {pathname}
           </code>
           <div className="flex flex-wrap justify-center gap-2">
@@ -53,12 +53,18 @@ export default function NotFound({ variant }: { variant: 'public' | 'app' }) {
   )
 
   if (variant === 'app') {
-    return <Card className="mx-auto mt-8 max-w-xl">{body}</Card>
+    return <Card className="mx-auto mt-8 max-w-xl overflow-hidden">{body}</Card>
   }
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-50 px-4">
-      <Logo />
-      <Card className="w-full max-w-md">{body}</Card>
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden px-4">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_80%_-10%,rgba(14,165,233,0.18),transparent_55%),radial-gradient(700px_360px_at_10%_100%,rgba(11,128,122,0.12),transparent_50%),linear-gradient(180deg,#eef6fc_0%,#f8fafc_100%)]"
+      />
+      <div className="relative flex flex-col items-center gap-6">
+        <Logo />
+        <Card className="w-full max-w-md overflow-hidden shadow-[0_16px_48px_rgba(15,39,68,0.1)]">{body}</Card>
+      </div>
     </main>
   )
 }

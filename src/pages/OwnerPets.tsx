@@ -145,15 +145,20 @@ export default function OwnerPets() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {pets.map((p) => (
-                <li key={p.pet_id} className="px-5 py-3">
+                <li key={p.pet_id} className="px-5 py-4 transition hover:bg-sky-50/40">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-navy-900">{p.name}</p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-sky-600 text-white shadow-sm">
+                        <PawPrint className="h-5 w-5" aria-hidden />
+                      </span>
+                      <div className="min-w-0">
+                      <p className="font-display font-semibold text-navy-900">{p.name}</p>
                       <p className="text-xs text-slate-500">
                         {p.species} · {p.breed || t('common.dash')} ·{' '}
                         {p.age_years != null ? t('pets.ageDisplay', { age: p.age_years }) : t('pets.noAge')}
                       </p>
                       {p.medical_history && <p className="mt-1 text-xs text-slate-600 line-clamp-2">{p.medical_history}</p>}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <button

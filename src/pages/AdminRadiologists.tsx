@@ -123,6 +123,15 @@ export default function AdminRadiologists() {
           { label: t('admin.crumbRadiologists') },
         ]}
       />
+      <div className="mb-5 flex items-center gap-3 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-indigo-950 via-navy-900 to-slate-900 px-5 py-4 text-white shadow-soft">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 ring-1 ring-inset ring-indigo-400/30">
+          <Stethoscope className="h-5 w-5 text-indigo-200" aria-hidden />
+        </span>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-300/90">{t('admin.crumbRadiologists')}</p>
+          <p className="mt-0.5 text-sm text-slate-300">{t('admin.radiologistsSubtitle', { fee: money(fee, currency) })}</p>
+        </div>
+      </div>
       {error && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>
       )}

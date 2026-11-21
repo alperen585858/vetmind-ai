@@ -115,6 +115,10 @@ export default function AdminUsers() {
         subtitle={t('admin.usersSubtitle')}
         crumbs={[{ label: t('admin.crumbSystem'), to: '/' }, { label: t('admin.crumbUsers') }]}
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300/90">{t('admin.crumbUsers')}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('admin.usersSubtitle')}</p>
+      </div>
       {error && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>
       )}

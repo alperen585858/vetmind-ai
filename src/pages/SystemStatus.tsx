@@ -127,6 +127,21 @@ export default function SystemStatus() {
         }
       />
 
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-slate-950 via-emerald-950 to-slate-900 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300/90">{t('admin.systemTitle')}</p>
+        <p className="mt-1 text-sm text-slate-300">
+          {health
+            ? t('admin.systemSubtitleLive', {
+                version: health.version,
+                storage: health.storage,
+                rag: health.rag,
+              })
+            : loading
+              ? t('admin.systemSubtitleLoading')
+              : t('admin.systemSubtitleIdle')}
+        </p>
+      </div>
+
       <Card className="mb-6">
         <CardHeader title="FastAPI /health" subtitle="Canlı backend durumu (Vite proxy → :8000)" icon={<Server className="h-5 w-5" />} />
         {loading && !health && !healthError && (

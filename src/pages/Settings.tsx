@@ -187,7 +187,7 @@ export default function Settings() {
           <Card className="p-5">
             <CardHeader title={t('settings.profile')} icon={<UserRound className="h-5 w-5" />} />
             <div className="mt-4 flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-600 text-lg font-bold text-white">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-700 text-lg font-bold text-white shadow-md ring-4 ring-teal-100">
                 {user.initials}
               </div>
               <div>

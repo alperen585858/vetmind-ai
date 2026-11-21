@@ -233,6 +233,10 @@ export default function ModelPerformance() {
           </Button>
         }
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-navy-950 to-teal-950 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('admin.modelPerfTitle')}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('admin.modelPerfSubtitle')}</p>
+      </div>
 
       {error && (
         <Card className="mb-6 border-amber-200 p-4 text-sm text-amber-900">

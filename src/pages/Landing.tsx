@@ -33,12 +33,12 @@ export default function Landing() {
       <header className="sticky top-0 z-40 border-b border-sky-100/80 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <LocalizedLink to="/" className="flex items-center gap-3" aria-label={t('landing.homeAria')}>
-            <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800 shadow-md ring-2 ring-sky-100">
-              <span className="text-lg font-bold tracking-tight text-white">V</span>
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800 shadow-lg ring-2 ring-sky-100">
+              <span className="text-xl font-bold tracking-tight text-white">V</span>
             </span>
             <span className="leading-tight">
-              <span className="block text-[1.35rem] font-bold tracking-tight text-navy-900">VetMind</span>
-              <span className="block text-[0.7rem] font-medium uppercase tracking-[0.18em] text-sky-500">
+              <span className="block font-display text-[1.55rem] font-extrabold tracking-tight text-navy-900">VetMind</span>
+              <span className="block text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-sky-500">
                 {t('landing.tagline')}
               </span>
             </span>
@@ -116,10 +116,10 @@ export default function Landing() {
         </div>
 
         <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <p className="landing-reveal text-sm font-semibold uppercase tracking-[0.22em] text-sky-200/90">
+          <p className="landing-reveal font-display text-2xl font-extrabold tracking-tight text-white sm:text-3xl lg:text-4xl">
             VetMind AI
           </p>
-          <h1 className="landing-reveal landing-reveal-delay-1 mt-4 max-w-xl text-[2.15rem] font-bold leading-[1.12] tracking-tight text-white sm:text-5xl lg:max-w-2xl lg:text-[3.25rem]">
+          <h1 className="landing-reveal landing-reveal-delay-1 mt-4 max-w-xl text-[1.85rem] font-semibold leading-[1.15] tracking-tight text-sky-50/95 sm:text-4xl lg:max-w-2xl lg:text-[2.65rem]">
             {t('landing.heroTitle')}
           </h1>
           <p className="landing-reveal landing-reveal-delay-2 mt-5 max-w-md text-base leading-relaxed text-sky-100/90 sm:text-lg">

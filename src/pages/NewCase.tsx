@@ -705,7 +705,11 @@ export default function NewCase() {
           </div>
         }
       />
-      <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm">
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-navy-950 to-teal-900 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('cases.newCaseTitle')}</p>
+        <p className="mt-1 text-sm text-slate-300">{t('cases.newCaseSubtitle')}</p>
+      </div>
+      <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
         <summary className="cursor-pointer font-medium text-navy-800">{t('cases.quickFill')}</summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" icon={<Brain className="h-3.5 w-3.5 text-teal-600" />} onClick={fillBrainBackend}>

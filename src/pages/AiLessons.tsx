@@ -74,9 +74,16 @@ export default function AiLessons() {
         }
       />
 
-      <p className="mb-4 flex items-start gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {t('lessons.how')}
+      <p className="mb-5 flex items-start gap-3 rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 to-white px-4 py-3 text-sm text-violet-950 shadow-sm">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+          <Info className="h-4 w-4" aria-hidden />
+        </span>
+        <span className="leading-relaxed">{t('lessons.how')}</span>
       </p>
+      <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-navy-950 px-3 py-1.5 text-xs font-semibold text-white">
+        <GraduationCap className="h-3.5 w-3.5 text-violet-300" aria-hidden />
+        {activeCount}/{rows.length}
+      </div>
 
       <Card>
         <CardHeader

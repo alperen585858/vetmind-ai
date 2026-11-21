@@ -285,7 +285,7 @@ export default function Login() {
       <footer className="border-t border-sky-100 bg-navy-950 px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
           <p className="text-sm text-sky-200/80">
-            © {new Date().getFullYear()} VetMind AI · Acıbadem Üniversitesi CSE 401/402 · VRM Teknoloji iş birliğiyle
+            {t('landing.footer', { year: new Date().getFullYear() })}
           </p>
           <div className="flex gap-4 text-sm text-sky-300/90">
             <LocalizedLink to="/" className="hover:text-white">

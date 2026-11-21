@@ -523,6 +523,10 @@ export default function Processing() {
         breadcrumb={t('cases.processing.breadcrumb')}
         actions={<StatusBadge status={c.status} />}
       />
+      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-navy-950 via-teal-950 to-navy-900 px-5 py-4 text-white shadow-soft">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{heroTitle}</p>
+        <p className="mt-1 text-sm text-slate-300">{stageText}</p>
+      </div>
       <div className="mb-4">
         <CaseWorkflowStepper currentStep={2} status={failed || cancelled ? 'error' : undefined} />
       </div>

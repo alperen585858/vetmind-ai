@@ -87,11 +87,13 @@ export default function Register() {
             noValidate
             className="mt-10 rounded-2xl border border-navy-800 bg-navy-900/80 p-6 shadow-xl backdrop-blur"
           >
-            <div className="mb-1 flex items-center gap-2 text-teal-300">
-              <UserPlus className="h-5 w-5" />
-              <h1 className="text-lg font-semibold text-white">{t('auth.registerTitle')}</h1>
+            <div className="mb-1 flex items-center gap-3 text-teal-300">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/15 ring-1 ring-inset ring-teal-400/30">
+                <UserPlus className="h-5 w-5" />
+              </span>
+              <h1 className="font-display text-xl font-bold tracking-tight text-white">{t('auth.registerTitle')}</h1>
             </div>
-            <p className="text-sm text-navy-300">{t('auth.registerSubtitle')}</p>
+            <p className="mt-2 text-sm leading-relaxed text-navy-300">{t('auth.registerSubtitle')}</p>
 
             <label className="mt-5 block text-xs font-medium text-navy-300">
               {t('auth.fullName')}

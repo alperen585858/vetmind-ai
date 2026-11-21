@@ -281,29 +281,29 @@ export default function Messages() {
   return (
     <>
       <div className="vm-fade-up relative -mx-2 sm:-mx-1">
-        <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+        <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_16px_48px_-24px_rgba(11,23,40,0.35)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
           {/* Clinical conversation rail */}
           <aside
-            className={`relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white text-navy-950 ${
+            className={`relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white text-navy-950 ${
               showChat ? 'hidden lg:flex' : 'flex'
             }`}
           >
-            <div className="relative border-b border-slate-200 px-5 pb-4 pt-5">
+            <div className="relative border-b border-slate-200/80 px-5 pb-4 pt-5">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-700/80">
                     {t('messages.conversations')}
                   </p>
-                  <h1 className="mt-1 font-[family-name:var(--vm-font-display)] text-2xl font-semibold tracking-tight text-navy-950">
+                  <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-navy-950">
                     {t('messages.title')}
                   </h1>
-                  <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-500">{subtitle}</p>
                 </div>
                 {canCompose && (
                   <button
                     type="button"
                     onClick={() => setComposeOpen(true)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-navy-900 text-white transition hover:bg-navy-800"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-navy-800 to-navy-950 text-white shadow-md transition hover:from-navy-700 hover:to-navy-900"
                     title={t('messages.newMessage')}
                     aria-label={t('messages.newMessage')}
                   >
