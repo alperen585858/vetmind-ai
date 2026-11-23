@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react'
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   CheckCircle2,
@@ -91,91 +90,22 @@ function expertDisplay(c: VetCase, t: TranslateFn): string {
 export function CaseTable({
   cases,
   showPriority = false,
-  selectable = true,
   onDelete,
-  onBulkDelete,
 }: {
   cases: VetCase[]
   showPriority?: boolean
-  selectable?: boolean
   /** When set, shows a delete control (caller must confirm). */
   onDelete?: (c: VetCase) => void
-  /** When set with selectable, shows bulk delete for checked rows (caller must confirm). */
-  onBulkDelete?: (cases: VetCase[]) => void
 }) {
   const nav = useLocalizedNavigate()
   const { t, locale } = useLocale()
   const dash = t('common.dash')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const allIds = useMemo(() => cases.map((c) => c.id), [cases])
-  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id))
-  const selectedCases = useMemo(() => cases.filter((c) => selected.has(c.id)), [cases, selected])
-  const canBulk = Boolean(onBulkDelete) && selectable
-
-  useEffect(() => {
-    setSelected((prev) => {
-      const next = new Set([...prev].filter((id) => allIds.includes(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [allIds])
-
-  const toggleAll = () => {
-    setSelected((prev) => {
-      if (allIds.every((id) => prev.has(id))) return new Set()
-      return new Set(allIds)
-    })
-  }
-
-  const toggleOne = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
   return (
     <div>
-      {canBulk && selectedCases.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-100 bg-rose-50/80 px-4 py-2.5 sm:px-5">
-          <p className="text-sm font-medium text-rose-950">
-            {t('cases.bulkSelected', { count: selectedCases.length })}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white"
-              onClick={() => setSelected(new Set())}
-            >
-              {t('cases.clearSelection')}
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
-              onClick={() => onBulkDelete?.(selectedCases)}
-            >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden />
-              {t('cases.deleteSelected')}
-            </button>
-          </div>
-        </div>
-      )}
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-slate-100">
         <thead className="bg-gradient-to-b from-slate-50 to-slate-50/40">
           <tr>
-            {selectable && (
-              <th className="th w-10">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  aria-label={t('cases.selectAll')}
-                />
-              </th>
-            )}
             <th className="th">{t('cases.caseNo')}</th>
             <th className="th">{t('cases.patient')}</th>
             <th className="th">{t('cases.speciesBreed')}</th>
@@ -205,17 +135,6 @@ export function CaseTable({
               }}
               className="cursor-pointer transition hover:bg-teal-50/40 focus-visible:bg-teal-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600"
             >
-              {selectable && (
-                <td className="td" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                    checked={selected.has(c.id)}
-                    onChange={() => toggleOne(c.id)}
-                    aria-label={t('cases.selectCase', { no: c.no })}
-                  />
-                </td>
-              )}
               <td className="td font-mono text-[11px] font-semibold text-slate-500" title={c.id}>
                 {c.no}
               </td>

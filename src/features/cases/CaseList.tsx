@@ -56,7 +56,6 @@ export default function CaseList() {
   const [syncError, setSyncError] = useState<string | null>(null)
   const [initialLoad, setInitialLoad] = useState(true)
   const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
-  const [pendingBulk, setPendingBulk] = useState<VetCase[] | null>(null)
   const [deleting, setDeleting] = useState(false)
   const canDeleteCases = role === 'expert' || role === 'vet' || role === 'admin'
 
@@ -154,43 +153,6 @@ export default function CaseList() {
         title: t('cases.deleteFailed'),
         body: err instanceof Error ? err.message : t('cases.serverError'),
       })
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  const confirmBulkDelete = async () => {
-    if (!pendingBulk?.length || deleting) return
-    const targets = pendingBulk
-    setDeleting(true)
-    let ok = 0
-    const failures: string[] = []
-    try {
-      for (const target of targets) {
-        try {
-          await deleteBackendCase(target.backendCaseId || target.id)
-          removeCase(target.id)
-          ok += 1
-        } catch (err) {
-          failures.push(
-            `${target.no}: ${err instanceof Error ? err.message : t('cases.serverError')}`,
-          )
-        }
-      }
-      setPendingBulk(null)
-      if (ok > 0) {
-        pushToast({
-          tone: failures.length ? 'warning' : 'success',
-          title: t('cases.bulkDeleted', { count: ok }),
-          body: failures.length ? t('cases.bulkDeletePartial', { count: failures.length }) : undefined,
-        })
-      } else {
-        pushToast({
-          tone: 'error',
-          title: t('cases.bulkDeleteNone'),
-          body: failures[0],
-        })
-      }
     } finally {
       setDeleting(false)
     }
@@ -377,7 +339,6 @@ export default function CaseList() {
               cases={filtered}
               showPriority={role === 'expert'}
               onDelete={canDeleteCases ? (c) => setPendingDelete(c) : undefined}
-              onBulkDelete={canDeleteCases ? (list) => setPendingBulk(list) : undefined}
             />
           ) : cases.length === 0 ? (
             <EmptyState
@@ -444,49 +405,6 @@ export default function CaseList() {
               })}
             </p>
             <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">{pendingDelete.id}</p>
-            <p className="text-xs text-rose-700">{t('cases.deleteIrreversible')}</p>
-          </div>
-        ) : null}
-      </Modal>
-
-      <Modal
-        open={Boolean(pendingBulk?.length)}
-        onClose={() => {
-          if (!deleting) setPendingBulk(null)
-        }}
-        title={t('cases.bulkDeleteTitle')}
-        footer={
-          <>
-            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingBulk(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={deleting}
-              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              onClick={() => void confirmBulkDelete()}
-            >
-              {deleting
-                ? t('cases.deleting')
-                : t('cases.bulkDeleteConfirmBtn', { count: pendingBulk?.length ?? 0 })}
-            </Button>
-          </>
-        }
-      >
-        {pendingBulk?.length ? (
-          <div className="space-y-3 text-sm text-slate-600">
-            <p>{t('cases.bulkDeleteConfirm', { count: pendingBulk.length })}</p>
-            <ul className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">
-              {pendingBulk.slice(0, 20).map((c) => (
-                <li key={c.id}>
-                  {c.no} · {c.patient.name}
-                </li>
-              ))}
-              {pendingBulk.length > 20 ? (
-                <li>{t('cases.bulkDeleteMore', { count: pendingBulk.length - 20 })}</li>
-              ) : null}
-            </ul>
             <p className="text-xs text-rose-700">{t('cases.deleteIrreversible')}</p>
           </div>
         ) : null}
