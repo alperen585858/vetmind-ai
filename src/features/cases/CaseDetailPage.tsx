@@ -25,7 +25,6 @@ import { Button } from '../../shared/ui/Button'
 import { PriorityBadge, StatusBadge } from '../../shared/ui/StatusBadge'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { CaseWorkflowStepper } from '../../shared/ui/CaseWorkflowStepper'
-import { CaseMessaging } from '../../shared/ui/CaseMessaging'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { fmtDate } from '../../shared/lib/format'
 import { displayClinic } from '../../shared/lib/displayClean'
@@ -57,7 +56,7 @@ const TAB_DEFS = [
 
 type CaseDetailTab = (typeof TAB_DEFS)[number]['key']
 
-type CaseDetailModule = 'genel' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
+type CaseDetailModule = 'genel' | 'rapor' | 'gecmis' | 'belgeler'
 
 function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
   if (value === 'goruntu' || value === 'imaging') return 'goruntu'
@@ -67,7 +66,7 @@ function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
 }
 
 function caseDetailModule(value: string | null): CaseDetailModule {
-  if (value === 'rapor' || value === 'mesajlar' || value === 'gecmis' || value === 'belgeler') {
+  if (value === 'rapor' || value === 'gecmis' || value === 'belgeler') {
     return value
   }
   return 'genel'
@@ -267,11 +266,6 @@ export default function CaseDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={c.status} />
             <PriorityBadge priority={c.priority} />
-            {c.unreadMessages && c.unreadMessages > 0 ? (
-              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
-                {t('cases.detail.unreadMessages', { count: String(c.unreadMessages) })}
-              </span>
-            ) : null}
           </div>
         </div>
         <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4 empty:hidden">
@@ -536,7 +530,6 @@ export default function CaseDetail() {
                   {([
                     ['genel', t('cases.detail.backToOverview')],
                     ['rapor', t('cases.detail.moduleReport')],
-                    ['mesajlar', t('cases.detail.messages')],
                     ['gecmis', t('cases.detail.moduleHistory')],
                     ['belgeler', t('cases.documents')],
                   ] as const).map(([module, label]) => (
@@ -556,7 +549,6 @@ export default function CaseDetail() {
                   ))}
                 </div>
                 {summaryModule === 'rapor' && <ReportWorkspace c={c} />}
-                {summaryModule === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
                 {summaryModule === 'gecmis' && <CaseHistoryPanel c={c} />}
                 {summaryModule === 'belgeler' && <Documents c={c} />}
               </div>
