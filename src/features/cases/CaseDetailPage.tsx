@@ -13,7 +13,6 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
-  MessageSquare,
   Microscope,
   Sparkles,
   Stethoscope,
@@ -275,15 +274,7 @@ export default function CaseDetail() {
             ) : null}
           </div>
         </div>
-        <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<ImageIcon className="h-4 w-4" />}
-            onClick={() => selectTab('goruntu')}
-          >
-            {t('cases.detail.viewDicom')}
-          </Button>
+        <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4 empty:hidden">
           {canControlAnalysis && (c.status === 'isleniyor' || c.status === 'ai_analizi') && (
             <>
               <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
@@ -342,11 +333,6 @@ export default function CaseDetail() {
               {c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz'
                 ? t('cases.detail.manualWorkspace')
                 : t('cases.detail.workspace')}
-            </Button>
-          )}
-          {(role === 'vet' || role === 'clinic_owner') && (
-            <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => selectSummaryModule('mesajlar')}>
-              {t('cases.detail.messages')}
             </Button>
           )}
           {c.status === 'onaylandi' && (
