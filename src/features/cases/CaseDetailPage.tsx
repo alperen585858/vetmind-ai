@@ -110,12 +110,17 @@ export default function CaseDetail() {
 
   useEffect(() => {
     const routeTab = params.get('tab')
+    if (routeTab === 'mesajlar') {
+      const nextParams = new URLSearchParams(params)
+      nextParams.set('tab', 'genel')
+      setParams(nextParams, { replace: true })
+    }
     const nextTab = normalizeCaseDetailTab(routeTab)
     setTab(nextTab)
     const module = caseDetailModule(routeTab)
     setSummaryModule(module)
     setModulesOpen(nextTab === 'genel' && module !== 'genel')
-  }, [params])
+  }, [params, setParams])
 
   const selectTab = (nextTab: CaseDetailTab) => {
     setTab(nextTab)
