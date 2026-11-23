@@ -374,8 +374,8 @@ export default function NewCase() {
   const ownerReady =
     Boolean(ownerContact.ownerName.trim() && ownerContact.ownerEmail.trim()) &&
     (ownerContact.mode === 'guest' || Boolean(ownerContact.petOwnerSubject))
-  const canNext =
-    step !== 0 || (patient.name.trim() && patient.breed.trim() && ownerReady)
+  const patientStepReady = Boolean(patient.name.trim() && patient.breed.trim() && ownerReady)
+  const canNext = step !== 0 || patientStepReady
 
   const submit = async () => {
     const stamp = nowStamp()
@@ -1179,7 +1179,7 @@ export default function NewCase() {
                   size="lg"
                   onClick={() => void submit()}
                   disabled={
-                    !patient.name.trim() ||
+                    !patientStepReady ||
                     submitting ||
                     (pipeline === 'dicom_metadata' && Boolean(dicomPreview?.blocked))
                   }
@@ -1187,6 +1187,11 @@ export default function NewCase() {
                 >
                   {submitting ? t('dicom.processing') : pipeline === 'dicom_metadata' ? t('cases.submitAnalyze') : t('cases.submitAiReview')}
                 </Button>
+                {!patientStepReady && (
+                  <button type="button" className="text-xs font-medium text-rose-700 hover:underline" onClick={() => setStep(0)}>
+                    {t('cases.fillRequired')}
+                  </button>
+                )}
                 {submitting && (
                   <Button
                     size="lg"

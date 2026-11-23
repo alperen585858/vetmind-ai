@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
+  ArrowLeft,
   AlertCircle,
   BookOpen,
   Brain,
@@ -249,9 +250,11 @@ export default function CaseDetail() {
           <div className="min-w-0">
             <LocalizedLink
               to={role === 'expert' ? '/kuyruk' : '/vakalar'}
-              className="text-xs font-medium text-slate-300 hover:text-white"
+              aria-label={role === 'expert' ? t('cases.detail.backToQueue') : t('cases.detail.backToCases')}
+              title={role === 'expert' ? t('cases.detail.backToQueue') : t('cases.detail.backToCases')}
+              className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
             >
-              ← {role === 'expert' ? t('cases.detail.backToQueue') : t('cases.detail.backToCases')}
+              <ArrowLeft className="h-5 w-5" aria-hidden />
             </LocalizedLink>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">{t('cases.detail.patientCaseHeader')}</p>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-[2rem]">{c.patient.name}</h1>
