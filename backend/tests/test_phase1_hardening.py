@@ -301,6 +301,8 @@ def test_real_model_failure_no_mock_fallback(
     case = container.cases.create_case(
         CaseCreate(
             patient_name="Pax",
+            owner_name="Demo Owner",
+            owner_email="owner@example.com",
             species=Species.CANINE,
             modality=Modality.MR,
             anatomical_region=AnatomicalRegion.BRAIN,
@@ -327,6 +329,8 @@ def test_provenance_preserved_on_mock_success(tmp_path: Path) -> None:
     case = container.cases.create_case(
         CaseCreate(
             patient_name="Pax",
+            owner_name="Demo Owner",
+            owner_email="owner@example.com",
             species=Species.CANINE,
             modality=Modality.MR,
             anatomical_region=AnatomicalRegion.BRAIN,
@@ -384,7 +388,10 @@ def test_confirm_override_persists_metadata(tmp_path: Path) -> None:
             accept_suggestion=False,
             modality=Modality.MR,
             anatomical_region=AnatomicalRegion.CERVICAL,
-        , owner_name='Demo Owner', owner_email='owner@demo.local', owner_email_consent=True).model_dump(mode="json"),
+            owner_name="Demo Owner",
+            owner_email="owner@demo.local",
+            owner_email_consent=True,
+        ).model_dump(mode="json"),
     )
     assert confirmed.status_code == 200, confirmed.text
     body = confirmed.json()
