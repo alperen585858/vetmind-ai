@@ -21,7 +21,7 @@ test('legacy messages link opens the clinical summary and imaging remains access
   await loginAsVet(page)
   await page.goto(`/vakalar/${case_id}?tab=mesajlar&ref=list`)
   await expect(page.getByRole('tab', { name: 'Klinik Özet' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page).toHaveURL(url => url.searchParams.get('tab') === 'genel' && url.searchParams.get('ref') === 'list')
+  await expect(page).toHaveURL(`/vakalar/${case_id}?tab=genel&ref=list`)
 
   const banner = page.getByRole('region', { name: 'Hasta temel bilgileri' })
   await expect(banner.getByRole('heading', { name: 'Navigation demo' })).toBeVisible()
