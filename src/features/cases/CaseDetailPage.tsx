@@ -13,7 +13,6 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
-  MessageSquare,
   Microscope,
   Sparkles,
   Stethoscope,
@@ -26,7 +25,6 @@ import { Button } from '../../shared/ui/Button'
 import { PriorityBadge, StatusBadge } from '../../shared/ui/StatusBadge'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { CaseWorkflowStepper } from '../../shared/ui/CaseWorkflowStepper'
-import { CaseMessaging } from '../../shared/ui/CaseMessaging'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { fmtDate } from '../../shared/lib/format'
 import { displayClinic } from '../../shared/lib/displayClean'
@@ -58,7 +56,7 @@ const TAB_DEFS = [
 
 type CaseDetailTab = (typeof TAB_DEFS)[number]['key']
 
-type CaseDetailModule = 'genel' | 'rapor' | 'mesajlar' | 'gecmis' | 'belgeler'
+type CaseDetailModule = 'genel' | 'rapor' | 'gecmis' | 'belgeler'
 
 function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
   if (value === 'goruntu' || value === 'imaging') return 'goruntu'
@@ -68,7 +66,7 @@ function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
 }
 
 function caseDetailModule(value: string | null): CaseDetailModule {
-  if (value === 'rapor' || value === 'mesajlar' || value === 'gecmis' || value === 'belgeler') {
+  if (value === 'rapor' || value === 'gecmis' || value === 'belgeler') {
     return value
   }
   return 'genel'
@@ -112,12 +110,17 @@ export default function CaseDetail() {
 
   useEffect(() => {
     const routeTab = params.get('tab')
+    if (routeTab === 'mesajlar') {
+      const nextParams = new URLSearchParams(params)
+      nextParams.set('tab', 'genel')
+      setParams(nextParams, { replace: true })
+    }
     const nextTab = normalizeCaseDetailTab(routeTab)
     setTab(nextTab)
     const module = caseDetailModule(routeTab)
     setSummaryModule(module)
     setModulesOpen(nextTab === 'genel' && module !== 'genel')
-  }, [params])
+  }, [params, setParams])
 
   const selectTab = (nextTab: CaseDetailTab) => {
     setTab(nextTab)
@@ -268,22 +271,9 @@ export default function CaseDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={c.status} />
             <PriorityBadge priority={c.priority} />
-            {c.unreadMessages && c.unreadMessages > 0 ? (
-              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
-                {t('cases.detail.unreadMessages', { count: String(c.unreadMessages) })}
-              </span>
-            ) : null}
           </div>
         </div>
-        <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<ImageIcon className="h-4 w-4" />}
-            onClick={() => selectTab('goruntu')}
-          >
-            {t('cases.detail.viewDicom')}
-          </Button>
+        <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4 empty:hidden">
           {canControlAnalysis && (c.status === 'isleniyor' || c.status === 'ai_analizi') && (
             <>
               <Button variant="secondary" icon={<Loader2 className="h-4 w-4 animate-spin" />} onClick={() => nav(`/vakalar/${c.id}/isleme`)}>
@@ -342,11 +332,6 @@ export default function CaseDetail() {
               {c.status === 'manuel_inceleme' || c.status === 'analiz_basarisiz'
                 ? t('cases.detail.manualWorkspace')
                 : t('cases.detail.workspace')}
-            </Button>
-          )}
-          {(role === 'vet' || role === 'clinic_owner') && (
-            <Button variant="secondary" size="sm" icon={<MessageSquare className="h-4 w-4" />} onClick={() => selectSummaryModule('mesajlar')}>
-              {t('cases.detail.messages')}
             </Button>
           )}
           {c.status === 'onaylandi' && (
@@ -550,7 +535,6 @@ export default function CaseDetail() {
                   {([
                     ['genel', t('cases.detail.backToOverview')],
                     ['rapor', t('cases.detail.moduleReport')],
-                    ['mesajlar', t('cases.detail.messages')],
                     ['gecmis', t('cases.detail.moduleHistory')],
                     ['belgeler', t('cases.documents')],
                   ] as const).map(([module, label]) => (
@@ -570,7 +554,6 @@ export default function CaseDetail() {
                   ))}
                 </div>
                 {summaryModule === 'rapor' && <ReportWorkspace c={c} />}
-                {summaryModule === 'mesajlar' && <CaseMessaging caseId={c.id} enabled={Boolean(c.fromBackend)} />}
                 {summaryModule === 'gecmis' && <CaseHistoryPanel c={c} />}
                 {summaryModule === 'belgeler' && <Documents c={c} />}
               </div>
