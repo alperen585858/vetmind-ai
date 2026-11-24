@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react'
+import { BookOpen, Loader2, Pencil, Plus, Search, Sparkles } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Card, CardHeader } from '../../shared/ui/Card'
@@ -8,11 +8,17 @@ import { Button } from '../../shared/ui/Button'
 import { Modal } from '../../shared/ui/Modal'
 import {
   BackendUnavailableError,
+  RAG_DOC_REGIONS,
+  RAG_DOC_SPECIES,
   addRagDocument,
   bulkRagDocuments,
   listCustomRagDocuments,
+  retagRagDocuments,
   searchRag,
+  updateRagDocumentCard,
   type RagCustomDocument,
+  type RagDocRegion,
+  type RagDocSpecies,
 } from '../../shared/api'
 import { getKbSources, kbLicenseLabel, kbSourceText, kbTypeLabel } from './demoKb'
 import { fmtDate, today } from '../../shared/lib/format'
@@ -55,7 +61,24 @@ function fromBackendDoc(d: RagCustomDocument, i: number): KbSource {
     indexedAt: today(),
     keywords: d.keywords,
     ragApproved: Boolean(d.approved),
+    backendId: d.source_id,
+    regions: d.regions ?? [],
+    species: d.species ?? [],
+    tagSource: d.tag_source ?? '',
   }
+}
+
+const TAG_SOURCE_KEY: Record<string, string> = {
+  rules: 'admin.scopeSourceRules',
+  llm: 'admin.scopeSourceLlm',
+  manual: 'admin.scopeSourceManual',
+  none: 'admin.scopeSourceNone',
+}
+
+type ScopeDraft = { source: KbSource; regions: RagDocRegion[]; species: RagDocSpecies[] }
+
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value]
 }
 
 export default function KnowledgeBase() {
@@ -79,6 +102,85 @@ export default function KnowledgeBase() {
   const [form, setForm] = useState(emptyForm)
   const [bulkLoading, setBulkLoading] = useState(false)
   const bulkInputRef = useRef<HTMLInputElement>(null)
+  const [scope, setScope] = useState<ScopeDraft | null>(null)
+  const [scopeSaving, setScopeSaving] = useState(false)
+  const [retagging, setRetagging] = useState(false)
+  const hasUnscoped = custom.some((s) => !s.tagSource)
+
+  const reloadCustom = async () => {
+    const docs = await listCustomRagDocuments()
+    setCustom(docs.map(fromBackendDoc))
+  }
+
+  const saveScope = async () => {
+    if (!scope?.source.backendId) return
+    setScopeSaving(true)
+    try {
+      await updateRagDocumentCard(scope.source.backendId, { regions: scope.regions, species: scope.species })
+      await reloadCustom()
+      setScope(null)
+      pushToast({ tone: 'success', title: t('admin.scopeSaved') })
+    } catch (err) {
+      pushToast({ tone: 'error', title: t('admin.scopeSaveFailed'), body: err instanceof Error ? err.message : undefined })
+    } finally {
+      setScopeSaving(false)
+    }
+  }
+
+  const retag = async () => {
+    setRetagging(true)
+    try {
+      const res = await retagRagDocuments()
+      await reloadCustom()
+      pushToast({ tone: 'success', title: t('admin.scopeRetagDone', { count: res.retagged }) })
+    } catch (err) {
+      pushToast({ tone: 'error', title: t('admin.scopeSaveFailed'), body: err instanceof Error ? err.message : undefined })
+    } finally {
+      setRetagging(false)
+    }
+  }
+
+  const scopeCell = (s: KbSource) => {
+    if (!s.backendId) return <span className="text-slate-400">{t('common.dash')}</span>
+    const regions = s.regions ?? []
+    const species = s.species ?? []
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        {regions.length === 0 ? (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{t('admin.scopeGeneral')}</span>
+        ) : (
+          regions.map((r) => (
+            <span key={r} className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800">
+              {t(`admin.scopeRegion_${r}`)}
+            </span>
+          ))
+        )}
+        {species.map((sp) => (
+          <span key={sp} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-800">
+            {t(`admin.scopeSpecies_${sp}`)}
+          </span>
+        ))}
+        <span className="text-[11px] text-slate-500">
+          · {t(TAG_SOURCE_KEY[s.tagSource ?? ''] ?? 'admin.scopeSourceLegacy')}
+        </span>
+        <button
+          type="button"
+          aria-label={t('admin.scopeEdit')}
+          title={t('admin.scopeEdit')}
+          onClick={() =>
+            setScope({
+              source: s,
+              regions: regions.filter((r): r is RagDocRegion => (RAG_DOC_REGIONS as readonly string[]).includes(r)),
+              species: species.filter((x): x is RagDocSpecies => (RAG_DOC_SPECIES as readonly string[]).includes(x)),
+            })
+          }
+          className="ml-1 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-teal-700"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    )
+  }
 
   const run = (query = q) => {
     if (!query.trim()) return
@@ -120,8 +222,7 @@ export default function KnowledgeBase() {
     setSaving(true)
     try {
       await addRagDocument({ title: form.title.trim(), section: `${form.type} · ${form.license}`, passage: form.passage.trim() })
-      const docs = await listCustomRagDocuments()
-      setCustom(docs.map(fromBackendDoc))
+      await reloadCustom()
       setModal(false)
       setForm(emptyForm)
       pushToast({
@@ -205,6 +306,11 @@ export default function KnowledgeBase() {
             >
               {bulkLoading ? t('common.loading') : t('admin.bulkJsonl')}
             </Button>
+            {hasUnscoped && (
+              <Button type="button" variant="secondary" disabled={retagging} onClick={() => void retag()}>
+                {retagging ? t('common.loading') : t('admin.scopeRetag')}
+              </Button>
+            )}
           </div>
         }
       />
@@ -285,6 +391,7 @@ export default function KnowledgeBase() {
                 <th className="th">#</th>
                 <th className="th">{t('admin.colSourceName')}</th>
                 <th className="th">{t('admin.colType')}</th>
+                <th className="th">{t('admin.colScope')}</th>
                 <th className="th">{t('admin.colLicense')}</th>
                 <th className="th text-right">{t('admin.colChunks')}</th>
                 <th className="th">{t('admin.colIndexed')}</th>
@@ -305,6 +412,7 @@ export default function KnowledgeBase() {
                     )}
                   </td>
                   <td className="td">{kbTypeLabel(s.type, locale)}</td>
+                  <td className="td">{scopeCell(s)}</td>
                   <td className="td">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${s.license === 'İzinli' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{kbLicenseLabel(s.license, locale)}</span>
                   </td>
@@ -361,7 +469,58 @@ export default function KnowledgeBase() {
               placeholder="Kaynaktan RAG aramasında kullanılacak metni yapıştırın."
             />
           </div>
+          <p className="text-xs text-slate-500">{t('admin.scopeAutoHint')}</p>
         </div>
+      </Modal>
+
+      <Modal
+        open={scope != null}
+        onClose={() => setScope(null)}
+        title={t('admin.scopeModalTitle')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setScope(null)}>{t('common.cancel')}</Button>
+            <Button disabled={scopeSaving} onClick={() => void saveScope()}>{scopeSaving ? t('common.loading') : t('common.save')}</Button>
+          </>
+        }
+      >
+        {scope && (
+          <div className="space-y-4">
+            <p className="text-sm font-medium text-navy-900">{scope.source.title}</p>
+            <p className="text-xs text-slate-500">{t('admin.scopeModalHint')}</p>
+            <fieldset>
+              <legend className="label">{t('admin.scopeRegions')}</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {RAG_DOC_REGIONS.map((r) => (
+                  <label key={r} className="flex items-center gap-2 text-sm text-navy-800">
+                    <input
+                      type="checkbox"
+                      checked={scope.regions.includes(r)}
+                      onChange={() => setScope({ ...scope, regions: toggle(scope.regions, r) })}
+                    />
+                    {t(`admin.scopeRegion_${r}`)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="label">{t('admin.scopeSpecies')}</legend>
+              <div className="flex gap-4">
+                {RAG_DOC_SPECIES.map((sp) => (
+                  <label key={sp} className="flex items-center gap-2 text-sm text-navy-800">
+                    <input
+                      type="checkbox"
+                      checked={scope.species.includes(sp)}
+                      onChange={() => setScope({ ...scope, species: toggle(scope.species, sp) })}
+                    />
+                    {t(`admin.scopeSpecies_${sp}`)}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-slate-500">{t('admin.scopeSpeciesHint')}</p>
+            </fieldset>
+          </div>
+        )}
       </Modal>
     </>
   )

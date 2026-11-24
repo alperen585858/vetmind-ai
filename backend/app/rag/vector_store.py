@@ -9,6 +9,7 @@ from pathlib import Path
 from app.rag.breed_morphotypes import load_default_rag_corpus
 from app.rag.corpus import CorpusDoc
 from app.rag.embeddings import EmbeddingBackend, default_embedding_backend
+from app.rag.source_cards import SourceCardTagger
 
 
 @dataclass
@@ -24,6 +25,10 @@ class IndexedDoc:
     # Relevance tags (app/rag/relevance.py); empty = general doc, never filtered out.
     regions: list[str] = field(default_factory=list)
     species: list[str] = field(default_factory=list)
+    # Source card (app/rag/source_cards.py): short description and where the tags came from
+    # ("seed" | "manual" | "rules" | "llm" | "none").
+    summary: str = ""
+    tag_source: str = ""
 
 
 def _embed_text(title: str, section: str, passage: str, keywords: list[str] | tuple[str, ...]) -> str:
@@ -62,6 +67,8 @@ class JsonVectorStore:
                 approved=bool(d.get("approved", False)),
                 regions=list(d.get("regions") or []),
                 species=list(d.get("species") or []),
+                summary=str(d.get("summary") or ""),
+                tag_source=str(d.get("tag_source") or ""),
             )
             for d in raw.get("documents", [])
         ]
@@ -141,7 +148,13 @@ class JsonVectorStore:
         return len(self._docs)
 
     def add_corpus_doc(
-        self, doc: CorpusDoc, *, persist: bool = True, approved: bool = False
+        self,
+        doc: CorpusDoc,
+        *,
+        persist: bool = True,
+        approved: bool = False,
+        summary: str = "",
+        tag_source: str = "seed",
     ) -> IndexedDoc:
         text = _embed_text(doc.title, doc.section, doc.passage, doc.keywords)
         indexed = IndexedDoc(
@@ -154,6 +167,8 @@ class JsonVectorStore:
             approved=approved,
             regions=list(doc.regions),
             species=list(doc.species),
+            summary=summary,
+            tag_source=tag_source,
         )
         self._docs = [d for d in self._docs if d.source_id != indexed.source_id]
         self._docs.append(indexed)
@@ -170,6 +185,10 @@ class JsonVectorStore:
         passage: str,
         keywords: list[str] | None = None,
         approved: bool = False,
+        regions: list[str] | tuple[str, ...] = (),
+        species: list[str] | tuple[str, ...] = (),
+        summary: str = "",
+        tag_source: str = "none",
     ) -> IndexedDoc:
         doc = CorpusDoc(
             source_id=source_id,
@@ -177,16 +196,43 @@ class JsonVectorStore:
             section=section,
             passage=passage,
             keywords=tuple(keywords or ()),
+            regions=tuple(regions),
+            species=tuple(species),
         )
-        return self.add_corpus_doc(doc, persist=True, approved=approved)
+        return self.add_corpus_doc(doc, persist=True, approved=approved, summary=summary, tag_source=tag_source)
+
+    def set_card(
+        self,
+        source_id: str,
+        *,
+        regions: list[str] | tuple[str, ...],
+        species: list[str] | tuple[str, ...],
+        summary: str,
+        tag_source: str,
+    ) -> IndexedDoc | None:
+        """Update a source's card in place (the embedding does not depend on it)."""
+        for doc in self._docs:
+            if doc.source_id == source_id:
+                doc.regions = list(regions)
+                doc.species = list(species)
+                doc.summary = summary
+                doc.tag_source = tag_source
+                self.save()
+                return doc
+        return None
+
+    def get(self, source_id: str) -> IndexedDoc | None:
+        return next((d for d in self._docs if d.source_id == source_id), None)
 
     def add_documents_bulk(
         self,
         items: list[dict],
         *,
         default_approved: bool = False,
+        tagger: SourceCardTagger | None = None,
     ) -> list[IndexedDoc]:
-        """Bulk-index dict rows with keys title/section/passage/keywords/source_id/approved."""
+        """Bulk-index dict rows with keys title/section/passage/keywords/source_id/approved
+        (optional regions/species = manual card). ``tagger`` builds each source card."""
         out: list[IndexedDoc] = []
         for raw in items:
             source_id = str(raw.get("source_id") or "").strip() or None
@@ -202,14 +248,27 @@ class JsonVectorStore:
             if isinstance(keywords, str):
                 keywords = [k.strip() for k in keywords.split(",") if k.strip()]
             approved = bool(raw.get("approved", default_approved))
+            section = str(raw.get("section") or "Custom")
+            card = (tagger or SourceCardTagger()).card(
+                title=title,
+                section=section,
+                passage=passage,
+                keywords=list(keywords),
+                regions=raw.get("regions"),
+                species=raw.get("species"),
+            )
             out.append(
                 self.add_document(
                     source_id=source_id,
                     title=title,
-                    section=str(raw.get("section") or "Custom"),
+                    section=section,
                     passage=passage,
                     keywords=list(keywords),
                     approved=approved,
+                    regions=card.regions,
+                    species=card.species,
+                    summary=card.summary,
+                    tag_source=card.tag_source,
                 )
             )
         return out

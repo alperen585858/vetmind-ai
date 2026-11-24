@@ -25,4 +25,9 @@ export interface KbSource {
   indexing?: boolean
   /** Backend custom RAG doc only; seed mock sources omit this. */
   ragApproved?: boolean
+  /** Backend custom RAG doc only: id and scope (regions / species the source is used for). */
+  backendId?: string
+  regions?: string[]
+  species?: string[]
+  tagSource?: string
 }
