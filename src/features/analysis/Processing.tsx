@@ -43,19 +43,9 @@ import { cacheCaseDicomFiles } from '../../shared/lib/dicomCaseCache'
 import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
 import type { TranslateFn } from '../../i18n'
 import type { ClinicalInfo, NeuroExam, Patient, Priority, VetCase } from '../../shared/types'
+import { UNEVALUATED_NEURO } from '../../shared/lib/neuroExam'
 
-const EMPTY_NEURO: NeuroExam = {
-  consciousness: 'Uyanık',
-  gait: 'Normal',
-  limbs: [],
-  posturalThoracic: 'Normal',
-  posturalPelvic: 'Normal',
-  reflexThoracic: 'Normal',
-  reflexPelvic: 'Normal',
-  cranialNerves: [],
-  deepPain: 'Değerlendirilmedi',
-  hyperesthesia: 'Yok',
-}
+const EMPTY_NEURO: NeuroExam = UNEVALUATED_NEURO
 
 function analysisModeBanner(
   mode: string | undefined,

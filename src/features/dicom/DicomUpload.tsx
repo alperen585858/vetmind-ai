@@ -60,19 +60,9 @@ import type {
   Patient,
   VetCase,
 } from '../../shared/types'
+import { UNEVALUATED_NEURO } from '../../shared/lib/neuroExam'
 
-const EMPTY_NEURO: NeuroExam = {
-  consciousness: 'Uyanık',
-  gait: 'Normal',
-  limbs: [],
-  posturalThoracic: 'Normal',
-  posturalPelvic: 'Normal',
-  reflexThoracic: 'Normal',
-  reflexPelvic: 'Normal',
-  cranialNerves: [],
-  deepPain: 'Değerlendirilmedi',
-  hyperesthesia: 'Yok',
-}
+const EMPTY_NEURO: NeuroExam = UNEVALUATED_NEURO
 
 const DEMO_SETS: {
   kind: DicomDemoKind

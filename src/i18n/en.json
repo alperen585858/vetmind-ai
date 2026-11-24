@@ -868,6 +868,8 @@
       "rowCranialNerves": "Cranial nerves",
       "rowDeepPain": "Deep pain",
       "notAssessed": "Not assessed",
+      "notEntered": "Not entered",
+      "neuroNotEntered": "Neurological exam not entered.",
       "statusTimeline": "Status timeline",
       "noDocuments": "No documents uploaded yet",
       "caseIsDraft": "The case is a draft.",

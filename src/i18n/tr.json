@@ -868,6 +868,8 @@
       "rowCranialNerves": "Kraniyal sinirler",
       "rowDeepPain": "Derin ağrı",
       "notAssessed": "Değerlendirilmedi",
+      "notEntered": "Girilmedi",
+      "neuroNotEntered": "Nörolojik muayene girilmedi.",
       "statusTimeline": "Durum Zaman Çizelgesi",
       "noDocuments": "Henüz belge yüklenmemiş",
       "caseIsDraft": "Vaka taslak durumunda.",

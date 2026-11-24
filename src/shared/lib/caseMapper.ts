@@ -16,23 +16,13 @@ import type { TranslateFn } from '../../i18n'
 import { translate } from '../../i18n'
 import { draftToSections, pipelineToAssessment } from '../api'
 import { USERS } from '../demo/users'
+import { UNEVALUATED_NEURO } from './neuroExam'
 import { cleanClinicalHistory, displayClinic } from './displayClean'
 
 const defaultT: TranslateFn = (key) => translate('tr', key)
 
-/** Defaults mean “not provided”, not a normal clinical exam. */
-const UNKNOWN_NEURO: NeuroExam = {
-  consciousness: 'Uyanık',
-  gait: 'Normal',
-  limbs: [],
-  posturalThoracic: 'Normal',
-  posturalPelvic: 'Normal',
-  reflexThoracic: 'Normal',
-  reflexPelvic: 'Normal',
-  cranialNerves: [],
-  deepPain: 'Değerlendirilmedi',
-  hyperesthesia: 'Yok',
-}
+/** No exam on file: every item is "not evaluated" — never shown as a normal exam (#72). */
+const UNKNOWN_NEURO: NeuroExam = UNEVALUATED_NEURO
 
 function neuroFromStructured(
   raw: Record<string, string | string[] | boolean | number | null> | null | undefined,
@@ -56,6 +46,11 @@ function neuroFromStructured(
     posturalPelvic: str('posturalPelvic', UNKNOWN_NEURO.posturalPelvic) as NeuroExam['posturalPelvic'],
     reflexThoracic: str('reflexThoracic', UNKNOWN_NEURO.reflexThoracic) as NeuroExam['reflexThoracic'],
     reflexPelvic: str('reflexPelvic', UNKNOWN_NEURO.reflexPelvic) as NeuroExam['reflexPelvic'],
+    // Exams stored before #72 have no status: keep their recorded meaning (empty list = normal).
+    cranialNervesStatus: str(
+      'cranialNervesStatus',
+      list('cranialNerves').length ? 'Bulgu var' : 'Normal',
+    ) as NeuroExam['cranialNervesStatus'],
     cranialNerves: list('cranialNerves'),
     deepPain: str('deepPain', UNKNOWN_NEURO.deepPain) as NeuroExam['deepPain'],
     hyperesthesia: str('hyperesthesia', UNKNOWN_NEURO.hyperesthesia) as NeuroExam['hyperesthesia'],

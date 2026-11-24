@@ -53,17 +53,22 @@ export interface ClinicalInfo {
   medications: string
 }
 
+/** "Not evaluated" — the vet did not record this item (never read it as a normal finding). */
+export type NotEvaluated = 'Değerlendirilmedi'
+
 export interface NeuroExam {
-  consciousness: 'Uyanık' | 'Depresif' | 'Stupor' | 'Koma'
-  gait: 'Normal' | 'Ataksi' | 'Parezi' | 'Pleji'
+  consciousness: 'Uyanık' | 'Depresif' | 'Stupor' | 'Koma' | NotEvaluated
+  gait: 'Normal' | 'Ataksi' | 'Parezi' | 'Pleji' | NotEvaluated
   limbs: string[]
-  posturalThoracic: 'Normal' | 'Azalmış' | 'Yok'
-  posturalPelvic: 'Normal' | 'Azalmış' | 'Yok'
-  reflexThoracic: 'Normal' | 'Azalmış' | 'Artmış'
-  reflexPelvic: 'Normal' | 'Azalmış' | 'Artmış'
+  posturalThoracic: 'Normal' | 'Azalmış' | 'Yok' | NotEvaluated
+  posturalPelvic: 'Normal' | 'Azalmış' | 'Yok' | NotEvaluated
+  reflexThoracic: 'Normal' | 'Azalmış' | 'Artmış' | NotEvaluated
+  reflexPelvic: 'Normal' | 'Azalmış' | 'Artmış' | NotEvaluated
+  /** Whether cranial nerves were examined; the abnormal signs are in `cranialNerves`. */
+  cranialNervesStatus: 'Normal' | 'Bulgu var' | NotEvaluated
   cranialNerves: string[]
-  deepPain: 'Var' | 'Yok' | 'Değerlendirilmedi'
-  hyperesthesia: 'Yok' | 'Servikal' | 'Torakolomber' | 'Lumbosakral'
+  deepPain: 'Var' | 'Yok' | NotEvaluated
+  hyperesthesia: 'Yok' | 'Servikal' | 'Torakolomber' | 'Lumbosakral' | NotEvaluated
 }
 
 export interface ExtractedField {
