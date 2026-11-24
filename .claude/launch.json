@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/backend.mjs",
+        "dev"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "dev-fixtures",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "VITE_ENABLE_DEMO_FIXTURES=1",
+        "npx",
+        "vite",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174
+    }
+  ]
+}
