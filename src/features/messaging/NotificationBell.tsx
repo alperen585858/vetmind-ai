@@ -1,3 +1,4 @@
+import { useLiveEvents } from '../../shared/live/liveStream'
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { safeInternalPath } from '../../shared/lib/safePath'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
@@ -39,9 +40,14 @@ export function NotificationBell() {
 
   useEffect(() => {
     refresh()
-    const id = window.setInterval(refresh, 30000)
+    // Live stream pushes changes; the slow poll is only a safety net.
+    const id = window.setInterval(refresh, 120000)
     return () => window.clearInterval(id)
   }, [refresh])
+
+  useLiveEvents((e) => {
+    if (e.type === 'notification' || e.type === 'ready' || e.type === 'resync') refresh()
+  })
 
   useEffect(() => {
     const h = (e: globalThis.MouseEvent) => {

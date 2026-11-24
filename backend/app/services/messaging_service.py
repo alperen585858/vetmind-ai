@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 
@@ -42,6 +42,7 @@ class MessagingService:
         auth_users: dict[str, DemoUserRecord] | None = None,
         tenant_isolation: bool = False,
         user_directory: object | None = None,
+        live: object | None = None,
     ) -> None:
         self._store = store
         self._notifications = notifications
@@ -49,6 +50,56 @@ class MessagingService:
         self._tenant_isolation = tenant_isolation
         # Optional managed-user store, used only for display names.
         self._user_directory = user_directory
+        # Optional LiveEventBroker for SSE pushes (new message, delete/undo, read, typing).
+        self._live = live
+
+    # How long a deleted message can be restored; after that its text is purged.
+    UNDO_WINDOW = timedelta(minutes=5)
+
+    # --- live events --------------------------------------------------------------
+
+    def _participants(self, thread: SupportThread) -> set[str]:
+        people = {thread.owner_subject}
+        if thread.recipient_subject:
+            people.add(thread.recipient_subject)
+        elif thread.channel == "radiologist":
+            people.update(self._subjects_for_role("expert", clinic_id=thread.clinic_id))
+        if thread.channel == "admin":
+            people.update(self._subjects_for_role("admin", clinic_id=None))
+        return people
+
+    def _publish(self, thread: SupportThread, event: dict, *, exclude: str | None = None) -> None:
+        if self._live is None:
+            return
+        targets = self._participants(thread)
+        if exclude:
+            targets.discard(exclude)
+        try:
+            self._live.publish(targets, {"thread_id": thread.thread_id, **event})  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 — live push is best effort; data is already saved
+            pass
+
+    def _is_online(self, subject: str | None) -> bool:
+        if self._live is None or not subject:
+            return False
+        return bool(self._live.is_online(subject))  # type: ignore[attr-defined]
+
+    # --- soft delete ----------------------------------------------------------------
+
+    def _purge_expired(self, thread: SupportThread) -> SupportThread:
+        """Drop the text of deleted messages whose undo window has passed (KVKK)."""
+        cutoff = _now() - self.UNDO_WINDOW
+        changed = False
+        msgs: list[SupportMessage] = []
+        for m in thread.messages:
+            if m.deleted_at is not None and m.deleted_at <= cutoff and m.body:
+                msgs.append(m.model_copy(update={"body": ""}))
+                changed = True
+            else:
+                msgs.append(m)
+        if not changed:
+            return thread
+        return self._store.save_thread(thread.model_copy(update={"messages": msgs}))
 
     # Roles that may start conversations / reply as clinic-side participants.
     STARTER_ROLES = frozenset({"vet", "clinic_owner", "demo", "service"})
@@ -151,9 +202,18 @@ class MessagingService:
 
     def _summary(self, thread: SupportThread, *, viewer: str) -> SupportThreadSummary:
         name, role = self._counterpart(thread, viewer=viewer)
-        unread = sum(1 for m in thread.messages if viewer not in m.read_by and m.author_subject != viewer)
-        last = thread.messages[-1] if thread.messages else None
+        live_msgs = [m for m in thread.messages if m.deleted_at is None]
+        unread = sum(1 for m in live_msgs if viewer not in m.read_by and m.author_subject != viewer)
+        last = live_msgs[-1] if live_msgs else None
         preview = (last.body[:120] + "…") if last and len(last.body) > 120 else (last.body if last else None)
+        if viewer == thread.owner_subject:
+            online = (
+                any(self._is_online(a) for a in self._subjects_for_role("admin", clinic_id=None))
+                if thread.channel == "admin"
+                else self._is_online(thread.recipient_subject)
+            )
+        else:
+            online = self._is_online(thread.owner_subject)
         return SupportThreadSummary(
             thread_id=thread.thread_id,
             channel=thread.channel,
@@ -161,12 +221,13 @@ class MessagingService:
             recipient_subject=thread.recipient_subject,
             counterpart_name=name,
             counterpart_role=role,
+            counterpart_online=online,
             clinic_id=thread.clinic_id,
             subject=thread.subject,
             status=thread.status,
             related_case_id=thread.related_case_id,
             related_submission_id=thread.related_submission_id,
-            message_count=len(thread.messages),
+            message_count=len(live_msgs),
             unread_count=unread,
             last_message_preview=preview,
             last_message_at=last.created_at if last else None,
@@ -174,18 +235,25 @@ class MessagingService:
             updated_at=thread.updated_at,
         )
 
+    def _view(self, m: SupportMessage, *, viewer: str) -> SupportMessageView:
+        deleted = m.deleted_at is not None
+        restorable_until = (m.deleted_at + self.UNDO_WINDOW) if deleted and m.body else None
+        return SupportMessageView(
+            message_id=m.message_id,
+            author_subject=m.author_subject,
+            author_role=m.author_role,
+            # Deleted text is only returned to the deleter (to show what undo brings back).
+            body="" if deleted and m.deleted_by != viewer else m.body,
+            created_at=m.created_at,
+            unread=not deleted and viewer not in m.read_by and m.author_subject != viewer,
+            read_by_other=any(r != m.author_subject for r in m.read_by),
+            deleted=deleted,
+            deleted_at=m.deleted_at,
+            restorable_until=restorable_until if m.deleted_by == viewer else None,
+        )
+
     def _views(self, thread: SupportThread, *, viewer: str) -> list[SupportMessageView]:
-        return [
-            SupportMessageView(
-                message_id=m.message_id,
-                author_subject=m.author_subject,
-                author_role=m.author_role,
-                body=m.body,
-                created_at=m.created_at,
-                unread=viewer not in m.read_by and m.author_subject != viewer,
-            )
-            for m in thread.messages
-        ]
+        return [self._view(m, viewer=viewer) for m in thread.messages]
 
     def _notify_recipients(
         self,
@@ -226,6 +294,7 @@ class MessagingService:
         for t in self._store.list_threads():
             if not self._can_access(t, principal=principal):
                 continue
+            t = self._purge_expired(t)
             out.append(self._summary(t, viewer=principal.subject))
         out.sort(key=lambda t: t.last_message_at or t.updated_at, reverse=True)
         return out
@@ -235,6 +304,7 @@ class MessagingService:
         if thread is None:
             raise HTTPException(status_code=404, detail="Conversation not found.")
         self._assert_access(thread, principal=principal)
+        thread = self._purge_expired(thread)
         return SupportThreadDetail(
             thread=self._summary(thread, viewer=principal.subject),
             messages=self._views(thread, viewer=principal.subject),
@@ -293,6 +363,7 @@ class MessagingService:
             messages=[first],
         )
         saved = self._store.save_thread(thread)
+        self._publish(saved, {"type": "thread.created"})
         channel_label = "radyolog" if saved.channel == "radiologist" else "yönetim"
         self._notify_recipients(
             saved,
@@ -354,6 +425,14 @@ class MessagingService:
             }
         )
         saved = self._store.save_thread(thread)
+        self._publish(
+            saved,
+            {
+                "type": "message.created",
+                "message": self._view(msg, viewer="").model_dump(mode="json")
+                | {"unread": True},
+            },
+        )
         channel_label = "radyolog" if saved.channel == "radiologist" else "yönetim"
         self._notify_recipients(
             saved,
@@ -362,14 +441,7 @@ class MessagingService:
             body=f"{saved.subject}: {msg.body}",
             message_id=msg.message_id,
         )
-        return SupportMessageView(
-            message_id=msg.message_id,
-            author_subject=msg.author_subject,
-            author_role=msg.author_role,
-            body=msg.body,
-            created_at=msg.created_at,
-            unread=False,
-        )
+        return self._view(msg, viewer=effective_subject)
 
     def mark_read(self, thread_id: str, *, principal: AuthPrincipal) -> SupportThreadDetail:
         thread = self._store.get_thread(thread_id)
@@ -388,6 +460,7 @@ class MessagingService:
         if changed:
             thread = thread.model_copy(update={"messages": updated_msgs, "updated_at": _now()})
             thread = self._store.save_thread(thread)
+            self._publish(thread, {"type": "thread.read", "reader": viewer}, exclude=viewer)
         return SupportThreadDetail(
             thread=self._summary(thread, viewer=viewer),
             messages=self._views(thread, viewer=viewer),
@@ -423,8 +496,8 @@ class MessagingService:
         principal: AuthPrincipal,
         actor_subject: str | None = None,
         actor_role: str | None = None,
-    ) -> SupportThreadDetail | None:
-        """Delete one message. Returns remaining thread detail, or None if the thread was removed."""
+    ) -> SupportThreadDetail:
+        """Soft-delete one message. It can be restored for ``UNDO_WINDOW``, then its text is purged."""
         thread = self._store.get_thread(thread_id)
         if thread is None:
             raise HTTPException(status_code=404, detail="Conversation not found.")
@@ -441,17 +514,85 @@ class MessagingService:
         is_admin = role == "admin" or principal.role == "admin"
         if not is_author and not is_admin:
             raise HTTPException(status_code=403, detail="Only the author or an admin can delete this message.")
+        if target.deleted_at is None:
+            now = utcnow()
+            msgs = [
+                m.model_copy(update={"deleted_at": now, "deleted_by": subject}) if m.message_id == message_id else m
+                for m in thread.messages
+            ]
+            thread = self._store.save_thread(thread.model_copy(update={"messages": msgs, "updated_at": now}))
+            self._publish(thread, {"type": "message.deleted", "message_id": message_id})
+        return SupportThreadDetail(
+            thread=self._summary(thread, viewer=subject),
+            messages=self._views(thread, viewer=subject),
+        )
 
-        remaining = [m for m in thread.messages if m.message_id != message_id]
-        if not remaining:
-            self._store.delete_thread(thread_id)
-            return None
-        saved = self._store.save_thread(
-            thread.model_copy(update={"messages": remaining, "updated_at": utcnow()})
+    def restore_message(
+        self,
+        thread_id: str,
+        message_id: str,
+        *,
+        principal: AuthPrincipal,
+        actor_subject: str | None = None,
+        actor_role: str | None = None,
+    ) -> SupportThreadDetail:
+        """Undo a delete — only by whoever deleted it, and only inside ``UNDO_WINDOW``."""
+        thread = self._store.get_thread(thread_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        subject, _role, _access = self._effective_actor(
+            principal=principal,
+            actor_subject=actor_subject,
+            actor_role=actor_role,
+            thread=thread,
+        )
+        thread = self._purge_expired(thread)
+        target = next((m for m in thread.messages if m.message_id == message_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Message not found.")
+        if target.deleted_at is None:
+            raise HTTPException(status_code=409, detail="Message is not deleted.")
+        if target.deleted_by != subject:
+            raise HTTPException(status_code=403, detail="Only the person who deleted this message can restore it.")
+        if not target.body or utcnow() - target.deleted_at > self.UNDO_WINDOW:
+            raise HTTPException(status_code=410, detail="The undo window has passed.")
+        msgs = [
+            m.model_copy(update={"deleted_at": None, "deleted_by": None}) if m.message_id == message_id else m
+            for m in thread.messages
+        ]
+        thread = self._store.save_thread(thread.model_copy(update={"messages": msgs, "updated_at": utcnow()}))
+        restored = next(m for m in thread.messages if m.message_id == message_id)
+        self._publish(
+            thread,
+            {"type": "message.restored", "message": self._view(restored, viewer="").model_dump(mode="json")},
         )
         return SupportThreadDetail(
-            thread=self._summary(saved, viewer=subject),
-            messages=self._views(saved, viewer=subject),
+            thread=self._summary(thread, viewer=subject),
+            messages=self._views(thread, viewer=subject),
+        )
+
+    def typing(
+        self,
+        thread_id: str,
+        *,
+        principal: AuthPrincipal,
+        actor_subject: str | None = None,
+        actor_role: str | None = None,
+    ) -> None:
+        """Tell the other participants that this user is typing (not stored)."""
+        thread = self._store.get_thread(thread_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        subject, _role, _access = self._effective_actor(
+            principal=principal,
+            actor_subject=actor_subject,
+            actor_role=actor_role,
+            thread=thread,
+        )
+        self._publish(
+            thread,
+            {"type": "typing", "subject": subject, "name": self._display_name(subject)},
+            exclude=subject,
         )
 
     def delete_thread(
@@ -480,3 +621,4 @@ class MessagingService:
         if not allowed:
             raise HTTPException(status_code=403, detail="Not allowed to delete this conversation.")
         self._store.delete_thread(thread_id)
+        self._publish(thread, {"type": "thread.deleted"})

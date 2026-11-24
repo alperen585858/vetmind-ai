@@ -22,9 +22,13 @@ class SupportMessage(BaseModel):
     message_id: str = Field(default_factory=lambda: f"msg-{uuid4().hex[:12]}")
     author_subject: str = Field(min_length=1, max_length=120)
     author_role: str = Field(min_length=1, max_length=40)
-    body: str = Field(min_length=1, max_length=4000)
+    # Empty only after a deleted message's undo window has passed (content purged).
+    body: str = Field(min_length=0, max_length=4000)
     created_at: datetime = Field(default_factory=utcnow)
     read_by: list[str] = Field(default_factory=list)
+    # Soft delete: restorable for a short window, then the body is purged.
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = Field(default=None, max_length=120)
 
 
 class SupportThread(BaseModel):
@@ -87,6 +91,12 @@ class SupportMessageView(BaseModel):
     body: str
     created_at: datetime
     unread: bool = False
+    # Own messages: someone else in the conversation has read it.
+    read_by_other: bool = False
+    deleted: bool = False
+    deleted_at: Optional[datetime] = None
+    # Until when the deleter can undo (None once the body is purged or not deleted).
+    restorable_until: Optional[datetime] = None
 
 
 class SupportThreadSummary(BaseModel):
@@ -99,6 +109,8 @@ class SupportThreadSummary(BaseModel):
     # Display label of the other side, from the viewer's point of view.
     counterpart_name: Optional[str] = None
     counterpart_role: Optional[str] = None
+    # The other side has the app open right now (live stream connected).
+    counterpart_online: bool = False
     clinic_id: Optional[str] = None
     subject: str
     status: ThreadStatus

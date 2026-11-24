@@ -9,6 +9,7 @@ export interface BackendSupportThreadSummary {
   /** The other side of the conversation, from the viewer's point of view. */
   counterpart_name?: string | null
   counterpart_role?: string | null
+  counterpart_online?: boolean
   clinic_id?: string | null
   subject: string
   status: 'open' | 'closed'
@@ -29,6 +30,12 @@ export interface BackendSupportMessage {
   body: string
   created_at: string
   unread: boolean
+  /** Own messages: read by someone else in the conversation. */
+  read_by_other?: boolean
+  deleted?: boolean
+  deleted_at?: string | null
+  /** Set only for whoever deleted it, until the undo window closes. */
+  restorable_until?: string | null
 }
 
 export interface BackendSupportThreadDetail {

@@ -138,22 +138,30 @@ def test_delete_own_message_and_thread(tmp_path: Path) -> None:
     )
     assert forbidden.status_code == 403
 
-    # Expert deletes own reply
+    # Expert deletes own reply → soft delete, conversation keeps a placeholder
     deleted = client.delete(
         f"/api/v1/messages/threads/{tid}/messages/{reply_id}",
         headers=_hdr(expert),
     )
     assert deleted.status_code == 200, deleted.text
-    assert len(deleted.json()["messages"]) == 1
-    assert deleted.json()["messages"][0]["message_id"] == first_id
+    msgs = {m["message_id"]: m for m in deleted.json()["messages"]}
+    assert msgs[reply_id]["deleted"] is True
+    assert msgs[reply_id]["body"] == "Uzman yanıtı"  # deleter still sees what undo brings back
+    assert msgs[reply_id]["restorable_until"]
+    assert msgs[first_id]["deleted"] is False
 
-    # Deleting last message removes the thread
+    # The other side only sees "deleted", never the text
+    seen = client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).json()
+    other = next(m for m in seen["messages"] if m["message_id"] == reply_id)
+    assert other["deleted"] is True and other["body"] == "" and other["restorable_until"] is None
+
+    # Deleting every message keeps the conversation (it is removed with "delete thread")
     last = client.delete(
         f"/api/v1/messages/threads/{tid}/messages/{first_id}",
         headers=_hdr(owner),
     )
-    assert last.status_code == 204
-    assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).status_code == 404
+    assert last.status_code == 200
+    assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).status_code == 200
 
 
 def test_delete_thread_endpoint(tmp_path: Path) -> None:

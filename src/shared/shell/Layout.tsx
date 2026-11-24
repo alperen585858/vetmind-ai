@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useApp } from './AppContext'
+import { LiveStreamConnector } from '../live/liveStream'
 import { useLocale } from './LocaleContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -67,6 +68,7 @@ export function Layout({
 
   return (
     <div className="min-h-screen bg-transparent" data-role={role || undefined}>
+      <LiveStreamConnector enabled={Boolean(role)} />
       <a href="#main-content" className="skip-link no-print">
         {t('nav.skipToContent')}
       </a>

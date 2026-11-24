@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from app.api.deps import get_messaging_facade
+from app.api.deps import get_container, get_messaging_facade
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_MESSAGES
 from app.schemas.messaging import (
@@ -15,9 +17,12 @@ from app.schemas.messaging import (
     SupportThreadDetail,
     SupportThreadSummary,
 )
+from app.services.live_events import StreamIdentity, event_stream
 from app.services.messaging_facade import MessagingFacade
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"], dependencies=[Depends(require_auth)])
+# The SSE stream authenticates with a single-use ticket (EventSource cannot send headers).
+live_router = APIRouter(prefix="/api/v1/live", tags=["live"])
 
 _ALLOWED_DEMO_ROLES = frozenset({"expert", "admin", "vet", "clinic_owner"})
 
@@ -186,3 +191,67 @@ def delete_thread(
         actor_role=role,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/threads/{thread_id}/messages/{message_id}/restore", response_model=SupportThreadDetail)
+def restore_message(
+    thread_id: str,
+    message_id: str,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+    service=Depends(_messaging),
+) -> SupportThreadDetail:
+    """Undo a delete (only the person who deleted it, within the undo window)."""
+    subject, role = _demo_actor(request, principal)
+    return service.restore_message(
+        thread_id, message_id, principal=principal, actor_subject=subject, actor_role=role
+    )
+
+
+@router.post("/threads/{thread_id}/typing", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def typing(
+    thread_id: str,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+    service=Depends(_messaging),
+) -> Response:
+    subject, role = _demo_actor(request, principal)
+    service.typing(thread_id, principal=principal, actor_subject=subject, actor_role=role)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class StreamTicket(BaseModel):
+    ticket: str
+    expires_in: int
+
+
+@router.post("/stream-ticket", response_model=StreamTicket)
+def stream_ticket(
+    request: Request,
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+) -> StreamTicket:
+    """Single-use ticket (60 s) for opening the live event stream."""
+    container = get_container(request)
+    subject, role = _demo_actor(request, principal)
+    identity = StreamIdentity(
+        subject=(subject or principal.subject).strip().lower(),
+        role=role or principal.role,
+        clinic_id=principal.clinic_id,
+    )
+    tickets = container.stream_tickets
+    return StreamTicket(ticket=tickets.issue(identity), expires_in=tickets.ttl_seconds)
+
+
+@live_router.get("/stream")
+async def live_stream(request: Request, ticket: str = Query(min_length=8, max_length=200)) -> StreamingResponse:
+    """Server-Sent Events for the signed-in user: new messages, delete/undo, read, typing,
+    notifications. Open with a ticket from ``POST /api/v1/messages/stream-ticket``."""
+    container = get_container(request)
+    identity = container.stream_tickets.consume(ticket)
+    if identity is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired stream ticket.")
+    return StreamingResponse(
+        event_stream(container.live_events, identity.subject, is_disconnected=request.is_disconnected),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
