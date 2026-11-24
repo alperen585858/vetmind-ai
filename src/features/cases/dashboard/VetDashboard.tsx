@@ -34,6 +34,7 @@ import { SpeciesIcon } from '../../../shared/ui/CaseTable'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import { EmptyState } from '../../../shared/ui/EmptyState'
 import { getClinicDashboard } from '../../../shared/api'
+import { AnalysisTasksBanner } from '../../analysis/AnalysisTaskWidgets'
 import { AWAITING_REPORT_FILTER, isAwaitingReport } from '../lib/caseStatusMap'
 import { fmtDate } from '../../../shared/lib/format'
 import type { ClinicDashboardStats } from '../../../shared/types'
@@ -137,6 +138,7 @@ export function VetDashboard() {
 
   return (
     <div className="space-y-4">
+      <AnalysisTasksBanner />
       {/* Welcome + primary actions */}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,17rem)]">
         <div className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)]">

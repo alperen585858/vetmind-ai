@@ -2314,5 +2314,23 @@
     "failed": "Report email could not be sent (retried)",
     "notConfigured": "Mail server not configured; no email sent",
     "skipped": "No email sent (no recipient)"
+  },
+  "analysisTasks": {
+    "title": "AI analyses",
+    "uploading": "Uploading images",
+    "queuing": "Queuing for AI",
+    "analyzing": "AI is analysing",
+    "done": "Analysis complete",
+    "failed": "Analysis failed",
+    "cancelled": "Analysis stopped",
+    "readyShort": "Ready",
+    "failedShort": "Error",
+    "pillLabel": "{name} AI analysis {pct}% — open the analysis page",
+    "bannerTitle": "{name} — AI analysis",
+    "openHint": "Open analysis page",
+    "dismiss": "Dismiss",
+    "doneTitle": "AI analysis complete",
+    "failedTitle": "AI analysis failed",
+    "keepWorking": "You can keep working on other pages; progress shows in the top bar."
   }
 }

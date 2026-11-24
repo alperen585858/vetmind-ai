@@ -19,6 +19,7 @@ import { messagingRoutes } from './features/messaging/routes'
 import { ragAdminRoutes } from './features/rag-admin/routes'
 import { adminRoutes } from './features/admin/routes'
 import { NotificationBell } from './features/messaging/NotificationBell'
+import { AnalysisTaskBridge, AnalysisTasksIndicator } from './features/analysis/AnalysisTaskWidgets'
 import { SourcePanel } from './features/rag-admin/SourcePanel'
 
 const NotFound = lazyPage(() => import('./shared/shell/NotFound'))
@@ -62,7 +63,18 @@ export default function App() {
             {signedInResetRoutes}
             {publicReportLinkRoutes}
             <Route
-              element={<Layout notificationSlot={<NotificationBell />} sourcePanel={<SourcePanel />} />}
+              element={
+                <Layout
+                  notificationSlot={
+                    <>
+                      <AnalysisTaskBridge />
+                      <AnalysisTasksIndicator />
+                      <NotificationBell />
+                    </>
+                  }
+                  sourcePanel={<SourcePanel />}
+                />
+              }
             >
               <Route index element={<Dashboard />} />
               {caseRoutes}

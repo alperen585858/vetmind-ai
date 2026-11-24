@@ -22,30 +22,18 @@ import { Button } from '../../shared/ui/Button'
 import { StatusBadge } from '../../shared/ui/StatusBadge'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { CaseWorkflowStepper } from '../../shared/ui/CaseWorkflowStepper'
-import { buildAssessment, makeDocument } from '../../shared/demo/caseTemplates'
-import { localize } from '../../shared/lib/neuroLocalization'
-import { nowStamp, today } from '../../shared/lib/format'
-import { studyLabel as formatStudyLabel } from '../../shared/lib/displayClean'
 import { toastErrorBody, userErrorMessage } from '../../shared/lib/apiErrors'
 import {
-  confirmDicomAndEnqueueAnalyze,
   enqueueAnalyzeCase,
   getAnalysisJob,
   getBackendCase,
   requestCancelAnalysisJob,
-  uploadDicomDemo,
-  uploadDicomFiles,
   type BackendAnalysisJob,
 } from '../../shared/api'
 import { displayAnalysisProgress, estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
-import { clearAnalyzeHandoff, getAnalyzeHandoff, type AnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
-import { cacheCaseDicomFiles } from '../../shared/lib/dicomCaseCache'
-import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
+import { getAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
+import { startHandoffTask, trackAnalysisJob, useAnalysisTasks } from './analysisTasks'
 import type { TranslateFn } from '../../i18n'
-import type { ClinicalInfo, NeuroExam, Patient, Priority, VetCase } from '../../shared/types'
-import { UNEVALUATED_NEURO } from '../../shared/lib/neuroExam'
-
-const EMPTY_NEURO: NeuroExam = UNEVALUATED_NEURO
 
 function analysisModeBanner(
   mode: string | undefined,
@@ -112,113 +100,10 @@ function isInFlightStatus(status: string | undefined): boolean {
 
 type HandoffPhase = 'idle' | 'uploading' | 'queuing' | 'sent' | 'failed'
 
-function buildCaseFromHandoff(
-  handoff: AnalyzeHandoff,
-  caseRecord: Awaited<ReturnType<typeof confirmDicomAndEnqueueAnalyze>>['case'],
-  job: BackendAnalysisJob,
-  uploadSnap: AnalyzeHandoff['uploadSnap'],
-  locale: 'tr' | 'en',
-  t: TranslateFn,
-): VetCase {
-  const parsedAge = handoff.ageYears.trim() === '' ? 0 : Number(handoff.ageYears)
-  const patient: Patient = {
-    name: handoff.patientName,
-    species: handoff.species,
-    breed: handoff.breed,
-    sex: 'Erkek',
-    neutered: true,
-    age: Number.isFinite(parsedAge) ? parsedAge : 0,
-    weight: 0,
-    ownerName: handoff.ownerName || t('reports.doc.owner'),
-    ownerPhone: '',
-  }
-  const clinical: ClinicalInfo = {
-    complaint: handoff.history.split('\n')[0] || t('dicom.title'),
-    onset: 'Akut',
-    course: 'Progresif',
-    history: handoff.history,
-    medications: '',
-  }
-  const neuro = EMPTY_NEURO
-  const stamp = nowStamp()
-  const loc = localize(neuro, clinical, locale)
-  const built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
-  const id = caseRecord.case_id
-  const instanceCount =
-    uploadSnap?.study?.series.reduce((n, s) => n + s.instances.length, 0) ??
-    caseRecord.dicom_study?.series?.reduce((n, s) => n + (s.instances?.length ?? 0), 0) ??
-    handoff.files.length
-  const priority: Priority = 'Normal'
-
-  return {
-    id,
-    no: id.replace(/^case-/, 'VM-').toUpperCase(),
-    patient,
-    clinical,
-    neuro,
-    documents: [
-      {
-        ...makeDocument(
-          `${id}-dicom`,
-          `DICOM study ${uploadSnap?.study?.study_instance_uid ?? 'pending'}`,
-          'MR Raporu',
-          patient,
-          clinical,
-          built.imaging,
-        ),
-        size: `${instanceCount} görüntü`,
-        rawText: 'Yalnızca DICOM dosya bilgileri okundu; görüntü pikselleri analiz edilmedi.',
-        extracted: [
-          {
-            field: 'StudyInstanceUID',
-            value: uploadSnap?.study?.study_instance_uid ?? '—',
-            source: 'DICOM',
-          },
-          {
-            field: 'Sınıflandırma',
-            value: uploadSnap?.classification
-              ? formatStudyLabel(
-                  t,
-                  uploadSnap.classification.suggested_modality,
-                  uploadSnap.classification.suggested_anatomical_region,
-                )
-              : '—',
-            source: 'DICOM sınıflandırıcı',
-          },
-        ],
-      },
-    ],
-    status: 'ai_analizi',
-    module: 'Nöroloji',
-    priority,
-    createdAt: today(),
-    clinic: '',
-    vetName: handoff.vetName,
-    ai: built.ai,
-    aiDraft: built.draft,
-    report: { ...built.draft },
-    corrections: [],
-    timeline: [
-      { date: stamp, label: 'Giriş sonrası DICOM metadata yüklendi', by: handoff.vetName },
-      { date: stamp, label: `Analiz kuyruğa alındı (${job.job_id})`, by: 'Sistem' },
-    ],
-    processingStartedAt: Date.now(),
-    processingMs: estimateAnalysisDurationMs(instanceCount),
-    backendCaseId: id,
-    backendJobId: job.job_id,
-    fromBackend: true,
-    dicomDemoKind: handoff.pendingDemo ?? undefined,
-    modality: caseRecord.modality,
-    anatomicalRegion: caseRecord.anatomical_region,
-    studyInstanceUid: caseRecord.dicom_study?.study_instance_uid,
-    instanceCount,
-  }
-}
-
 export default function Processing() {
   const { id = '' } = useParams()
-  const { getCase, addCase, updateCase, removeCase, hydrateBackendCase, pushToast } = useApp()
-  const { t, locale } = useLocale()
+  const { getCase, updateCase, hydrateBackendCase, pushToast } = useApp()
+  const { t } = useLocale()
   const stageLabel = (j: { pipeline_stage?: string | null; stage_label?: string | null } | null | undefined) => {
     if (!j) return ''
     const key = j.pipeline_stage ? `analysis.stages.${j.pipeline_stage}` : ''
@@ -272,97 +157,40 @@ export default function Processing() {
     void refresh()
   }, [refresh, c?.processingStartedAt])
 
-  // Run upload + enqueue after immediate navigation from DICOM upload.
+  // Upload + enqueue run in a background task (analysisTasks) so leaving this page does
+  // not cancel them. This page only starts the task once and follows it.
+  const tasks = useAnalysisTasks()
+  const task = useMemo(() => tasks.find((t) => t.key === id || t.pendingId === id || t.caseId === id), [tasks, id])
+
   useEffect(() => {
-    if (!isPending) return
+    if (!isPending || task) return
     const handoff = getAnalyzeHandoff(id)
     if (!handoff) {
       setHandoffPhase('failed')
       setLoadError(t('cases.processing.handoffFailed'))
       return
     }
-    const controller = new AbortController()
-    let alive = true
+    startHandoffTask(handoff, { blocked: t('dicom.uploadBlocked') })
+  }, [id, isPending, task, t])
 
-    ;(async () => {
-      try {
-        let ingestId = handoff.ingestId
-        let uploadSnap = handoff.uploadSnap
-        if (!ingestId) {
-          if (alive) setHandoffPhase('uploading')
-          const upload = handoff.pendingDemo
-            ? await uploadDicomDemo({
-                kind: handoff.pendingDemo,
-                patientName: handoff.patientName,
-                species: handoff.species,
-                breed: handoff.breed,
-                clinicalHistory: handoff.history,
-                signal: controller.signal,
-              })
-            : await uploadDicomFiles({
-                files: handoff.files,
-                patientName: handoff.patientName,
-                species: handoff.species,
-                breed: handoff.breed,
-                clinicalHistory: handoff.history,
-                signal: controller.signal,
-              })
-          if (!alive) return
-          uploadSnap = upload
-          if (upload.blocked) {
-            throw new Error(upload.block_reason || t('dicom.uploadBlocked'))
-          }
-          ingestId = upload.ingest_id
-        }
-
-        if (alive) setHandoffPhase('queuing')
-        const { case: caseRecord, job: enqueued } = await confirmDicomAndEnqueueAnalyze({
-          ingestId,
-          acceptSuggestion: handoff.acceptSuggestion,
-          modality: handoff.acceptSuggestion ? undefined : handoff.overrideModality,
-          anatomicalRegion: handoff.acceptSuggestion ? undefined : handoff.overrideRegion,
-          patientName: handoff.patientName,
-          clinicalHistory: handoff.history,
-          ownerName: handoff.ownerName,
-          imagingSourcePermissionVerified: handoff.consent,
-          imagingAnalysisConsentVerified: handoff.consent,
-          signal: controller.signal,
-        })
-        if (!alive) return
-
-        setHandoffPhase('sent')
-        setJob(enqueued)
-        const newCase = buildCaseFromHandoff(handoff, caseRecord, enqueued, uploadSnap, locale, t)
-        if (handoff.files.length > 0) {
-          void cacheCaseDicomFiles(newCase.id, handoff.files.slice(0, MAX_VIEWER_FRAMES))
-        }
-        clearAnalyzeHandoff(handoff.pendingId)
-        addCase(newCase)
-        startedAtRef.current = newCase.processingStartedAt ?? Date.now()
-        pushToast({
-          tone: 'info',
-          title: t('cases.processing.sentToAi'),
-          body: `${handoff.patientName} · ${t('cases.processing.loadingTitle')}`,
-        })
-        // Navigate first so the pending id is not briefly "not found".
-        nav(`/vakalar/${newCase.id}/isleme`, { replace: true })
-        removeCase(handoff.pendingId)
-        setHandoffPhase('idle')
-      } catch (err) {
-        if (!alive || (err instanceof DOMException && err.name === 'AbortError')) return
-        clearAnalyzeHandoff(id)
-        const message = userErrorMessage(err, t)
-        setHandoffPhase('failed')
-        setLoadError(message)
-        pushToast({ tone: 'error', title: t('cases.processing.handoffFailed'), body: toastErrorBody(err, t) })
-      }
-    })()
-
-    return () => {
-      alive = false
-      controller.abort()
+  useEffect(() => {
+    if (!isPending || !task) return
+    if (task.phase === 'uploading' || task.phase === 'queuing') {
+      setHandoffPhase(task.phase)
+      if (startedAtRef.current == null) startedAtRef.current = task.startedAt
+      return
     }
-  }, [addCase, id, isPending, locale, nav, pushToast, removeCase, t])
+    if (task.phase === 'failed' && !task.caseId) {
+      setHandoffPhase('failed')
+      setLoadError(task.error || t('cases.processing.handoffFailed'))
+      return
+    }
+    if (task.caseId) {
+      // The bridge has (or will have) added the real case; move to its URL.
+      setHandoffPhase('sent')
+      nav(`/vakalar/${task.caseId}/isleme`, { replace: true })
+    }
+  }, [isPending, task, nav, t])
 
   const jobStatus = job?.status ?? (c?.backendOutcome ? 'completed' : handoffPhase !== 'idle' ? 'queued' : 'unknown')
   const preparing = handoffPhase === 'uploading' || handoffPhase === 'queuing' || handoffPhase === 'sent'
@@ -458,6 +286,7 @@ export default function Processing() {
       const enqueued = await enqueueAnalyzeCase(caseId)
       setJob(enqueued)
       updateCase(c.id, { backendJobId: enqueued.job_id, status: 'ai_analizi' })
+      trackAnalysisJob({ caseId, jobId: enqueued.job_id, patientName: c.patient.name, instanceCount: c.instanceCount })
       pushToast({
         tone: 'info',
         title: t('cases.processing.toastRefreshed'),

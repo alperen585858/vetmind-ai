@@ -2314,5 +2314,23 @@
     "failed": "Rapor e-postası gönderilemedi (tekrar denendi)",
     "notConfigured": "E-posta sunucusu yapılandırılmamış; e-posta gönderilmedi",
     "skipped": "E-posta gönderilmedi (alıcı yok)"
+  },
+  "analysisTasks": {
+    "title": "AI analizleri",
+    "uploading": "Görüntüler yükleniyor",
+    "queuing": "AI kuyruğuna alınıyor",
+    "analyzing": "AI analiz ediyor",
+    "done": "Analiz tamamlandı",
+    "failed": "Analiz başarısız",
+    "cancelled": "Analiz durduruldu",
+    "readyShort": "Hazır",
+    "failedShort": "Hata",
+    "pillLabel": "{name} AI analizi %{pct} — analiz sayfasını aç",
+    "bannerTitle": "{name} — AI analizi",
+    "openHint": "Analiz sayfasına git",
+    "dismiss": "Kapat",
+    "doneTitle": "AI analizi tamamlandı",
+    "failedTitle": "AI analizi başarısız",
+    "keepWorking": "Başka sayfalarda çalışmaya devam edebilirsiniz; ilerleme üst çubukta görünür."
   }
 }
