@@ -699,7 +699,12 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 
 **Alaka filtresi** (`rag/relevance.py`). Rapor taslağı için yapılan aramada:
 
-- Her kaynağın bölge/tür etiketi var (`regions`/`species`). Vaka yalnızca kendi bölgesine uyan kaynakları görür. Kafatası/sütür/ırk kaynakları yalnızca beyin BT/röntgende gelir. Etiketsiz (`custom-*`) kaynaklar her zaman aday olur.
+- Her kaynağın bölge/tür etiketi var (`regions`/`species`). Vaka yalnızca kendi bölgesine uyan kaynakları görür. Kafatası/sütür/ırk kaynakları yalnızca beyin BT/röntgende gelir. Etiketsiz kaynaklar genel sayılır ve her zaman aday olur.
+- **Kaynak kartları** (`rag/source_cards.py`). Klinik bir kaynak yüklediğinde (`POST /rag/documents`, toplu yükleme) bölge ve tür etiketi metinden otomatik çıkarılır; kart kısa bir özet ve etiketin nereden geldiğini (`tag_source`: `rules` / `llm` / `manual` / `none`) de tutar. Arama iki aşamalıdır: önce kartlara göre vakanın kullanabileceği kaynaklar seçilir, sonra bu kaynakların pasajları benzerliğe göre sıralanır.
+  - Kurallar başlık, bölüm, anahtar kelime ve metindeki Türkçe/İngilizce terimlere ve omur seviyelerine ("T13-L1", "C6") bakar. Hazır 41 kaynağın elle verilmiş etiketleriyle karşılaştırıldığında bölge 38/41, tür 41/41 doğru; yanlışların hiçbiri kaynağı ilgili vakadan gizlemiyor (fazla etiket veya etiketsiz kalıyor).
+  - Etiketlerin bedeli asimetrik: eksik etiket sadece daha az filtre demek, yanlış etiket kaynağı gizler. Bu yüzden tür etiketi yalnızca başlıkta geçiyorsa veya metinde en az iki kez geçip diğer tür hiç geçmiyorsa konur; kafatası etiketi yalnızca kafatası terimleri baskınsa konur.
+  - `VETMIND_RAG_CARD_LLM=1` ile kuralların bulamadığı boşluğu dil modeli doldurur (kurallarla çelişirse kural kazanır; hata olursa kurallarla devam eder).
+  - Admin, Bilgi Tabanı sayfasındaki Kapsam sütunundan etiketi düzeltebilir (`PUT /rag/documents/{id}/card`); elle verilen etiket korunur. Kartlardan önce yüklenmiş kaynaklar `POST /rag/documents/retag` ile etiketlenir.
 - Sorgu Türkçe içerikten oluşur (bölge, şikâyet, bulgu metni). Enum ve bulgu kodları sorguya girmez.
 - Hash embedding 2048 boyutlu; Türkçe kök özelliği kullanıyor ve "ve/ile/bir" gibi dolgu kelimeleri atıyor.
 - Skor eşiğinin altında kalan kaynaklar atılır. İlgili kaynak yoksa model kaynaksız yazar.
@@ -968,6 +973,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_LLM_TEMPERATURE` / `_MAX_TOKENS` / `_JSON_MODE` | `0.2` / `2048` / `schema` | Bkz. [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) |
 | `VETMIND_CLASSIFIER_LLM` | `0` | `1` → DICOM sınıflandırıcıda boşlukları dil modeli doldurur (§4.4) |
 | `VETMIND_CLASSIFIER_LLM_MODEL_ID` | `VETMIND_LLM_MODEL_ID` | Sınıflandırıcı için ayrı model |
+| `VETMIND_RAG_CARD_LLM` | `0` | `1` → yüklenen bilgi bankası kaynaklarının bölge/tür etiketinde kuralların boş bıraktığını dil modeli doldurur |
 | `VETMIND_CLASSIFIER_LLM_TIMEOUT_S` | `20` | Aşılırsa o yükleme için kurallarla devam edilir |
 
 ### Auth / güvenlik

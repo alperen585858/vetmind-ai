@@ -21,6 +21,7 @@ from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.ollama_embeddings import build_embedding_backend
 from app.rag.retriever import LexicalRagRetriever
+from app.rag.source_cards import build_source_card_tagger
 from app.rag.vector_store import JsonVectorStore
 from app.routing.capabilities import (
     AVAILABILITY_CONFIGURED,
@@ -100,6 +101,8 @@ class AppContainer:
             preserve_approved_reports=True,
         )
 
+        # Source cards for uploaded knowledge-base sources (rules; optional LLM).
+        self.rag_card_tagger = build_source_card_tagger(self.settings)
         if self.settings.rag_backend == "lexical":
             self.rag = LexicalRagRetriever()
             self.rag_method = "lexical_token_overlap"

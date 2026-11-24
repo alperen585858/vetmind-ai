@@ -149,6 +149,9 @@ class Settings:
     classifier_llm: bool = False
     classifier_llm_model_id: str | None = None
     classifier_llm_timeout_s: float = 20.0
+    # Knowledge-base source cards: ask the configured LLM for region/species tags when the
+    # keyword rules find none (app.rag.source_cards). Off by default; rules always run.
+    rag_card_llm: bool = False
     note: str = (
         "CaseRepository: memory | sqlite | postgres. "
         "Optional remote Vision via VETMIND_VISION_ENDPOINT. "
@@ -605,6 +608,7 @@ def load_settings() -> Settings:
         classifier_llm=_env_bool("VETMIND_CLASSIFIER_LLM", False),
         classifier_llm_model_id=(os.getenv("VETMIND_CLASSIFIER_LLM_MODEL_ID") or "").strip() or None,
         classifier_llm_timeout_s=max(1.0, _env_float("VETMIND_CLASSIFIER_LLM_TIMEOUT_S", 20.0)),
+        rag_card_llm=_env_bool("VETMIND_RAG_CARD_LLM", False),
     )
 
 
