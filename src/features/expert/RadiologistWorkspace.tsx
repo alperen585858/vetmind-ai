@@ -45,7 +45,6 @@ import {
   createLesson,
   deleteBackendCase,
   fetchCaseDicomFiles,
-  getPetMedicalHistory,
   listBackendWorklist,
   listReportVersions,
   draftToSections,
@@ -56,7 +55,6 @@ import {
   addManualCaseEvidence,
   reviewCaseEvidence,
   submitBackendReview,
-  type PetHistoryEntry,
 } from '../../shared/api'
 import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
@@ -102,7 +100,6 @@ export default function RadiologistWorkspace() {
   const [versions, setVersions] = useState<{ version: number; immutable: boolean; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [worklist, setWorklist] = useState<BackendCaseSummary[]>([])
-  const [priorReports, setPriorReports] = useState<PetHistoryEntry[]>([])
   const [internalNote, setInternalNote] = useState('')
   const [infoAsk, setInfoAsk] = useState('')
   const [showDicom, setShowDicom] = useState(true)
@@ -227,22 +224,6 @@ export default function RadiologistWorkspace() {
       )
   }, [id, pushToast, t])
 
-  useEffect(() => {
-    if (!c?.petId) {
-      setPriorReports([])
-      return
-    }
-    void getPetMedicalHistory(c.petId)
-      .then((h) => setPriorReports(h.timeline.filter((e) => e.kind === 'report' || e.report_available).slice(0, 6)))
-      .catch((err) => {
-        setPriorReports([])
-        pushToast({
-          tone: 'error',
-          title: t('review.workspace.priorLoadFailed'),
-          body: toastErrorBody(err, t),
-        })
-      })
-  }, [c?.petId, pushToast, t])
 
   const contextBits = useMemo(() => {
     if (!c) return []
@@ -495,17 +476,11 @@ export default function RadiologistWorkspace() {
         setModal(null)
         setReason('')
         setReasonCodes([])
-        if (reviewed.owner_email_delivery_status === 'failed_smtp') {
-          pushToast({
-            tone: 'error',
-            title: t('ownerContact.emailFailedToast'),
-            body: reviewed.owner_email_delivery_detail || t('ownerContact.deliveryFailed'),
-          })
-        } else if (reviewed.owner_email_delivery_status === 'sent') {
-          pushToast({
-            tone: 'success',
-            title: t('ownerContact.deliverySent'),
-          })
+        // Approval stands even if the report-ready email to the vet failed (issue #90).
+        if (reviewed.vet_email_delivery_status === 'failed') {
+          pushToast({ tone: 'warning', title: t('reportEmail.failed') })
+        } else if (reviewed.vet_email_delivery_status === 'sent') {
+          pushToast({ tone: 'success', title: t('reportEmail.sent') })
         }
         // Hard navigation — do not use SPA nav (was leaving users on the worklist).
         goToApprovedReport(caseKey)
@@ -733,26 +708,12 @@ export default function RadiologistWorkspace() {
           {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || t('review.workspace.noClinicalHistory')}
         </p>
         {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
-        {priorReports.length > 0 && (
-          <div className="mt-3 border-t border-slate-100 pt-2">
-            <p className="text-xs font-semibold text-slate-500">{t('review.workspace.priorReports')}</p>
-            <ul className="mt-1 space-y-1 text-xs">
-              {priorReports.map((r, i) => (
-                <li key={`${r.case_id}-${i}`}>
-                  {r.title}
-                  {r.link_path ? (
-                    <>
-                      {' '}
-                      <LocalizedLink className="text-teal-700 hover:underline" to={r.link_path}>
-                        {t('review.workspace.openLink')}
-                      </LocalizedLink>
-                    </>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+        {c.radiologistQuestions ? (
+          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">
+            <p className="font-semibold">{t('newCase.radiologistQuestions')}</p>
+            <p className="mt-0.5 whitespace-pre-line">{c.radiologistQuestions}</p>
           </div>
-        )}
+        ) : null}
       </Card>
 
       <div className={`grid gap-4 ${showDicom ? 'xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}>

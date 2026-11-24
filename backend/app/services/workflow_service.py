@@ -56,7 +56,9 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Roles anyone may sign up for. Vets start inactive (admin assigns a clinic and activates):
 # an active vet account sees its clinic's cases, so it must not be self-service.
-SelfRegisterRole = Literal["owner", "vet"]
+SelfRegisterRole = Literal["vet"]
+# Roles an admin may assign. ``owner`` is kept in ManagedRole only so legacy rows still load.
+ASSIGNABLE_ROLES = frozenset({"vet", "expert", "clinic_owner", "admin"})
 
 # Clinic-scoped staff roles. Several access checks skip the clinic comparison when the
 # principal has no clinic_id, so an *active* account in one of these roles must have one.
@@ -64,6 +66,11 @@ CLINIC_REQUIRED_ROLES = frozenset({"vet", "expert", "clinic_owner"})
 
 
 def _assert_user_state_allowed(user: ManagedUser) -> None:
+    if user.active and user.role not in ASSIGNABLE_ROLES:
+        raise HTTPException(
+            status_code=422,
+            detail=api_error("role_not_supported", "Pet-owner accounts are no longer supported."),
+        )
     if user.active and user.role in CLINIC_REQUIRED_ROLES and not (user.clinic_id or "").strip():
         raise HTTPException(
             status_code=422,
@@ -163,7 +170,7 @@ class WorkflowService:
         for u in self._store.list_users():
             email = u.email.lower()
             stored_emails.add(email)
-            if not u.active:
+            if not u.active or u.role not in ASSIGNABLE_ROLES:
                 continue
             pwd_hash = self._directory_hash(u)
             if not pwd_hash:
@@ -374,14 +381,14 @@ class WorkflowService:
         display_name: str | None = None,
         owner_clinic_id: str | None = None,
     ) -> ManagedUser:
-        """Public sign-up. Owners are active at once; vets wait for admin activation."""
+        """Public sign-up for vets. Accounts wait for admin activation (B2B only)."""
         email = email.strip().lower()
         if not _EMAIL_RE.match(email):
             raise HTTPException(
                 status_code=422,
                 detail=api_error("invalid_email", "Enter a valid email address."),
             )
-        if role not in ("owner", "vet"):
+        if role != "vet":
             raise HTTPException(
                 status_code=422,
                 detail=api_error("role_not_self_registerable", "This role cannot be self-registered."),
@@ -392,9 +399,9 @@ class WorkflowService:
             email=email,
             role=role,
             # Never let the client pick a clinic: an active clinic member sees its cases.
-            clinic_id=owner_clinic_id if role == "owner" else None,
+            clinic_id=None,
             display_name=name[:80],
-            active=role == "owner",
+            active=False,
             password_hash=hash_password(password),
             created_at=_now(),
         )

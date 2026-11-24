@@ -13,11 +13,11 @@ export const reportRoutes = [
   ...dualRoutes(
     'raporlar',
     'reports',
-    <Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ReportList /></Gate>,
+    <Gate roles={['vet', 'expert', 'clinic_owner']}><ReportList /></Gate>,
   ),
   ...dualRoutes(
     'raporlar/:id',
     'reports/:id',
-    <Gate roles={['vet', 'owner', 'expert', 'clinic_owner']}><ApprovedReport /></Gate>,
+    <Gate roles={['vet', 'expert', 'clinic_owner']}><ApprovedReport /></Gate>,
   ),
 ]

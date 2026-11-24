@@ -1,4 +1,4 @@
-"""Issue #31 step 2 — public sign-up via POST /api/v1/auth/register."""
+"""Public sign-up via POST /api/v1/auth/register (vets only since the B2B switch)."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _app(tmp_path: Path, **overrides) -> tuple[TestClient, AppContainer]:
 
 
 def _register(client: TestClient, **body):
-    payload = {"email": "ayse@example.com", "password": GOOD_PASSWORD, "role": "owner"}
+    payload = {"email": "ayse@example.com", "password": GOOD_PASSWORD, "role": "vet"}
     payload.update(body)
     return client.post("/api/v1/auth/register", json=payload)
 
@@ -75,60 +75,38 @@ def test_password_policy(password: str, ok: bool) -> None:
     assert (password_policy_error(password) is None) is ok
 
 
-# --- owner sign-up ----------------------------------------------------------
+# --- pet owners cannot sign up (B2B) ----------------------------------------
 
 
-def test_owner_registers_gets_session_and_can_log_in_again(tmp_path: Path) -> None:
+def test_owner_role_cannot_self_register(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
-    res = _register(client, email="  Ayse@Example.COM ", display_name="Ayşe Yılmaz")
+    res = _register(client, role="owner")
+    assert res.status_code == 422
+    assert container.workflow_store.get_user("ayse@example.com") is None
+
+
+def test_registered_vet_password_is_hashed(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    res = _register(client, email="  Ayse@Example.COM ", display_name="Dr. Ayşe Yılmaz")
     assert res.status_code == 201, res.text
-    body = res.json()
-    assert body["status"] == "active"
-    assert body["email"] == "ayse@example.com"
-    assert body["role"] == "owner"
-    session = body["session"]
-    assert session["access_token"]
-    assert session["clinic_id"] == "clinic-demo-a"
-
-    me = client.get("/api/v1/auth/me", headers=_hdr(session["access_token"]))
-    assert me.status_code == 200
-    assert me.json()["subject"] == "ayse@example.com"
-    assert me.json()["role"] == "owner"
-
-    # A different "browser": a fresh login with the same credentials works.
-    again = _login(client, "ayse@example.com", GOOD_PASSWORD)
-    assert again.status_code == 200, again.text
-
+    assert res.json()["email"] == "ayse@example.com"
     stored = container.workflow_store.get_user("ayse@example.com")
     assert stored is not None
-    assert stored.display_name == "Ayşe Yılmaz"
+    assert stored.display_name == "Dr. Ayşe Yılmaz"
     assert stored.password is None
     assert is_password_hash(stored.password_hash)
     assert GOOD_PASSWORD not in stored.model_dump_json()
 
 
-def test_registered_owner_can_create_a_pet(tmp_path: Path) -> None:
-    client, _ = _app(tmp_path)
-    token = _register(client).json()["session"]["access_token"]
-    pet = client.post(
-        "/api/v1/pets",
-        json={"name": "Pamuk", "species": "feline"},
-        headers=_hdr(token),
-    )
-    assert pet.status_code in (200, 201), pet.text
-    assert pet.json()["owner_subject"] == "ayse@example.com"
-
-
-def test_owner_clinic_comes_from_settings_not_client(tmp_path: Path) -> None:
-    client, container = _app(tmp_path, self_registration_owner_clinic_id="clinic-demo-b")
+def test_client_cannot_pick_a_clinic(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
     res = client.post(
         "/api/v1/auth/register",
-        json={"email": "a@b.co", "password": GOOD_PASSWORD, "role": "owner", "clinic_id": "clinic-demo-a"},
+        json={"email": "a@b.co", "password": GOOD_PASSWORD, "role": "vet", "clinic_id": "clinic-demo-a"},
     )
     assert res.status_code == 422  # unknown field is rejected
-    res = _register(client, email="a@b.co")
-    assert res.status_code == 201
-    assert container.workflow_store.get_user("a@b.co").clinic_id == "clinic-demo-b"
+    assert _register(client, email="a@b.co").status_code == 201
+    assert container.workflow_store.get_user("a@b.co").clinic_id is None
 
 
 # --- vet sign-up ------------------------------------------------------------
@@ -162,7 +140,7 @@ def test_vet_registration_is_pending_until_admin_activates(tmp_path: Path) -> No
     assert login.json()["clinic_id"] == "clinic-demo-a"
 
 
-@pytest.mark.parametrize("role", ["admin", "expert", "clinic_owner", "demo", "service"])
+@pytest.mark.parametrize("role", ["admin", "expert", "clinic_owner", "owner", "demo", "service"])
 def test_privileged_roles_cannot_self_register(tmp_path: Path, role: str) -> None:
     client, container = _app(tmp_path)
     res = _register(client, email=f"{role}@evil.test", role=role)
@@ -193,12 +171,12 @@ def test_weak_password_is_rejected_with_reason(tmp_path: Path, password: str) ->
 
 
 def test_duplicate_email_is_rejected_and_password_unchanged(tmp_path: Path) -> None:
-    client, _ = _app(tmp_path)
+    client, container = _app(tmp_path)
     assert _register(client).status_code == 201
+    before = container.workflow_store.get_user("ayse@example.com").password_hash
     dup = _register(client, email="AYSE@example.com", password="Baskasifre99")
     assert dup.status_code == 409
-    assert _login(client, "ayse@example.com", GOOD_PASSWORD).status_code == 200
-    assert _login(client, "ayse@example.com", "Baskasifre99").status_code == 401
+    assert container.workflow_store.get_user("ayse@example.com").password_hash == before
 
 
 def test_demo_account_email_cannot_be_taken_over(tmp_path: Path) -> None:
@@ -222,7 +200,7 @@ def test_concurrent_registrations_for_same_email_create_one_account(tmp_path: Pa
 
     def attempt(pw: str) -> None:
         try:
-            container.workflow.register_user(email="race@example.com", password=pw, role="owner")
+            container.workflow.register_user(email="race@example.com", password=pw, role="vet")
             results.append("ok")
         except Exception as exc:  # HTTPException 409
             results.append(type(exc).__name__)
@@ -245,7 +223,7 @@ def test_register_is_audited(tmp_path: Path) -> None:
     _register(client)  # duplicate → denied
     events = [e for e in container.audit.list_events(limit=50) if e["event_type"] == "auth.register"]
     outcomes = {(e["outcome"], e["detail"]) for e in events}
-    assert ("success", "active") in outcomes
+    assert ("success", "pending_approval") in outcomes
     assert ("denied", "rejected_409") in outcomes
     assert all(GOOD_PASSWORD not in str(e) for e in events)
 
@@ -285,16 +263,21 @@ def test_admin_cannot_clear_clinic_of_active_vet(tmp_path: Path) -> None:
     assert container.workflow_store.get_user("vet@demo.local").clinic_id == "clinic-demo-a"
 
 
-def test_admin_and_owner_without_clinic_are_allowed(tmp_path: Path) -> None:
+def test_admin_without_clinic_is_allowed_but_owner_role_is_not(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
     admin = _admin(client)
-    for role in ("admin", "owner"):
-        res = client.post(
-            "/api/v1/admin/users",
-            json={"email": f"{role}2@clinic.test", "password": GOOD_PASSWORD, "role": role},
-            headers=admin,
-        )
-        assert res.status_code == 201, res.text
+    ok = client.post(
+        "/api/v1/admin/users",
+        json={"email": "admin2@clinic.test", "password": GOOD_PASSWORD, "role": "admin"},
+        headers=admin,
+    )
+    assert ok.status_code == 201, ok.text
+    owner = client.post(
+        "/api/v1/admin/users",
+        json={"email": "owner2@clinic.test", "password": GOOD_PASSWORD, "role": "owner"},
+        headers=admin,
+    )
+    assert owner.status_code == 422
 
 
 @pytest.mark.parametrize("password", ["kisa1", "sadeceharf", "12345678"])
@@ -303,7 +286,7 @@ def test_admin_create_and_reset_use_same_password_policy(tmp_path: Path, passwor
     admin = _admin(client)
     created = client.post(
         "/api/v1/admin/users",
-        json={"email": "weak@clinic.test", "password": password, "role": "owner"},
+        json={"email": "weak@clinic.test", "password": password, "role": "admin"},
         headers=admin,
     )
     assert created.status_code == 422

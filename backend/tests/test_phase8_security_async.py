@@ -141,7 +141,6 @@ def test_legitimate_roles_still_login(tmp_path: Path) -> None:
     for email, expected in [
         ("vet@demo.local", "vet"),
         ("expert@demo.local", "expert"),
-        ("owner@demo.local", "owner"),
         ("admin@demo.local", "admin"),
     ]:
         token = _token(client, email)

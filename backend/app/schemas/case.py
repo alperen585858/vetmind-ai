@@ -112,6 +112,8 @@ class StructuredClinicalHistory(BaseModel):
     medications: Optional[str] = None
     relevant_history: Optional[str] = None
     handoff_notes: Optional[str] = None
+    # What the referring vet wants the radiologist to answer (B2B intake, issue #89).
+    radiologist_questions: Optional[str] = Field(default=None, max_length=4000)
     # Optional patient demographics from clinic wizard (not PHI-validated).
     sex: Optional[str] = Field(default=None, max_length=40)
     weight_kg: Optional[float] = Field(default=None, ge=0, le=200)
@@ -138,21 +140,23 @@ class CaseCreate(BaseModel):
     scenario: Optional[MockScenario] = None
     study: StudyInfo = Field(default_factory=StudyInfo)
     referring_clinic: Optional[str] = None
-    # Pet owner contact (required for new clinical cases).
-    owner_name: str = Field(min_length=1, max_length=120)
-    owner_email: str = Field(min_length=3, max_length=200)
+    # Optional pet-owner name for the vet's records (B2B: owners have no account, no email).
+    owner_name: Optional[str] = Field(default=None, max_length=120)
+    # Deprecated: accepted so older clients keep working, but ignored and never stored.
+    owner_email: Optional[str] = Field(default=None, max_length=200)
     owner_email_consent: bool = False
-    # Optional: select an existing account (email still required for contact display).
     pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
 
 
 class CaseOwnerUpdate(BaseModel):
-    """Attach / update pet-owner contact on an existing case (including legacy rows)."""
+    """Set or clear the optional owner name on an existing case (including legacy rows)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    owner_name: str = Field(min_length=1, max_length=120)
-    owner_email: str = Field(min_length=3, max_length=200)
+    # Optional pet-owner name for the vet's records (B2B: owners have no account, no email).
+    owner_name: Optional[str] = Field(default=None, max_length=120)
+    # Deprecated: accepted so older clients keep working, but ignored and never stored.
+    owner_email: Optional[str] = Field(default=None, max_length=200)
     owner_email_consent: bool = False
     pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
 
@@ -267,6 +271,13 @@ class CaseRecord(BaseModel):
     # Last outbound report-email attempt: sent | failed_smtp | skipped_no_consent | skipped_linked | none
     owner_email_delivery_status: Optional[str] = None
     owner_email_delivery_detail: Optional[str] = None
+    # Report-ready email to the submitting vet (issue #90):
+    # sent | failed | not_configured | skipped_no_recipient
+    vet_email_delivery_status: Optional[str] = None
+    vet_email_delivery_detail: Optional[str] = None
+    vet_email_delivery_attempts: int = 0
+    # Report versions already emailed — one email per approval, never repeated.
+    vet_email_sent_versions: list[int] = Field(default_factory=list)
     submission_id: Optional[str] = None
     vet_verified: bool = True
     # Phase 17: append-only real activity events.
@@ -317,6 +328,7 @@ class CaseSummary(BaseModel):
     owner_contact_email: Optional[str] = None
     owner_email_consent: bool = False
     owner_email_delivery_status: Optional[str] = None
+    vet_email_delivery_status: Optional[str] = None
     submission_id: Optional[str] = None
     vet_verified: bool = True
     # Report revision signal for list UIs (approved v1 stays locked; v2+ = revised).

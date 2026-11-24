@@ -1,13 +1,14 @@
-"""Support messaging API — owner ↔ radiologist / admin."""
+"""Messaging API — clinic staff ↔ radiologist / support team."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import get_messaging_facade
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_MESSAGES
 from app.schemas.messaging import (
+    MessageRecipient,
     SupportMessageCreate,
     SupportMessageView,
     SupportThreadCreate,
@@ -18,7 +19,7 @@ from app.services.messaging_facade import MessagingFacade
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"], dependencies=[Depends(require_auth)])
 
-_ALLOWED_DEMO_ROLES = frozenset({"owner", "expert", "admin", "vet", "clinic_owner"})
+_ALLOWED_DEMO_ROLES = frozenset({"expert", "admin", "vet", "clinic_owner"})
 
 
 def _messaging(facade: MessagingFacade = Depends(get_messaging_facade)):
@@ -39,6 +40,22 @@ def _demo_actor(request: Request, principal: AuthPrincipal) -> tuple[str | None,
         else:
             subject = f"{role}@demo.local"
     return (subject or None), (role or None)
+
+
+@router.get("/recipients", response_model=list[MessageRecipient])
+def list_recipients(
+    request: Request,
+    q: str | None = Query(default=None, max_length=120),
+    principal: AuthPrincipal = Depends(require_capability(CAP_MESSAGES)),
+    service=Depends(_messaging),
+) -> list[MessageRecipient]:
+    """People the caller may start a conversation with (own-clinic radiologists + support)."""
+    subject, role = _demo_actor(request, principal)
+    if subject and role:
+        from app.auth.principal import AuthPrincipal as AP
+
+        principal = AP(subject=subject, role=role, via="disabled", clinic_id=principal.clinic_id)
+    return service.list_recipients(principal=principal, query=q)
 
 
 @router.get("/threads", response_model=list[SupportThreadSummary])

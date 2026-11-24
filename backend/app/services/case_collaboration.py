@@ -74,7 +74,6 @@ from app.auth.mailer import OutgoingMail
 from app.feedback.store import FeedbackStore
 from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import resolve_owner_account, validate_owner_contact
 from app.services.report_versioning import (
     apply_reject_or_revision,
     assert_mutable_for_edit,
@@ -333,14 +332,9 @@ class CaseCollaborationService(HostBound):
         saved = self._repo.save_case(case)
         recipients: set[str] = set()
         if to_role == "vet":
-            if saved.owner_subject and saved.owner_subject != saved.pet_owner_subject:
+            if saved.owner_subject:
                 recipients.add(saved.owner_subject)
             recipients.add("vet@demo.local")
-        elif to_role == "owner":
-            if saved.pet_owner_subject:
-                recipients.add(saved.pet_owner_subject)
-            elif saved.owner_subject:
-                recipients.add(saved.owner_subject)
         elif to_role == "expert":
             if saved.assigned_reviewer_id:
                 recipients.add(saved.assigned_reviewer_id)

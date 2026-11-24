@@ -23,7 +23,7 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { DicomViewer } from '../../shared/dicom/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from './SeriesExplorer'
-import { OwnerContactFields } from '../../shared/ui/OwnerContactFields'
+import { OwnerNameField } from '../../shared/ui/OwnerNameField'
 import { CLINIC } from '../../shared/demo/clinic'
 import { nowStamp, today } from '../../shared/lib/format'
 import {
@@ -64,6 +64,8 @@ import { UNEVALUATED_NEURO } from '../../shared/lib/neuroExam'
 
 const EMPTY_NEURO: NeuroExam = UNEVALUATED_NEURO
 
+const DEMO_FIXTURES_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FIXTURES === '1'
+
 const DEMO_SETS: {
   kind: DicomDemoKind
   label: string
@@ -91,13 +93,7 @@ export default function DicomUpload() {
   const [ageYears, setAgeYears] = useState('')
   const [history, setHistory] = useState('')
   const [consent, setConsent] = useState(false)
-  const [ownerContact, setOwnerContact] = useState({
-    ownerName: '',
-    ownerEmail: '',
-    ownerEmailConsent: false,
-    petOwnerSubject: null as string | null,
-    mode: 'guest' as 'member' | 'guest',
-  })
+  const [ownerName, setOwnerName] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [framesLoading, setFramesLoading] = useState(false)
@@ -428,23 +424,11 @@ export default function DicomUpload() {
       })
       return
     }
-    const ownerOk =
-      ownerContact.ownerName.trim() &&
-      ownerContact.ownerEmail.trim() &&
-      (ownerContact.mode === 'guest' || ownerContact.petOwnerSubject)
-    if (!ownerOk) {
-      pushToast({
-        tone: 'warning',
-        title: t('ownerContact.requiredToast'),
-        body: t('ownerContact.requiredBody'),
-      })
-      return
-    }
     if (!preview?.ingest_id && files.length === 0 && !pendingDemo) {
       pushToast({
         tone: 'warning',
         title: 'DICOM gerekli',
-        body: 'Dosya sürükleyin veya örnek veri setini kullanın.',
+        body: 'DICOM dosyalarını sürükleyin veya klasör seçin.',
       })
       return
     }
@@ -471,7 +455,7 @@ export default function DicomUpload() {
       neutered: true,
       age: Number.isFinite(parsedAge) ? parsedAge : 0,
       weight: 0,
-      ownerName: ownerContact.ownerName.trim() || 'Sahip',
+      ownerName: ownerName.trim(),
       ownerPhone: '',
     }
     const clinical: ClinicalInfo = {
@@ -522,10 +506,7 @@ export default function DicomUpload() {
       overrideModality,
       overrideRegion,
       vetName: user?.name ?? 'Dr. Elif Kaya',
-      ownerName: ownerContact.ownerName.trim(),
-      ownerEmail: ownerContact.ownerEmail.trim(),
-      ownerEmailConsent: ownerContact.ownerEmailConsent,
-      petOwnerSubject: ownerContact.petOwnerSubject,
+      ownerName: ownerName.trim(),
     })
     addCase(pendingCase)
     nav(`/vakalar/${pendingId}/isleme`, { replace: true })
@@ -589,7 +570,7 @@ export default function DicomUpload() {
             onChange={(e) => setHistory(e.target.value)}
           />
         </label>
-        <OwnerContactFields value={ownerContact} onChange={setOwnerContact} disabled={busy || uploading} />
+        <OwnerNameField value={ownerName} onChange={setOwnerName} disabled={busy || uploading} />
       </section>
 
       {hasStudy && (
@@ -865,7 +846,9 @@ export default function DicomUpload() {
     </div>
   )
 
-  const demoSection = (
+  // Sample DICOM sets are test fixtures only (issue #95): hidden unless the build sets
+  // VITE_ENABLE_DEMO_FIXTURES=1 (Playwright does). Real uploads are unaffected.
+  const demoSection = !DEMO_FIXTURES_ENABLED ? null : (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-soft sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>

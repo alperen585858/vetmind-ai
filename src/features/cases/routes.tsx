@@ -11,6 +11,6 @@ export const caseRoutes = [
   ...dualRoutes(
     'vakalar/:id',
     'cases/:id',
-    <Gate roles={['vet', 'expert', 'clinic_owner', 'owner']}><CaseDetail /></Gate>,
+    <Gate roles={['vet', 'expert', 'clinic_owner']}><CaseDetail /></Gate>,
   ),
 ]

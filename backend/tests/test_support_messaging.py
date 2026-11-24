@@ -1,4 +1,4 @@
-"""Owner ↔ radiologist / admin support messaging."""
+"""Vet ↔ radiologist / support-team messaging (B2B)."""
 
 from __future__ import annotations
 
@@ -36,15 +36,16 @@ def _hdr(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_owner_radiologist_thread_and_reply(tmp_path: Path) -> None:
+def test_vet_radiologist_thread_and_reply(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
+    owner = _token(client, "vet@demo.local")
     expert = _token(client, "expert@demo.local")
 
     created = client.post(
         "/api/v1/messages/threads",
         json={
             "channel": "radiologist",
+            "recipient_subject": "expert@demo.local",
             "subject": "Rapor sorusu",
             "body": "MR bulgusu hakkında bilgi alabilir miyim?",
         },
@@ -73,9 +74,9 @@ def test_owner_radiologist_thread_and_reply(tmp_path: Path) -> None:
     assert any(i["kind"] == "support_message" for i in ntf.json()["items"])
 
 
-def test_owner_admin_channel_isolated_from_expert(tmp_path: Path) -> None:
+def test_vet_support_channel_isolated_from_expert(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
+    owner = _token(client, "vet@demo.local")
     expert = _token(client, "expert@demo.local")
     admin = _token(client, "admin@demo.local")
 
@@ -105,17 +106,17 @@ def test_owner_admin_channel_isolated_from_expert(tmp_path: Path) -> None:
     detail = client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).json()
     roles = {m["author_role"] for m in detail["messages"]}
     assert "admin" in roles
-    assert "owner" in roles
+    assert "vet" in roles
 
 
 def test_delete_own_message_and_thread(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
+    owner = _token(client, "vet@demo.local")
     expert = _token(client, "expert@demo.local")
 
     created = client.post(
         "/api/v1/messages/threads",
-        json={"channel": "radiologist", "subject": "Silinecek", "body": "İlk mesaj"},
+        json={"channel": "radiologist", "recipient_subject": "expert@demo.local", "subject": "Silinecek", "body": "İlk mesaj"},
         headers=_hdr(owner),
     )
     assert created.status_code == 201, created.text
@@ -130,7 +131,7 @@ def test_delete_own_message_and_thread(tmp_path: Path) -> None:
     assert reply.status_code == 200, reply.text
     reply_id = reply.json()["message_id"]
 
-    # Owner cannot delete expert's message
+    # Vet cannot delete expert's message
     forbidden = client.delete(
         f"/api/v1/messages/threads/{tid}/messages/{reply_id}",
         headers=_hdr(owner),
@@ -157,7 +158,7 @@ def test_delete_own_message_and_thread(tmp_path: Path) -> None:
 
 def test_delete_thread_endpoint(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
+    owner = _token(client, "vet@demo.local")
 
     created = client.post(
         "/api/v1/messages/threads",

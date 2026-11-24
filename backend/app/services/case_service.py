@@ -74,7 +74,7 @@ from app.auth.mailer import OutgoingMail
 from app.feedback.store import FeedbackStore
 from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import resolve_owner_account, validate_owner_contact
+from app.services.owner_contact import clean_owner_name
 from app.services.report_versioning import (
     apply_reject_or_revision,
     assert_mutable_for_edit,
@@ -324,41 +324,12 @@ class CaseService:
             clinic_id=principal.clinic_id if principal else None,
         )
 
-    def _apply_owner_contact(
-        self,
-        case: CaseRecord,
-        *,
-        owner_name: str | None,
-        owner_email: str | None,
-        owner_email_consent: bool = False,
-        pet_owner_subject: str | None = None,
-        require: bool = True,
-    ) -> CaseRecord:
-        resolved = validate_owner_contact(
-            owner_name=owner_name,
-            owner_email=owner_email,
-            owner_email_consent=owner_email_consent,
-            pet_owner_subject=pet_owner_subject,
-            require=require,
-        )
-        if resolved is None:
-            return case
-        linked = resolved.pet_owner_subject
-        if not linked and resolved.owner_contact_email:
-            get_user = None
-            store = self._workflow_store
-            if store is not None and hasattr(store, "get_user"):
-                get_user = store.get_user
-            linked = resolve_owner_account(
-                email=resolved.owner_contact_email,
-                auth_users=self._auth_users,
-                workflow_get_user=get_user,
-            )
-        case.owner_contact_name = resolved.owner_contact_name
-        case.owner_contact_email = resolved.owner_contact_email or None
-        case.owner_email_consent = resolved.owner_email_consent
-        if linked:
-            case.pet_owner_subject = linked
+    @staticmethod
+    def _apply_owner_contact(case: CaseRecord, *, owner_name: str | None) -> CaseRecord:
+        """Store the optional owner name. Owners get no account link and no email (B2B)."""
+        name = clean_owner_name(owner_name)
+        if name is not None:
+            case.owner_contact_name = name
         return case
 
     def create_case(self, payload: CaseCreate, *, principal: AuthPrincipal | None = None) -> CaseRecord:
@@ -372,6 +343,7 @@ class CaseService:
                 structured.medications,
                 structured.relevant_history,
                 structured.handoff_notes,
+                f"Radyoloğa sorular:\n{structured.radiologist_questions}" if structured.radiologist_questions else None,
             ]
             history = "\n".join(p for p in parts if p) or None
         case = CaseRecord(
@@ -393,14 +365,7 @@ class CaseService:
             clinic_id=principal.clinic_id if principal and principal.via != "disabled" else None,
             status=CaseLifecycleStatus.CREATED,
         )
-        self._apply_owner_contact(
-            case,
-            owner_name=payload.owner_name,
-            owner_email=payload.owner_email,
-            owner_email_consent=payload.owner_email_consent,
-            pet_owner_subject=payload.pet_owner_subject,
-            require=True,
-        )
+        self._apply_owner_contact(case, owner_name=payload.owner_name)
         caps = self._orchestrator._router.list_capabilities()  # noqa: SLF001 — live caps for F4
         case.model_input = build_imaging_model_input(case, capabilities=caps)
         saved = self._repo.save_case(case)
@@ -414,7 +379,7 @@ class CaseService:
         *,
         principal: AuthPrincipal | None = None,
     ) -> CaseRecord:
-        """Attach or replace pet-owner contact on an existing case (legacy rows included)."""
+        """Set or clear the optional owner name on an existing case (legacy rows included)."""
         if principal is not None and principal.role not in {
             "vet",
             "clinic_owner",
@@ -425,14 +390,7 @@ class CaseService:
         } and principal.via != "disabled":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed.")
         case = self.get_case(case_id, principal=principal)
-        self._apply_owner_contact(
-            case,
-            owner_name=payload.owner_name,
-            owner_email=payload.owner_email,
-            owner_email_consent=payload.owner_email_consent,
-            pet_owner_subject=payload.pet_owner_subject,
-            require=True,
-        )
+        case.owner_contact_name = clean_owner_name(payload.owner_name)
         case.updated_at = _now()
         append_activity(case, kind="owner_contact_updated", actor_subject=principal.subject if principal else "system")
         return self._repo.save_case(case)
@@ -498,6 +456,7 @@ class CaseService:
             owner_contact_email=getattr(c, "owner_contact_email", None),
             owner_email_consent=bool(getattr(c, "owner_email_consent", False)),
             owner_email_delivery_status=getattr(c, "owner_email_delivery_status", None),
+            vet_email_delivery_status=getattr(c, "vet_email_delivery_status", None),
             submission_id=getattr(c, "submission_id", None),
             vet_verified=bool(getattr(c, "vet_verified", True)),
             current_report_version=getattr(c, "current_report_version", None)

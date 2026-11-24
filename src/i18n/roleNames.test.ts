@@ -3,7 +3,7 @@ import en from './en.json'
 import tr from './tr.json'
 import { ROLE_LABELS, USERS } from '../shared/demo/users'
 
-const ROLES = ['vet', 'expert', 'owner', 'clinic_owner', 'admin'] as const
+const ROLES = ['vet', 'expert', 'clinic_owner', 'admin'] as const
 
 type RoleDict = Record<string, string>
 

@@ -15,7 +15,6 @@ import { dicomRoutes } from './features/dicom/routes'
 import { analysisRoutes } from './features/analysis/routes'
 import { expertRoutes } from './features/expert/routes'
 import { publicReportLinkRoutes, reportRoutes } from './features/reports/routes'
-import { submissionRoutes } from './features/submissions/routes'
 import { messagingRoutes } from './features/messaging/routes'
 import { ragAdminRoutes } from './features/rag-admin/routes'
 import { adminRoutes } from './features/admin/routes'
@@ -70,7 +69,6 @@ export default function App() {
               {dicomRoutes}
               {analysisRoutes}
               {expertRoutes}
-              {submissionRoutes}
               {messagingRoutes}
               {reportRoutes}
               {ragAdminRoutes}

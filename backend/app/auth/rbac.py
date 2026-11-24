@@ -14,8 +14,6 @@ CAP_DOCUMENTS = "documents"
 CAP_RAG_SEARCH = "rag:search"
 CAP_RAG_ADMIN = "rag:admin"
 CAP_ADMIN = "admin"
-CAP_PETS = "pets:write"
-CAP_SUBMISSIONS = "submissions:write"
 CAP_CLINIC_MANAGE = "clinic:manage"
 CAP_USERS_ADMIN = "users:admin"
 CAP_MESSAGES = "messages:write"
@@ -33,8 +31,6 @@ _DEMO_CAPS = frozenset(
         CAP_DOCUMENTS,
         CAP_RAG_SEARCH,
         CAP_MESSAGES,
-        CAP_SUBMISSIONS,
-        CAP_PETS,
         CAP_CLINIC_MANAGE,
     }
 )
@@ -51,7 +47,6 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_DICOM,
             CAP_DOCUMENTS,
             CAP_RAG_SEARCH,
-            CAP_SUBMISSIONS,
             CAP_CLINIC_MANAGE,
             CAP_MESSAGES,
         }
@@ -67,23 +62,11 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_MESSAGES,
         }
     ),
-    "owner": frozenset(
-        {
-            CAP_CASE_READ,  # approved/own pets only — enforced in CaseService/tenancy
-            CAP_RAG_SEARCH,
-            CAP_PETS,
-            CAP_SUBMISSIONS,
-            CAP_DICOM,  # owner upload into submission quarantine only (API-gated)
-            CAP_DOCUMENTS,
-            CAP_MESSAGES,
-        }
-    ),
     "clinic_owner": frozenset(
         {
             CAP_CASE_READ,
             CAP_RAG_SEARCH,
             CAP_CLINIC_MANAGE,
-            CAP_SUBMISSIONS,
             CAP_DICOM,  # read linked case studies in clinic worklist
         }
     ),

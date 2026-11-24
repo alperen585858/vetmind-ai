@@ -167,7 +167,6 @@ export default function AdminUsers() {
               <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value)}>
                 <option value="vet">vet</option>
                 <option value="expert">expert</option>
-                <option value="owner">owner</option>
                 <option value="clinic_owner">clinic_owner</option>
                 <option value="admin">admin</option>
               </select>

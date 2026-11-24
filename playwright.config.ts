@@ -61,6 +61,8 @@ export default defineConfig({
         {
           command: 'npx vite --host 127.0.0.1 --port 5173 --strictPort',
           url: 'http://127.0.0.1:5173',
+          // Sample DICOM sets are test fixtures; only e2e builds show them (issue #95).
+          env: { VITE_ENABLE_DEMO_FIXTURES: '1' },
           reuseExistingServer: false,
           timeout: 90_000,
         },

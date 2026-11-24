@@ -369,6 +369,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     awaitingReviewSince: r.awaiting_review_since ?? undefined,
     reviewDueAt: r.review_due_at ?? undefined,
     handoffNotes: structured?.handoff_notes ?? undefined,
+    radiologistQuestions: structured?.radiologist_questions ?? undefined,
     reportAvailableAt: r.report_available_at ?? undefined,
     reportDeliveredAt: r.report_delivered_at ?? undefined,
     reportViewedAt: r.report_viewed_at ?? undefined,
@@ -435,6 +436,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     ownerEmailConsent: Boolean(r.owner_email_consent),
     ownerEmailDeliveryStatus: r.owner_email_delivery_status ?? undefined,
     ownerEmailDeliveryDetail: r.owner_email_delivery_detail ?? undefined,
+    vetEmailDeliveryStatus: r.vet_email_delivery_status ?? undefined,
   }
 }
 

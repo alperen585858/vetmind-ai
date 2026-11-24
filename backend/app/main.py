@@ -12,7 +12,6 @@ from app.api.dicom import router as dicom_router
 from app.api.documents import router as documents_router
 from app.api.evidence import router as evidence_router
 from app.api.models import router as models_router
-from app.api.owners import router as owners_router
 from app.api.rag import router as rag_router
 from app.api.report_links import router as report_links_router
 from app.api.reports import router as reports_router
@@ -21,7 +20,6 @@ from app.api.admin_retention import router as admin_retention_router
 from app.api.llm_feedback import router as llm_feedback_router
 from app.api.feedback import router as feedback_router
 from app.api.messaging import router as messaging_router
-from app.api.payments import router as payments_router
 from app.api.radiologist_payouts import router as radiologist_payouts_router
 from app.api.workflow import router as workflow_router
 from app.api.settings import router as settings_router
@@ -64,7 +62,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     )
     app.include_router(auth_router)
     app.include_router(cases_router)
-    app.include_router(owners_router)
     app.include_router(report_links_router)
     app.include_router(evidence_router)
     app.include_router(analysis_router)
@@ -74,7 +71,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(models_router)
     app.include_router(rag_router)
     app.include_router(workflow_router)
-    app.include_router(payments_router)
     app.include_router(radiologist_payouts_router)
     app.include_router(messaging_router)
     app.include_router(notifications_router)

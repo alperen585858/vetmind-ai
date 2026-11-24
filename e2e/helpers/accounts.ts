@@ -7,14 +7,13 @@ export function uniqueEmail(prefix: string): string {
 
 export async function fillRegister(
   page: Page,
-  opts: { name?: string; email: string; password: string; confirm?: string; role?: 'owner' | 'vet' },
+  opts: { name?: string; email: string; password: string; confirm?: string },
 ) {
   await page.goto('/kayit')
   if (opts.name) await page.getByLabel('Ad soyad').fill(opts.name)
   await page.getByLabel('E-posta').fill(opts.email)
   await page.getByLabel('Şifre', { exact: true }).fill(opts.password)
   await page.getByLabel('Şifre (tekrar)').fill(opts.confirm ?? opts.password)
-  if (opts.role) await page.getByLabel('Rol').selectOption(opts.role)
   await page.getByRole('button', { name: 'Kayıt ol ve devam et' }).click()
 }
 

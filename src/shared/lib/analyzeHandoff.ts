@@ -23,10 +23,8 @@ export type AnalyzeHandoff = {
   overrideModality: BackendModality
   overrideRegion: BackendAnatomicalRegion
   vetName: string
+  /** Optional pet-owner name (owners get no account and no email). */
   ownerName: string
-  ownerEmail: string
-  ownerEmailConsent: boolean
-  petOwnerSubject: string | null
 }
 
 let pending: AnalyzeHandoff | null = null

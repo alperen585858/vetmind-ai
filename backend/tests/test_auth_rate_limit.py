@@ -99,7 +99,7 @@ def test_login_locks_account_after_failed_attempts(tmp_path: Path) -> None:
     else:
         assert re.match(r"Too many attempts\. Try again in \d+ min\.", detail)
     # Other accounts are unaffected (per-IP budget is larger).
-    assert _login(client, "owner@demo.local", "demo1234").status_code == 200
+    assert _login(client, "clinic-owner@demo.local", "demo1234").status_code == 200
     events = [e for e in container.audit.list_events(limit=100) if e["event_type"] == "auth.rate_limited"]
     assert events and events[-1]["detail"] == "login_email"
 
@@ -160,11 +160,11 @@ def test_register_limited_per_ip(tmp_path: Path) -> None:
     for i in range(REGISTER_PER_IP.attempts):
         res = client.post(
             "/api/v1/auth/register",
-            json={"email": f"o{i}@owner.test", "password": "Patiler2026", "role": "owner"},
+            json={"email": f"o{i}@owner.test", "password": "Patiler2026", "role": "vet"},
         )
         assert res.status_code == 201, res.text
     res = client.post(
-        "/api/v1/auth/register", json={"email": "late@owner.test", "password": "Patiler2026", "role": "owner"}
+        "/api/v1/auth/register", json={"email": "late@owner.test", "password": "Patiler2026", "role": "vet"}
     )
     assert res.status_code == 429
 

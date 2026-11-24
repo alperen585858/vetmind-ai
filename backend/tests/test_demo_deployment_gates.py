@@ -65,30 +65,3 @@ def test_demo_dicom_forbidden_in_protected(tmp_path: Path) -> None:
         headers=_auth(client),
     )
     assert res.status_code == 403
-
-
-def test_demo_payment_forbidden_in_protected(tmp_path: Path) -> None:
-    client = _client(
-        tmp_path,
-        deployment_mode="protected",
-        malware_scan_required=True,
-        dicom_identity_scrub=True,
-        self_registration_enabled=False,
-    )
-    res = client.post(
-        "/api/v1/payments/intents",
-        json={"submission_id": "sub-does-not-matter"},
-        headers=_auth(client, "owner@demo.local"),
-    )
-    assert res.status_code == 403
-
-
-def test_demo_payment_not_blocked_by_gate_in_demo_mode(tmp_path: Path) -> None:
-    client = _client(tmp_path, deployment_mode="demo")
-    res = client.post(
-        "/api/v1/payments/intents",
-        json={"submission_id": "sub-missing"},
-        headers=_auth(client, "owner@demo.local"),
-    )
-    # Missing submission → 404/400/422, never deployment 403.
-    assert res.status_code != 403

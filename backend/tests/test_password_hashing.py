@@ -171,10 +171,10 @@ def test_update_without_password_keeps_existing_hash(tmp_path: Path) -> None:
 def test_deactivated_demo_user_cannot_log_in(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
     admin = _admin_headers(client)
-    assert _login(client, "owner@demo.local", "demo1234").status_code == 200
-    res = client.patch("/api/v1/admin/users/owner@demo.local", json={"active": False}, headers=admin)
+    assert _login(client, "clinic-owner@demo.local", "demo1234").status_code == 200
+    res = client.patch("/api/v1/admin/users/clinic-owner@demo.local", json={"active": False}, headers=admin)
     assert res.status_code == 200, res.text
-    assert _login(client, "owner@demo.local", "demo1234").status_code == 401
+    assert _login(client, "clinic-owner@demo.local", "demo1234").status_code == 401
 
 
 def test_legacy_plaintext_rows_are_migrated_on_startup(tmp_path: Path) -> None:

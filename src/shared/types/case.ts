@@ -134,6 +134,7 @@ export interface BackendStructuredClinicalHistory {
   medications?: string | null
   relevant_history?: string | null
   handoff_notes?: string | null
+  radiologist_questions?: string | null
   sex?: string | null
   weight_kg?: number | null
   neutered?: boolean | null
@@ -211,6 +212,8 @@ export interface BackendCaseRecord {
   owner_email_consent?: boolean
   owner_email_delivery_status?: string | null
   owner_email_delivery_detail?: string | null
+  vet_email_delivery_status?: string | null
+  vet_email_delivery_detail?: string | null
   submission_id?: string | null
   vet_verified?: boolean
   structured_findings?: BackendFindings | null
@@ -280,6 +283,8 @@ export interface VetCase {
   /** Expert response deadline (ISO). Urgent/STAT=24h, else=48h. */
   reviewDueAt?: string
   handoffNotes?: string
+  /** Referring vet's questions for the radiologist (issue #89). */
+  radiologistQuestions?: string
   reportVersions?: BackendReportVersionSummary[]
   currentReportVersion?: number
   /** Number of report versions (from list summary); >1 means revised. */
@@ -308,4 +313,6 @@ export interface VetCase {
   ownerEmailConsent?: boolean
   ownerEmailDeliveryStatus?: string
   ownerEmailDeliveryDetail?: string
+  /** Report-ready email to the submitting vet (issue #90). */
+  vetEmailDeliveryStatus?: string
 }

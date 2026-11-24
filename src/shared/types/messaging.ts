@@ -4,6 +4,11 @@ export interface BackendSupportThreadSummary {
   thread_id: string
   channel: SupportMessageChannel
   owner_subject: string
+  /** Direct recipient (a radiologist); null on the support channel. */
+  recipient_subject?: string | null
+  /** The other side of the conversation, from the viewer's point of view. */
+  counterpart_name?: string | null
+  counterpart_role?: string | null
   clinic_id?: string | null
   subject: string
   status: 'open' | 'closed'
@@ -29,4 +34,12 @@ export interface BackendSupportMessage {
 export interface BackendSupportThreadDetail {
   thread: BackendSupportThreadSummary
   messages: BackendSupportMessage[]
+}
+
+/** Someone the current user may start a conversation with. ``support`` = shared support inbox. */
+export interface BackendMessageRecipient {
+  subject: string
+  display_name: string
+  role: 'expert' | 'support' | string
+  channel: SupportMessageChannel
 }

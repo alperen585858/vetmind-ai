@@ -10,7 +10,7 @@ from app.container import AppContainer
 from app.main import create_app
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
-from helpers_payment import approve_demo_payment
+from app.schemas.workflow import AttachmentRef
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -38,67 +38,46 @@ def _hdr(token: str) -> dict[str, str]:
 
 
 def test_case_dicom_lists_all_linked_ingests(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
-    vet = _token(client, "vet@demo.local")
+    """A case with several linked DICOM ingests (primary + attachment_refs) lists them all.
 
-    pet = client.post(
-        "/api/v1/pets",
-        json={"name": "Scout", "species": "canine"},
-        headers=_hdr(owner),
-    ).json()
-    sub = client.post(
-        "/api/v1/submissions",
-        json={"pet_id": pet["pet_id"], "chief_complaint": "Ataksi"},
-        headers=_hdr(owner),
-    ).json()
-    sid = sub["submission_id"]
+    New cases are opened by the vet directly; rows with extra ingests come from older
+    (pre-B2B) data, so the second ingest is linked on the stored record here.
+    """
+    client = _client(tmp_path)
+    vet = _token(client, "vet@demo.local")
 
     d1 = client.post(
         "/api/v1/dicom/demo/brain_mri",
         data={"patient_name": "Scout", "species": "canine", "clinical_history": "A"},
-        headers=_hdr(owner),
+        headers=_hdr(vet),
     )
     assert d1.status_code in (200, 201), d1.text
     ingest1 = d1.json()["ingest_id"]
-    assert (
-        client.post(
-            f"/api/v1/submissions/{sid}/attachments",
-            json={"kind": "dicom", "ingest_id": ingest1},
-            headers=_hdr(owner),
-        ).status_code
-        == 200
-    )
-
     d2 = client.post(
         "/api/v1/dicom/demo/brain_mri",
         data={"patient_name": "Scout", "species": "canine", "clinical_history": "B"},
-        headers=_hdr(owner),
+        headers=_hdr(vet),
     )
     assert d2.status_code in (200, 201), d2.text
     ingest2 = d2.json()["ingest_id"]
-    assert (
-        client.post(
-            f"/api/v1/submissions/{sid}/attachments",
-            json={"kind": "dicom", "ingest_id": ingest2},
-            headers=_hdr(owner),
-        ).status_code
-        == 200
-    )
 
-    approve_demo_payment(client, sid, _hdr(owner))
-
-    accepted = client.post(
-        f"/api/v1/submissions/{sid}/vet-action",
-        json={"action": "accept", "assigned_reviewer_id": "expert@demo.local"},
+    confirmed = client.post(
+        f"/api/v1/dicom/ingestions/{ingest1}/confirm",
+        json={"accept_suggestion": True, "patient_name": "Scout"},
         headers=_hdr(vet),
     )
-    assert accepted.status_code == 200, accepted.text
-    case = accepted.json()
-    assert case["case_id"]
+    assert confirmed.status_code == 200, confirmed.text
+    case = confirmed.json()
     assert case["dicom_ingest_id"] == ingest1
-    dicom_atts = [a for a in case.get("attachment_refs") or [] if a["kind"] == "dicom"]
-    assert {a["ingest_id"] for a in dicom_atts} >= {ingest1, ingest2}
+
+    container = client.app.state.container  # type: ignore[attr-defined]
+    record = container.repo.get_case(case["case_id"])
+    record.attachment_refs = [
+        *record.attachment_refs,
+        AttachmentRef(kind="dicom", ingest_id=ingest1, uploaded_by="vet@demo.local"),
+        AttachmentRef(kind="dicom", ingest_id=ingest2, uploaded_by="vet@demo.local"),
+    ]
+    container.repo.save_case(record)
 
     listing = client.get(f"/api/v1/cases/{case['case_id']}/dicom/files", headers=_hdr(vet))
     assert listing.status_code == 200, listing.text

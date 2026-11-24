@@ -37,7 +37,7 @@ export type BackendRegisterResponse = {
 export async function backendRegister(payload: {
   email: string
   password: string
-  role: 'owner' | 'vet'
+  role: 'vet'
   display_name?: string
 }): Promise<BackendRegisterResponse> {
   return request('/auth/register', { method: 'POST', body: JSON.stringify(payload) })
