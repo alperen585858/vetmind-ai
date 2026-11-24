@@ -12,6 +12,18 @@ export function Gate({ roles, children }: { roles: Role[]; children: ReactNode }
   return <Navigate to={localizePath('/', locale)} replace />
 }
 
+/**
+ * Radiologist-only case page: other roles land on the case detail instead of being
+ * bounced to the dashboard without a word (e.g. a vet opening a shared workspace link).
+ */
+export function ExpertCaseGate({ children }: { children: ReactNode }) {
+  const { role } = useApp()
+  const { id } = useParams()
+  const { locale } = useLocale()
+  if (role === 'expert') return <>{children}</>
+  return <Navigate to={localizePath(id ? `/vakalar/${id}` : '/', locale)} replace />
+}
+
 /** Legacy /inceleme|/review → canonical radiologist workspace. */
 export function ExpertReviewRedirect() {
   const { id } = useParams()

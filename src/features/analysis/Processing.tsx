@@ -102,7 +102,7 @@ type HandoffPhase = 'idle' | 'uploading' | 'queuing' | 'sent' | 'failed'
 
 export default function Processing() {
   const { id = '' } = useParams()
-  const { getCase, updateCase, hydrateBackendCase, pushToast } = useApp()
+  const { getCase, updateCase, hydrateBackendCase, pushToast, role } = useApp()
   const { t } = useLocale()
   const stageLabel = (j: { pipeline_stage?: string | null; stage_label?: string | null } | null | undefined) => {
     if (!j) return ''
@@ -487,9 +487,11 @@ export default function Processing() {
               <Button size="sm" onClick={() => nav(`/vakalar/${c.id}?tab=ai`)}>
                 {t('cases.processing.viewAiDraft')}
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
-                {t('cases.processing.expertReview')}
-              </Button>
+              {role === 'expert' && (
+                <Button size="sm" variant="secondary" onClick={() => nav(`/vakalar/${c.id}/calisma`)}>
+                  {t('cases.processing.expertReview')}
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => void refresh()}>
                 {t('cases.processing.refreshJob')}
               </Button>
