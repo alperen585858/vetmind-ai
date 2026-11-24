@@ -83,6 +83,25 @@ jobs:
           PYTHONPATH: .:backend
         run: python -m pytest evaluation/tests -q --tb=line -p no:cacheprovider
 
+  ml-spine:
+    name: ML spine segmentation (CPU smoke, synthetic data)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ml/training/spine_seg/requirements.txt
+      - name: Install CPU torch and pipeline dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r ml/training/spine_seg/requirements.txt
+      - name: Spine pipeline tests
+        env:
+          PYTHONPATH: .
+        run: python -m pytest ml/tests -q --tb=short -p no:cacheprovider
+
   e2e:
     name: E2E (Playwright · desktop + mobile + protected)
     runs-on: ubuntu-latest

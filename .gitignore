@@ -25,3 +25,7 @@ ml/**/__pycache__/
 *.pth
 *.onnx
 backend/.env
+# Training runs (logs, checkpoints, results) stay local / on the GPU server
+ml/runs/**
+!ml/runs/.gitkeep
+ml/**/.pytest_cache/
