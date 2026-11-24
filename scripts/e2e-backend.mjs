@@ -58,7 +58,7 @@ const env = {
   VETMIND_VLM_ENABLED: '0',
 }
 
-const child = spawn(python, ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
+const child = spawn(python, ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--timeout-graceful-shutdown', '3'], {
   cwd: backend,
   env,
   stdio: 'inherit',

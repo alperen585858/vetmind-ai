@@ -284,3 +284,33 @@ def test_blank_reply_rejected(tmp_path: Path, body: str) -> None:
     tid, _ = _thread(client, vet)
     res = client.post(f"/api/v1/messages/threads/{tid}/messages", json={"body": body}, headers=_hdr(vet))
     assert res.status_code == 422
+
+
+def test_demo_mode_uses_signed_in_token_for_attribution(tmp_path: Path) -> None:
+    """Auth off + a browser that holds a JWT (no demo headers): messages are still
+    attributed to the signed-in user, not 'anonymous'."""
+    settings = Settings(
+        storage_backend="memory",
+        sqlite_path=tmp_path / "unused.sqlite3",
+        quarantine_root=tmp_path / "q",
+        auth_enabled=False,
+        jwt_secret="test-secret-live-demo",
+        async_analyze_delay_ms=0,
+    )
+    client = TestClient(create_app(AppContainer(repo=InMemoryCaseRepository(), settings=settings)))
+    vet = _token(client, "vet@demo.local")
+    res = client.post(
+        "/api/v1/messages/threads",
+        json={"channel": "admin", "subject": "Destek", "body": "Merhaba"},
+        headers=_hdr(vet),
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["thread"]["owner_subject"] == "vet@demo.local"
+    assert res.json()["messages"][0]["author_subject"] == "vet@demo.local"
+    # A forged token does not give an identity.
+    bad = client.post(
+        "/api/v1/messages/threads",
+        json={"channel": "admin", "subject": "Destek", "body": "Merhaba"},
+        headers={"Authorization": "Bearer not.a.jwt"},
+    )
+    assert bad.json()["messages"][0]["author_subject"] != "vet@demo.local"

@@ -560,7 +560,7 @@ export default function Messages() {
                 <p className="truncate text-xs text-slate-500">{subtitle}</p>
               </div>
               {canCompose && (
-                <Button size="sm" onClick={openCompose} icon={<Plus className="h-4 w-4" />}>
+                <Button size="sm" className="shrink-0 whitespace-nowrap" onClick={openCompose} icon={<Plus className="h-4 w-4" />}>
                   {t('messages.newMessage')}
                 </Button>
               )}
@@ -1110,7 +1110,7 @@ function MessageBubble({
         <button
           type="button"
           onClick={onDelete}
-          className="rounded-lg p-1.5 text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+          className="rounded-lg p-1.5 text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-60"
           title={t('messages.deleteMessage')}
           aria-label={t('messages.deleteMessage')}
         >

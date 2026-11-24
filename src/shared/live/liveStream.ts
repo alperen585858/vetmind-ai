@@ -6,6 +6,10 @@ import { API_BASE, request } from '../api/client'
  * receipts, typing, notifications). EventSource cannot send an Authorization header, so we
  * first fetch a single-use ticket with the normal API client, then open the stream.
  * A used ticket cannot reconnect, so on error we close and reconnect with a fresh ticket.
+ *
+ * Browsers allow only ~6 HTTP/1.1 connections per host, and every open stream holds one.
+ * So a hidden tab lets its stream go after a short grace period (and resyncs when shown
+ * again), and a hot-reloaded module always closes the stream it opened.
  */
 
 export type LiveEvent = { type: string; thread_id?: string; [key: string]: unknown }
@@ -26,6 +30,7 @@ const EVENT_TYPES = [
 ] as const
 
 const BACKOFF_MS = [1000, 2000, 5000, 10000, 20000]
+const HIDDEN_GRACE_MS = 30_000
 
 const listeners = new Set<Listener>()
 const statusListeners = new Set<() => void>()
@@ -36,6 +41,8 @@ let attempt = 0
 let retryTimer: number | undefined
 // Bumped on every start/stop so a connect() that was waiting for its ticket can tell it is stale.
 let generation = 0
+let hiddenTimer: number | undefined
+let pausedForHidden = false
 
 function setStatus(next: LiveStatus) {
   if (status === next) return
@@ -105,8 +112,32 @@ async function connect() {
   }
 }
 
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    window.clearTimeout(hiddenTimer)
+    hiddenTimer = window.setTimeout(() => {
+      if (!wanted || document.visibilityState !== 'hidden') return
+      pausedForHidden = true
+      generation += 1
+      window.clearTimeout(retryTimer)
+      source?.close()
+      source = null
+      setStatus('idle')
+    }, HIDDEN_GRACE_MS)
+    return
+  }
+  window.clearTimeout(hiddenTimer)
+  if (wanted && pausedForHidden) {
+    pausedForHidden = false
+    attempt = 0
+    generation += 1
+    void connect() // the 'ready' event triggers a resync in listeners
+  }
+}
+
 export function startLiveStream() {
   if (wanted) return
+  document.addEventListener('visibilitychange', onVisibilityChange)
   wanted = true
   attempt = 0
   generation += 1
@@ -115,7 +146,10 @@ export function startLiveStream() {
 
 export function stopLiveStream() {
   wanted = false
+  pausedForHidden = false
   generation += 1
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.clearTimeout(hiddenTimer)
   window.clearTimeout(retryTimer)
   source?.close()
   source = null
@@ -153,4 +187,9 @@ export function LiveStreamConnector({ enabled }: { enabled: boolean }) {
     return () => stopLiveStream()
   }, [enabled])
   return null
+}
+
+// Vite hot reload swaps this module; close the old module's stream so it is not leaked.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => stopLiveStream())
 }

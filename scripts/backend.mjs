@@ -19,7 +19,8 @@ const backend = join(dirname(fileURLToPath(import.meta.url)), '..', 'backend')
 const isWindows = process.platform === 'win32'
 const python = join(backend, '.venv', isWindows ? 'Scripts' : 'bin', isWindows ? 'python.exe' : 'python')
 
-const UVICORN = ['-m', 'uvicorn', 'app.main:app', '--reload', '--port', '8000']
+// Live SSE streams never end on their own; cap the graceful shutdown so reload/stop is quick.
+const UVICORN = ['-m', 'uvicorn', 'app.main:app', '--reload', '--port', '8000', '--timeout-graceful-shutdown', '3']
 const AI_ENV = {
   VETMIND_LLM_PROVIDER: 'ollama',
   VETMIND_LLM_MODEL_ID: 'qwen2.5:7b',

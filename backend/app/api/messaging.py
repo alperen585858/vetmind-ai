@@ -31,12 +31,36 @@ def _messaging(facade: MessagingFacade = Depends(get_messaging_facade)):
     return facade.support
 
 
+def _jwt_identity(request: Request) -> tuple[str | None, str | None]:
+    """Subject/role from a valid Bearer JWT (signature + token version checked), else None."""
+    header = request.headers.get("Authorization") or ""
+    if not header.lower().startswith("bearer "):
+        return None, None
+    try:
+        from app.auth.security import decode_token, resolve_jwt_identity
+
+        auth = get_container(request).auth
+        payload = decode_token(header.split(" ", 1)[1].strip(), auth.jwt_secret)
+        subject, role, _clinic = resolve_jwt_identity(payload, auth.users)
+    except Exception:  # noqa: BLE001 — invalid/expired token → no identity
+        return None, None
+    if role not in _ALLOWED_DEMO_ROLES:
+        return None, None
+    return subject, role
+
+
 def _demo_actor(request: Request, principal: AuthPrincipal) -> tuple[str | None, str | None]:
     """When auth is off, honor FE demo identity headers for correct attribution."""
     if principal.via != "disabled":
         return None, None
     role = (request.headers.get("X-VetMind-Demo-Role") or "").strip().lower()
     subject = (request.headers.get("X-VetMind-Demo-Subject") or "").strip().lower()
+    if not role:
+        # Signed-in browser with auth off: the client sends its JWT instead of demo
+        # headers. Use the verified token identity so messages are attributed correctly.
+        jwt_subject, jwt_role = _jwt_identity(request)
+        if jwt_subject:
+            return jwt_subject, jwt_role
     if role not in _ALLOWED_DEMO_ROLES:
         role = ""
     if role and not subject:
