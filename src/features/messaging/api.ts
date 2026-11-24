@@ -9,6 +9,7 @@ export {
   getSupportThread,
   listCaseAiChat,
   listCaseMessages,
+  listMessageRecipients,
   listNotifications,
   listSupportThreads,
   markAllNotificationsRead,

@@ -96,15 +96,16 @@ def test_login_returns_short_access_token_and_refresh_token(tmp_path: Path) -> N
     assert container.refresh_tokens._store.get(body["refresh_token"]) is None
 
 
-def test_register_returns_refresh_token(tmp_path: Path) -> None:
+def test_register_issues_no_session_until_activated(tmp_path: Path) -> None:
+    """B2B: self-registered vets wait for an admin, so sign-up returns no tokens."""
     client, _ = _app(tmp_path)
     res = client.post(
         "/api/v1/auth/register",
-        json={"email": "new@owner.test", "password": "Patiler2026", "role": "owner"},
+        json={"email": "new@clinic.test", "password": "Patiler2026", "role": "vet"},
     )
     assert res.status_code == 201, res.text
-    session = res.json()["session"]
-    assert _refresh(client, session["refresh_token"]).status_code == 200
+    assert res.json()["status"] == "pending_approval"
+    assert res.json()["session"] is None
 
 
 # --- refresh ----------------------------------------------------------------
@@ -184,10 +185,10 @@ def test_refresh_after_password_change_is_rejected_and_old_access_token_dies(tmp
 
 def test_refresh_for_deactivated_user_is_rejected(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
-    owner = _login(client, "owner@demo.local")
+    owner = _login(client, "clinic-owner@demo.local")
     admin = _login(client, "admin@demo.local")
     client.patch(
-        "/api/v1/admin/users/owner@demo.local",
+        "/api/v1/admin/users/clinic-owner@demo.local",
         json={"active": False},
         headers={"Authorization": f"Bearer {admin['access_token']}"},
     )
@@ -198,7 +199,7 @@ def test_refresh_for_deactivated_user_is_rejected(tmp_path: Path) -> None:
 def test_recreating_a_user_does_not_revive_old_tokens(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
     admin = {"Authorization": f"Bearer {_login(client, 'admin@demo.local')['access_token']}"}
-    body = {"email": "temp@clinic.test", "password": "Patiler2026", "role": "owner"}
+    body = {"email": "temp@clinic.test", "password": "Patiler2026", "role": "clinic_owner", "clinic_id": "clinic-demo-a"}
     assert client.post("/api/v1/admin/users", json=body, headers=admin).status_code == 201
     old = _login(client, "temp@clinic.test", "Patiler2026")
     assert client.post("/api/v1/admin/users", json=body, headers=admin).status_code == 201
@@ -244,7 +245,7 @@ def _service(clock: list[float], directory: dict[str, DemoUserRecord] | None = N
     return RefreshTokenService(
         InMemoryRefreshTokenStore(),
         ttl_seconds=100,
-        directory=directory if directory is not None else {"a@b.co": DemoUserRecord("h", "owner")},
+        directory=directory if directory is not None else {"a@b.co": DemoUserRecord("h", "vet")},
         clock=lambda: clock[0],
     )
 
@@ -334,7 +335,7 @@ def test_expired_rows_are_purged_periodically() -> None:
     clock = [0.0]
     store = InMemoryRefreshTokenStore()
     svc = RefreshTokenService(
-        store, ttl_seconds=100, directory={"a@b.co": DemoUserRecord("h", "owner")}, clock=lambda: clock[0]
+        store, ttl_seconds=100, directory={"a@b.co": DemoUserRecord("h", "vet")}, clock=lambda: clock[0]
     )
     for _ in range(3):
         svc.issue("a@b.co", token_version=0)

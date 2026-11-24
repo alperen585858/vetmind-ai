@@ -34,7 +34,10 @@ def test_seed_reaches_each_scripted_stage(tmp_path: Path) -> None:
     assert by_name["Duman"].status == CaseLifecycleStatus.APPROVED
     assert by_name["Duman"].draft_report.immutable is True
     assert by_name["Zeytin"].status == CaseLifecycleStatus.APPROVED
-    assert by_name["Zeytin"].pet_owner_subject == "owner@demo.local"
+    # B2B: demo cases carry only an optional owner name — no owner account, email or pet link.
+    assert by_name["Zeytin"].pet_owner_subject is None
+    assert by_name["Zeytin"].owner_contact_email is None
+    assert by_name["Zeytin"].owner_contact_name == "Zeytin sahibi"
     assert by_name["Tarçın"].status == CaseLifecycleStatus.REVISION_REQUESTED
     assert by_name["Paşa"].status == CaseLifecycleStatus.AWAITING_REVIEW
     assert by_name["Paşa"].assigned_reviewer_id == "expert@demo.local"
@@ -110,20 +113,17 @@ def test_sqlite_delete_case_removes_jobs_and_ingestions(tmp_path: Path) -> None:
     repo.close()
 
 
-def test_demo_owner_pets_are_linked_and_removed_with_the_demo_set(tmp_path: Path) -> None:
+def test_old_demo_pets_are_removed_with_the_demo_set(tmp_path: Path) -> None:
+    """Pet profiles left by older demo seeds are still cleaned up; real rows are kept."""
     from app.schemas.workflow import PetRecord
 
     c = _container(tmp_path)
     real_pet = c.workflow_store.save_pet(PetRecord(owner_subject="owner@demo.local", name="Gerçek", species="canine"))
-    ids = seed_demo_cases(c)
-
-    demo_pets = {p.name: p for p in c.workflow_store.list_pets() if p.pet_id.startswith("pet-demo-")}
-    assert set(demo_pets) == {"Paşa", "Zeytin"}
-    assert all(p.owner_subject == "owner@demo.local" for p in demo_pets.values())
-    by_name = {c.repo.get_case(i).patient_name: c.repo.get_case(i) for i in ids}
-    assert by_name["Paşa"].pet_id == demo_pets["Paşa"].pet_id
-    assert by_name["Zeytin"].pet_id == demo_pets["Zeytin"].pet_id
-    assert by_name["Duman"].pet_id is None
+    c.workflow_store.save_pet(
+        PetRecord(pet_id="pet-demo-zeytin", owner_subject="owner@demo.local", name="Zeytin", species="canine")
+    )
+    seed_demo_cases(c)
+    assert not any(p.pet_id.startswith("pet-demo-") and p.name != "Zeytin" for p in c.workflow_store.list_pets())
 
     remove_demo_cases(c)
     assert [p.pet_id for p in c.workflow_store.list_pets()] == [real_pet.pet_id]

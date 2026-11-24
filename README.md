@@ -378,11 +378,14 @@ $env:VETMIND_LOCAL_TORCH_MODALITIES="XR"; $env:VETMIND_LOCAL_TORCH_REGIONS="THOR
 |---------|-----|----------------|
 | `vet@demo.local` | Veteriner hekim | DICOM yükle, vaka oluştur, analiz başlat |
 | `expert@demo.local` | Uzman Veteriner Radyolog (VRM) | İnceleme / onay / red / revizyon |
-| `owner@demo.local` | Hayvan sahibi | Görüntüleme talebi, rapor okuma |
 | `clinic-owner@demo.local` | Klinik sahibi | Klinik vakaları ve raporlar |
 | `admin@demo.local` | Admin | Kullanıcılar, bilgi tabanı, sistem durumu |
 
 Admin → **Kullanıcılar** sayfasında oluşturulan hesaplar da giriş ekranından giriş yapabilir.
+
+VetMind AI B2B bir platformdur: hayvan sahipleri sistem kullanıcısı değildir, hesap açamaz ve
+e-posta almaz. Vakayı veteriner doğrudan açar; sahip adı isteğe bağlıdır. Rapor onaylanınca
+vakayı gönderen veterinere bilgilendirme e-postası gider (`VETMIND_SMTP_HOST` ayarlıysa).
 
 ### Örnek vakalar
 
@@ -392,9 +395,9 @@ atama, onay ve rapor uçtan uca çalışır):
 | Hasta | Görüntü | Durum |
 |-------|---------|-------|
 | Duman (kedi) | Beyin MR | Onaylandı |
-| Zeytin (köpek) | Toraks röntgeni | Onaylandı · `owner@demo.local`'ın raporlarında |
+| Zeytin (köpek) | Toraks röntgeni | Onaylandı |
 | Tarçın (köpek) | Servikal MR | Revizyon istendi |
-| Paşa (köpek) | Servikal MR | Uzmana atandı, acil · `owner@demo.local`'ın hayvanı |
+| Paşa (köpek) | Servikal MR | Uzmana atandı, acil |
 | Karamel (köpek) | Beyin BT | İnceleme bekliyor |
 | Pamuk (kedi) | Beyin MR | Taslak |
 

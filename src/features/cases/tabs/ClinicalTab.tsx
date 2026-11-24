@@ -16,7 +16,7 @@ import { Button } from '../../../shared/ui/Button'
 import { CaseProgressTracker } from '../CaseProgressTracker'
 import { localize } from '../../../shared/lib/neuroLocalization'
 import { toastErrorBody } from '../../../shared/lib/apiErrors'
-import { OwnerContactFields, type OwnerContactValue } from '../../../shared/ui/OwnerContactFields'
+import { OwnerNameField } from '../../../shared/ui/OwnerNameField'
 import { fmtDate } from '../../../shared/lib/format'
 import { cleanClinicalHistory, displayClinic } from '../../../shared/lib/displayClean'
 import {
@@ -25,12 +25,10 @@ import {
   closeCaseInfoRequest,
   createCaseInfoRequest,
   getBackendCase,
-  getPetMedicalHistory,
   replyCaseInfoRequest,
   revokeCaseReportViewLinks,
   updateCaseOwner,
   uploadDocuments,
-  type PetHistoryEntry,
 } from '../../../shared/api'
 import type { BackendCaseRecord } from '../../../shared/types'
 import { analysisStatusLabel, expertReviewLabel } from '../../../shared/lib/caseMapper'
@@ -60,9 +58,8 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
   const caseKey = c.backendCaseId || c.id
   const [note, setNote] = useState('')
   const [infoBody, setInfoBody] = useState('')
-  const [infoTarget, setInfoTarget] = useState<'vet' | 'owner' | 'expert'>(isExpert ? 'vet' : 'expert')
+  const [infoTarget, setInfoTarget] = useState<'vet' | 'expert'>(isExpert ? 'vet' : 'expert')
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
-  const [history, setHistory] = useState<PetHistoryEntry[]>([])
   const [busy, setBusy] = useState(false)
   const docInputRef = useRef<HTMLInputElement>(null)
   const [backendExtras, setBackendExtras] = useState<Pick<
@@ -70,37 +67,13 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
     'info_requests' | 'clinical_notes_log'
   > | null>(null)
   const [extrasTick, setExtrasTick] = useState(0)
-  const [ownerDraft, setOwnerDraft] = useState<OwnerContactValue>({
-    ownerName: c.ownerContactName || c.patient.ownerName || '',
-    ownerEmail: c.ownerContactEmail || c.petOwnerSubject || '',
-    ownerEmailConsent: Boolean(c.ownerEmailConsent),
-    petOwnerSubject: c.petOwnerSubject || null,
-    mode: c.petOwnerSubject ? 'member' : 'guest',
-  })
+  const savedOwnerName = c.ownerContactName || (c.patient.ownerName !== '—' ? c.patient.ownerName : '') || ''
+  const [ownerDraft, setOwnerDraft] = useState(savedOwnerName)
   const [ownerBusy, setOwnerBusy] = useState(false)
 
   useEffect(() => {
-    setOwnerDraft({
-      ownerName: c.ownerContactName || c.patient.ownerName || '',
-      ownerEmail: c.ownerContactEmail || c.petOwnerSubject || '',
-      ownerEmailConsent: Boolean(c.ownerEmailConsent),
-      petOwnerSubject: c.petOwnerSubject || null,
-      mode: c.petOwnerSubject ? 'member' : 'guest',
-    })
-  }, [
-    c.ownerContactName,
-    c.ownerContactEmail,
-    c.ownerEmailConsent,
-    c.petOwnerSubject,
-    c.patient.ownerName,
-  ])
-
-  useEffect(() => {
-    if (!c.petId || !c.fromBackend) return
-    void getPetMedicalHistory(c.petId)
-      .then((h) => setHistory(h.timeline.slice(0, 8)))
-      .catch(() => setHistory([]))
-  }, [c.petId, c.fromBackend, extrasTick])
+    setOwnerDraft(savedOwnerName)
+  }, [savedOwnerName])
 
   useEffect(() => {
     if (!c.fromBackend || !caseKey.startsWith('case-')) {
@@ -147,7 +120,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
   const roleLabel = (role: string) => {
     if (role === 'expert') return t('cases.detail.roleExpert')
     if (role === 'vet' || role === 'clinic_owner') return t('cases.detail.roleVet')
-    if (role === 'owner') return t('cases.detail.roleOwner')
+    if (role === 'owner') return t('cases.detail.roleOwner') // legacy rows
     return role
   }
   const statusLabel = (status: string) => {
@@ -157,7 +130,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
     return status
   }
 
-  const askInfo = async (toRole?: 'vet' | 'owner' | 'expert') => {
+  const askInfo = async (toRole?: 'vet' | 'expert') => {
     if (!infoBody.trim() || !caseKey.startsWith('case-')) return
     const target = toRole || (isExpert ? 'vet' : infoTarget)
     setBusy(true)
@@ -215,31 +188,18 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
               <Row k={t('cases.detail.rowSpeciesBreed')} v={`${p.species} · ${p.breed}`} />
               <Row k={t('cases.detail.rowSex')} v={`${p.sex}, ${p.neutered ? t('cases.detail.neutered') : t('cases.detail.intact')}`} />
               <Row k={t('cases.detail.rowAgeWeight')} v={t('cases.detail.ageWeight', { age: p.age, weight: p.weight })} />
-              <Row
-                k={t('reports.doc.owner')}
-                v={
-                  c.petOwnerSubject ||
-                  c.ownerContactName ||
-                  (p.ownerName !== '—' ? p.ownerName : '')
-                    ? `${c.ownerContactName || c.petOwnerSubject || p.ownerName}${
-                        c.ownerContactEmail || c.petOwnerSubject
-                          ? ` · ${c.ownerContactEmail || c.petOwnerSubject}`
-                          : p.ownerPhone
-                            ? ` · ${p.ownerPhone}`
-                            : ''
-                      }`
-                    : '—'
-                }
-              />
-              {c.ownerEmailDeliveryStatus ? (
+              <Row k={t('reports.doc.owner')} v={savedOwnerName || '—'} />
+              {c.vetEmailDeliveryStatus ? (
                 <Row
                   k={t('reports.doc.delivery')}
                   v={
-                    c.ownerEmailDeliveryStatus === 'failed_smtp'
-                      ? t('ownerContact.deliveryFailed')
-                      : c.ownerEmailDeliveryStatus === 'sent'
-                        ? t('ownerContact.deliverySent')
-                        : c.ownerEmailDeliveryStatus
+                    c.vetEmailDeliveryStatus === 'sent'
+                      ? t('reportEmail.sent')
+                      : c.vetEmailDeliveryStatus === 'failed'
+                        ? t('reportEmail.failed')
+                        : c.vetEmailDeliveryStatus === 'not_configured'
+                          ? t('reportEmail.notConfigured')
+                          : t('reportEmail.skipped')
                   }
                 />
               ) : null}
@@ -248,30 +208,17 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
             </dl>
             {isVet && c.fromBackend && caseKey.startsWith('case-') && (
               <div className="space-y-3 border-t border-slate-100 px-5 py-4">
-                {!c.petOwnerSubject && !c.ownerContactEmail ? (
-                  <p className="text-xs text-amber-800">{t('ownerContact.legacyHint')}</p>
-                ) : null}
-                <p className="text-xs font-semibold text-slate-600">{t('ownerContact.attachTitle')}</p>
-                <OwnerContactFields value={ownerDraft} onChange={setOwnerDraft} disabled={ownerBusy} />
+                {!savedOwnerName ? <p className="text-xs text-slate-500">{t('ownerContact.legacyHint')}</p> : null}
+                <OwnerNameField value={ownerDraft} onChange={setOwnerDraft} disabled={ownerBusy} />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
-                    disabled={
-                      ownerBusy ||
-                      !ownerDraft.ownerName.trim() ||
-                      !ownerDraft.ownerEmail.trim() ||
-                      (ownerDraft.mode === 'member' && !ownerDraft.petOwnerSubject)
-                    }
+                    disabled={ownerBusy || ownerDraft.trim() === savedOwnerName.trim()}
                     onClick={() => {
                       void (async () => {
                         setOwnerBusy(true)
                         try {
-                          await updateCaseOwner(caseKey, {
-                            owner_name: ownerDraft.ownerName.trim(),
-                            owner_email: ownerDraft.ownerEmail.trim(),
-                            owner_email_consent: ownerDraft.ownerEmailConsent,
-                            pet_owner_subject: ownerDraft.petOwnerSubject,
-                          })
+                          await updateCaseOwner(caseKey, { owner_name: ownerDraft.trim() || null })
                           await hydrateBackendCase(caseKey)
                           setExtrasTick((n) => n + 1)
                           pushToast({ tone: 'success', title: t('ownerContact.attached') })
@@ -376,10 +323,9 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
                     <select
                       className="input mt-1 text-sm"
                       value={infoTarget}
-                      onChange={(e) => setInfoTarget(e.target.value as 'owner' | 'expert')}
+                      onChange={(e) => setInfoTarget(e.target.value as 'vet' | 'expert')}
                     >
                       <option value="expert">{t('cases.detail.roleExpert')}</option>
-                      <option value="owner">{t('cases.detail.roleOwner')}</option>
                     </select>
                   </label>
                   <label className="block text-xs text-slate-600">
@@ -481,27 +427,6 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
                 ))}
               </ul>
             </div>
-          </Card>
-        )}
-        {c.petId && history.length > 0 && (
-          <Card>
-            <CardHeader title={t('cases.detail.petImagingHistory')} icon={<History className="h-5 w-5" />} />
-            <ul className="divide-y divide-slate-50 px-5 pb-3 text-sm">
-              {history.map((h, i) => (
-                <li key={`${h.kind}-${h.at}-${i}`} className="py-2">
-                  <p className="font-medium text-navy-900">{h.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {new Date(h.at).toLocaleString('tr-TR')}
-                    {h.detail ? ` · ${h.detail}` : ''}
-                  </p>
-                  {h.link_path ? (
-                    <LocalizedLink className="text-xs text-teal-700 hover:underline" to={h.link_path}>
-                      {t('cases.detail.open')}
-                    </LocalizedLink>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
           </Card>
         )}
         <Card>

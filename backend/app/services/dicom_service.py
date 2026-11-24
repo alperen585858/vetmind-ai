@@ -29,7 +29,7 @@ from app.schemas.findings import StudyInfo
 from app.feedback.store import FeedbackStore
 from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import resolve_owner_account, validate_owner_contact
+from app.services.owner_contact import clean_owner_name
 from app.services.repository import CaseRepository
 from app.storage.malware_scan import MalwareScanner, assert_upload_clean
 from app.storage.quarantine import QuarantineStore
@@ -329,30 +329,10 @@ class DicomService:
             imaging_analysis_consent_verified=bool(payload.imaging_analysis_consent_verified),
             status=CaseLifecycleStatus.CREATED,
         )
-        resolved = validate_owner_contact(
-            owner_name=payload.owner_name,
-            owner_email=payload.owner_email,
-            owner_email_consent=payload.owner_email_consent,
-            pet_owner_subject=payload.pet_owner_subject,
-            require=True,
-        )
-        assert resolved is not None
-        linked = resolved.pet_owner_subject
-        if not linked and resolved.owner_contact_email:
-            get_user = None
-            store = self._workflow_store
-            if store is not None and hasattr(store, "get_user"):
-                get_user = store.get_user
-            linked = resolve_owner_account(
-                email=resolved.owner_contact_email,
-                auth_users=self._auth_users,
-                workflow_get_user=get_user,
-            )
-        case.owner_contact_name = resolved.owner_contact_name
-        case.owner_contact_email = resolved.owner_contact_email or None
-        case.owner_email_consent = resolved.owner_email_consent
-        if linked:
-            case.pet_owner_subject = linked
+        # Optional owner name only; owners are never linked or emailed (B2B).
+        owner_name = clean_owner_name(payload.owner_name)
+        if owner_name is not None:
+            case.owner_contact_name = owner_name
         # F4: use live capability list so prepared_for_models includes remote Vision when registered.
         case.model_input = build_imaging_model_input(case, capabilities=self._capabilities)
         saved = self._repo.save_case(case)

@@ -43,7 +43,7 @@ describe('auth pages translations', () => {
   }
   // Keys built at runtime.
   for (const i of [0, 1, 2, 3]) keys.add(`auth.strength${i}`)
-  for (const r of ['owner', 'vet']) keys.add(`roles.${r}`)
+  for (const r of ['vet']) keys.add(`roles.${r}`)
 
   it('found the keys to check', () => {
     expect(keys.size).toBeGreaterThan(30)

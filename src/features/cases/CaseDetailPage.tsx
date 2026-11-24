@@ -29,7 +29,6 @@ import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { fmtDate } from '../../shared/lib/format'
 import { displayClinic } from '../../shared/lib/displayClean'
 import { PollingCancelledError, requestCancelAnalysisJob, resendCaseToAI } from '../../shared/api'
-import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
 import {
   formatSlaRemaining,
   slaBadgeClass,
@@ -202,26 +201,6 @@ export default function CaseDetail() {
                 {t('cases.detail.backToCases')}
               </LocalizedLink>
             </div>
-          }
-        />
-      </Card>
-    )
-  }
-
-  if (
-    role === 'owner' &&
-    !caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name })
-  ) {
-    return (
-      <Card>
-        <EmptyState
-          icon={<FileSearch className="h-6 w-6" />}
-          title={t('cases.detail.notFound')}
-          text={t('cases.detail.notFoundHint')}
-          action={
-            <LocalizedLink className="text-sm font-medium text-teal-700" to="/">
-              {t('reports.backHome')}
-            </LocalizedLink>
           }
         />
       </Card>

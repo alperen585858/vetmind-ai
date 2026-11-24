@@ -152,8 +152,8 @@ def test_forgot_sends_link_and_same_answer_for_unknown_email(tmp_path: Path) -> 
 def test_forgot_for_inactive_account_sends_nothing(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
     admin = _login(client, "admin@demo.local").json()["access_token"]
-    client.patch("/api/v1/admin/users/owner@demo.local", json={"active": False}, headers=_bearer(admin))
-    assert _forgot(client, "owner@demo.local").status_code == 202
+    client.patch("/api/v1/admin/users/clinic-owner@demo.local", json={"active": False}, headers=_bearer(admin))
+    assert _forgot(client, "clinic-owner@demo.local").status_code == 202
     assert len(container.mailer.outbox) == 0
 
 
@@ -219,10 +219,10 @@ def test_unknown_reset_token_is_rejected(tmp_path: Path, token: str) -> None:
 
 def test_reset_for_user_deactivated_after_request_is_rejected(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
-    _forgot(client, "owner@demo.local")
+    _forgot(client, "clinic-owner@demo.local")
     token = _token_from_mail(container)
     admin = _login(client, "admin@demo.local").json()["access_token"]
-    client.patch("/api/v1/admin/users/owner@demo.local", json={"active": False}, headers=_bearer(admin))
+    client.patch("/api/v1/admin/users/clinic-owner@demo.local", json={"active": False}, headers=_bearer(admin))
     assert _reset(client, token).status_code == 400
 
 
@@ -319,11 +319,11 @@ def _admin_hdr(client: TestClient) -> dict[str, str]:
 
 def test_admin_reset_link_works_once_and_signs_out_the_user(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
-    old = _login(client, "owner@demo.local").json()
-    res = client.post("/api/v1/admin/users/Owner@Demo.local/reset-link", headers=_admin_hdr(client))
+    old = _login(client, "clinic-owner@demo.local").json()
+    res = client.post("/api/v1/admin/users/Clinic-Owner@Demo.local/reset-link", headers=_admin_hdr(client))
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["email"] == "owner@demo.local"
+    assert body["email"] == "clinic-owner@demo.local"
     assert body["expires_in"] == 30 * 60
     assert body["link"].startswith("https://vetmind.example/sifre-sifirla?token=")
     token = body["link"].split("token=")[1]
@@ -331,7 +331,7 @@ def test_admin_reset_link_works_once_and_signs_out_the_user(tmp_path: Path) -> N
 
     assert _reset(client, token).status_code == 204
     assert _reset(client, token).status_code == 400
-    assert _login(client, "owner@demo.local", NEW_PASSWORD).status_code == 200
+    assert _login(client, "clinic-owner@demo.local", NEW_PASSWORD).status_code == 200
     assert client.get("/api/v1/auth/me", headers=_bearer(old["access_token"])).status_code == 401
     events = [e for e in container.audit.list_events(limit=100) if e["event_type"] == "admin.password_reset_link"]
     assert events and token not in str(events)
@@ -340,11 +340,11 @@ def test_admin_reset_link_works_once_and_signs_out_the_user(tmp_path: Path) -> N
 def test_admin_reset_link_requires_admin_and_an_active_account(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
     vet = _bearer(_login(client).json()["access_token"])
-    assert client.post("/api/v1/admin/users/owner@demo.local/reset-link", headers=vet).status_code == 403
+    assert client.post("/api/v1/admin/users/clinic-owner@demo.local/reset-link", headers=vet).status_code == 403
     admin = _admin_hdr(client)
     assert client.post("/api/v1/admin/users/nobody@x.test/reset-link", headers=admin).status_code == 404
-    client.patch("/api/v1/admin/users/owner@demo.local", json={"active": False}, headers=admin)
-    assert client.post("/api/v1/admin/users/owner@demo.local/reset-link", headers=admin).status_code == 404
+    client.patch("/api/v1/admin/users/clinic-owner@demo.local", json={"active": False}, headers=admin)
+    assert client.post("/api/v1/admin/users/clinic-owner@demo.local/reset-link", headers=admin).status_code == 404
 
 
 # --- timestamps and rehash on login -----------------------------------------
@@ -353,9 +353,11 @@ def test_admin_reset_link_requires_admin_and_an_active_account(tmp_path: Path) -
 def test_created_and_last_login_timestamps(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
     res = client.post(
-        "/api/v1/auth/register", json={"email": "ts@owner.test", "password": "Patiler2026", "role": "owner"}
+        "/api/v1/admin/users",
+        json={"email": "ts@owner.test", "password": "Patiler2026", "role": "clinic_owner", "clinic_id": "clinic-demo-a"},
+        headers=_admin_hdr(client),
     )
-    assert res.status_code == 201
+    assert res.status_code == 201, res.text
     user = container.workflow_store.get_user("ts@owner.test")
     assert user.created_at is not None and user.last_login_at is None
     assert _login(client, "ts@owner.test", "Patiler2026").status_code == 200

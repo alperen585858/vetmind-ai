@@ -8,27 +8,18 @@ import { fillRegister, signOutFromSettings, uniqueEmail } from './helpers/accoun
  * exercised through the admin "reset link" instead.
  */
 test.describe('Accounts: sign-up, sign-in, password recovery', () => {
-  test('pet owner signs up, signs out and signs back in from another session', async ({ page, context }) => {
-    const email = uniqueEmail('owner')
-    await fillRegister(page, { name: 'E2E Sahip', email, password: 'Patiler2026' })
-    await page.waitForURL((url) => url.pathname === '/', { timeout: 20_000 })
+  test('the sign-up form has no pet-owner option (B2B)', async ({ page }) => {
+    await page.goto('/kayit')
+    await expect(page.getByLabel('Rol')).toHaveCount(0)
+    await expect(page.getByText(/Hayvan sahibi/i)).toHaveCount(0)
+  })
 
-    const stored = await page.evaluate(() => ({
-      session: JSON.parse(localStorage.getItem('vetmind.demo.session') || 'null'),
-      refresh: localStorage.getItem('vetmind.backend.refresh'),
-      legacy: localStorage.getItem('vetmind.demo.accounts'),
-    }))
-    expect(stored.session).toMatchObject({ email, role: 'owner', name: 'E2E Sahip' })
-    expect(stored.refresh).toBeTruthy()
-    expect(stored.legacy).toBeNull() // nothing (and no password) is kept in the browser
-
-    await signOutFromSettings(page)
-    await context.clearCookies()
-    await page.evaluate(() => localStorage.clear())
-
-    await loginAs(page, email, 'Patiler2026')
-    const session = await page.evaluate(() => JSON.parse(localStorage.getItem('vetmind.demo.session') || 'null'))
-    expect(session).toMatchObject({ email, role: 'owner' })
+  test('the removed owner demo account cannot sign in', async ({ page }) => {
+    await page.goto('/giris')
+    await page.getByLabel(/E-posta/i).fill('owner@demo.local')
+    await page.getByLabel(/Şifre/i).fill('demo1234')
+    await page.getByRole('button', { name: /Giriş yap/i }).click()
+    await expect(page.getByText('Invalid email or password.')).toBeVisible()
   })
 
   test('weak or mismatching passwords are caught before submitting', async ({ page }) => {
@@ -49,7 +40,7 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
 
   test('vet sign-up waits for admin approval and cannot sign in yet', async ({ page }) => {
     const email = uniqueEmail('vet')
-    await fillRegister(page, { email, password: 'Patiler2026', role: 'vet' })
+    await fillRegister(page, { email, password: 'Patiler2026' })
     await expect(page.getByRole('heading', { name: 'Hesabınız onay bekliyor' })).toBeVisible()
     await expect(page.getByText(email)).toBeVisible()
 
@@ -71,7 +62,7 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
     await page.getByRole('link', { name: 'Şifremi unuttum' }).click()
     await expect(page).toHaveURL(/\/sifremi-unuttum$/)
 
-    for (const email of ['owner@demo.local', uniqueEmail('nobody')]) {
+    for (const email of ['clinic-owner@demo.local', uniqueEmail('nobody')]) {
       await page.goto('/sifremi-unuttum')
       await page.getByLabel('E-posta').fill(email)
       await page.getByRole('button', { name: 'Bağlantı gönder' }).click()
@@ -113,7 +104,7 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
     const form = page.getByRole('main')
     await form.getByLabel('E-posta').fill(email)
     await form.getByLabel('Şifre').fill('Patiler2026')
-    await form.getByLabel('Rol').selectOption('owner')
+    await form.getByLabel('Rol').selectOption('admin')
     await form.getByRole('button', { name: 'Oluştur' }).click()
     const row = page.getByRole('row').filter({ hasText: email })
     await expect(row).toBeVisible({ timeout: 20_000 })

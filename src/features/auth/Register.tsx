@@ -12,9 +12,8 @@ import { backendAccountSession, postLoginPath, setBackendTokens } from '../../sh
 import { userErrorMessage } from '../../shared/lib/apiErrors'
 import { BackendUnavailableError, backendRegister } from '../../shared/api'
 
-// Self-service roles the backend accepts. Vets start inactive until an admin assigns a clinic.
-const ROLES = ['owner', 'vet'] as const
-type SignupRole = (typeof ROLES)[number]
+// B2B: only veterinarians can sign up; accounts start inactive until an admin assigns a clinic.
+const SIGNUP_ROLE = 'vet' as const
 
 const fieldClass = 'input mt-1.5 w-full bg-navy-950 text-white ring-navy-700'
 
@@ -27,7 +26,6 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [role, setRole] = useState<SignupRole>('owner')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingEmail, setPendingEmail] = useState<string | null>(null)
@@ -40,7 +38,7 @@ export default function Register() {
     if (password !== confirm) return setError(t('auth.passwordsDontMatch'))
     setBusy(true)
     try {
-      const res = await backendRegister({ email, password, role, display_name: name.trim() || undefined })
+      const res = await backendRegister({ email, password, role: SIGNUP_ROLE, display_name: name.trim() || undefined })
       if (res.status === 'pending_approval' || !res.session) {
         setPendingEmail(res.email)
         return
@@ -139,18 +137,8 @@ export default function Register() {
                 required
               />
             </label>
-            <label className="mt-4 block text-xs font-medium text-navy-300">
-              {t('auth.role')}
-              <select className={fieldClass} value={role} onChange={(e) => setRole(e.target.value as SignupRole)}>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {t(`roles.${r}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="mt-3 rounded-lg bg-teal-500/10 px-3 py-2 text-xs text-teal-100 ring-1 ring-inset ring-teal-500/30">
-              {role === 'vet' ? t('auth.roleHelpVetSignup') : t('auth.roleHelpOwnerSignup')}
+            <p className="mt-4 rounded-lg bg-teal-500/10 px-3 py-2 text-xs text-teal-100 ring-1 ring-inset ring-teal-500/30">
+              {t('auth.roleHelpVetSignup')}
             </p>
 
             {error && (

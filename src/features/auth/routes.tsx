@@ -26,7 +26,7 @@ export const settingsRoutes = [
   ...dualRoutes(
     'ayarlar',
     'settings',
-    <Gate roles={['vet', 'expert', 'owner', 'clinic_owner', 'admin']}>
+    <Gate roles={['vet', 'expert', 'clinic_owner', 'admin']}>
       <Settings />
     </Gate>,
   ),

@@ -1,25 +1,4 @@
-export interface BackendDemoPayment {
-  payment_id: string
-  submission_id: string
-  amount: number
-  currency: 'EUR'
-  mode: 'demo'
-  status: 'requires_confirmation' | 'approved' | 'failed'
-  owner_subject: string
-  clinic_id?: string | null
-  created_at: string
-  updated_at: string
-  approved_at?: string | null
-}
-
-export interface BackendDemoPaymentConfirmResponse {
-  payment: BackendDemoPayment
-  message: string
-  submission_finalized: boolean
-  submission_id?: string | null
-  submission_status?: string | null
-}
-
+// Radiologist payout ledger (admin). Owner demo-payment types were removed with pet-owner submissions.
 export interface BackendRadiologistPayoutSummary {
   radiologist_subject: string
   display_name?: string | null

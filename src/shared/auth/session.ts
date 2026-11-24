@@ -18,7 +18,6 @@ export interface DemoSession {
 const DEMO_ACCOUNTS: { email: string; role: Role; name: string }[] = [
   { email: 'vet@demo.local', role: 'vet', name: USERS.vet.name },
   { email: 'expert@demo.local', role: 'expert', name: USERS.expert.name },
-  { email: 'owner@demo.local', role: 'owner', name: USERS.owner.name },
   { email: 'clinic-owner@demo.local', role: 'clinic_owner', name: USERS.clinic_owner.name },
   { email: 'admin@demo.local', role: 'admin', name: USERS.admin.name },
 ]
@@ -140,7 +139,7 @@ function saveSession(session: DemoSession) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
-const ROLES: Role[] = ['vet', 'expert', 'owner', 'clinic_owner', 'admin']
+const ROLES: Role[] = ['vet', 'expert', 'clinic_owner', 'admin']
 
 /**
  * Session for an account that exists only in the backend directory (created by an

@@ -70,11 +70,10 @@ from app.schemas.report import (
     ReportVersionSnapshot,
     ReportVersionSummary,
 )
-from app.auth.mailer import OutgoingMail
+from app.services.report_email import deliver_vet_report_email
 from app.feedback.store import FeedbackStore
 from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import resolve_owner_account, validate_owner_contact
 from app.services.report_versioning import (
     apply_reject_or_revision,
     assert_mutable_for_edit,
@@ -683,10 +682,17 @@ class ReportApplication(HostBound):
         )
         case.review_history.append(feedback)
         case.updated_at = _now()
-        self._deliver_owner_report_email(case, report_version=report.version)
+        deliver_vet_report_email(
+            case,
+            report_version=report.version,
+            mailer=self._mailer,
+            smtp_configured=self._smtp_configured,
+            public_base_url=self._public_base_url,
+        )
         saved = self._repo.save_case(case)
         self._record_radiologist_payout(saved, feedback.reviewer_id)
-        for recipient in {saved.pet_owner_subject, saved.owner_subject, "vet@demo.local"}:
+        # In-app notice for the submitting vet (pet owners are not platform users).
+        for recipient in {saved.owner_subject or "vet@demo.local"}:
             if not recipient or recipient == feedback.reviewer_id:
                 continue
             self._notify(
@@ -699,84 +705,19 @@ class ReportApplication(HostBound):
                 case_id=saved.case_id,
                 clinic_id=saved.clinic_id,
             )
-        # Surface SMTP failure to the referring vet (never silent).
-        if saved.owner_email_delivery_status == "failed_smtp" and saved.owner_subject:
+        # Surface email failure to the submitting vet in-app (never silent).
+        if saved.vet_email_delivery_status == "failed" and saved.owner_subject:
             self._notify(
                 recipient_subject=saved.owner_subject,
-                kind="owner_email_failed",
-                title="Sahibe e-posta gönderilemedi",
-                body=saved.owner_email_delivery_detail
-                or "SMTP yapılandırılmamış veya gönderim başarısız. Raporu kendiniz iletin.",
+                kind="report_email_failed",
+                title="Rapor e-postası gönderilemedi",
+                body="Rapor onaylandı ancak bilgilendirme e-postası gönderilemedi. Raporu uygulamadan açabilirsiniz.",
                 link_path=f"/raporlar/{saved.case_id}",
-                dedupe_key=f"owner_email_failed:{saved.case_id}:v{report.version}",
+                dedupe_key=f"report_email_failed:{saved.case_id}:v{report.version}",
                 case_id=saved.case_id,
                 clinic_id=saved.clinic_id,
             )
         return saved
-
-    def _deliver_owner_report_email(self, case: CaseRecord, *, report_version: int) -> None:
-        """Email non-member owners a single-use report link when KVKK consent is set."""
-        email = (case.owner_contact_email or "").strip().lower()
-        if case.pet_owner_subject:
-            # Linked account gets in-app notification; skip outbound email by default.
-            case.owner_email_delivery_status = "skipped_linked"
-            case.owner_email_delivery_detail = "Owner has an account; in-app notification used."
-            return
-        if not email:
-            case.owner_email_delivery_status = "skipped_no_email"
-            case.owner_email_delivery_detail = "No owner email on case."
-            return
-        if not case.owner_email_consent:
-            case.owner_email_delivery_status = "skipped_no_consent"
-            case.owner_email_delivery_detail = "Owner email consent (KVKK) was not recorded."
-            return
-        if self._mailer is None or self._report_view_tokens is None:
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = "Mailer or report-view tokens are not configured."
-            return
-        if not self._smtp_configured:
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = (
-                "SMTP is not configured (VETMIND_SMTP_HOST). Report email was not sent."
-            )
-            return
-        try:
-            raw = self._report_view_tokens.issue(  # type: ignore[attr-defined]
-                case_id=case.case_id,
-                report_version=report_version,
-            )
-            minutes = max(1, int(getattr(self._report_view_tokens, "ttl_seconds", 72 * 3600)) // 60)
-            link = f"{self._public_base_url}/rapor-baglanti?token={raw}"
-            name = case.owner_contact_name or "Sayın sahip"
-            body = (
-                f"Merhaba {name},\n\n"
-                f"{case.patient_name} için veteriner radyoloji raporu hazır.\n\n"
-                f"Raporu görüntülemek için bu bağlantıyı {minutes} dakika içinde açın "
-                f"(tek kullanımlık):\n{link}\n\n"
-                "Bağlantıda sağlık verisi eki yoktur; yalnızca güvenli görüntüleme sunulur.\n"
-                "İsterseniz VetMind'e üye olarak raporlarınıza hesabınızdan ulaşabilirsiniz.\n\n"
-                f"Hello {name},\n"
-                f"The radiology report for {case.patient_name} is ready. "
-                f"Open the single-use link above within {minutes} minutes.\n"
-            )
-            self._mailer.send(  # type: ignore[attr-defined]
-                OutgoingMail(
-                    to=email,
-                    subject=f"VetMind rapor hazır · {case.patient_name}",
-                    body=body,
-                )
-            )
-            case.owner_email_delivery_status = "sent"
-            case.owner_email_delivery_detail = f"Report view link emailed to {email}."
-            append_activity(
-                case,
-                kind="owner_report_email_sent",
-                actor_subject="system",
-                detail=email,
-            )
-        except Exception as exc:  # noqa: BLE001 — never fail approval solely on mail
-            case.owner_email_delivery_status = "failed_smtp"
-            case.owner_email_delivery_detail = f"Email send failed: {exc}"
 
     def revoke_report_view_links(
         self, case_id: str, *, principal: AuthPrincipal | None = None

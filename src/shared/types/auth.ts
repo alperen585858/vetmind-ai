@@ -1,4 +1,4 @@
-export type Role = 'vet' | 'expert' | 'owner' | 'clinic_owner' | 'admin'
+export type Role = 'vet' | 'expert' | 'clinic_owner' | 'admin'
 
 export interface User {
   name: string

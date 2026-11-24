@@ -15,7 +15,6 @@ import {
   Layers,
   LogOut,
   MessageSquare,
-  PawPrint,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -53,14 +52,12 @@ export function Sidebar({
   const lp = useLocalePath()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
-  const isOwner = role === 'owner'
   const isExpert = role === 'expert'
   const isClinic = role === 'clinic_owner'
   const isAdmin = role === 'admin'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
     vet: t('roles.vetShort'),
     expert: t('roles.expertShort'),
-    owner: t('roles.ownerShort'),
     clinic_owner: t('roles.clinicShort'),
     admin: t('roles.adminShort'),
   }
@@ -68,7 +65,6 @@ export function Sidebar({
   const menus: Record<Role, NavItem[]> = {
     vet: [
       { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard className={ic} /> },
-      { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
       { to: '/dicom-yukle', label: t('nav.dicomUpload'), icon: <UploadCloud className={ic} /> },
       { to: '/vakalar/yeni', label: t('nav.newCase'), icon: <FilePlus2 className={ic} /> },
       { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
@@ -84,17 +80,9 @@ export function Sidebar({
       { to: '/raporlar', label: t('nav.expertApproved'), icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: t('nav.expertMessages'), icon: <MessageSquare className={ic} /> },
     ],
-    owner: [
-      { to: '/', label: t('nav.ownerHome'), icon: <LayoutDashboard className={ic} /> },
-      { to: '/hayvanlar', label: t('nav.pets'), icon: <PawPrint className={ic} /> },
-      { to: '/basvurular', label: t('nav.imagingRequests'), icon: <UploadCloud className={ic} /> },
-      { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
-      { to: '/raporlar', label: t('nav.myReports'), icon: <FileText className={ic} /> },
-    ],
     clinic_owner: [
       { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
-      { to: '/basvurular', label: t('nav.ownerSubmissions'), icon: <ClipboardCheck className={ic} /> },
       { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
     ],
     admin: [
@@ -140,9 +128,7 @@ export function Sidebar({
             {collapsed ? (
               <div
                 className={`hidden h-9 w-9 items-center justify-center rounded-xl shadow-sm lg:flex ${
-                  isOwner
-                    ? 'bg-gradient-to-br from-sky-300 via-sky-500 to-navy-800'
-                    : isClinic
+                  isClinic
                       ? 'bg-gradient-to-br from-indigo-300 via-indigo-500 to-navy-900'
                       : isAdmin
                         ? 'bg-gradient-to-br from-emerald-300 via-slate-500 to-slate-900'
@@ -156,17 +142,15 @@ export function Sidebar({
               </div>
             ) : null}
             <div className={collapsed ? 'lg:hidden' : ''}>
-              <Logo dark accent={isOwner ? 'sky' : isExpert || isClinic || isAdmin ? 'navy' : 'teal'} />
+              <Logo dark accent={isExpert || isClinic || isAdmin ? 'navy' : 'teal'} />
               <p
                 className={`mt-1.5 pl-[46px] text-[11px] ${
-                  isExpert || isOwner || isClinic || isAdmin ? 'text-slate-400' : 'text-navy-300'
+                  isExpert || isClinic || isAdmin ? 'text-slate-400' : 'text-navy-300'
                 }`}
               >
                 {isExpert
                   ? 'Veterinary Radiology Intelligence'
-                  : isOwner
-                    ? 'Pet Care Intelligence'
-                    : isClinic
+                  : isClinic
                       ? 'Clinic Operations Intelligence'
                       : isAdmin
                         ? 'Platform Control Plane'
@@ -175,9 +159,7 @@ export function Sidebar({
               {role && (
                 <span
                   className={`mt-2 ml-[46px] inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${
-                    isOwner
-                      ? 'bg-sky-500/15 text-sky-200 ring-sky-400/30'
-                      : isExpert
+                    isExpert
                         ? 'bg-white/10 text-slate-200 ring-white/10'
                         : isClinic
                           ? 'bg-indigo-400/15 text-indigo-200 ring-indigo-300/30'
@@ -228,9 +210,7 @@ export function Sidebar({
                   collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
                 } px-3 py-2.5 ${
                   isActive
-                    ? isOwner
-                      ? 'bg-sky-500/25 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
-                      : isExpert
+                    ? isExpert
                         ? 'bg-white/12 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
                         : isClinic
                           ? 'bg-indigo-500/25 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
@@ -265,9 +245,7 @@ export function Sidebar({
                 collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
               } gap-3 px-3 py-2.5 ${
                 isActive
-                  ? isOwner
-                    ? 'bg-sky-500/20 text-white shadow-[inset_3px_0_0_0_#38bdf8]'
-                    : isExpert
+                  ? isExpert
                       ? 'bg-white/10 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
                       : isClinic
                         ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'

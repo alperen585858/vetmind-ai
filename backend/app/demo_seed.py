@@ -37,7 +37,6 @@ DEMO_CLINIC_NAME = ""
 DEMO_CLINIC_ID = "clinic-demo-a"
 DEMO_VET = "vet@demo.local"
 DEMO_EXPERT = "expert@demo.local"
-DEMO_OWNER = "owner@demo.local"
 # Demo pet profiles use this id prefix so --remove can find them (PetRecord has no flag).
 DEMO_PET_PREFIX = "pet-demo-"
 
@@ -65,7 +64,6 @@ class DemoPatient:
     priority: CasePriority
     history: StructuredClinicalHistory
     exam: str
-    owned_by_demo_owner: bool = False
     sex: Optional[str] = None
     review_comment: Optional[str] = None
     review_edits: dict[str, str] = field(default_factory=dict)
@@ -117,7 +115,6 @@ DEMO_PATIENTS: tuple[DemoPatient, ...] = (
             medications="Omega-3 takviyesi",
         ),
         exam="Solunum sesleri bilateral hafif sertleşmiş; kardiyak üfürüm duyulmadı.",
-        owned_by_demo_owner=True,
         sex="Dişi",
         review_comment="Taslak uygun bulundu.",
     ),
@@ -162,7 +159,6 @@ DEMO_PATIENTS: tuple[DemoPatient, ...] = (
             medications="Meloksikam 0.1 mg/kg/gün (1 gündür)",
         ),
         exam="Tetraparezi, servikal hiperestezi; pelvik reflekslerde artış. Derin ağrı değerlendirilmedi.",
-        owned_by_demo_owner=True,
         sex="Erkek",
     ),
     DemoPatient(
@@ -239,30 +235,6 @@ def demo_case_ids(container: AppContainer) -> list[str]:
     return [c.case_id for c in container.repo.list_cases() if c.demo_seed]
 
 
-def _demo_pet_id(name: str) -> str:
-    ascii_name = name.lower().translate(str.maketrans("çğıöşü", "cgiosu"))
-    return DEMO_PET_PREFIX + "".join(ch for ch in ascii_name if ch.isalnum())
-
-
-def _save_demo_pet(container: AppContainer, p: DemoPatient, now: datetime) -> PetRecord:
-    """Pet profile for the demo owner so the owner dashboard counts and links the case."""
-    created = now - timedelta(days=p.days_ago + 30)
-    pet = PetRecord(
-        pet_id=_demo_pet_id(p.patient_name),
-        owner_subject=DEMO_OWNER,
-        clinic_id=DEMO_CLINIC_ID,
-        name=p.patient_name,
-        species=p.species,
-        breed=p.breed,
-        age_years=p.age_years,
-        sex=p.sex,
-        medical_history=p.history.relevant_history,
-        created_at=created,
-        updated_at=created,
-    )
-    return container.workflow_store.save_pet(pet)
-
-
 def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
     repo = container.repo
     upload = container.dicom.upload(
@@ -273,16 +245,13 @@ def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
         clinical_history=_history_text(p),
         referring_clinic=DEMO_CLINIC_NAME,
     )
-    owner_email = DEMO_OWNER if p.owned_by_demo_owner else f"{_demo_pet_id(p.patient_name)}@demo-owner.local"
     case = container.dicom.confirm(
         upload.ingest_id,
         ConfirmClassificationRequest(
             imaging_source_permission_verified=True,
             imaging_analysis_consent_verified=True,
-            owner_name="Demo Sahip" if p.owned_by_demo_owner else f"{p.patient_name} sahibi",
-            owner_email=owner_email,
-            owner_email_consent=True,
-            pet_owner_subject=DEMO_OWNER if p.owned_by_demo_owner else None,
+            # B2B: optional owner name only — owners have no account and get no email.
+            owner_name=f"{p.patient_name} sahibi",
         ),
     )
     # Flag before any review so feedback hooks can skip the case.
@@ -293,9 +262,6 @@ def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
     case.clinical_history_structured = p.history
     case.owner_subject = DEMO_VET
     case.clinic_id = DEMO_CLINIC_ID
-    if p.owned_by_demo_owner:
-        case.pet_owner_subject = DEMO_OWNER
-        case.pet_id = _save_demo_pet(container, p, now).pet_id
     repo.save_case(case)
     case_id = case.case_id
 

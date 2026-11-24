@@ -18,7 +18,6 @@ import { Modal } from '../../shared/ui/Modal'
 import { SpeciesIcon } from '../../shared/ui/CaseTable'
 import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../../shared/api'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
-import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
 import { regionLabel } from '../../shared/lib/displayClean'
 import { fmtDate } from '../../shared/lib/format'
 import type { BackendModality, VetCase } from '../../shared/types'
@@ -51,7 +50,7 @@ export default function ReportList() {
   const [revising, setRevising] = useState(false)
   const [bulkPdfBusy, setBulkPdfBusy] = useState(false)
 
-  const canBulkDelete = role === 'expert' || role === 'vet' || role === 'admin' || role === 'owner'
+  const canBulkDelete = role === 'expert' || role === 'vet' || role === 'admin'
   const canSelect = canBulkDelete
 
   useEffect(() => {
@@ -68,13 +67,8 @@ export default function ReportList() {
 
   const reports = useMemo(
     () =>
-      cases.filter(
-        (c) =>
-          c.status === 'onaylandi' &&
-          (role !== 'owner' ||
-            caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name })),
-      ),
-    [cases, role, session?.email, user?.email, user?.name],
+      cases.filter((c) => c.status === 'onaylandi'),
+    [cases],
   )
 
   const regions = useMemo(() => {
@@ -303,7 +297,7 @@ export default function ReportList() {
     }
   }
 
-  const pageTitle = role === 'owner' ? t('reports.myReports') : t('reports.approved')
+  const pageTitle = t('reports.approved')
   const filterClass =
     'rounded-xl border-0 bg-white/90 px-3 py-2.5 text-xs font-medium text-navy-900 outline-none ring-1 ring-white/50 focus:ring-2 focus:ring-white'
 
@@ -565,7 +559,7 @@ export default function ReportList() {
             <EmptyState
               icon={<FileText className="h-6 w-6" />}
               title={t('reports.emptyApproved')}
-              text={role === 'owner' ? t('reports.emptyOwnerHint') : t('reports.emptyStaffHint')}
+              text={t('reports.emptyStaffHint')}
               action={
                 role === 'vet' ? (
                   <Button size="sm" onClick={() => nav('/vakalar/yeni')}>

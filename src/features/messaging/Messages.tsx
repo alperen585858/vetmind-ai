@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
+  AlertCircle,
   ArrowLeft,
+  Check,
   Loader2,
   MessageSquare,
   Plus,
@@ -23,12 +25,19 @@ import {
   deleteSupportMessage,
   deleteSupportThread,
   getSupportThread,
+  listMessageRecipients,
   listSupportThreads,
   markSupportThreadRead,
   postSupportMessage,
 } from './api'
 import { fmtDate } from '../../shared/lib/format'
-import type { BackendSupportThreadDetail, BackendSupportThreadSummary, SupportMessageChannel } from '../../shared/types'
+import type {
+  BackendMessageRecipient,
+  BackendSupportMessage,
+  BackendSupportThreadDetail,
+  BackendSupportThreadSummary,
+  SupportMessageChannel,
+} from '../../shared/types'
 
 function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
   return channel === 'admin' ? t('messages.channelAdmin') : t('messages.channelRadiologist')
@@ -36,7 +45,8 @@ function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
 
 function authorLabel(role: string, subject: string, t: TranslateFn): string {
   const roleKeys: Record<string, string> = {
-    owner: 'messages.roleOwner',
+    owner: 'messages.roleOwner', // legacy rows only
+    support: 'messages.roleSupport',
     expert: 'messages.roleExpert',
     admin: 'messages.roleAdmin',
     vet: 'messages.roleVet',
@@ -48,7 +58,6 @@ function authorLabel(role: string, subject: string, t: TranslateFn): string {
   if (key) return t(key)
   if (subject.startsWith('admin@')) return t('messages.roleAdmin')
   if (subject.startsWith('expert')) return t('messages.roleExpert')
-  if (subject.startsWith('owner@')) return t('messages.roleOwner')
   if (subject.startsWith('vet')) return t('messages.roleVet')
   return role || subject
 }
@@ -69,6 +78,34 @@ function fmtListTime(iso: string | null | undefined, locale: 'tr' | 'en'): strin
   return clock || full
 }
 
+/** YYYY-MM-DD for grouping messages by day. */
+function dayKey(iso: string): string {
+  return (iso.includes('T') ? iso.split('T')[0] : iso.split(' ')[0]) || iso
+}
+
+function dayLabel(iso: string, locale: 'tr' | 'en', t: TranslateFn): string {
+  const now = new Date()
+  const p = (x: number) => String(x).padStart(2, '0')
+  const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+  if (dayKey(iso) === today) return t('messages.today')
+  return fmtDate(dayKey(iso), locale)
+}
+
+function groupByDay(messages: BackendSupportMessage[]): { day: string; items: BackendSupportMessage[] }[] {
+  const out: { day: string; items: BackendSupportMessage[] }[] = []
+  for (const m of messages) {
+    const day = dayKey(m.created_at)
+    const last = out[out.length - 1]
+    if (last && last.day === day) last.items.push(m)
+    else out.push({ day, items: [m] })
+  }
+  return out
+}
+
+function counterpartLabel(thread: BackendSupportThreadSummary, t: TranslateFn): string {
+  return thread.counterpart_name || channelLabel(thread.channel, t)
+}
+
 function channelTone(channel: SupportMessageChannel) {
   if (channel === 'admin') return 'bg-sky-500/90 text-white'
   return 'bg-teal-400 text-navy-950'
@@ -79,8 +116,9 @@ export default function Messages() {
   const { t, locale } = useLocale()
   const navigate = useLocalizedNavigate()
   const { threadId } = useParams<{ threadId?: string }>()
-  const isOwner = role === 'owner'
-  const canCompose = isOwner
+  // B2B: clinic staff start conversations with a radiologist or the support team (issue #93).
+  const canCompose = role === 'vet' || role === 'clinic_owner'
+  const [searchParams, setSearchParams] = useSearchParams()
   const endRef = useRef<HTMLDivElement>(null)
 
   const [threads, setThreads] = useState<BackendSupportThreadSummary[]>([])
@@ -89,7 +127,11 @@ export default function Messages() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
-  const [channel, setChannel] = useState<SupportMessageChannel>('radiologist')
+  const [recipient, setRecipient] = useState<BackendMessageRecipient | null>(null)
+  const [recipientQuery, setRecipientQuery] = useState('')
+  const [recipients, setRecipients] = useState<BackendMessageRecipient[]>([])
+  const [recipientsLoading, setRecipientsLoading] = useState(false)
+  const [recipientsError, setRecipientsError] = useState<string | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [reply, setReply] = useState('')
@@ -115,6 +157,52 @@ export default function Messages() {
     void loadThreads()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role])
+
+  // Recipient search inside the "New Conversation" dialog (debounced).
+  useEffect(() => {
+    if (!composeOpen || !canCompose) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setRecipientsLoading(true)
+      setRecipientsError(null)
+      void listMessageRecipients(recipientQuery)
+        .then((items) => {
+          if (!cancelled) setRecipients(items)
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setRecipients([])
+            setRecipientsError(e instanceof Error ? e.message : t('messages.recipientsFailed'))
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setRecipientsLoading(false)
+        })
+    }, 200)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [composeOpen, canCompose, recipientQuery, t])
+
+  // /mesajlar?new=support opens a new conversation with the support team preselected (issue #92).
+  useEffect(() => {
+    if (searchParams.get('new') !== 'support' || !canCompose) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    setSearchParams(next, { replace: true })
+    setRecipient({ subject: 'support', display_name: t('messages.channelAdmin'), role: 'support', channel: 'admin' })
+    setSubject((prev) => prev || t('messages.supportPrefillSubject'))
+    setComposeOpen(true)
+  }, [searchParams, setSearchParams, canCompose, t])
+
+  const openCompose = () => {
+    setRecipient(null)
+    setRecipientQuery('')
+    setSubject('')
+    setBody('')
+    setComposeOpen(true)
+  }
 
   useEffect(() => {
     if (!threadId) {
@@ -166,27 +254,38 @@ export default function Messages() {
         thread.subject.toLowerCase().includes(q) ||
         (thread.last_message_preview || '').toLowerCase().includes(q) ||
         channelLabel(thread.channel, t).toLowerCase().includes(q) ||
+        (thread.counterpart_name || '').toLowerCase().includes(q) ||
         thread.owner_subject.toLowerCase().includes(q),
     )
   }, [sorted, query, t])
 
   const startConversation = async () => {
+    if (!recipient) {
+      pushToast({ tone: 'warning', title: t('messages.recipientRequired') })
+      return
+    }
     if (!subject.trim() || !body.trim()) return
     setBusy(true)
     try {
       const created = await createSupportThread({
-        channel,
+        channel: recipient.channel,
+        recipient_subject: recipient.channel === 'radiologist' ? recipient.subject : undefined,
         subject: subject.trim(),
         body: body.trim(),
       })
-      pushToast({ tone: 'success', title: t('messages.sent'), body: channelLabel(channel, t) })
+      pushToast({ tone: 'success', title: t('messages.sent'), body: recipient.display_name })
       setComposeOpen(false)
+      setRecipient(null)
       setSubject('')
       setBody('')
       await loadThreads()
       navigate(`/mesajlar/${created.thread.thread_id}`)
     } catch (e) {
-      pushToast({ tone: 'error', title: t('messages.sendFailed'), body: e instanceof Error ? e.message : undefined })
+      pushToast({
+        tone: 'error',
+        title: t('messages.sendFailed'),
+        body: e instanceof Error ? `${e.message} ${t('messages.sendFailedKeep')}` : t('messages.sendFailedKeep'),
+      })
     } finally {
       setBusy(false)
     }
@@ -215,7 +314,11 @@ export default function Messages() {
       setReply('')
       void loadThreads()
     } catch (e) {
-      pushToast({ tone: 'error', title: t('messages.replyFailed'), body: e instanceof Error ? e.message : undefined })
+      pushToast({
+        tone: 'error',
+        title: t('messages.replyFailed'),
+        body: e instanceof Error ? `${e.message} ${t('messages.sendFailedKeep')}` : t('messages.sendFailedKeep'),
+      })
     } finally {
       setBusy(false)
     }
@@ -223,12 +326,19 @@ export default function Messages() {
 
   const me = user?.email || ''
   const showChat = Boolean(threadId)
-  const canDeleteThread = Boolean(detail && (isOwner || role === 'admin' || role === 'expert'))
-  const subtitle = isOwner
-    ? t('messages.subtitleOwner')
-    : role === 'expert'
+  const canDeleteThread = Boolean(
+    detail &&
+      (role === 'admin' ||
+        detail.thread.owner_subject === me ||
+        detail.thread.recipient_subject === me),
+  )
+  const subtitle =
+    role === 'expert'
       ? t('messages.subtitleExpert')
-      : t('messages.subtitleStaff')
+      : role === 'admin'
+        ? t('messages.subtitleAdmin')
+        : t('messages.subtitleStaff')
+  const groupedMessages = useMemo(() => groupByDay(detail?.messages ?? []), [detail?.messages])
 
   const confirmDeleteMessage = async () => {
     if (!threadId || !pendingDeleteMessageId || deleting) return
@@ -302,12 +412,11 @@ export default function Messages() {
                 {canCompose && (
                   <button
                     type="button"
-                    onClick={() => setComposeOpen(true)}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-navy-800 to-navy-950 text-white shadow-md transition hover:from-navy-700 hover:to-navy-900"
-                    title={t('messages.newMessage')}
-                    aria-label={t('messages.newMessage')}
+                    onClick={openCompose}
+                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-navy-800 to-navy-950 px-3 text-sm font-semibold text-white shadow-md transition hover:from-navy-700 hover:to-navy-900"
                   >
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-4 w-4" aria-hidden />
+                    <span>{t('messages.newMessage')}</span>
                   </button>
                 )}
               </div>
@@ -325,9 +434,16 @@ export default function Messages() {
             </div>
 
             {error && (
-              <p className="relative mx-4 mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200" role="alert">
-                {error}
-              </p>
+              <div
+                className="relative mx-4 mb-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200"
+                role="alert"
+              >
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">{error}</span>
+                <button type="button" className="shrink-0 font-semibold underline" onClick={() => void loadThreads()}>
+                  {t('messages.retry')}
+                </button>
+              </div>
             )}
 
             <div className="relative min-h-0 flex-1 overflow-y-auto">
@@ -340,12 +456,12 @@ export default function Messages() {
                   <MessageSquare className="mx-auto h-8 w-8 text-slate-400" />
                   <p className="mt-3 text-sm font-medium text-navy-950">{t('messages.noMessages')}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {isOwner ? t('messages.emptyListHintOwner') : t('messages.emptyListHintStaff')}
+                    {canCompose ? t('messages.emptyListHintStaff') : t('messages.emptyListHintInbox')}
                   </p>
                   {canCompose && (
                     <button
                       type="button"
-                      onClick={() => setComposeOpen(true)}
+                      onClick={openCompose}
                       className="mt-4 text-sm font-semibold text-navy-800 hover:underline"
                     >
                       {t('messages.newMessage')}
@@ -372,7 +488,9 @@ export default function Messages() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-sm font-semibold text-navy-950">{thread.subject}</span>
+                              <span className="truncate text-sm font-semibold text-navy-950">
+                                {counterpartLabel(thread, t)}
+                              </span>
                               <span
                                 className={`shrink-0 text-[11px] ${
                                   thread.unread_count > 0 ? 'font-semibold text-navy-800' : 'text-slate-400'
@@ -383,11 +501,13 @@ export default function Messages() {
                             </div>
                             <div className="mt-0.5 flex items-center justify-between gap-2">
                               <p className="truncate text-[12px] text-slate-500">
-                                {!isOwner ? `${thread.owner_subject} · ` : ''}
-                                {thread.last_message_preview || channelLabel(thread.channel, t)}
+                                <span className="font-medium text-slate-600">{thread.subject}</span>
+                                {thread.last_message_preview ? ` · ${thread.last_message_preview}` : ''}
                               </p>
                               {thread.unread_count > 0 && (
-                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-navy-900 px-1.5 text-[11px] font-bold text-white">
+                                <span
+                                  aria-label={t('messages.unreadCount', { count: thread.unread_count })}
+                                  className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-navy-900 px-1.5 text-[11px] font-bold text-white">
                                   {thread.unread_count}
                                 </span>
                               )}
@@ -446,10 +566,10 @@ export default function Messages() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-navy-900">{detail.thread.subject}</p>
+                    <p className="truncate text-[15px] font-semibold text-navy-900">{counterpartLabel(detail.thread, t)}</p>
                     <p className="truncate text-[11px] text-slate-500">
-                      {channelLabel(detail.thread.channel, t)}
-                      {!isOwner ? ` · ${detail.thread.owner_subject}` : ''}
+                      {authorLabel(detail.thread.counterpart_role || '', '', t) || channelLabel(detail.thread.channel, t)}
+                      {` · ${detail.thread.subject}`}
                       {detail.thread.related_case_id ? (
                         <>
                           {' · '}
@@ -477,7 +597,14 @@ export default function Messages() {
                 </header>
 
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-6">
-                  {detail.messages.map((m) => {
+                  {groupedMessages.map((group) => (
+                    <div key={group.day} className="space-y-2">
+                      <div className="sticky top-0 z-10 flex justify-center py-1">
+                        <span className="rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200/80">
+                          {dayLabel(group.items[0].created_at, locale, t)}
+                        </span>
+                      </div>
+                  {group.items.map((m) => {
                     const mine = Boolean(me && m.author_subject === me)
                     const canDeleteMsg = mine || role === 'admin'
                     return (
@@ -513,12 +640,16 @@ export default function Messages() {
                                 <Trash2 className="h-3 w-3" />
                               </button>
                             )}
-                            <span>{fmtClock(m.created_at) || fmtDate(m.created_at, locale)}</span>
+                            <time dateTime={m.created_at} title={fmtDate(m.created_at, locale)}>
+                              {fmtClock(m.created_at) || fmtDate(m.created_at, locale)}
+                            </time>
                           </div>
                         </div>
                       </div>
                     )
                   })}
+                    </div>
+                  ))}
                   <div ref={endRef} />
                 </div>
 
@@ -621,26 +752,75 @@ export default function Messages() {
         <div className="space-y-4">
           <div>
             <p className="label">{t('messages.composeTo')}</p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setChannel('radiologist')}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
-                  channel === 'radiologist' ? 'bg-teal-400 text-navy-950' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <Stethoscope className="h-4 w-4" /> {t('messages.channelRadiologist')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setChannel('admin')}
-                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
-                  channel === 'admin' ? 'bg-[color:var(--vm-midnight,#0b1728)] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <Shield className="h-4 w-4" /> {t('messages.channelAdmin')}
-              </button>
-            </div>
+            {recipient ? (
+              <div className="mt-1.5 flex items-center gap-3 rounded-xl bg-teal-50 px-3 py-2 ring-1 ring-inset ring-teal-200">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${channelTone(recipient.channel)}`}>
+                  {recipient.channel === 'admin' ? <Shield className="h-4 w-4" /> : <Stethoscope className="h-4 w-4" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-navy-900">{recipient.display_name}</span>
+                  <span className="block text-xs text-slate-500">{authorLabel(recipient.role, recipient.subject, t)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-teal-800 hover:underline"
+                  onClick={() => setRecipient(null)}
+                >
+                  {t('messages.changeRecipient')}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-1.5 space-y-2">
+                <label className="relative block">
+                  <span className="sr-only">{t('messages.recipientSearch')}</span>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    className="input pl-9"
+                    value={recipientQuery}
+                    onChange={(e) => setRecipientQuery(e.target.value)}
+                    placeholder={t('messages.recipientSearchPlaceholder')}
+                    aria-label={t('messages.recipientSearch')}
+                    autoFocus
+                  />
+                </label>
+                <div className="max-h-56 overflow-y-auto rounded-xl ring-1 ring-slate-200" role="listbox" aria-label={t('messages.composeTo')}>
+                  {recipientsLoading ? (
+                    <p className="flex items-center gap-2 px-3 py-3 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> {t('messages.recipientsLoading')}
+                    </p>
+                  ) : recipientsError ? (
+                    <p className="px-3 py-3 text-sm text-rose-700" role="alert">
+                      {t('messages.recipientsFailed')}
+                    </p>
+                  ) : recipients.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-slate-500">{t('messages.recipientsEmpty')}</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {recipients.map((r) => (
+                        <li key={r.subject}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={false}
+                            onClick={() => setRecipient(r)}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                          >
+                            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${channelTone(r.channel)}`}>
+                              {r.channel === 'admin' ? <Shield className="h-4 w-4" /> : <Stethoscope className="h-4 w-4" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-navy-900">{r.display_name}</span>
+                              <span className="block text-xs text-slate-500">{authorLabel(r.role, r.subject, t)}</span>
+                            </span>
+                            <Check className="h-4 w-4 text-transparent" aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <label className="block">
             <span className="label">{t('messages.subject')}</span>
@@ -665,7 +845,7 @@ export default function Messages() {
               {t('common.cancel')}
             </Button>
             <Button
-              disabled={busy || !subject.trim() || !body.trim()}
+              disabled={busy || !recipient || !subject.trim() || !body.trim()}
               onClick={() => void startConversation()}
               icon={<Send className="h-4 w-4" />}
             >

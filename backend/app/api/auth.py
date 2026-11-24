@@ -66,7 +66,8 @@ class RegisterRequest(BaseModel):
     email: str = Field(min_length=3, max_length=120)
     # Length/strength is checked by the password policy so the error message is specific.
     password: str = Field(min_length=1, max_length=200)
-    role: Literal["owner", "vet"] = "owner"
+    # B2B only: pet owners are not platform users. Vets wait for admin activation.
+    role: Literal["vet"] = "vet"
     display_name: str | None = Field(default=None, max_length=80)
 
 
@@ -293,7 +294,7 @@ def register(
     request: Request,
     container: AppContainer = Depends(get_container),
 ) -> RegisterResponse:
-    """Self-service sign-up. Owners get a session at once; vets wait for admin activation."""
+    """Self-service sign-up for veterinarians; accounts wait for admin activation."""
     email = payload.email.strip().lower()
     limits = [("register_ip", _client_ip(request, container), REGISTER_PER_IP)]
     _enforce_limits(container, request, email, limits)

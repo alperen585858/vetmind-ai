@@ -43,10 +43,8 @@ export async function createAndAnalyzeCase(input: {
   scenario: BackendScenario
   patientAgeYears?: number
   priority?: 'normal' | 'high' | 'urgent' | 'stat'
-  ownerName: string
-  ownerEmail: string
-  ownerEmailConsent?: boolean
-  petOwnerSubject?: string | null
+  /** Optional pet-owner name for the vet's records (owners get no account and no email). */
+  ownerName?: string
   clinicalHistoryStructured?: {
     complaint?: string
     onset?: string
@@ -54,6 +52,7 @@ export async function createAndAnalyzeCase(input: {
     medications?: string
     relevant_history?: string
     handoff_notes?: string
+    radiologist_questions?: string
     sex?: string
     weight_kg?: number
     neutered?: boolean
@@ -78,10 +77,7 @@ export async function createAndAnalyzeCase(input: {
       priority: input.priority ?? 'normal',
       scenario: input.scenario,
       referring_clinic: '',
-      owner_name: input.ownerName,
-      owner_email: input.ownerEmail,
-      owner_email_consent: Boolean(input.ownerEmailConsent),
-      pet_owner_subject: input.petOwnerSubject || null,
+      owner_name: input.ownerName?.trim() || null,
     }),
   })
   return analyzeCaseAsyncAndWait(created.case_id, {
@@ -90,36 +86,13 @@ export async function createAndAnalyzeCase(input: {
   })
 }
 
-export type OwnerSearchHit = {
-  subject: string
-  display_name: string
-  email: string
-  role: string
-  clinic_id?: string | null
-}
-
-export async function searchOwners(q: string): Promise<{ items: OwnerSearchHit[] }> {
-  const qs = new URLSearchParams({ q })
-  return request(`/owners/search?${qs}`)
-}
-
 export async function updateCaseOwner(
   caseId: string,
-  payload: {
-    owner_name: string
-    owner_email: string
-    owner_email_consent?: boolean
-    pet_owner_subject?: string | null
-  },
+  payload: { owner_name: string | null },
 ): Promise<BackendCaseRecord> {
   return request(`/cases/${encodeURIComponent(caseId)}/owner`, {
     method: 'PATCH',
-    body: JSON.stringify({
-      owner_name: payload.owner_name,
-      owner_email: payload.owner_email,
-      owner_email_consent: Boolean(payload.owner_email_consent),
-      pet_owner_subject: payload.pet_owner_subject || null,
-    }),
+    body: JSON.stringify({ owner_name: payload.owner_name?.trim() || null }),
   })
 }
 

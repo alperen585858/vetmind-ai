@@ -386,6 +386,7 @@ class AppContainer:
             notifications=self.notifications,
             auth_users=self._auth_users,
             tenant_isolation=self.settings.tenant_isolation,
+            user_directory=self.workflow_store,
         )
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,

@@ -33,7 +33,8 @@ import { Card, CardHeader } from '../../../shared/ui/Card'
 import { SpeciesIcon } from '../../../shared/ui/CaseTable'
 import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import { EmptyState } from '../../../shared/ui/EmptyState'
-import { getClinicDashboard, listSubmissions } from '../../../shared/api'
+import { getClinicDashboard } from '../../../shared/api'
+import { AWAITING_REPORT_FILTER, isAwaitingReport } from '../lib/caseStatusMap'
 import { fmtDate } from '../../../shared/lib/format'
 import type { ClinicDashboardStats } from '../../../shared/types'
 
@@ -58,7 +59,6 @@ export function VetDashboard() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [stats, setStats] = useState<ClinicDashboardStats | null>(null)
-  const [pendingSubs, setPendingSubs] = useState(0)
 
   useEffect(() => {
     void refreshBackendCases()
@@ -73,14 +73,6 @@ export function VetDashboard() {
     }, q ? 350 : 0)
     return () => window.clearTimeout(handle)
   }, [q])
-
-  useEffect(() => {
-    void listSubmissions()
-      .then((rows) =>
-        setPendingSubs(rows.filter((r) => r.status === 'pending_verification' || r.status === 'needs_info').length),
-      )
-      .catch(() => setPendingSubs(0))
-  }, [])
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase()
@@ -98,6 +90,8 @@ export function VetDashboard() {
     stats?.urgent_cases ??
     cases.filter((c) => (c.priority === 'STAT' || c.priority === 'Acil') && !['onaylandi', 'reddedildi'].includes(c.status))
       .length
+  // Cases whose report is not approved yet — from the synced backend case list (issue #91).
+  const awaitingReport = cases.filter((c) => isAwaitingReport(c.status)).length
   const approved = stats?.completed_reports ?? cases.filter((c) => c.status === 'onaylandi').length
 
   const trend = useMemo(() => buildTrend(cases, t), [cases, t])
@@ -130,15 +124,15 @@ export function VetDashboard() {
   ]
 
   const quickLinks = [
-    {
-      to: '/basvurular',
-      label: t('dashboard.quickOwnerSubmissions'),
-      icon: <ClipboardCheck className="h-5 w-5" />,
-      hint: pendingSubs ? t('dashboard.hintPendingCount', { count: pendingSubs }) : t('dashboard.hintRequests'),
-    },
+    { to: '/vakalar/yeni', label: t('dashboard.newCase'), icon: <FilePlus2 className="h-5 w-5" />, hint: t('dashboard.newCaseHint') },
     { to: '/vakalar', label: t('dashboard.quickReviewQueue'), icon: <Hourglass className="h-5 w-5" />, hint: t('dashboard.hintCaseCount', { count: review }) },
     { to: '/raporlar', label: t('dashboard.quickReports'), icon: <FileText className="h-5 w-5" />, hint: t('dashboard.hintApprovedCount', { count: approved }) },
-    { to: '/dicom-yukle', label: t('dashboard.quickDicom'), icon: <UploadCloud className="h-5 w-5" />, hint: t('dashboard.hintAddImaging') },
+    {
+      to: `/vakalar?durum=${AWAITING_REPORT_FILTER}`,
+      label: t('dashboard.quickAwaitingReport'),
+      icon: <ClipboardCheck className="h-5 w-5" />,
+      hint: t('dashboard.hintAwaitingReport', { count: awaitingReport }),
+    },
   ]
 
   return (
@@ -173,14 +167,7 @@ export function VetDashboard() {
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
                 {t('dashboard.todayAtClinic', { date: formatClinicDate(t) })}{' '}
                 <span className="font-semibold text-white">{t('dashboard.reviewCount', { count: review })}</span>
-                {pendingSubs > 0 ? (
-                  <>
-                    {' '}
-                    <span className="font-semibold text-white">
-                      {t('dashboard.andNewSubmissions', { count: pendingSubs })}
-                    </span>
-                  </>
-                ) : null}{' '}
+{' '}
                 {t('dashboard.awaitingSuffix')}
               </p>
             </div>
@@ -455,12 +442,13 @@ export function VetDashboard() {
                   {t('dashboard.unreadCaseMessages', { count: stats.unread_messages })}
                 </p>
               ) : null}
-              <a
-                href="mailto:destek@vetmind.local?subject=VetMind%20destek"
+              {/* In-app support conversation instead of a mailto link (issue #92). */}
+              <LocalizedLink
+                to="/mesajlar?new=support"
                 className="mt-2 inline-block text-xs font-semibold text-teal-700 hover:underline"
               >
                 {t('dashboard.contactSupport')}
-              </a>
+              </LocalizedLink>
             </div>
           </div>
         </Card>

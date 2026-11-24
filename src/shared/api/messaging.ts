@@ -78,8 +78,15 @@ export async function listSupportThreads() {
   return request<import('../types').BackendSupportThreadSummary[]>('/messages/threads')
 }
 
+export async function listMessageRecipients(q?: string) {
+  const qs = q?.trim() ? `?${new URLSearchParams({ q: q.trim() })}` : ''
+  return request<import('../types').BackendMessageRecipient[]>(`/messages/recipients${qs}`)
+}
+
 export async function createSupportThread(payload: {
   channel: 'radiologist' | 'admin'
+  /** Required for the radiologist channel. */
+  recipient_subject?: string
   subject: string
   body: string
   related_case_id?: string

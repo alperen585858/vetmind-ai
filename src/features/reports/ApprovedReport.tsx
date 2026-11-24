@@ -43,7 +43,6 @@ import {
   caseWithDraftVersion,
   printSectionsForCase,
 } from './lib/reportPrint'
-import { caseBelongsToOwner } from '../../shared/lib/caseMapper'
 import type {
   BackendDraftReport,
   BackendInfoRequest,
@@ -285,12 +284,7 @@ export default function ApprovedReport() {
     )
   }
 
-  // Owner defense-in-depth: list pages filter by ownership; detail/report must too (incl. backend IDs).
-  if (
-    !c ||
-    (role === 'owner' &&
-      !caseBelongsToOwner(c, { email: session?.email ?? user?.email, name: user?.name }))
-  ) {
+  if (!c) {
     return <Card><EmptyState icon={<FileText className="h-6 w-6" />} title={t('reports.empty')} /></Card>
   }
 
@@ -416,7 +410,6 @@ export default function ApprovedReport() {
   const roleLabel = (r: string) => {
     if (r === 'expert') return t('cases.detail.roleExpert')
     if (r === 'vet' || r === 'clinic_owner') return t('cases.detail.roleVet')
-    if (r === 'owner') return t('cases.detail.roleOwner')
     return r
   }
 
@@ -427,7 +420,7 @@ export default function ApprovedReport() {
           title={t('reports.approvedTitle')}
           subtitle={`${c.patient.name} · ${c.no}`}
           crumbs={[
-            { label: role === 'owner' ? t('nav.myReports') : t('nav.cases'), to: role === 'owner' ? '/raporlar' : '/vakalar' },
+            { label: t('nav.cases'), to: '/vakalar' },
             { label: c.no, to: `/vakalar/${c.id}` },
             { label: t('reports.crumbReport') },
           ]}
@@ -603,29 +596,6 @@ export default function ApprovedReport() {
         </div>
       )}
 
-      {role === 'owner' && (
-        <div className="no-print mb-6 rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-navy-50 p-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-7 w-7 text-sky-600" />
-            <h2 className="text-xl font-semibold text-navy-900">{t('reports.ownerReadyTitle')}</h2>
-          </div>
-          <p className="mt-3 text-[15px] leading-relaxed text-navy-800">
-            {t('reports.ownerReadyBody', { name: p.name })}
-            {c.approvedBy ? (
-              <>
-                {t('reports.ownerApprovedBy', { expert: c.approvedBy, date: fmtDate(c.approvedAt, locale) })}
-              </>
-            ) : (
-              <>{t('reports.ownerApprovedShort')}</>
-            )}
-          </p>
-          {c.clinic && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-              <Phone className="h-4 w-4" /> {c.clinic}
-            </p>
-          )}
-        </div>
-      )}
 
       <article
         className={`rounded-xl border border-slate-200 bg-white shadow-soft print:border-0 print:shadow-none ${
@@ -634,11 +604,11 @@ export default function ApprovedReport() {
       >
         <header
           className={`flex flex-col gap-4 border-b-4 px-8 py-6 sm:flex-row sm:items-start sm:justify-between ${
-            role === 'owner' ? 'border-sky-500' : 'border-teal-600'
+            'border-teal-600'
           }`}
         >
           <div>
-            <Logo accent={role === 'owner' ? 'sky' : 'teal'} />
+            <Logo accent="teal" />
           </div>
           <div className="text-left text-sm sm:text-right">
             <p className="text-lg font-semibold text-navy-900">{t('reports.reportDocTitle')}</p>
@@ -756,7 +726,7 @@ export default function ApprovedReport() {
               <div key={s.key}>
                 <h3
                   className={`mb-2 border-b border-slate-100 pb-1 text-sm font-semibold uppercase tracking-wide ${
-                    role === 'owner' ? 'text-sky-700' : 'text-teal-700'
+                    'text-teal-700'
                   }`}
                 >
                   {s.label}

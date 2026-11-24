@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
@@ -22,6 +23,9 @@ import { Modal } from '../../shared/ui/Modal'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
 import { deleteBackendCase } from '../../shared/api'
 import type { BackendModality, CaseStatus, VetCase } from '../../shared/types'
+import { AWAITING_REPORT_FILTER, isAwaitingReport } from './lib/caseStatusMap'
+
+type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER
 
 function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
@@ -49,7 +53,10 @@ export default function CaseList() {
   const { t, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
   const [q, setQ] = useState('')
-  const [status, setStatus] = useState<CaseStatus | '' | 'failed'>('')
+  const [searchParams] = useSearchParams()
+  const [status, setStatus] = useState<StatusFilter>(() =>
+    searchParams.get('durum') === AWAITING_REPORT_FILTER ? AWAITING_REPORT_FILTER : '',
+  )
   const [species, setSpecies] = useState('')
   const [modality, setModality] = useState<BackendModality | ''>('')
   const [expert, setExpert] = useState('')
@@ -99,7 +106,9 @@ export default function CaseList() {
         (!status ||
           (status === 'failed'
             ? c.status === 'analiz_basarisiz' || c.status === 'reddedildi'
-            : c.status === status)) &&
+            : status === AWAITING_REPORT_FILTER
+              ? isAwaitingReport(c.status)
+              : c.status === status)) &&
         (!species || c.patient.species === species) &&
         (!modality || c.modality === modality) &&
         (!expert || expertKey(c) === expert) &&
@@ -261,9 +270,10 @@ export default function CaseList() {
                 aria-label={t('common.status')}
                 className={filterClass}
                 value={status}
-                onChange={(e) => setStatus(e.target.value as CaseStatus | '' | 'failed')}
+                onChange={(e) => setStatus(e.target.value as StatusFilter)}
               >
                 <option value="">{t('cases.filterAllStatuses')}</option>
+                <option value={AWAITING_REPORT_FILTER}>{t('cases.filterAwaitingReport')}</option>
                 {STATUS_ORDER.map((s) => (
                   <option key={s} value={s}>
                     {t(STATUS_META[s].labelKey)}

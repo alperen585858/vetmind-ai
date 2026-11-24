@@ -15,7 +15,7 @@ import { localize } from '../../shared/lib/neuroLocalization'
 import { nowStamp, today } from '../../shared/lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../../shared/lib/pipeline'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
-import { OwnerContactFields, type OwnerContactValue } from '../../shared/ui/OwnerContactFields'
+import { OwnerNameField } from '../../shared/ui/OwnerNameField'
 import {
   PollingCancelledError,
   confirmDicomAndAnalyze,
@@ -41,6 +41,9 @@ import type {
   Priority,
   VetCase,
 } from '../../shared/types'
+
+// Sample-fill buttons are test fixtures (issue #95): only shown when VITE_ENABLE_DEMO_FIXTURES=1.
+const DEMO_FIXTURES_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FIXTURES === '1'
 
 const STEP_KEYS = ['cases.stepPatient', 'cases.stepClinical', 'cases.stepNeuro', 'cases.stepUpload', 'cases.stepSummary'] as const
 const DOC_TYPES: DocType[] = ['MR Raporu', 'BT Raporu', 'Laboratuvar Sonucu', 'Önceki Rapor']
@@ -170,13 +173,8 @@ export default function NewCase() {
   const steps = useMemo(() => STEP_KEYS.map((key) => t(key)), [t])
   const [step, setStep] = useState(0)
   const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT)
-  const [ownerContact, setOwnerContact] = useState<OwnerContactValue>({
-    ownerName: '',
-    ownerEmail: '',
-    ownerEmailConsent: false,
-    petOwnerSubject: null,
-    mode: 'guest',
-  })
+  // Questions the referring vet wants the radiologist to answer (issue #89).
+  const [radiologistQuestions, setRadiologistQuestions] = useState('')
   const [clinical, setClinical] = useState<ClinicalInfo>(EMPTY_CLINICAL)
   const [neuro, setNeuro] = useState<NeuroExam>(EMPTY_NEURO)
   const [files, setFiles] = useState<UploadFile[]>([])
@@ -206,13 +204,6 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(SAMPLE_FORM.patient)
-    setOwnerContact({
-      ownerName: SAMPLE_FORM.patient.ownerName || 'Mehmet Yılmaz',
-      ownerEmail: 'owner@demo.local',
-      ownerEmailConsent: true,
-      petOwnerSubject: 'owner@demo.local',
-      mode: 'member',
-    })
     setClinical(SAMPLE_FORM.clinical)
     setNeuro(SAMPLE_FORM.neuro)
     setFiles(SAMPLE_FORM.files.map((f, i) => ({ ...f, id: `s${i}` })))
@@ -225,13 +216,6 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(BRAIN_BACKEND_FORM.patient)
-    setOwnerContact({
-      ownerName: BRAIN_BACKEND_FORM.patient.ownerName || 'Mehmet Yılmaz',
-      ownerEmail: 'owner@demo.local',
-      ownerEmailConsent: true,
-      petOwnerSubject: 'owner@demo.local',
-      mode: 'member',
-    })
     setClinical(BRAIN_BACKEND_FORM.clinical)
     setNeuro(BRAIN_BACKEND_FORM.neuro)
     setFiles([{ id: 'brain-placeholder', name: 'synthetic_brain_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
@@ -244,13 +228,6 @@ export default function NewCase() {
     setDicomPreview(null)
     setDicomFiles([])
     setPatient(CERVICAL_BACKEND_FORM.patient)
-    setOwnerContact({
-      ownerName: CERVICAL_BACKEND_FORM.patient.ownerName || 'Mehmet Yılmaz',
-      ownerEmail: 'owner@demo.local',
-      ownerEmailConsent: true,
-      petOwnerSubject: 'owner@demo.local',
-      mode: 'member',
-    })
     setClinical(CERVICAL_BACKEND_FORM.clinical)
     setNeuro(CERVICAL_BACKEND_FORM.neuro)
     setFiles([{ id: 'cerv-placeholder', name: 'synthetic_cervical_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
@@ -263,13 +240,6 @@ export default function NewCase() {
     setDicomFiles([])
     setDicomPreview(null)
     setPendingDemoKind(kind)
-    setOwnerContact({
-      ownerName: 'Mehmet Yılmaz',
-      ownerEmail: 'owner@demo.local',
-      ownerEmailConsent: true,
-      petOwnerSubject: 'owner@demo.local',
-      mode: 'member',
-    })
     if (kind === 'cervical_mri') {
       setPatient(CERVICAL_BACKEND_FORM.patient)
       setClinical(CERVICAL_BACKEND_FORM.clinical)
@@ -378,10 +348,8 @@ export default function NewCase() {
     }
   }
 
-  const ownerReady =
-    Boolean(ownerContact.ownerName.trim() && ownerContact.ownerEmail.trim()) &&
-    (ownerContact.mode === 'guest' || Boolean(ownerContact.petOwnerSubject))
-  const patientStepReady = Boolean(patient.name.trim() && patient.breed.trim() && ownerReady)
+  // Only the patient's name and species are required; owner details are optional (issue #88).
+  const patientStepReady = Boolean(patient.name.trim() && patient.species)
   const canNext = step !== 0 || patientStepReady
 
   const submit = async () => {
@@ -403,7 +371,12 @@ export default function NewCase() {
     submitAbortRef.current = controller
     setSubmitting(true)
     try {
-      const history = `${clinical.complaint}\n${clinical.history}`.trim()
+      const questions = radiologistQuestions.trim()
+      const history = [clinical.complaint, clinical.history, questions ? `Radyoloğa sorular:\n${questions}` : '']
+        .filter((part) => part.trim())
+        .join('\n')
+        .trim()
+      const ownerName = patient.ownerName.trim() || undefined
       let result
       if (pipeline === 'dicom_metadata') {
         let ingestId = dicomPreview && !dicomPreview.blocked ? dicomPreview.ingest_id : undefined
@@ -448,10 +421,7 @@ export default function NewCase() {
           anatomicalRegion: acceptSuggestion ? undefined : overrideRegion,
           patientName: patient.name,
           clinicalHistory: history,
-          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
-          ownerEmail: ownerContact.ownerEmail.trim(),
-          ownerEmailConsent: ownerContact.ownerEmailConsent,
-          petOwnerSubject: ownerContact.petOwnerSubject,
+          ownerName,
           signal: controller.signal,
           cancelBackendOnAbort: true,
         })
@@ -484,10 +454,7 @@ export default function NewCase() {
         result = await confirmDocumentAndAnalyze(upload.ingest_id, {
           signal: controller.signal,
           cancelBackendOnAbort: true,
-          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
-          ownerEmail: ownerContact.ownerEmail.trim(),
-          ownerEmailConsent: ownerContact.ownerEmailConsent,
-          petOwnerSubject: ownerContact.petOwnerSubject,
+          ownerName,
         })
       } else {
         result = await createAndAnalyzeCase({
@@ -497,10 +464,7 @@ export default function NewCase() {
           clinicalHistory: history,
           scenario: pipeline,
           patientAgeYears: patient.age || undefined,
-          ownerName: ownerContact.ownerName.trim() || patient.ownerName,
-          ownerEmail: ownerContact.ownerEmail.trim(),
-          ownerEmailConsent: ownerContact.ownerEmailConsent,
-          petOwnerSubject: ownerContact.petOwnerSubject,
+          ownerName,
           priority: triage,
           clinicalHistoryStructured: {
             complaint: clinical.complaint || undefined,
@@ -508,6 +472,7 @@ export default function NewCase() {
             course: clinical.course || undefined,
             medications: clinical.medications || undefined,
             relevant_history: clinical.history || undefined,
+            radiologist_questions: questions || undefined,
             handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'} · ${patient.sex}${patient.neutered ? ' (kısır)' : ''} · ${patient.weight || '?'} kg`,
             sex: patient.sex || undefined,
             weight_kg: patient.weight > 0 ? patient.weight : undefined,
@@ -695,9 +660,11 @@ export default function NewCase() {
             <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
               {t('cases.startWithDicom')}
             </Button>
-            <Button variant="secondary" icon={<Sparkles className="h-4 w-4 text-teal-600" />} onClick={fillSample}>
-              {t('cases.fillSampleShort')}
-            </Button>
+            {DEMO_FIXTURES_ENABLED && (
+              <Button variant="secondary" icon={<Sparkles className="h-4 w-4 text-teal-600" />} onClick={fillSample}>
+                {t('cases.fillSampleShort')}
+              </Button>
+            )}
           </div>
         }
       />
@@ -705,6 +672,7 @@ export default function NewCase() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">{t('cases.newCaseTitle')}</p>
         <p className="mt-1 text-sm text-slate-300">{t('cases.newCaseSubtitle')}</p>
       </div>
+      {DEMO_FIXTURES_ENABLED && (
       <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
         <summary className="cursor-pointer font-medium text-navy-800">{t('cases.quickFill')}</summary>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -728,6 +696,7 @@ export default function NewCase() {
           </Button>
         </div>
       </details>
+      )}
       <Card className="mb-6 p-5">
         <StepIndicator steps={steps} current={step} onSelect={setStep} />
       </Card>
@@ -735,15 +704,15 @@ export default function NewCase() {
       <Card className="p-6">
         {step === 0 && (
           <div className="animate-fade-up">
-            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepPatient')}</h2>
+            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('newCase.patientSection')}</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field label={`${t('newCase.patientName')} *`}>
                 <input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder={t('newCase.patientNamePlaceholder')} />
               </Field>
-              <Field label={t('newCase.species')}>
+              <Field label={`${t('newCase.species')} *`}>
                 <Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} />
               </Field>
-              <Field label={`${t('newCase.breed')} *`}>
+              <Field label={`${t('newCase.breed')} (${t('newCase.optional')})`}>
                 <input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder={t('newCase.breedPlaceholder')} />
               </Field>
               <Field label={t('newCase.sex')}>
@@ -764,17 +733,8 @@ export default function NewCase() {
                   <input type="number" min={0} step="0.1" className="input" value={patient.weight || ''} onChange={(e) => P('weight', Number(e.target.value))} />
                 </Field>
               </div>
-              <Field label={t('newCase.ownerPhone')}>
-                <input className="input" value={patient.ownerPhone} onChange={(e) => P('ownerPhone', e.target.value)} placeholder={t('newCase.ownerPhonePlaceholder')} />
-              </Field>
-              <div className="md:col-span-2">
-                <OwnerContactFields
-                  value={ownerContact}
-                  onChange={(next) => {
-                    setOwnerContact(next)
-                    if (next.ownerName) P('ownerName', next.ownerName)
-                  }}
-                />
+              <div className="md:col-span-2 xl:col-span-3">
+                <OwnerNameField value={patient.ownerName} onChange={(v) => P('ownerName', v)} />
               </div>
             </div>
           </div>
@@ -798,6 +758,17 @@ export default function NewCase() {
               </Field>
               <Field label={t('newCase.medications')}>
                 <textarea rows={3} className="input" value={clinical.medications} onChange={(e) => C('medications', e.target.value)} />
+              </Field>
+              <Field label={t('newCase.radiologistQuestions')} className="md:col-span-2">
+                <textarea
+                  rows={3}
+                  className="input"
+                  value={radiologistQuestions}
+                  onChange={(e) => setRadiologistQuestions(e.target.value)}
+                  placeholder={t('newCase.radiologistQuestionsPlaceholder')}
+                  maxLength={4000}
+                />
+                <span className="mt-1 block text-xs text-slate-500">{t('newCase.radiologistQuestionsHint')}</span>
               </Field>
             </div>
           </div>
@@ -1057,10 +1028,11 @@ export default function NewCase() {
                 ['Irk', patient.breed || '—'],
                 ['Cinsiyet', `${patient.sex}, ${patient.neutered ? 'kısırlaştırılmış' : 'kısırlaştırılmamış'}`],
                 ['Yaş / Kilo', `${patient.age} yaş · ${patient.weight} kg`],
-                ['Sahip', `${patient.ownerName || '—'} ${patient.ownerPhone ? `· ${patient.ownerPhone}` : ''}`],
+                ['Sahip', patient.ownerName.trim() || '—'],
               ]} />
               <Summary title="Klinik Bilgiler" onEdit={() => setStep(1)} rows={[
                 ['Şikâyet', clinical.complaint || '—'],
+                ['Radyoloğa sorular', radiologistQuestions.trim() || '—'],
                 ['Başlangıç / Seyir', `${clinical.onset} · ${clinical.course}`],
                 ['Klinik geçmiş', clinical.history || '—'],
                 ['İlaçlar', clinical.medications || '—'],

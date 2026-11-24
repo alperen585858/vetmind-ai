@@ -193,9 +193,10 @@ class ConfirmClassificationRequest(BaseModel):
     anatomical_region: Optional[AnatomicalRegion] = None
     patient_name: Optional[str] = None
     clinical_history: Optional[str] = None
-    # Pet owner contact (required to open a clinical case from DICOM).
-    owner_name: str = Field(min_length=1, max_length=120)
-    owner_email: str = Field(min_length=3, max_length=200)
+    # Optional pet-owner name for the vet's records (B2B: owners have no account, no email).
+    owner_name: Optional[str] = Field(default=None, max_length=120)
+    # Deprecated: accepted so older clients keep working, but ignored and never stored.
+    owner_email: Optional[str] = Field(default=None, max_length=200)
     owner_email_consent: bool = False
     pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
     # Wired from UI consent. Does NOT by itself authorize pixel inference

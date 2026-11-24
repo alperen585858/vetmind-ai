@@ -28,10 +28,14 @@ class OutgoingMail:
     body: str
 
 
+class MailDeliveryError(RuntimeError):
+    """Raised by ``send(..., raise_on_error=True)`` when the mail server rejects a message."""
+
+
 class Mailer(Protocol):
     outbox: deque[OutgoingMail]
 
-    def send(self, mail: OutgoingMail) -> None: ...
+    def send(self, mail: OutgoingMail, *, raise_on_error: bool = False) -> None: ...
 
 
 class LogMailer:
@@ -39,7 +43,7 @@ class LogMailer:
         self._log_body = log_body
         self.outbox: deque[OutgoingMail] = deque(maxlen=50)
 
-    def send(self, mail: OutgoingMail) -> None:
+    def send(self, mail: OutgoingMail, *, raise_on_error: bool = False) -> None:
         self.outbox.append(mail)
         if self._log_body:
             log.warning(
@@ -74,7 +78,7 @@ class SmtpMailer:
         self._timeout = timeout_s
         self.outbox: deque[OutgoingMail] = deque(maxlen=50)
 
-    def send(self, mail: OutgoingMail) -> None:
+    def send(self, mail: OutgoingMail, *, raise_on_error: bool = False) -> None:
         self.outbox.append(mail)
         msg = EmailMessage()
         msg["From"] = self._sender
@@ -88,9 +92,11 @@ class SmtpMailer:
                 if self._username:
                     smtp.login(self._username, self._password or "")
                 smtp.send_message(msg)
-        except (OSError, smtplib.SMTPException):
+        except (OSError, smtplib.SMTPException) as exc:
             # Never fail the HTTP request (that would reveal whether the account exists).
-            log.exception("Could not send mail to %s via %s:%s", mail.to, self._host, self._port)
+            log.exception("Could not send mail via %s:%s", self._host, self._port)
+            if raise_on_error:
+                raise MailDeliveryError(type(exc).__name__) from exc
 
 
 def build_mailer(settings) -> Mailer:

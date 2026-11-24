@@ -1,3 +1,4 @@
+import { AWAITING_REPORT_FILTER, isAwaitingReport } from '../../cases/lib/caseStatusMap'
 import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
 import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
 import {
@@ -89,7 +90,8 @@ export function ClinicOwnerDashboard() {
   const total = stats?.case_count ?? cases.length
   const awaiting = stats?.awaiting_review ?? dash?.awaiting_review ?? 0
   const approved = stats?.approved ?? dash?.completed_reports ?? 0
-  const pendingSubs = stats?.pending_submissions ?? 0
+  // Pet-owner submissions were removed (B2B); show cases still waiting for a report instead.
+  const awaitingReport = cases.filter((c) => isAwaitingReport(c.status)).length
   const urgent = dash?.urgent_cases ?? 0
   const staff = stats?.staff ?? []
   const activeStaff = staff.filter((s) => s.active).length
@@ -99,11 +101,10 @@ export function ClinicOwnerDashboard() {
     const rows = [
       { key: 'review', name: t('dashboard.clinicChartReview'), value: awaiting, color: '#D99A32' },
       { key: 'approved', name: t('dashboard.clinicChartApproved'), value: approved, color: '#059669' },
-      { key: 'pending', name: t('dashboard.clinicChartPending'), value: pendingSubs, color: '#6366F1' },
       { key: 'urgent', name: t('dashboard.clinicChartUrgent'), value: urgent, color: '#E5484D' },
     ]
     return rows.filter((r) => r.value > 0)
-  }, [awaiting, approved, pendingSubs, urgent, t])
+  }, [awaiting, approved, urgent, t])
 
   const recent = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -146,10 +147,10 @@ export function ClinicOwnerDashboard() {
                 size="sm"
                 variant="secondary"
                 className="border-white/20 bg-white/5 text-white hover:bg-white/10"
-                onClick={() => nav('/basvurular')}
+                onClick={() => nav(`/vakalar?durum=${AWAITING_REPORT_FILTER}`)}
               >
-                {t('nav.ownerSubmissions')}
-                {pendingSubs > 0 ? ` · ${pendingSubs}` : ''}
+                {t('dashboard.quickAwaitingReport')}
+                {awaitingReport > 0 ? ` · ${awaitingReport}` : ''}
               </Button>
             </div>
           </div>
@@ -192,25 +193,25 @@ export function ClinicOwnerDashboard() {
           delayMs={120}
         />
         <ClinicMetric
-          label={t('dashboard.clinicStatPendingSubs')}
-          value={stats ? pendingSubs : dashFallback}
-          hint={t('dashboard.clinicStatPendingHint')}
-          to="/basvurular"
+          label={t('dashboard.quickAwaitingReport')}
+          value={awaitingReport}
+          hint={t('dashboard.clinicStatAwaitingReportHint')}
+          to={`/vakalar?durum=${AWAITING_REPORT_FILTER}`}
           delayMs={160}
         />
       </div>
 
-      {(awaiting > 0 || pendingSubs > 0 || urgent > 0) && (
+      {(awaiting > 0 || urgent > 0) && (
         <div className="vm-fade-up flex flex-col gap-3 overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-r from-indigo-50 via-white to-amber-50/70 px-4 py-3.5 shadow-soft sm:flex-row sm:items-center">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
             <ClipboardCheck className="h-5 w-5" aria-hidden />
           </div>
           <p className="flex-1 text-sm text-indigo-950">
-            <span className="font-semibold">{t('dashboard.clinicOpsBanner', { review: awaiting, pending: pendingSubs })}</span>{' '}
+            <span className="font-semibold">{t('dashboard.clinicOpsBanner', { review: awaiting })}</span>{' '}
             {urgent > 0 ? t('dashboard.clinicOpsUrgent', { count: urgent }) : t('dashboard.clinicOpsBannerBody')}
           </p>
-          <Button size="sm" onClick={() => nav(pendingSubs > 0 ? '/basvurular' : '/vakalar')}>
-            {pendingSubs > 0 ? t('nav.ownerSubmissions') : t('nav.clinicCases')}
+          <Button size="sm" onClick={() => nav('/vakalar')}>
+            {t('nav.clinicCases')}
           </Button>
         </div>
       )}

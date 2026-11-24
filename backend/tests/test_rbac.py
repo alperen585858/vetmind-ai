@@ -69,12 +69,12 @@ def test_expert_can_review(tmp_path: Path) -> None:
     assert ok.json()["status"] == "approved"
 
 
-def test_owner_cannot_create_case(tmp_path: Path) -> None:
+def test_owner_role_has_no_capabilities(tmp_path: Path) -> None:
+    """B2B: pet owners are not users — the role grants nothing and cannot sign in."""
+    from app.auth.rbac import CAP_CASE_READ, CAP_CASE_WRITE, CAP_MESSAGES, role_has_capability
+
+    for cap in (CAP_CASE_WRITE, CAP_CASE_READ, CAP_MESSAGES):
+        assert not role_has_capability("owner", cap)
     client = _client(tmp_path)
-    owner = _token(client, "owner@demo.local")
-    denied = client.post(
-        "/api/v1/cases",
-        json=make_payload().model_dump(mode="json"),
-        headers={"Authorization": f"Bearer {owner}"},
-    )
-    assert denied.status_code == 403
+    res = client.post("/api/v1/auth/login", json={"email": "owner@demo.local", "password": "demo1234"})
+    assert res.status_code == 401

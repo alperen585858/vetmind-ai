@@ -149,20 +149,13 @@ export async function confirmDocumentAndAnalyze(
   opts?: {
     signal?: AbortSignal
     cancelBackendOnAbort?: boolean
+    /** Optional pet-owner name (no account, no email). */
     ownerName?: string
-    ownerEmail?: string
-    ownerEmailConsent?: boolean
-    petOwnerSubject?: string | null
   },
 ): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDocumentIngest(ingestId)
-  if (opts?.ownerName?.trim() && opts?.ownerEmail?.trim()) {
-    await updateCaseOwner(caseRecord.case_id, {
-      owner_name: opts.ownerName.trim(),
-      owner_email: opts.ownerEmail.trim(),
-      owner_email_consent: Boolean(opts.ownerEmailConsent),
-      pet_owner_subject: opts.petOwnerSubject || null,
-    })
+  if (opts?.ownerName?.trim()) {
+    await updateCaseOwner(caseRecord.case_id, { owner_name: opts.ownerName.trim() })
   }
   return analyzeCaseAsyncAndWait(caseRecord.case_id, {
     signal: opts?.signal,
@@ -177,10 +170,8 @@ export async function confirmDicomClassification(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
-  ownerName: string
-  ownerEmail: string
-  ownerEmailConsent?: boolean
-  petOwnerSubject?: string | null
+  /** Optional pet-owner name (no account, no email). */
+  ownerName?: string
   /** Maps UI consent → case flags (does not enable pixel inference by itself). */
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
@@ -195,10 +186,7 @@ export async function confirmDicomClassification(input: {
       anatomical_region: input.anatomicalRegion ?? null,
       patient_name: input.patientName ?? null,
       clinical_history: input.clinicalHistory ?? null,
-      owner_name: input.ownerName,
-      owner_email: input.ownerEmail,
-      owner_email_consent: Boolean(input.ownerEmailConsent),
-      pet_owner_subject: input.petOwnerSubject || null,
+      owner_name: input.ownerName?.trim() || null,
       imaging_source_permission_verified: Boolean(input.imagingSourcePermissionVerified),
       imaging_analysis_consent_verified: Boolean(input.imagingAnalysisConsentVerified),
     }),
@@ -213,10 +201,8 @@ export async function confirmDicomAndEnqueueAnalyze(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
-  ownerName: string
-  ownerEmail: string
-  ownerEmailConsent?: boolean
-  petOwnerSubject?: string | null
+  /** Optional pet-owner name (no account, no email). */
+  ownerName?: string
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
@@ -234,10 +220,8 @@ export async function confirmDicomAndAnalyze(input: {
   anatomicalRegion?: BackendAnatomicalRegion
   patientName?: string
   clinicalHistory?: string
-  ownerName: string
-  ownerEmail: string
-  ownerEmailConsent?: boolean
-  petOwnerSubject?: string | null
+  /** Optional pet-owner name (no account, no email). */
+  ownerName?: string
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal

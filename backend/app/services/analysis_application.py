@@ -74,7 +74,6 @@ from app.auth.mailer import OutgoingMail
 from app.feedback.store import FeedbackStore
 from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import resolve_owner_account, validate_owner_contact
 from app.services.report_versioning import (
     apply_reject_or_revision,
     assert_mutable_for_edit,
