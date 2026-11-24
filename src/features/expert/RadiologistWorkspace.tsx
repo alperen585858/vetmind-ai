@@ -259,6 +259,21 @@ export default function RadiologistWorkspace() {
     return n
   }, [c?.backendFindings?.findings])
 
+  // Ctrl/Cmd+S saves the draft. These hooks must run before the early returns below
+  // (loading / not found / no draft), or React sees a different hook count between
+  // renders and the page crashes when the case finishes loading.
+  const onSaveDraftRef = useRef<(opts?: { silent?: boolean }) => Promise<boolean | void>>(async () => undefined)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void onSaveDraftRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   if (hydrating) {
     return (
       <Card>
@@ -377,19 +392,7 @@ export default function RadiologistWorkspace() {
     }
   }
 
-  const onSaveDraftRef = useRef(onSaveDraft)
   onSaveDraftRef.current = onSaveDraft
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault()
-        void onSaveDraftRef.current()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   async function goAssigned(target: BackendCaseSummary | null) {
     if (!target) return
