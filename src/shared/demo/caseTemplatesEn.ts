@@ -25,6 +25,7 @@ const gaitEn = (gait: NeuroExam['gait']) => {
     Parezi: 'paresis',
     Ataksi: 'ataxia',
     Pleji: 'plegia',
+    Değerlendirilmedi: 'gait not evaluated',
   }
   return m[gait] ?? gait.toLowerCase()
 }
@@ -85,7 +86,7 @@ function enSlice(key: TemplateKey, p: Patient, n: NeuroExam): TemplateSlice {
             'Mild wall thickening of the right tympanic bulla; no soft-tissue density within the bulla. No marked brainstem or cerebellar abnormality.',
           conclusion: 'No marked middle-ear effusion; minimal right bulla wall thickening.',
         },
-        summary: `${introEn(p)} Acute head tilt, nystagmus, and vestibular ataxia. Postural reactions and mentation are ${n.consciousness === 'Uyanık' ? 'normal' : 'affected'}; findings favor peripheral vestibular syndrome. Acute onset in a senior dog supports idiopathic vestibular syndrome.`,
+        summary: `${introEn(p)} Acute head tilt, nystagmus, and vestibular ataxia. Postural reactions and mentation are ${n.consciousness === 'Uyanık' ? 'normal' : n.consciousness === 'Değerlendirilmedi' ? 'not evaluated' : 'affected'}; findings favor peripheral vestibular syndrome. Acute onset in a senior dog supports idiopathic vestibular syndrome.`,
         draft: {
           klinikOzet: `${introEn(p)} Acute head tilt, nystagmus, and ataxia.`,
           bulgular:

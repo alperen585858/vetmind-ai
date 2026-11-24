@@ -40,6 +40,7 @@ function ownerCase(partial: Partial<VetCase> & Pick<VetCase, 'petOwnerSubject'> 
       posturalPelvic: 'Normal',
       reflexThoracic: 'Normal',
       reflexPelvic: 'Normal',
+      cranialNervesStatus: 'Normal',
       cranialNerves: [],
       deepPain: 'Değerlendirilmedi',
       hyperesthesia: 'Yok',

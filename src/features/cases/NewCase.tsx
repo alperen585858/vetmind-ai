@@ -9,6 +9,7 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { StepIndicator } from '../../shared/ui/StepIndicator'
 import { CLINIC, EMPTY_NEURO, SAMPLE_FORM } from '../../shared/demo/clinic'
+import { NORMAL_NEURO, isNeuroExamEmpty, neuroItemText, cranialNervesText, neuroPriority, NOT_EVALUATED } from '../../shared/lib/neuroExam'
 import { buildAssessment, makeDocument } from '../../shared/demo/caseTemplates'
 import { localize } from '../../shared/lib/neuroLocalization'
 import { nowStamp, today } from '../../shared/lib/format'
@@ -44,6 +45,7 @@ import type {
 const STEP_KEYS = ['cases.stepPatient', 'cases.stepClinical', 'cases.stepNeuro', 'cases.stepUpload', 'cases.stepSummary'] as const
 const DOC_TYPES: DocType[] = ['MR Raporu', 'BT Raporu', 'Laboratuvar Sonucu', 'Önceki Rapor']
 const LIMBS = ['Sol ön', 'Sağ ön', 'Sol arka', 'Sağ arka']
+const NOT_ENTERED = 'Girilmedi'
 const CN = ['Baş eğikliği', 'Nistagmus', 'Anizokori', 'Fasiyal paralizi', 'Tehdit refleksi kaybı']
 
 const EMPTY_PATIENT: Patient = { name: '', species: 'Köpek', breed: '', sex: 'Erkek', neutered: false, age: 0, weight: 0, ownerName: '', ownerPhone: '' }
@@ -74,7 +76,7 @@ const BRAIN_BACKEND_FORM = {
     history: 'Akut başlangıçlı nöbet öyküsü.',
     medications: 'Yok',
   },
-  neuro: { ...EMPTY_NEURO, cranialNerves: ['Nistagmus'] },
+  neuro: { ...NORMAL_NEURO, cranialNervesStatus: 'Bulgu var' as const, cranialNerves: ['Nistagmus'] },
 }
 
 const CERVICAL_BACKEND_FORM = {
@@ -86,7 +88,7 @@ const CERVICAL_BACKEND_FORM = {
     history: 'Boyun ağrısı ve hareket kısıtlılığı öyküsü.',
     medications: 'Yok',
   },
-  neuro: { ...EMPTY_NEURO, hyperesthesia: 'Servikal' as const },
+  neuro: { ...NORMAL_NEURO, hyperesthesia: 'Servikal' as const },
 }
 
 interface UploadFile {
@@ -123,8 +125,13 @@ function Pills<T extends string>({ options, value, onChange }: { options: readon
           key={o}
           type="button"
           onClick={() => onChange(o)}
+          aria-pressed={value === o}
           className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition ${
-            value === o ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'
+            value === o
+              ? o === NOT_EVALUATED
+                ? 'bg-amber-50 text-amber-900 ring-amber-300'
+                : 'bg-navy-900 text-white ring-navy-900'
+              : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'
           }`}
         >
           {o}
@@ -380,14 +387,9 @@ export default function NewCase() {
   const submit = async () => {
     const stamp = nowStamp()
     const loc = localize(neuro, clinical, locale)
+    const triage = neuroPriority(neuro)
     const priority: Priority =
-      neuro.deepPain === 'Yok'
-        ? 'STAT'
-        : neuro.gait === 'Pleji'
-          ? 'Acil'
-          : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
-            ? 'Yüksek'
-            : 'Normal'
+      triage === 'stat' ? 'STAT' : triage === 'urgent' ? 'Acil' : triage === 'high' ? 'Yüksek' : 'Normal'
 
     let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
     let backendCaseId = ''
@@ -499,14 +501,7 @@ export default function NewCase() {
           ownerEmail: ownerContact.ownerEmail.trim(),
           ownerEmailConsent: ownerContact.ownerEmailConsent,
           petOwnerSubject: ownerContact.petOwnerSubject,
-          priority:
-            neuro.deepPain === 'Yok'
-              ? 'stat'
-              : neuro.gait === 'Pleji'
-                ? 'urgent'
-                : neuro.gait === 'Parezi' || neuro.consciousness !== 'Uyanık'
-                  ? 'high'
-                  : 'normal',
+          priority: triage,
           clinicalHistoryStructured: {
             complaint: clinical.complaint || undefined,
             onset: clinical.onset || undefined,
@@ -525,7 +520,8 @@ export default function NewCase() {
               posturalPelvic: neuro.posturalPelvic,
               reflexThoracic: neuro.reflexThoracic,
               reflexPelvic: neuro.reflexPelvic,
-              cranialNerves: neuro.cranialNerves,
+              cranialNervesStatus: neuro.cranialNervesStatus,
+              cranialNerves: neuro.cranialNervesStatus === 'Bulgu var' ? neuro.cranialNerves : [],
               deepPain: neuro.deepPain,
               hyperesthesia: neuro.hyperesthesia,
             },
@@ -810,22 +806,43 @@ export default function NewCase() {
         {step === 2 && (
           <div className="grid animate-fade-up gap-6 xl:grid-cols-3">
             <div className="space-y-6 xl:col-span-2">
-              <h2 className="text-lg font-semibold text-navy-900">Nörolojik Muayene Formu</h2>
-              <Field label="Bilinç durumu"><Pills options={['Uyanık', 'Depresif', 'Stupor', 'Koma'] as const} value={neuro.consciousness} onChange={(v) => N('consciousness', v)} /></Field>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h2 className="text-lg font-semibold text-navy-900">Nörolojik Muayene Formu</h2>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setNeuro(NORMAL_NEURO)}>
+                    Muayene normal
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setNeuro(EMPTY_NEURO)}>
+                    Temizle
+                  </Button>
+                </div>
+              </div>
+              <Field label="Bilinç durumu"><Pills options={['Uyanık', 'Depresif', 'Stupor', 'Koma', NOT_EVALUATED] as const} value={neuro.consciousness} onChange={(v) => N('consciousness', v)} /></Field>
               <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Yürüyüş"><Pills options={['Normal', 'Ataksi', 'Parezi', 'Pleji'] as const} value={neuro.gait} onChange={(v) => N('gait', v)} /></Field>
+                <Field label="Yürüyüş"><Pills options={['Normal', 'Ataksi', 'Parezi', 'Pleji', NOT_EVALUATED] as const} value={neuro.gait} onChange={(v) => N('gait', v)} /></Field>
                 <Field label="Etkilenen bacaklar"><Checks options={LIMBS} value={neuro.limbs} onChange={(v) => N('limbs', v)} /></Field>
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Postüral reaksiyonlar — ön bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok'] as const} value={neuro.posturalThoracic} onChange={(v) => N('posturalThoracic', v)} /></Field>
-                <Field label="Postüral reaksiyonlar — arka bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok'] as const} value={neuro.posturalPelvic} onChange={(v) => N('posturalPelvic', v)} /></Field>
-                <Field label="Spinal refleksler — torasik"><Pills options={['Normal', 'Azalmış', 'Artmış'] as const} value={neuro.reflexThoracic} onChange={(v) => N('reflexThoracic', v)} /></Field>
-                <Field label="Spinal refleksler — pelvik"><Pills options={['Normal', 'Azalmış', 'Artmış'] as const} value={neuro.reflexPelvic} onChange={(v) => N('reflexPelvic', v)} /></Field>
+                <Field label="Postüral reaksiyonlar — ön bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok', NOT_EVALUATED] as const} value={neuro.posturalThoracic} onChange={(v) => N('posturalThoracic', v)} /></Field>
+                <Field label="Postüral reaksiyonlar — arka bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok', NOT_EVALUATED] as const} value={neuro.posturalPelvic} onChange={(v) => N('posturalPelvic', v)} /></Field>
+                <Field label="Spinal refleksler — torasik"><Pills options={['Normal', 'Azalmış', 'Artmış', NOT_EVALUATED] as const} value={neuro.reflexThoracic} onChange={(v) => N('reflexThoracic', v)} /></Field>
+                <Field label="Spinal refleksler — pelvik"><Pills options={['Normal', 'Azalmış', 'Artmış', NOT_EVALUATED] as const} value={neuro.reflexPelvic} onChange={(v) => N('reflexPelvic', v)} /></Field>
               </div>
-              <Field label="Kraniyal sinir bulguları (yoksa boş bırakın)"><Checks options={CN} value={neuro.cranialNerves} onChange={(v) => N('cranialNerves', v)} /></Field>
+              <Field label="Kraniyal sinirler">
+                <div className="space-y-2">
+                  <Pills
+                    options={['Normal', 'Bulgu var', NOT_EVALUATED] as const}
+                    value={neuro.cranialNervesStatus}
+                    onChange={(v) => setNeuro((n) => ({ ...n, cranialNervesStatus: v, cranialNerves: v === 'Bulgu var' ? n.cranialNerves : [] }))}
+                  />
+                  {neuro.cranialNervesStatus === 'Bulgu var' && (
+                    <Checks options={CN} value={neuro.cranialNerves} onChange={(v) => N('cranialNerves', v)} />
+                  )}
+                </div>
+              </Field>
               <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Ağrı algısı (derin ağrı)"><Pills options={['Var', 'Yok', 'Değerlendirilmedi'] as const} value={neuro.deepPain} onChange={(v) => N('deepPain', v)} /></Field>
-                <Field label="Spinal hiperestezi bölgesi"><Pills options={['Yok', 'Servikal', 'Torakolomber', 'Lumbosakral'] as const} value={neuro.hyperesthesia} onChange={(v) => N('hyperesthesia', v)} /></Field>
+                <Field label="Ağrı algısı (derin ağrı)"><Pills options={['Var', 'Yok', NOT_EVALUATED] as const} value={neuro.deepPain} onChange={(v) => N('deepPain', v)} /></Field>
+                <Field label="Spinal hiperestezi bölgesi"><Pills options={['Yok', 'Servikal', 'Torakolomber', 'Lumbosakral', NOT_EVALUATED] as const} value={neuro.hyperesthesia} onChange={(v) => N('hyperesthesia', v)} /></Field>
               </div>
             </div>
             <div>
@@ -1048,16 +1065,20 @@ export default function NewCase() {
                 ['Klinik geçmiş', clinical.history || '—'],
                 ['İlaçlar', clinical.medications || '—'],
               ]} />
-              <Summary title="Nörolojik Muayene" onEdit={() => setStep(2)} rows={[
-                ['Bilinç', neuro.consciousness],
-                ['Yürüyüş', `${neuro.gait}${neuro.limbs.length ? ` (${neuro.limbs.join(', ')})` : ''}`],
-                ['Postüral (ön / arka)', `${neuro.posturalThoracic} / ${neuro.posturalPelvic}`],
-                ['Refleksler (torasik / pelvik)', `${neuro.reflexThoracic} / ${neuro.reflexPelvic}`],
-                ['Kraniyal sinirler', neuro.cranialNerves.join(', ') || 'Normal'],
-                ['Derin ağrı', neuro.deepPain],
-                ['Hiperestezi', neuro.hyperesthesia],
-                ['Olası lokalizasyon', hint?.region ?? '—'],
-              ]} />
+              <Summary title="Nörolojik Muayene" onEdit={() => setStep(2)} rows={
+                isNeuroExamEmpty(neuro)
+                  ? [['Muayene', 'Nörolojik muayene girilmedi']]
+                  : [
+                      ['Bilinç', neuroItemText(neuro.consciousness, NOT_ENTERED)],
+                      ['Yürüyüş', `${neuroItemText(neuro.gait, NOT_ENTERED)}${neuro.limbs.length ? ` (${neuro.limbs.join(', ')})` : ''}`],
+                      ['Postüral (ön / arka)', `${neuroItemText(neuro.posturalThoracic, NOT_ENTERED)} / ${neuroItemText(neuro.posturalPelvic, NOT_ENTERED)}`],
+                      ['Refleksler (torasik / pelvik)', `${neuroItemText(neuro.reflexThoracic, NOT_ENTERED)} / ${neuroItemText(neuro.reflexPelvic, NOT_ENTERED)}`],
+                      ['Kraniyal sinirler', cranialNervesText(neuro, NOT_ENTERED)],
+                      ['Derin ağrı', neuroItemText(neuro.deepPain, NOT_ENTERED)],
+                      ['Hiperestezi', neuroItemText(neuro.hyperesthesia, NOT_ENTERED)],
+                      ['Olası lokalizasyon', hint?.region ?? '—'],
+                    ]
+              } />
               <Summary
                 title={intakeMode === 'dicom' ? `DICOM (${dicomFiles.length || dicomPreview?.study?.series.reduce((n, s) => n + s.instances.length, 0) || 0})` : `Tetkikler (${files.length})`}
                 onEdit={() => setStep(3)}

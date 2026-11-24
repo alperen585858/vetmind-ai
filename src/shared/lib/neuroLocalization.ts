@@ -1,5 +1,6 @@
 import type { ClinicalInfo, NeuroExam } from '../types'
 import type { TemplateKey } from '../demo/caseTemplates'
+import { ABNORMAL_CONSCIOUSNESS, ABNORMAL_GAIT } from './neuroExam'
 import type { Locale } from '../../i18n/types'
 
 export interface LocalizationHint {
@@ -31,7 +32,7 @@ export function localize(n: NeuroExam, c?: ClinicalInfo, locale: Locale = 'tr'):
           template: 'vestibular',
         }
   }
-  if (n.consciousness !== 'Uyanık' || complaint.includes('nöbet') || complaint.includes('davranış')) {
+  if (ABNORMAL_CONSCIOUSNESS.includes(n.consciousness) || complaint.includes('nöbet') || complaint.includes('davranış')) {
     const seizure = complaint.includes('nöbet')
     return locale === 'en'
       ? {
@@ -49,7 +50,7 @@ export function localize(n: NeuroExam, c?: ClinicalInfo, locale: Locale = 'tr'):
   const hasPelvic = n.limbs.some((l) => PELVIC.includes(l))
   const hasThoracic = n.limbs.some((l) => THORACIC.includes(l))
 
-  if (n.gait !== 'Normal' && hasPelvic && !hasThoracic) {
+  if (ABNORMAL_GAIT.includes(n.gait) && hasPelvic && !hasThoracic) {
     if (n.reflexPelvic === 'Azalmış') {
       return locale === 'en'
         ? {
@@ -82,7 +83,7 @@ export function localize(n: NeuroExam, c?: ClinicalInfo, locale: Locale = 'tr'):
           template: chronic ? 'dm' : 'ivdd',
         }
   }
-  if (n.gait !== 'Normal' && hasThoracic) {
+  if (ABNORMAL_GAIT.includes(n.gait) && hasThoracic) {
     if (n.reflexThoracic === 'Azalmış') {
       return locale === 'en'
         ? {

@@ -34,6 +34,7 @@ import {
 } from '../../../shared/api'
 import type { BackendCaseRecord } from '../../../shared/types'
 import { analysisStatusLabel, expertReviewLabel } from '../../../shared/lib/caseMapper'
+import { NOT_EVALUATED, cranialNervesText, isEvaluated, isNeuroExamEmpty } from '../../../shared/lib/neuroExam'
 import type { VetCase } from '../../../shared/types'
 
 function Row({ k, v }: { k: string; v: ReactNode }) {
@@ -53,6 +54,9 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
   const p = c.patient
   const n = c.neuro
   const loc = localize(n, c.clinical, locale)
+  // Unrecorded exam items are shown as "not entered", never as a normal finding (#72).
+  const item = (value: string) =>
+    isEvaluated(value) ? value : <span className="font-medium text-amber-700">{t('cases.detail.notEntered')}</span>
   const caseKey = c.backendCaseId || c.id
   const [note, setNote] = useState('')
   const [infoBody, setInfoBody] = useState('')
@@ -558,19 +562,23 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
         </Card>
         <Card>
           <CardHeader title={t('cases.detail.neuroExam')} icon={<Brain className="h-5 w-5" />} action={loc && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">{t('cases.detail.likelyLocalization')} {loc.region}</span>} />
-          <div className="grid gap-x-8 px-5 py-2 md:grid-cols-2">
-            <dl className="divide-y divide-slate-50">
-              <Row k={t('cases.detail.rowConsciousness')} v={n.consciousness} />
-              <Row k={t('cases.detail.rowGait')} v={`${n.gait}${n.limbs.length ? ` — ${n.limbs.join(', ')}` : ''}`} />
-              <Row k={t('cases.detail.rowPostural')} v={`${n.posturalThoracic} / ${n.posturalPelvic}`} />
-              <Row k={t('cases.detail.rowReflexes')} v={`${n.reflexThoracic} / ${n.reflexPelvic}`} />
-            </dl>
-            <dl className="divide-y divide-slate-50">
-              <Row k={t('cases.detail.rowCranialNerves')} v={n.cranialNerves.join(', ') || 'Normal'} />
-              <Row k={t('cases.detail.rowDeepPain')} v={n.deepPain === 'Değerlendirilmedi' ? <span className="font-medium text-amber-700">{t('cases.detail.notAssessed')}</span> : n.deepPain} />
-              <Row k={t('cases.detail.rowHyperesthesia')} v={n.hyperesthesia} />
-            </dl>
-          </div>
+          {isNeuroExamEmpty(n) ? (
+            <p className="px-5 py-4 text-sm font-medium text-amber-700">{t('cases.detail.neuroNotEntered')}</p>
+          ) : (
+            <div className="grid gap-x-8 px-5 py-2 md:grid-cols-2">
+              <dl className="divide-y divide-slate-50">
+                <Row k={t('cases.detail.rowConsciousness')} v={item(n.consciousness)} />
+                <Row k={t('cases.detail.rowGait')} v={<>{item(n.gait)}{n.limbs.length ? ` — ${n.limbs.join(', ')}` : ''}</>} />
+                <Row k={t('cases.detail.rowPostural')} v={<>{item(n.posturalThoracic)} / {item(n.posturalPelvic)}</>} />
+                <Row k={t('cases.detail.rowReflexes')} v={<>{item(n.reflexThoracic)} / {item(n.reflexPelvic)}</>} />
+              </dl>
+              <dl className="divide-y divide-slate-50">
+                <Row k={t('cases.detail.rowCranialNerves')} v={item(cranialNervesText(n, NOT_EVALUATED))} />
+                <Row k={t('cases.detail.rowDeepPain')} v={item(n.deepPain)} />
+                <Row k={t('cases.detail.rowHyperesthesia')} v={item(n.hyperesthesia)} />
+              </dl>
+            </div>
+          )}
         </Card>
       </div>
       <div className="space-y-6">

@@ -67,7 +67,7 @@ const ivdd = (p: Patient, n: NeuroExam): TemplateOutput => {
       ],
     },
     ai: {
-      summary: `${intro(p)} Akut başlangıçlı, progresif seyirli pelvik ekstremite güçsüzlüğü ve torakolomber bölgede spinal ağrı şikâyetiyle başvurmuştur. Nörolojik muayenede pelvik ekstremitelerde ${n.gait.toLowerCase()}, azalmış postüral reaksiyonlar ve normal-artmış spinal refleksler saptanmıştır; bulgular T3-L3 miyelopati ile uyumludur. MR raporunda L1-L2 seviyesinde ventral ekstradural kompresyon tanımlanmıştır. Signalment (kondrodistrofik ırk eğilimi, orta yaş), akut başlangıç, spinal hiperestezi ve görüntüleme bulguları birlikte değerlendirildiğinde Hansen tip I intervertebral disk ekstrüzyonu ön planda düşünülmektedir.`,
+      summary: `${intro(p)} Akut başlangıçlı, progresif seyirli pelvik ekstremite güçsüzlüğü ve torakolomber bölgede spinal ağrı şikâyetiyle başvurmuştur. Nörolojik muayenede pelvik ekstremitelerde ${n.gait === 'Değerlendirilmedi' ? 'yürüyüş değerlendirilmemiş' : n.gait.toLowerCase()}, azalmış postüral reaksiyonlar ve normal-artmış spinal refleksler saptanmıştır; bulgular T3-L3 miyelopati ile uyumludur. MR raporunda L1-L2 seviyesinde ventral ekstradural kompresyon tanımlanmıştır. Signalment (kondrodistrofik ırk eğilimi, orta yaş), akut başlangıç, spinal hiperestezi ve görüntüleme bulguları birlikte değerlendirildiğinde Hansen tip I intervertebral disk ekstrüzyonu ön planda düşünülmektedir.`,
       findings: [
         { text: 'L1-L2 seviyesinde ventral ekstradural kompresyon (~%45, sola lateralize)', severity: 'Yüksek', citations: [3] },
         { text: 'Pelvik ekstremitelerde azalmış postüral reaksiyonlar, normal-artmış patellar refleks (üst motor nöron paterni)', severity: 'Orta', citations: [1] },
@@ -186,7 +186,7 @@ const vestibular = (p: Patient, n: NeuroExam): TemplateOutput => ({
     ],
   },
   ai: {
-    summary: `${intro(p)} Akut başlangıçlı baş eğikliği, nistagmus ve vestibüler ataksi ile başvurmuştur. Postüral reaksiyonlar ve bilinç durumu ${n.consciousness === 'Uyanık' ? 'normaldir' : 'etkilenmiştir'}; bulgular periferik vestibüler sendrom ile daha uyumludur. Yaşlı köpekte akut başlangıç idiyopatik vestibüler sendromu desteklemektedir.`,
+    summary: `${intro(p)} Akut başlangıçlı baş eğikliği, nistagmus ve vestibüler ataksi ile başvurmuştur. Postüral reaksiyonlar ve bilinç durumu ${n.consciousness === 'Uyanık' ? 'normaldir' : n.consciousness === 'Değerlendirilmedi' ? 'değerlendirilmemiştir' : 'etkilenmiştir'}; bulgular periferik vestibüler sendrom ile daha uyumludur. Yaşlı köpekte akut başlangıç idiyopatik vestibüler sendromu desteklemektedir.`,
     findings: [
       { text: 'Akut baş eğikliği ve horizontal nistagmus', severity: 'Yüksek', citations: [8] },
       { text: 'Postüral reaksiyonlar korunmuş (periferik lehine)', severity: 'Orta', citations: [8, 9] },

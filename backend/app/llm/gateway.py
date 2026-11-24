@@ -9,6 +9,7 @@ from app.llm.interfaces import (
     RevisionContext,
 )
 from app.llm.lessons import LessonContext, LessonStore
+from app.llm.neuro_exam import neuro_exam_text
 from app.llm.privacy import redact_personal_data
 from app.models.ontology import is_technique_code
 from app.rag.relevance import RagFilter, build_retrieval_query
@@ -27,6 +28,11 @@ def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
     structured = case.clinical_history_structured
     if structured is not None and structured.complaint and structured.complaint.strip() not in history:
         history = f"{structured.complaint.strip()}. {history}".strip()
+    if structured is not None:
+        # Recorded neuro signs (e.g. "parezi", "torakolomber") sharpen retrieval (#72).
+        neuro = neuro_exam_text(structured.neuro_exam)
+        if neuro:
+            history = f"{history} {neuro}".strip()
     document_text = None
     if case.document_context and case.document_context.combined_text_preview:
         document_text = case.document_context.combined_text_preview
@@ -75,6 +81,10 @@ def compose_history(case: CaseRecord) -> str:
             value = getattr(structured, attr)
             if value and value.strip():
                 parts.append(f"{label}: {value.strip()}")
+        # Only recorded exam items; unrecorded ones are omitted, never sent as normal (#72).
+        neuro = neuro_exam_text(structured.neuro_exam)
+        if neuro:
+            parts.append(neuro)
     return "\n".join(parts)
 
 
