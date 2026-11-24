@@ -133,7 +133,10 @@ def test_reusing_a_rotated_refresh_token_revokes_the_whole_family(tmp_path: Path
 
     stolen = _refresh(client, first["refresh_token"])  # replay of the old token
     assert stolen.status_code == 401
-    assert stolen.json()["detail"] == "Session expired. Please sign in again."
+    assert stolen.json()["detail"] == {
+        "code": "session_expired",
+        "message": "Session expired. Please sign in again.",
+    }
     # The legitimate (newer) token of the same family is now dead as well.
     assert _refresh(client, second["refresh_token"]).status_code == 401
 

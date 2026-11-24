@@ -47,8 +47,15 @@ const env = {
     ? {
         VETMIND_SELF_REGISTRATION: '1',
         VETMIND_SELF_REGISTRATION_OWNER_CLINIC: 'clinic-e2e',
+        // Protected mode refuses to start without a malware scanner; the fake one is for tests only.
+        VETMIND_MALWARE_SCANNER: 'fake_clean',
       }
-    : {}),
+    : {
+        // Auth-off demo principal is limited (no admin / training:verify); demo E2E drives
+        // admin and radiologist screens, so the test backend gets full access. Permission
+        // checks are covered by backend RBAC tests and the protected (auth-on) E2E run.
+        VETMIND_ALLOW_INSECURE_DEMO: '1',
+      }),
   // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
   VETMIND_ASYNC_DELAY_MS: '50',
   VETMIND_RAG: 'lexical',

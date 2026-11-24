@@ -10,7 +10,7 @@ test.describe('Messaging smoke', () => {
     })
     await page.getByRole('button', { name: 'Yeni Konuşma' }).first().click()
     await page.getByRole('option', { name: /Destek ekibi/ }).click()
-    await page.getByLabel('Konu').fill('E2E destek')
+    await page.getByRole('dialog').getByLabel('Konu', { exact: true }).fill('E2E destek')
     await page.getByLabel('Mesaj', { exact: true }).fill('Merhaba destek')
     await page.getByRole('dialog').getByRole('button', { name: 'Gönder' }).click()
     await expect(page.getByText('Merhaba destek').first()).toBeVisible({ timeout: 15_000 })

@@ -188,7 +188,8 @@ def test_reset_link_works_only_once(tmp_path: Path) -> None:
     assert _reset(client, token).status_code == 204
     again = _reset(client, token, "Baska-Sifre-99")
     assert again.status_code == 400
-    assert "invalid or has expired" in again.json()["detail"]
+    assert again.json()["detail"]["code"] == "reset_link_invalid"
+    assert "invalid or has expired" in again.json()["detail"]["message"]
     assert _login(client, password=NEW_PASSWORD).status_code == 200
 
 

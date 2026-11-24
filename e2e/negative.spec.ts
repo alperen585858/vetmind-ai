@@ -37,9 +37,10 @@ test.describe('Negative browser scenarios', () => {
     await loadBrainMriDemo(page)
     const caseId = await confirmAndRunDemoAnalysis(page, `Gate-${Date.now().toString(36)}`)
 
-    // Vet must not access expert workspace (legacy /inceleme redirects to /calisma)
+    // Vet must not access the radiologist workspace: the link lands on the case detail page.
     await page.goto(`/vakalar/${caseId}/calisma`)
-    await expect(page.getByText(/erişim yetkiniz yok|yetki/i)).toBeVisible({ timeout: 15_000 })
+    await expect(page).toHaveURL(new RegExp(`/vakalar/${caseId}$`), { timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /^Onayla/ })).toHaveCount(0)
   })
 
   test('refresh persistence keeps approved report', async ({ page, request }) => {
