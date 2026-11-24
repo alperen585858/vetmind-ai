@@ -866,7 +866,6 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 | `vite.config.ts` (`manualChunks`) | `react-vendor`, `icons`, `charts` (sadece grafikli sayfalar), `dicom` kütüphane parçaları |
 | `components/DicomViewer.tsx` + `lib/dicomPreview.ts` | Tarayıcı viewer (klinik PACS değil) |
 | `components/RagCitations.tsx` | `rag_citations` paneli |
-| `components/AIDisclaimer.tsx` | Klinik olmayan çıktı uyarısı |
 | `lib/backend.ts` | `/api/v1` client, async poll |
 | `lib/caseMapper.ts` | Backend record → UI `VetCase` |
 | `lib/auth.ts` | Demo session + JWT saklama |
