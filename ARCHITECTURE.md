@@ -335,7 +335,6 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 |---------------|------|
 | `DicomViewer.tsx` + `dicomPreview.ts` | Tarayıcıda W/L, dilim, zoom/pan (klinik PACS değil) |
 | `RagCitations.tsx` | Backend `rag_citations` gösterimi |
-| `AIDisclaimer.tsx` | Klinik olmayan çıktı uyarısı |
 | `shared/api/*` (+ geçici `lib/backend.ts` facade) | Domain’lere ayrılmış `/api/v1` istemcisi |
 | `caseMapper.ts` | Backend record → UI `VetCase` |
 

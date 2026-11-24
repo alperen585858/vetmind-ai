@@ -77,6 +77,11 @@ jobs:
         run: pip install -r requirements.txt
       - name: Full pytest (CPU; vision extras optional/skip)
         run: python -m pytest -q --tb=line
+      - name: Evaluation package tests (repo-root evaluation/)
+        working-directory: .
+        env:
+          PYTHONPATH: .:backend
+        run: python -m pytest evaluation/tests -q --tb=line -p no:cacheprovider
 
   e2e:
     name: E2E (Playwright · desktop + mobile + protected)
