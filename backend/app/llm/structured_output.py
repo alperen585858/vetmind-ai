@@ -9,60 +9,20 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMGenerationInput, LLMMalformedResponseError, LLMRequest
+from app.llm.json_schema import strict_llm_schema
 from app.llm.prompts import CitationAliases
 from app.models.vlm_grounding import sanitize_report_prose
 from app.schemas.enums import ModelExecutionStatus, ReportStatus
 from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
 
 SECTION_KEYS = ("technique", "findings", "impression", "recommendations")
-
-REPORT_JSON_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [*SECTION_KEYS, "differentials"],
-    "properties": {
-        "technique": {"type": "string", "description": "Species, modality, region, analysis status."},
-        "findings": {"type": "string", "description": "One line per imaging finding, each cited [F#]."},
-        "impression": {"type": "string", "description": "Ranked interpretation and differentials, cited."},
-        "recommendations": {"type": "string", "description": "Next steps; ends with radiologist review."},
-        "differentials": {
-            "type": "array",
-            "description": "2-5 ranked differential diagnoses; empty when there are no findings.",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["name", "likelihood", "supporting", "against", "citations"],
-                "properties": {
-                    "name": {"type": "string"},
-                    "likelihood": {"type": "string", "enum": ["high", "moderate", "low"]},
-                    "supporting": {"type": "array", "items": {"type": "string"}},
-                    "against": {"type": "array", "items": {"type": "string"}},
-                    "citations": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Markers such as F1 or S2 that support this differential.",
-                    },
-                },
-            },
-        },
-    },
-}
-
-
-DIFFERENTIALS_JSON_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["differentials"],
-    "properties": {"differentials": REPORT_JSON_SCHEMA["properties"]["differentials"]},
-}
-
 
 def parse_differentials_payload(payload: str | dict[str, Any]) -> list["DifferentialWire"]:
     """Second-step output: {"differentials": [...]}; bad items are dropped."""
@@ -72,6 +32,7 @@ def parse_differentials_payload(payload: str | dict[str, Any]) -> list["Differen
 
 
 def report_json_schema(with_differentials: bool = True) -> dict[str, Any]:
+    """Schema given to the model; generated from ``ReportWire`` (see the end of this module)."""
     if with_differentials:
         return REPORT_JSON_SCHEMA
     props = {k: v for k, v in REPORT_JSON_SCHEMA["properties"].items() if k != "differentials"}
@@ -180,13 +141,17 @@ def auto_findings_text(gen: LLMGenerationInput, aliases: CitationAliases, langua
 
 
 class DifferentialWire(BaseModel):
+    # Lenient when parsing (defaults, extra keys ignored); the schema the model is given
+    # is generated strict from these fields by strict_llm_schema().
     model_config = ConfigDict(extra="ignore")
 
     name: str
-    likelihood: str = "moderate"
+    likelihood: Literal["high", "moderate", "low"] = "moderate"
     supporting: list[str] = Field(default_factory=list)
     against: list[str] = Field(default_factory=list)
-    citations: list[str] = Field(default_factory=list)
+    citations: list[str] = Field(
+        default_factory=list, description="Markers such as F1 or S2 that support this differential."
+    )
 
     @field_validator("name")
     @classmethod
@@ -198,6 +163,7 @@ class DifferentialWire(BaseModel):
     @field_validator("likelihood", mode="before")
     @classmethod
     def _likelihood(cls, value: object) -> str:
+        # Turkish / synonym answers ("yüksek", "possible") map onto the three schema values.
         return _LIKELIHOOD.get(str(value or "").strip().lower(), "moderate")
 
     @field_validator("supporting", "against", mode="before")
@@ -218,11 +184,14 @@ class DifferentialWire(BaseModel):
 class ReportWire(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    technique: str = ""
-    findings: str = ""
-    impression: str = ""
-    recommendations: str = ""
-    differentials: list[DifferentialWire] = Field(default_factory=list)
+    technique: str = Field(default="", description="Species, modality, region, analysis status.")
+    findings: str = Field(default="", description="One line per imaging finding, each cited [F#].")
+    impression: str = Field(default="", description="Ranked interpretation and differentials, cited.")
+    recommendations: str = Field(default="", description="Next steps; ends with radiologist review.")
+    differentials: list[DifferentialWire] = Field(
+        default_factory=list,
+        description="2-5 ranked differential diagnoses; empty when there are no findings.",
+    )
 
     @field_validator("differentials", mode="before")
     @classmethod
@@ -256,6 +225,22 @@ class ReportWire(BaseModel):
 
     def empty_sections(self) -> list[str]:
         return [k for k in SECTION_KEYS if not getattr(self, k)]
+
+
+# Second-step answer: only the differentials (same item schema as the report). A comment,
+# not a docstring: Pydantic would copy a docstring into the schema as "description".
+class DifferentialsWire(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    differentials: list[DifferentialWire] = Field(
+        default_factory=list,
+        description="2-5 ranked differential diagnoses; empty when there are no findings.",
+    )
+
+
+# Generated from the parsing models above, so prompt schema and validation stay in sync.
+REPORT_JSON_SCHEMA: dict[str, Any] = strict_llm_schema(ReportWire)
+DIFFERENTIALS_JSON_SCHEMA: dict[str, Any] = strict_llm_schema(DifferentialsWire)
 
 
 def extract_markers(text: str) -> list[str]:
