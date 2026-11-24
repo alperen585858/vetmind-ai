@@ -54,6 +54,10 @@ type Filter = 'all' | 'unread' | 'radiologist' | 'admin'
 /** A message as shown in the UI: server messages plus optimistic ones still sending. */
 type UiMessage = BackendSupportMessage & { localState?: 'sending' | 'failed'; localId?: string }
 
+/** Demo rows saved before messages were attributed to a person (auth-off only); the
+ * backend allows deleting them only in auth-off demo mode. */
+const LEGACY_DEMO_SUBJECTS = new Set(['anonymous', 'demo'])
+
 const UNDO_TOAST_MS = 10_000
 const TYPING_SHOW_MS = 4_000
 const TYPING_PING_MS = 3_000
@@ -160,7 +164,8 @@ export default function Messages() {
   const [reply, setReply] = useState('')
   const [typingName, setTypingName] = useState<string | null>(null)
   const [undo, setUndo] = useState<{ threadId: string; messageId: string } | null>(null)
-  const [pendingDeleteThread, setPendingDeleteThread] = useState(false)
+  // Thread id waiting for the "delete conversation" confirmation (header or list row).
+  const [pendingDeleteThread, setPendingDeleteThread] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const [composeOpen, setComposeOpen] = useState(false)
@@ -490,14 +495,18 @@ export default function Messages() {
   }
 
   const confirmDeleteThread = async () => {
-    if (!threadId || deleting) return
+    const target = pendingDeleteThread
+    if (!target || deleting) return
     setDeleting(true)
     try {
-      await deleteSupportThread(threadId)
-      setPendingDeleteThread(false)
-      setDetail(null)
-      await loadThreads()
-      navigate('/mesajlar')
+      await deleteSupportThread(target)
+      setPendingDeleteThread(null)
+      setThreads((prev) => prev.filter((th) => th.thread_id !== target))
+      if (threadIdRef.current === target) {
+        setDetail(null)
+        navigate('/mesajlar')
+      }
+      void loadThreads()
       pushToast({ tone: 'success', title: t('messages.threadDeleted') })
     } catch (e) {
       pushToast({ tone: 'error', title: t('messages.deleteThreadFailed'), body: e instanceof Error ? e.message : undefined })
@@ -527,9 +536,16 @@ export default function Messages() {
   const showChat = Boolean(threadId)
   const thread = detail?.thread
   const counterpartName = thread?.counterpart_name || (thread ? channelLabel(thread.channel, t) : '')
-  const canDeleteThread = Boolean(
-    thread && (role === 'admin' || thread.owner_subject === me || thread.recipient_subject === me),
-  )
+  /** Participants (and admins) may delete a whole conversation. */
+  const canDelete = (th: BackendSupportThreadSummary | undefined) =>
+    Boolean(
+      th &&
+        (role === 'admin' ||
+          th.owner_subject === me ||
+          th.recipient_subject === me ||
+          LEGACY_DEMO_SUBJECTS.has(th.owner_subject)),
+    )
+  const canDeleteThread = canDelete(thread)
   const subtitle =
     role === 'expert' ? t('messages.subtitleExpert') : role === 'admin' ? t('messages.subtitleAdmin') : t('messages.subtitleStaff')
   const groups = useMemo(() => groupMessages(messages), [messages])
@@ -644,7 +660,18 @@ export default function Messages() {
                   const name = th.counterpart_name || channelLabel(th.channel, t)
                   const unread = th.unread_count > 0
                   return (
-                    <li key={th.thread_id}>
+                    <li key={th.thread_id} className="group/row relative">
+                      {canDelete(th) && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteThread(th.thread_id)}
+                          className="absolute bottom-2 right-2 z-10 rounded-lg bg-white p-1.5 text-slate-400 opacity-0 shadow-sm ring-1 ring-slate-200 transition hover:text-rose-600 focus:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-80"
+                          title={t('messages.deleteThread')}
+                          aria-label={`${t('messages.deleteThread')}: ${th.counterpart_name || th.subject}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => navigate(`/mesajlar/${th.thread_id}`)}
@@ -766,12 +793,13 @@ export default function Messages() {
                 {canDeleteThread && (
                   <button
                     type="button"
-                    onClick={() => setPendingDeleteThread(true)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => setPendingDeleteThread(thread.thread_id)}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 transition hover:bg-rose-50"
                     title={t('messages.deleteThread')}
-                    aria-label={t('messages.deleteThread')}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    <span className="hidden sm:inline">{t('messages.deleteThread')}</span>
+                    <span className="sr-only sm:hidden">{t('messages.deleteThread')}</span>
                   </button>
                 )}
               </header>
@@ -812,7 +840,7 @@ export default function Messages() {
                                   key={m.localId || m.message_id}
                                   m={m}
                                   mine={mine}
-                                  canDelete={(mine || role === 'admin') && !m.localState}
+                                  canDelete={(mine || role === 'admin' || LEGACY_DEMO_SUBJECTS.has(m.author_subject)) && !m.localState}
                                   onDelete={() => void deleteMessage(m)}
                                   onRestore={() => void restoreMessage(thread.thread_id, m.message_id)}
                                   onRetry={() => retry(m)}
@@ -891,14 +919,14 @@ export default function Messages() {
       </div>
 
       <Modal
-        open={pendingDeleteThread}
+        open={Boolean(pendingDeleteThread)}
         onClose={() => {
-          if (!deleting) setPendingDeleteThread(false)
+          if (!deleting) setPendingDeleteThread(null)
         }}
         title={t('messages.deleteThreadTitle')}
         footer={
           <>
-            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDeleteThread(false)}>
+            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDeleteThread(null)}>
               {t('common.cancel')}
             </Button>
             <Button
@@ -1110,7 +1138,7 @@ function MessageBubble({
         <button
           type="button"
           onClick={onDelete}
-          className="rounded-lg p-1.5 text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-60"
+          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 focus:text-rose-600 group-hover:text-slate-500"
           title={t('messages.deleteMessage')}
           aria-label={t('messages.deleteMessage')}
         >

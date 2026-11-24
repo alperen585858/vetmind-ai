@@ -194,9 +194,9 @@ export function refreshBackendSession(): Promise<boolean> {
 }
 
 function applySessionDemoHeaders(headers: Headers): void {
-  // Never send demo attribution alongside a JWT — backend ignores it when auth is on,
-  // but the client must not imply a different actor than Authorization.
-  if (getBackendAccessToken()) return
+  // Always name the signed-in session. With auth on the backend ignores these headers and
+  // uses the JWT; with auth off they are the only identity left once a stored JWT goes
+  // stale (e.g. the dev backend restarted with a new random secret). Same person either way.
   const session = loadSession()
   if (session?.role && session?.email) {
     if (!headers.has('X-VetMind-Demo-Role')) headers.set('X-VetMind-Demo-Role', session.role)

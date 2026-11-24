@@ -314,3 +314,39 @@ def test_demo_mode_uses_signed_in_token_for_attribution(tmp_path: Path) -> None:
         headers={"Authorization": "Bearer not.a.jwt"},
     )
     assert bad.json()["messages"][0]["author_subject"] != "vet@demo.local"
+
+
+def _legacy_thread(container: AppContainer) -> tuple[str, str]:
+    from app.schemas.messaging import SupportMessage, SupportThread
+
+    msg = SupportMessage(author_subject="anonymous", author_role="demo", body="eski demo", read_by=["anonymous"])
+    thread = SupportThread(channel="admin", owner_subject="anonymous", subject="eski", messages=[msg])
+    container.messaging_store.save_thread(thread)
+    return thread.thread_id, msg.message_id
+
+
+def test_legacy_anonymous_rows_can_be_cleaned_up_only_in_demo_mode(tmp_path: Path) -> None:
+    demo = AppContainer(
+        repo=InMemoryCaseRepository(),
+        settings=Settings(
+            storage_backend="memory",
+            sqlite_path=tmp_path / "u.sqlite3",
+            quarantine_root=tmp_path / "q1",
+            auth_enabled=False,
+            async_analyze_delay_ms=0,
+        ),
+    )
+    client = TestClient(create_app(demo))
+    hdr = {"X-VetMind-Demo-Role": "vet", "X-VetMind-Demo-Subject": "vet@demo.local"}
+    tid, mid = _legacy_thread(demo)
+    assert client.delete(f"/api/v1/messages/threads/{tid}/messages/{mid}", headers=hdr).status_code == 200
+    assert client.delete(f"/api/v1/messages/threads/{tid}", headers=hdr).status_code == 204
+
+    protected = _client(tmp_path / "p")
+    container = protected.app.state.container  # type: ignore[attr-defined]
+    tid2, mid2 = _legacy_thread(container)
+    admin_free_vet = _token(protected, "vet@demo.local")
+    # With auth on, nobody but an admin may touch rows they did not write.
+    assert protected.delete(
+        f"/api/v1/messages/threads/{tid2}/messages/{mid2}", headers=_hdr(admin_free_vet)
+    ).status_code in {403, 404}

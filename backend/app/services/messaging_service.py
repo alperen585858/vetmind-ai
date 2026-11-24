@@ -29,6 +29,10 @@ from app.services.messaging_store import MessagingStore
 from app.services.notification_service import NotificationService
 
 
+# Subjects stored by auth-off demo sessions before messages were attributed to a person.
+LEGACY_DEMO_SUBJECTS = frozenset({"anonymous", "demo"})
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -512,7 +516,9 @@ class MessagingService:
             raise HTTPException(status_code=404, detail="Message not found.")
         is_author = target.author_subject == subject
         is_admin = role == "admin" or principal.role == "admin"
-        if not is_author and not is_admin:
+        # Auth-off demo only: rows written before attribution worked belong to nobody.
+        legacy_demo = principal.via == "disabled" and target.author_subject in LEGACY_DEMO_SUBJECTS
+        if not is_author and not is_admin and not legacy_demo:
             raise HTTPException(status_code=403, detail="Only the author or an admin can delete this message.")
         if target.deleted_at is None:
             now = utcnow()
@@ -615,6 +621,7 @@ class MessagingService:
         # Participants or an admin may remove the conversation.
         allowed = (
             subject in {thread.owner_subject, thread.recipient_subject}
+            or (principal.via == "disabled" and thread.owner_subject in LEGACY_DEMO_SUBJECTS)
             or role in {"admin", "demo", "service"}
             or (thread.channel == "radiologist" and role == "expert" and thread.recipient_subject is None)
         )
