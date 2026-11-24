@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from app.rag.breed_morphotypes import load_default_rag_corpus
+from app.rag.chunking import chunk_id, split_passage
 from app.rag.corpus import CorpusDoc
 from app.rag.embeddings import EmbeddingBackend, default_embedding_backend
 from app.rag.source_cards import SourceCardTagger
@@ -29,10 +30,29 @@ class IndexedDoc:
     # ("seed" | "manual" | "rules" | "llm" | "none").
     summary: str = ""
     tag_source: str = ""
+    # Chunking (#100): chunks of one uploaded source share ``parent_id`` and its card.
+    # Single-chunk sources (and every seed doc) have parent_id "" and chunk_count 1.
+    parent_id: str = ""
+    chunk_index: int = 0
+    chunk_count: int = 1
+    # Previous chunk's last sentence: embedded with the chunk, not part of the passage.
+    context: str = ""
+
+    @property
+    def source_key(self) -> str:
+        """Id of the whole source this doc belongs to."""
+        return self.parent_id or self.source_id
 
 
-def _embed_text(title: str, section: str, passage: str, keywords: list[str] | tuple[str, ...]) -> str:
-    return f"{title} {section} {passage} {' '.join(keywords)}"
+def _embed_text(
+    title: str, section: str, passage: str, keywords: list[str] | tuple[str, ...], context: str = ""
+) -> str:
+    body = f"{context} {passage}" if context else passage
+    return f"{title} {section} {body} {' '.join(keywords)}"
+
+
+def _doc_embed_text(d: IndexedDoc) -> str:
+    return _embed_text(d.title, d.section, d.passage, d.keywords, d.context)
 
 
 def _signature(backend: EmbeddingBackend) -> str:
@@ -69,6 +89,10 @@ class JsonVectorStore:
                 species=list(d.get("species") or []),
                 summary=str(d.get("summary") or ""),
                 tag_source=str(d.get("tag_source") or ""),
+                parent_id=str(d.get("parent_id") or ""),
+                chunk_index=int(d.get("chunk_index") or 0),
+                chunk_count=int(d.get("chunk_count") or 1),
+                context=str(d.get("context") or ""),
             )
             for d in raw.get("documents", [])
         ]
@@ -83,9 +107,9 @@ class JsonVectorStore:
         if stored_sig != _signature(self._backend) or any(
             len(d.vector) != self._backend.dim for d in self._docs
         ):
-            self._prefetch([_embed_text(d.title, d.section, d.passage, d.keywords) for d in self._docs])
+            self._prefetch([_doc_embed_text(d) for d in self._docs])
             for doc in self._docs:
-                doc.vector = self._backend.embed(_embed_text(doc.title, doc.section, doc.passage, doc.keywords))
+                doc.vector = self._backend.embed(_doc_embed_text(doc))
             reembedded = True
 
         # Add missing seed docs and re-index seed docs whose text changed in code
@@ -189,17 +213,54 @@ class JsonVectorStore:
         species: list[str] | tuple[str, ...] = (),
         summary: str = "",
         tag_source: str = "none",
+        persist: bool = True,
     ) -> IndexedDoc:
-        doc = CorpusDoc(
-            source_id=source_id,
-            title=title,
-            section=section,
-            passage=passage,
-            keywords=tuple(keywords or ()),
-            regions=tuple(regions),
-            species=tuple(species),
-        )
-        return self.add_corpus_doc(doc, persist=True, approved=approved, summary=summary, tag_source=tag_source)
+        """Index an uploaded source, split into chunks when long (#100). Returns the first
+        chunk; every chunk carries the same card. Re-adding a source id replaces all its chunks."""
+        chunks = split_passage(passage) or []
+        if not chunks:
+            raise ValueError("Empty passage")
+        kws = list(keywords or ())
+        self._docs = [d for d in self._docs if d.source_key != source_id]
+        count = len(chunks)
+        texts = [_embed_text(title, section, c.text, kws, c.context) for c in chunks]
+        self._prefetch(texts)
+        added: list[IndexedDoc] = []
+        for i, (chunk, text) in enumerate(zip(chunks, texts)):
+            doc = IndexedDoc(
+                source_id=chunk_id(source_id, i, count),
+                title=title,
+                section=section,
+                passage=chunk.text,
+                keywords=kws,
+                vector=self._backend.embed(text),
+                approved=approved,
+                regions=list(regions),
+                species=list(species),
+                summary=summary,
+                tag_source=tag_source,
+                parent_id=source_id if count > 1 else "",
+                chunk_index=i,
+                chunk_count=count,
+                context=chunk.context,
+            )
+            self._docs.append(doc)
+            added.append(doc)
+        if persist:
+            self.save()
+        return added[0]
+
+    def source_chunks(self, source_id: str) -> list[IndexedDoc]:
+        """All chunks of one source, in order."""
+        return sorted((d for d in self._docs if d.source_key == source_id), key=lambda d: d.chunk_index)
+
+    def sources(self, *, prefix: str = "") -> list[list[IndexedDoc]]:
+        """Docs grouped by source (insertion order), optionally only ids with ``prefix``."""
+        groups: dict[str, list[IndexedDoc]] = {}
+        for d in self._docs:
+            if d.source_key.startswith(prefix):
+                groups.setdefault(d.source_key, []).append(d)
+        return [sorted(g, key=lambda d: d.chunk_index) for g in groups.values()]
 
     def set_card(
         self,
@@ -210,16 +271,17 @@ class JsonVectorStore:
         summary: str,
         tag_source: str,
     ) -> IndexedDoc | None:
-        """Update a source's card in place (the embedding does not depend on it)."""
-        for doc in self._docs:
-            if doc.source_id == source_id:
-                doc.regions = list(regions)
-                doc.species = list(species)
-                doc.summary = summary
-                doc.tag_source = tag_source
-                self.save()
-                return doc
-        return None
+        """Update a source's card on all its chunks (the embedding does not depend on it)."""
+        chunks = self.source_chunks(source_id)
+        for doc in chunks:
+            doc.regions = list(regions)
+            doc.species = list(species)
+            doc.summary = summary
+            doc.tag_source = tag_source
+        if not chunks:
+            return None
+        self.save()
+        return chunks[0]
 
     def get(self, source_id: str) -> IndexedDoc | None:
         return next((d for d in self._docs if d.source_id == source_id), None)
@@ -269,8 +331,11 @@ class JsonVectorStore:
                     species=card.species,
                     summary=card.summary,
                     tag_source=card.tag_source,
+                    persist=False,
                 )
             )
+        if out:
+            self.save()
         return out
 
     @property

@@ -17,6 +17,8 @@ class EmbeddingRagRetriever:
     # Tuned with scripts/rag_eval.py on the default hash backend (synthetic set).
     CASE_MIN_COSINE = 0.10
     CASE_RELATIVE_FLOOR = 0.7
+    # Chunked uploads (#100): cap how many chunks of one source a single search returns.
+    MAX_CHUNKS_PER_SOURCE = 2
 
     def __init__(
         self,
@@ -79,12 +81,23 @@ class EmbeddingRagRetriever:
             best_cos = scored[0][0] * 2 - 1
             scored = [(d, doc) for d, doc in scored if d * 2 - 1 >= self._relative_floor * best_cos]
         hits: list[RagPassage] = []
-        for score, doc in scored[: max(1, top_k)]:
+        per_source: dict[str, int] = {}
+        for score, doc in scored:
+            if len(hits) >= max(1, top_k):
+                break
+            # One long source must not fill every slot (#100): at most N chunks per source.
+            key = doc.source_key  # type: ignore[attr-defined]
+            if per_source.get(key, 0) >= self.MAX_CHUNKS_PER_SOURCE:
+                continue
+            per_source[key] = per_source.get(key, 0) + 1
+            section = doc.section  # type: ignore[attr-defined]
+            if doc.chunk_count > 1:  # type: ignore[attr-defined]
+                section = f"{section} · parça {doc.chunk_index + 1}/{doc.chunk_count}"  # type: ignore[attr-defined]
             hits.append(
                 RagPassage(
                     source_id=doc.source_id,  # type: ignore[attr-defined]
                     title=doc.title,  # type: ignore[attr-defined]
-                    section=doc.section,  # type: ignore[attr-defined]
+                    section=section,
                     passage=doc.passage,  # type: ignore[attr-defined]
                     score=round(score, 3),
                     keywords=list(doc.keywords),  # type: ignore[attr-defined]

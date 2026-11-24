@@ -30,6 +30,8 @@ export interface RagCustomDocument {
   species?: string[]
   summary?: string
   tag_source?: RagTagSource
+  /** Number of retrieval chunks the source was split into (#100). */
+  chunks?: number
 }
 
 /** Sources added from Bilgi Tabanı (seed corpus excluded). */
