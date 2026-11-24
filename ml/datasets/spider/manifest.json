@@ -1,0 +1,19 @@
+{
+  "dataset_id": "spider-lumbar-mri",
+  "version": "zenodo-10159290-v4",
+  "license": "CC-BY-4.0",
+  "source": "https://zenodo.org/records/10159290",
+  "citation": "van der Graaf JW et al. Lumbar spine segmentation in MR images: a dataset and a public benchmark. Sci Data 11, 264 (2024). doi:10.1038/s41597-024-03090-w",
+  "species": ["human"],
+  "modality": "MR",
+  "anatomical_region": "LUMBAR_SPINE",
+  "series": {"t1": 196, "t2": 210, "t2_SPACE": 41},
+  "patients": {"training": 179, "validation": 39},
+  "split_unit": "patient_id",
+  "splits": "official 'validation' subset = held-out test; 15% of 'training' patients = validation (ml/training/spine_seg/labels.py build_splits)",
+  "label_names": ["background", "vertebra", "spinal_canal", "disc"],
+  "notes": [
+    "Human data: initialization for veterinary spine MRI only, not clinically validated on animals.",
+    "Raw data and prepared arrays are kept outside the repository (school GPU server)."
+  ]
+}

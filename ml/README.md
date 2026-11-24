@@ -12,8 +12,10 @@ before copying approved weights into `artifacts/` for production inference.
 ml/
   datasets/       # manifests, licenses, patient splits
   training/       # train scripts (require requirements-vision.txt)
+    spine_seg/    # spine MRI segmentation on SPIDER (see its README)
   evaluation/     # metrics + leakage checks
   model_cards/    # versioned approval docs
+  tests/          # CPU tests on synthetic data (run in CI)
   configs/        # YAML train/infer configs
 ```
 
