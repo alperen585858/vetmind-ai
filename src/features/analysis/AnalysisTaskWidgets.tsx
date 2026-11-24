@@ -4,7 +4,6 @@ import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { clearAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
-import { cacheCaseDicomFiles } from '../../shared/lib/dicomCaseCache'
 import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
 import {
   dismissTask,
@@ -14,7 +13,7 @@ import {
   useAnalysisTasks,
   type AnalysisTask,
 } from './analysisTasks'
-import { buildCaseFromHandoff } from './lib/caseFromHandoff'
+import type { buildCaseFromHandoff } from './lib/caseFromHandoff'
 
 const ACTIVE = new Set(['uploading', 'queuing', 'analyzing'])
 
@@ -41,19 +40,27 @@ export function AnalysisTaskBridge() {
       if (task.created && !task.createdHandled && task.caseId) {
         markTask(task.key, { createdHandled: true })
         const { handoff, job, uploadSnap, caseRecord } = task.created
-        const newCase = buildCaseFromHandoff(
-          handoff,
-          caseRecord as Parameters<typeof buildCaseFromHandoff>[1],
-          job,
-          uploadSnap,
-          locale,
-          t,
-        )
-        if (handoff.files.length > 0) void cacheCaseDicomFiles(newCase.id, handoff.files.slice(0, MAX_VIEWER_FRAMES))
-        if (!getCase(newCase.id)) addCase(newCase)
-        clearAnalyzeHandoff(handoff.pendingId)
-        removeCase(handoff.pendingId)
-        pushToast({ tone: 'info', title: t('cases.processing.sentToAi'), body: `${task.patientName} · ${t('analysisTasks.keepWorking')}` })
+        void (async () => {
+          // Loaded on demand: this bridge is mounted on every page (entry bundle), and the case
+          // builder pulls in the demo case templates and the DICOM cache (#83 bundle budget).
+          const [{ buildCaseFromHandoff: buildCase }, { cacheCaseDicomFiles }] = await Promise.all([
+            import('./lib/caseFromHandoff'),
+            import('../../shared/lib/dicomCaseCache'),
+          ])
+          const newCase = buildCase(
+            handoff,
+            caseRecord as Parameters<typeof buildCaseFromHandoff>[1],
+            job,
+            uploadSnap,
+            locale,
+            t,
+          )
+          if (handoff.files.length > 0) void cacheCaseDicomFiles(newCase.id, handoff.files.slice(0, MAX_VIEWER_FRAMES))
+          if (!getCase(newCase.id)) addCase(newCase)
+          clearAnalyzeHandoff(handoff.pendingId)
+          removeCase(handoff.pendingId)
+          pushToast({ tone: 'info', title: t('cases.processing.sentToAi'), body: `${task.patientName} · ${t('analysisTasks.keepWorking')}` })
+        })()
       }
       if (!ACTIVE.has(task.phase) && !task.finishedHandled) {
         markTask(task.key, { finishedHandled: true })

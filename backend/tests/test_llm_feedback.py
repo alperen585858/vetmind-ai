@@ -7,7 +7,7 @@ from app.llm.feedback import similarity
 
 
 def test_feedback_captures_ai_text_vs_expert_edit(tmp_path: Path) -> None:
-    client = _client(tmp_path)
+    client = _client(tmp_path, allow_insecure_demo=True)  # admin-only endpoints
     edited_id = _demo_upload_confirm_analyze(client)
     plain_id = _demo_upload_confirm_analyze(client)
     pending_id = _demo_upload_confirm_analyze(client)
@@ -52,7 +52,7 @@ def test_feedback_captures_ai_text_vs_expert_edit(tmp_path: Path) -> None:
 
 
 def test_feedback_exports_jsonl_and_chat(tmp_path: Path) -> None:
-    client = _client(tmp_path)
+    client = _client(tmp_path, allow_insecure_demo=True)  # admin-only endpoints
     case_id = _demo_upload_confirm_analyze(client)
     client.post(f"/api/v1/cases/{case_id}/review", json={"reviewer_id": "expert-demo", "action": "approve"})
 
@@ -85,7 +85,7 @@ def test_similarity() -> None:
 def test_llm_status_and_latest_eval(tmp_path: Path, monkeypatch) -> None:
     import app.api.llm_feedback as api
 
-    client = _client(tmp_path)
+    client = _client(tmp_path, allow_insecure_demo=True)  # admin-only endpoints
     status = client.get("/api/v1/llm/status").json()
     assert status["kind"] == "mock" and status["prompt_version"] is None
 

@@ -8,7 +8,8 @@ from tests.test_phase6_e2e_journey import _auth_client, _client, _demo_upload_co
 
 
 def test_reject_writes_feedback_event(tmp_path: Path) -> None:
-    client = _client(tmp_path, feedback_log_path=None)
+    # GET /feedback is admin-only; allow_insecure_demo gives the auth-off principal full access.
+    client = _client(tmp_path, feedback_log_path=None, allow_insecure_demo=True)
     case_id = _demo_upload_confirm_analyze(client)
     res = client.post(
         f"/api/v1/cases/{case_id}/review",

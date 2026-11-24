@@ -208,11 +208,23 @@ def test_protected_mode_rejects_short_jwt_secret(tmp_path: Path) -> None:
         validate_security_settings(_protected(tmp_path, "short-but-not-default"))
 
 
-def test_protected_mode_accepts_long_jwt_secret(tmp_path: Path) -> None:
+@pytest.fixture
+def fake_scanner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Protected mode refuses to start without a malware scanner; tests use the fake one."""
+    monkeypatch.setenv("VETMIND_MALWARE_SCANNER", "fake_clean")
+
+
+def test_protected_mode_requires_a_malware_scanner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("VETMIND_MALWARE_SCANNER", raising=False)
+    with pytest.raises(RuntimeError, match="malware scanner"):
+        validate_security_settings(_protected(tmp_path, "k" * 32))
+
+
+def test_protected_mode_accepts_long_jwt_secret(tmp_path: Path, fake_scanner: None) -> None:
     validate_security_settings(_protected(tmp_path, "k" * 32))
 
 
-def test_protected_mode_rejects_demo_self_registration_clinic(tmp_path: Path) -> None:
+def test_protected_mode_rejects_demo_self_registration_clinic(tmp_path: Path, fake_scanner: None) -> None:
     with pytest.raises(RuntimeError, match="SELF_REGISTRATION_OWNER_CLINIC"):
         validate_security_settings(
             _protected(
@@ -224,7 +236,7 @@ def test_protected_mode_rejects_demo_self_registration_clinic(tmp_path: Path) ->
         )
 
 
-def test_protected_mode_allows_self_reg_disabled(tmp_path: Path) -> None:
+def test_protected_mode_allows_self_reg_disabled(tmp_path: Path, fake_scanner: None) -> None:
     validate_security_settings(
         _protected(
             tmp_path,
