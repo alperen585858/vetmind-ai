@@ -45,7 +45,19 @@ class NotificationService:
             submission_id=submission_id,
             clinic_id=clinic_id,
         )
-        return self._store.upsert(n)
+        saved = self._store.upsert(n)
+        live = getattr(self, "_live", None)
+        if live is not None and saved is not None:
+            try:
+                # Tell open tabs to refresh the bell; the payload carries no message text.
+                live.publish({recipient_subject}, {"type": "notification", "kind": kind})
+            except Exception:  # noqa: BLE001 — best effort
+                pass
+        return saved
+
+    def bind_live(self, live: object) -> None:
+        """Attach a LiveEventBroker so new notifications are pushed over SSE."""
+        self._live = live
 
     def list_mine(
         self, *, principal: AuthPrincipal, unread_only: bool = False

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { LocalizedLink } from '../../shared/shell/LocalizedLink'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
@@ -6,20 +6,26 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  CheckCheck,
+  Clock,
+  ExternalLink,
   Loader2,
   MessageSquare,
   Plus,
+  RotateCcw,
   Search,
   Send,
   Shield,
   Stethoscope,
   Trash2,
+  WifiOff,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
 import { Button } from '../../shared/ui/Button'
 import { Modal } from '../../shared/ui/Modal'
+import { useLiveEvents, useLiveStatus } from '../../shared/live/liveStream'
 import {
   createSupportThread,
   deleteSupportMessage,
@@ -29,6 +35,8 @@ import {
   listSupportThreads,
   markSupportThreadRead,
   postSupportMessage,
+  restoreSupportMessage,
+  sendTypingPing,
 } from './api'
 import { fmtDate } from '../../shared/lib/format'
 import type {
@@ -39,12 +47,23 @@ import type {
   SupportMessageChannel,
 } from '../../shared/types'
 
+// --- helpers ---------------------------------------------------------------------------
+
+type Filter = 'all' | 'unread' | 'radiologist' | 'admin'
+
+/** A message as shown in the UI: server messages plus optimistic ones still sending. */
+type UiMessage = BackendSupportMessage & { localState?: 'sending' | 'failed'; localId?: string }
+
+const UNDO_TOAST_MS = 10_000
+const TYPING_SHOW_MS = 4_000
+const TYPING_PING_MS = 3_000
+
 function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
   return channel === 'admin' ? t('messages.channelAdmin') : t('messages.channelRadiologist')
 }
 
-function authorLabel(role: string, subject: string, t: TranslateFn): string {
-  const roleKeys: Record<string, string> = {
+function roleLabel(role: string, t: TranslateFn): string {
+  const keys: Record<string, string> = {
     owner: 'messages.roleOwner', // legacy rows only
     support: 'messages.roleSupport',
     expert: 'messages.roleExpert',
@@ -54,125 +73,260 @@ function authorLabel(role: string, subject: string, t: TranslateFn): string {
     demo: 'messages.roleDemo',
     service: 'messages.roleService',
   }
-  const key = roleKeys[role]
-  if (key) return t(key)
-  if (subject.startsWith('admin@')) return t('messages.roleAdmin')
-  if (subject.startsWith('expert')) return t('messages.roleExpert')
-  if (subject.startsWith('vet')) return t('messages.roleVet')
-  return role || subject
+  return keys[role] ? t(keys[role]) : role
 }
 
-function fmtClock(iso?: string | null): string {
+function initials(name: string): string {
+  const parts = name.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toLocaleUpperCase('tr')
+}
+
+function avatarTone(role: string | null | undefined) {
+  if (role === 'support' || role === 'admin') return 'bg-sky-100 text-sky-800'
+  if (role === 'expert') return 'bg-violet-100 text-violet-800'
+  return 'bg-teal-100 text-teal-800'
+}
+
+function clock(iso?: string | null): string {
   if (!iso) return ''
-  const normalized = iso.includes('T') ? iso.replace('T', ' ').replace(/Z$/, '') : iso
-  const time = normalized.split(' ')[1]
-  return time ? time.slice(0, 5) : ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function fmtListTime(iso: string | null | undefined, locale: 'tr' | 'en'): string {
-  if (!iso) return ''
-  const clock = fmtClock(iso)
-  const full = fmtDate(iso, locale)
-  // Prefer clock for same-day feel; fall back to short date fragment
-  if (clock && full.includes('·')) return clock
-  return clock || full
-}
-
-/** YYYY-MM-DD for grouping messages by day. */
-function dayKey(iso: string): string {
-  return (iso.includes('T') ? iso.split('T')[0] : iso.split(' ')[0]) || iso
+function localDayKey(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
+  const p = (x: number) => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 function dayLabel(iso: string, locale: 'tr' | 'en', t: TranslateFn): string {
+  const key = localDayKey(iso)
   const now = new Date()
-  const p = (x: number) => String(x).padStart(2, '0')
-  const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
-  if (dayKey(iso) === today) return t('messages.today')
-  return fmtDate(dayKey(iso), locale)
+  const today = localDayKey(now.toISOString())
+  const yesterday = localDayKey(new Date(now.getTime() - 86_400_000).toISOString())
+  if (key === today) return t('messages.today')
+  if (key === yesterday) return t('messages.yesterday')
+  return fmtDate(key, locale)
 }
 
-function groupByDay(messages: BackendSupportMessage[]): { day: string; items: BackendSupportMessage[] }[] {
-  const out: { day: string; items: BackendSupportMessage[] }[] = []
+function listTime(iso: string | null | undefined, locale: 'tr' | 'en', t: TranslateFn): string {
+  if (!iso) return ''
+  if (localDayKey(iso) === localDayKey(new Date().toISOString())) return clock(iso)
+  return dayLabel(iso, locale, t).replace(/\s\d{4}$/, '')
+}
+
+type Group = { day: string; runs: { author: string; role: string; items: UiMessage[] }[] }
+
+/** Group by local day, then by consecutive author (name/avatar shown once per run). */
+function groupMessages(messages: UiMessage[]): Group[] {
+  const out: Group[] = []
   for (const m of messages) {
-    const day = dayKey(m.created_at)
-    const last = out[out.length - 1]
-    if (last && last.day === day) last.items.push(m)
-    else out.push({ day, items: [m] })
+    const day = localDayKey(m.created_at)
+    let g = out[out.length - 1]
+    if (!g || g.day !== day) {
+      g = { day, runs: [] }
+      out.push(g)
+    }
+    const run = g.runs[g.runs.length - 1]
+    if (run && run.author === m.author_subject) run.items.push(m)
+    else g.runs.push({ author: m.author_subject, role: m.author_role, items: [m] })
   }
   return out
 }
 
-function counterpartLabel(thread: BackendSupportThreadSummary, t: TranslateFn): string {
-  return thread.counterpart_name || channelLabel(thread.channel, t)
-}
-
-function channelTone(channel: SupportMessageChannel) {
-  if (channel === 'admin') return 'bg-sky-500/90 text-white'
-  return 'bg-teal-400 text-navy-950'
-}
+// --- page ------------------------------------------------------------------------------
 
 export default function Messages() {
   const { role, user, pushToast } = useApp()
   const { t, locale } = useLocale()
   const navigate = useLocalizedNavigate()
   const { threadId } = useParams<{ threadId?: string }>()
-  // B2B: clinic staff start conversations with a radiologist or the support team (issue #93).
-  const canCompose = role === 'vet' || role === 'clinic_owner'
   const [searchParams, setSearchParams] = useSearchParams()
-  const endRef = useRef<HTMLDivElement>(null)
+  const liveStatus = useLiveStatus()
+  const canCompose = role === 'vet' || role === 'clinic_owner'
+  const me = (user?.email || '').toLowerCase()
 
   const [threads, setThreads] = useState<BackendSupportThreadSummary[]>([])
   const [detail, setDetail] = useState<BackendSupportThreadDetail | null>(null)
+  const [pending, setPending] = useState<UiMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [reply, setReply] = useState('')
+  const [typingName, setTypingName] = useState<string | null>(null)
+  const [undo, setUndo] = useState<{ threadId: string; messageId: string } | null>(null)
+  const [pendingDeleteThread, setPendingDeleteThread] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const [composeOpen, setComposeOpen] = useState(false)
   const [recipient, setRecipient] = useState<BackendMessageRecipient | null>(null)
   const [recipientQuery, setRecipientQuery] = useState('')
   const [recipients, setRecipients] = useState<BackendMessageRecipient[]>([])
   const [recipientsLoading, setRecipientsLoading] = useState(false)
-  const [recipientsError, setRecipientsError] = useState<string | null>(null)
+  const [recipientsError, setRecipientsError] = useState(false)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
-  const [reply, setReply] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [query, setQuery] = useState('')
-  const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null)
-  const [pendingDeleteThread, setPendingDeleteThread] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [composeBusy, setComposeBusy] = useState(false)
 
-  const loadThreads = async () => {
-    setLoading(true)
-    setError(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const threadIdRef = useRef(threadId)
+  threadIdRef.current = threadId
+  const typingTimer = useRef<number | undefined>(undefined)
+  const lastTypingPing = useRef(0)
+  const undoTimer = useRef<number | undefined>(undefined)
+  const listTimer = useRef<number | undefined>(undefined)
+
+  // --- data loading --------------------------------------------------------------------
+
+  const loadThreads = useCallback(async () => {
     try {
       setThreads(await listSupportThreads())
+      setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : t('messages.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
+
+  /** Coalesce bursts of live events into one list refresh. */
+  const refreshThreadsSoon = useCallback(() => {
+    window.clearTimeout(listTimer.current)
+    listTimer.current = window.setTimeout(() => void loadThreads(), 250)
+  }, [loadThreads])
+
+  const loadDetail = useCallback(
+    async (id: string, { markRead = true }: { markRead?: boolean } = {}) => {
+      const d = await getSupportThread(id)
+      if (threadIdRef.current !== id) return
+      setDetail(d)
+      if (markRead && d.messages.some((m) => m.unread) && document.visibilityState === 'visible') {
+        const marked = await markSupportThreadRead(id)
+        if (threadIdRef.current === id) setDetail(marked)
+        refreshThreadsSoon()
+      }
+    },
+    [refreshThreadsSoon],
+  )
 
   useEffect(() => {
     void loadThreads()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role])
+  }, [loadThreads, role])
 
-  // Recipient search inside the "New Conversation" dialog (debounced).
+  useEffect(() => {
+    setPending([])
+    setTypingName(null)
+    if (!threadId) {
+      setDetail(null)
+      return
+    }
+    let cancelled = false
+    setDetailLoading(true)
+    loadDetail(threadId)
+      .catch((e) => {
+        if (cancelled) return
+        pushToast({ tone: 'error', title: t('messages.threadOpenFailed'), body: e instanceof Error ? e.message : undefined })
+        setDetail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [threadId, loadDetail, pushToast, t])
+
+  // --- live events -----------------------------------------------------------------------
+
+  useLiveEvents((e) => {
+    const open = threadIdRef.current
+    if (e.type === 'ready' || e.type === 'resync') {
+      refreshThreadsSoon()
+      if (open) void loadDetail(open).catch(() => undefined)
+      return
+    }
+    if (!e.thread_id) return
+    refreshThreadsSoon()
+    if (e.thread_id !== open) return
+    if (e.type === 'thread.deleted') {
+      setDetail(null)
+      navigate('/mesajlar')
+      return
+    }
+    if (e.type === 'message.created') {
+      const msg = e.message as BackendSupportMessage | undefined
+      if (!msg) return
+      setTypingName(null)
+      setDetail((prev) =>
+        prev && !prev.messages.some((m) => m.message_id === msg.message_id)
+          ? { ...prev, messages: [...prev.messages, { ...msg, unread: msg.author_subject !== me }] }
+          : prev,
+      )
+      if (msg.author_subject !== me && document.visibilityState === 'visible') {
+        void markSupportThreadRead(open)
+          .then((d) => {
+            if (threadIdRef.current === open) setDetail(d)
+          })
+          .catch(() => undefined)
+      }
+      return
+    }
+    if (e.type === 'thread.read') {
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) => (m.author_subject === me ? { ...m, read_by_other: true } : m)),
+            }
+          : prev,
+      )
+      return
+    }
+    if (e.type === 'message.deleted' || e.type === 'message.restored') {
+      void loadDetail(open, { markRead: false }).catch(() => undefined)
+      return
+    }
+    if (e.type === 'typing' && e.subject !== me) {
+      setTypingName(String(e.name || ''))
+      window.clearTimeout(typingTimer.current)
+      typingTimer.current = window.setTimeout(() => setTypingName(null), TYPING_SHOW_MS)
+    }
+  })
+
+  // --- scrolling -------------------------------------------------------------------------
+
+  const messages: UiMessage[] = useMemo(
+    () => [...(detail?.messages ?? []), ...pending.filter((p) => p.localState)],
+    [detail?.messages, pending],
+  )
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages.length, threadId, typingName])
+
+  // --- compose (new conversation) --------------------------------------------------------
+
   useEffect(() => {
     if (!composeOpen || !canCompose) return
     let cancelled = false
     const timer = window.setTimeout(() => {
       setRecipientsLoading(true)
-      setRecipientsError(null)
-      void listMessageRecipients(recipientQuery)
+      setRecipientsError(false)
+      listMessageRecipients(recipientQuery)
         .then((items) => {
           if (!cancelled) setRecipients(items)
         })
-        .catch((e) => {
+        .catch(() => {
           if (!cancelled) {
             setRecipients([])
-            setRecipientsError(e instanceof Error ? e.message : t('messages.recipientsFailed'))
+            setRecipientsError(true)
           }
         })
         .finally(() => {
@@ -183,9 +337,9 @@ export default function Messages() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [composeOpen, canCompose, recipientQuery, t])
+  }, [composeOpen, canCompose, recipientQuery])
 
-  // /mesajlar?new=support opens a new conversation with the support team preselected (issue #92).
+  // /mesajlar?new=support → new conversation with the support team preselected.
   useEffect(() => {
     if (searchParams.get('new') !== 'support' || !canCompose) return
     const next = new URLSearchParams(searchParams)
@@ -204,68 +358,13 @@ export default function Messages() {
     setComposeOpen(true)
   }
 
-  useEffect(() => {
-    if (!threadId) {
-      setDetail(null)
-      return
-    }
-    let cancelled = false
-    setDetailLoading(true)
-    void (async () => {
-      try {
-        const d = await getSupportThread(threadId)
-        if (cancelled) return
-        setDetail(d)
-        if (d.messages.some((m) => m.unread)) {
-          const marked = await markSupportThreadRead(threadId)
-          if (!cancelled) setDetail(marked)
-        }
-        if (!cancelled) void loadThreads()
-      } catch (e) {
-        if (cancelled) return
-        pushToast({ tone: 'error', title: t('messages.threadOpenFailed'), body: e instanceof Error ? e.message : undefined })
-        setDetail(null)
-      } finally {
-        if (!cancelled) setDetailLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId])
-
-  useEffect(() => {
-    const reduceMotion =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    endRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' })
-  }, [detail?.messages.length, threadId])
-
-  const sorted = useMemo(
-    () => [...threads].sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || '')),
-    [threads],
-  )
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return sorted
-    return sorted.filter(
-      (thread) =>
-        thread.subject.toLowerCase().includes(q) ||
-        (thread.last_message_preview || '').toLowerCase().includes(q) ||
-        channelLabel(thread.channel, t).toLowerCase().includes(q) ||
-        (thread.counterpart_name || '').toLowerCase().includes(q) ||
-        thread.owner_subject.toLowerCase().includes(q),
-    )
-  }, [sorted, query, t])
-
   const startConversation = async () => {
     if (!recipient) {
       pushToast({ tone: 'warning', title: t('messages.recipientRequired') })
       return
     }
     if (!subject.trim() || !body.trim()) return
-    setBusy(true)
+    setComposeBusy(true)
     try {
       const created = await createSupportThread({
         channel: recipient.channel,
@@ -273,7 +372,6 @@ export default function Messages() {
         subject: subject.trim(),
         body: body.trim(),
       })
-      pushToast({ tone: 'success', title: t('messages.sent'), body: recipient.display_name })
       setComposeOpen(false)
       setRecipient(null)
       setSubject('')
@@ -287,83 +385,107 @@ export default function Messages() {
         body: e instanceof Error ? `${e.message} ${t('messages.sendFailedKeep')}` : t('messages.sendFailedKeep'),
       })
     } finally {
-      setBusy(false)
+      setComposeBusy(false)
     }
   }
 
-  const sendReply = async () => {
-    if (!threadId || !reply.trim()) return
-    setBusy(true)
+  // --- send / retry ----------------------------------------------------------------------
+
+  const sendText = async (text: string, localId: string) => {
+    const id = threadIdRef.current
+    if (!id) return
     try {
-      const msg = await postSupportMessage(threadId, reply.trim())
+      const msg = await postSupportMessage(id, text)
+      setPending((prev) => prev.filter((p) => p.localId !== localId))
+      if (threadIdRef.current !== id) return
       setDetail((prev) =>
-        prev
-          ? {
-              ...prev,
-              messages: [...prev.messages, msg],
-              thread: {
-                ...prev.thread,
-                message_count: prev.thread.message_count + 1,
-                last_message_preview: msg.body,
-                last_message_at: msg.created_at,
-                updated_at: msg.created_at,
-              },
-            }
+        prev && !prev.messages.some((m) => m.message_id === msg.message_id)
+          ? { ...prev, messages: [...prev.messages, msg] }
           : prev,
       )
-      setReply('')
-      void loadThreads()
-    } catch (e) {
-      pushToast({
-        tone: 'error',
-        title: t('messages.replyFailed'),
-        body: e instanceof Error ? `${e.message} ${t('messages.sendFailedKeep')}` : t('messages.sendFailedKeep'),
-      })
-    } finally {
-      setBusy(false)
+      refreshThreadsSoon()
+    } catch {
+      setPending((prev) => prev.map((p) => (p.localId === localId ? { ...p, localState: 'failed' } : p)))
     }
   }
 
-  const me = user?.email || ''
-  const showChat = Boolean(threadId)
-  const canDeleteThread = Boolean(
-    detail &&
-      (role === 'admin' ||
-        detail.thread.owner_subject === me ||
-        detail.thread.recipient_subject === me),
-  )
-  const subtitle =
-    role === 'expert'
-      ? t('messages.subtitleExpert')
-      : role === 'admin'
-        ? t('messages.subtitleAdmin')
-        : t('messages.subtitleStaff')
-  const groupedMessages = useMemo(() => groupByDay(detail?.messages ?? []), [detail?.messages])
+  const sendReply = () => {
+    const text = reply.trim()
+    if (!threadId || !text) return
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setPending((prev) => [
+      ...prev,
+      {
+        message_id: localId,
+        localId,
+        localState: 'sending',
+        author_subject: me,
+        author_role: role || 'vet',
+        body: text,
+        created_at: new Date().toISOString(),
+        unread: false,
+      },
+    ])
+    setReply('')
+    requestAnimationFrame(() => textareaRef.current?.focus())
+    void sendText(text, localId)
+  }
 
-  const confirmDeleteMessage = async () => {
-    if (!threadId || !pendingDeleteMessageId || deleting) return
-    setDeleting(true)
+  const retry = (m: UiMessage) => {
+    if (!m.localId) return
+    setPending((prev) => prev.map((p) => (p.localId === m.localId ? { ...p, localState: 'sending' } : p)))
+    void sendText(m.body, m.localId)
+  }
+
+  const discardFailed = (m: UiMessage) => setPending((prev) => prev.filter((p) => p.localId !== m.localId))
+
+  const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      sendReply()
+    }
+  }
+
+  const onReplyChange = (value: string) => {
+    setReply(value)
+    const now = Date.now()
+    if (threadId && value.trim() && now - lastTypingPing.current > TYPING_PING_MS) {
+      lastTypingPing.current = now
+      void sendTypingPing(threadId).catch(() => undefined)
+    }
+  }
+
+  // Auto-grow the composer up to ~6 lines.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [reply])
+
+  // --- delete / undo ---------------------------------------------------------------------
+
+  const deleteMessage = async (m: UiMessage) => {
+    if (!threadId) return
     try {
-      const remaining = await deleteSupportMessage(threadId, pendingDeleteMessageId)
-      setPendingDeleteMessageId(null)
-      if (!remaining) {
-        setDetail(null)
-        await loadThreads()
-        navigate('/mesajlar')
-        pushToast({ tone: 'success', title: t('messages.messageDeleted') })
-        return
-      }
-      setDetail(remaining)
-      void loadThreads()
-      pushToast({ tone: 'success', title: t('messages.messageDeleted') })
+      setDetail(await deleteSupportMessage(threadId, m.message_id))
+      refreshThreadsSoon()
+      window.clearTimeout(undoTimer.current)
+      setUndo({ threadId, messageId: m.message_id })
+      undoTimer.current = window.setTimeout(() => setUndo(null), UNDO_TOAST_MS)
     } catch (e) {
-      pushToast({
-        tone: 'error',
-        title: t('messages.deleteMessageFailed'),
-        body: e instanceof Error ? e.message : undefined,
-      })
-    } finally {
-      setDeleting(false)
+      pushToast({ tone: 'error', title: t('messages.deleteMessageFailed'), body: e instanceof Error ? e.message : undefined })
+    }
+  }
+
+  const restoreMessage = async (threadKey: string, messageId: string) => {
+    try {
+      const d = await restoreSupportMessage(threadKey, messageId)
+      if (threadIdRef.current === threadKey) setDetail(d)
+      setUndo(null)
+      refreshThreadsSoon()
+    } catch (e) {
+      pushToast({ tone: 'error', title: t('messages.undoFailed'), body: e instanceof Error ? e.message : undefined })
     }
   }
 
@@ -378,349 +500,395 @@ export default function Messages() {
       navigate('/mesajlar')
       pushToast({ tone: 'success', title: t('messages.threadDeleted') })
     } catch (e) {
-      pushToast({
-        tone: 'error',
-        title: t('messages.deleteThreadFailed'),
-        body: e instanceof Error ? e.message : undefined,
-      })
+      pushToast({ tone: 'error', title: t('messages.deleteThreadFailed'), body: e instanceof Error ? e.message : undefined })
     } finally {
       setDeleting(false)
     }
   }
 
+  // --- derived ---------------------------------------------------------------------------
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    return [...threads]
+      .sort((a, b) => (b.last_message_at || b.updated_at || '').localeCompare(a.last_message_at || a.updated_at || ''))
+      .filter((th) => {
+        if (filter === 'unread' && th.unread_count === 0) return false
+        if (filter === 'radiologist' && th.channel !== 'radiologist') return false
+        if (filter === 'admin' && th.channel !== 'admin') return false
+        if (!q) return true
+        return [th.subject, th.last_message_preview, th.counterpart_name, th.owner_subject]
+          .filter(Boolean)
+          .some((f) => String(f).toLocaleLowerCase('tr').includes(q))
+      })
+  }, [threads, query, filter])
+
+  const unreadTotal = threads.reduce((n, th) => n + th.unread_count, 0)
+  const showChat = Boolean(threadId)
+  const thread = detail?.thread
+  const counterpartName = thread?.counterpart_name || (thread ? channelLabel(thread.channel, t) : '')
+  const canDeleteThread = Boolean(
+    thread && (role === 'admin' || thread.owner_subject === me || thread.recipient_subject === me),
+  )
+  const subtitle =
+    role === 'expert' ? t('messages.subtitleExpert') : role === 'admin' ? t('messages.subtitleAdmin') : t('messages.subtitleStaff')
+  const groups = useMemo(() => groupMessages(messages), [messages])
+
+  const filters: { id: Filter; label: string }[] = [
+    { id: 'all', label: t('messages.filterAll') },
+    { id: 'unread', label: unreadTotal ? `${t('messages.filterUnread')} · ${unreadTotal}` : t('messages.filterUnread') },
+    { id: 'radiologist', label: t('messages.channelRadiologist') },
+    { id: 'admin', label: t('messages.channelAdmin') },
+  ]
+
+  // --- render ----------------------------------------------------------------------------
+
   return (
     <>
-      <div className="vm-fade-up relative -mx-2 sm:-mx-1">
-        <div className="grid h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_16px_48px_-24px_rgba(11,23,40,0.35)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-          {/* Clinical conversation rail */}
-          <aside
-            className={`relative flex min-h-0 flex-col overflow-hidden border-r border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white text-navy-950 ${
-              showChat ? 'hidden lg:flex' : 'flex'
-            }`}
-          >
-            <div className="relative border-b border-slate-200/80 px-5 pb-4 pt-5">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-700/80">
-                    {t('messages.conversations')}
-                  </p>
-                  <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-navy-950">
-                    {t('messages.title')}
-                  </h1>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-500">{subtitle}</p>
-                </div>
-                {canCompose && (
-                  <button
-                    type="button"
-                    onClick={openCompose}
-                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-navy-800 to-navy-950 px-3 text-sm font-semibold text-white shadow-md transition hover:from-navy-700 hover:to-navy-900"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                    <span>{t('messages.newMessage')}</span>
-                  </button>
-                )}
+      <div className="flex h-[calc(100dvh-7rem)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Conversation list */}
+        <aside
+          className={`min-h-0 w-full shrink-0 flex-col border-r border-slate-200 bg-white lg:flex lg:w-[340px] ${
+            showChat ? 'hidden' : 'flex'
+          }`}
+          aria-label={t('messages.conversations')}
+        >
+          <div className="space-y-3 border-b border-slate-100 px-4 pb-3 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h1 className="font-display text-xl font-bold tracking-tight text-navy-950">{t('messages.title')}</h1>
+                <p className="truncate text-xs text-slate-500">{subtitle}</p>
               </div>
-
-              <label className="relative mt-4 block">
-                <span className="sr-only">{t('messages.searchPlaceholder')}</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t('messages.searchPlaceholder')}
-                  className="w-full rounded-lg border-0 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-navy-900 outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-navy-900/15"
-                />
-              </label>
-            </div>
-
-            {error && (
-              <div
-                className="relative mx-4 mb-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200"
-                role="alert"
-              >
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1">{error}</span>
-                <button type="button" className="shrink-0 font-semibold underline" onClick={() => void loadThreads()}>
-                  {t('messages.retry')}
-                </button>
-              </div>
-            )}
-
-            <div className="relative min-h-0 flex-1 overflow-y-auto">
-              {loading ? (
-                <p className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" /> {t('common.loading')}
-                </p>
-              ) : filtered.length === 0 ? (
-                <div className="px-6 py-12 text-center">
-                  <MessageSquare className="mx-auto h-8 w-8 text-slate-400" />
-                  <p className="mt-3 text-sm font-medium text-navy-950">{t('messages.noMessages')}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {canCompose ? t('messages.emptyListHintStaff') : t('messages.emptyListHintInbox')}
-                  </p>
-                  {canCompose && (
-                    <button
-                      type="button"
-                      onClick={openCompose}
-                      className="mt-4 text-sm font-semibold text-navy-800 hover:underline"
-                    >
-                      {t('messages.newMessage')}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <ul className="space-y-0.5 px-2 pb-3">
-                  {filtered.map((thread) => {
-                    const active = threadId === thread.thread_id
-                    return (
-                      <li key={thread.thread_id}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/mesajlar/${thread.thread_id}`)}
-                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
-                            active ? 'bg-slate-100 ring-1 ring-slate-200' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${channelTone(thread.channel)}`}
-                          >
-                            {thread.channel === 'admin' ? <Shield className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-sm font-semibold text-navy-950">
-                                {counterpartLabel(thread, t)}
-                              </span>
-                              <span
-                                className={`shrink-0 text-[11px] ${
-                                  thread.unread_count > 0 ? 'font-semibold text-navy-800' : 'text-slate-400'
-                                }`}
-                              >
-                                {fmtListTime(thread.last_message_at || thread.updated_at, locale)}
-                              </span>
-                            </div>
-                            <div className="mt-0.5 flex items-center justify-between gap-2">
-                              <p className="truncate text-[12px] text-slate-500">
-                                <span className="font-medium text-slate-600">{thread.subject}</span>
-                                {thread.last_message_preview ? ` · ${thread.last_message_preview}` : ''}
-                              </p>
-                              {thread.unread_count > 0 && (
-                                <span
-                                  aria-label={t('messages.unreadCount', { count: thread.unread_count })}
-                                  className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-navy-900 px-1.5 text-[11px] font-bold text-white">
-                                  {thread.unread_count}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
+              {canCompose && (
+                <Button size="sm" onClick={openCompose} icon={<Plus className="h-4 w-4" />}>
+                  {t('messages.newMessage')}
+                </Button>
               )}
             </div>
-          </aside>
+            <label className="relative block">
+              <span className="sr-only">{t('messages.searchPlaceholder')}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('messages.searchPlaceholder')}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-navy-900 outline-none placeholder:text-slate-400 focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+              />
+            </label>
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label={t('messages.filterLabel')}>
+              {filters.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    filter === f.id ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          {/* Light chat stage */}
-          <section
-            className={`relative flex min-h-0 flex-col bg-slate-50 ${
-              showChat ? 'flex' : 'hidden lg:flex'
-            }`}
-          >
-            {!threadId ? (
-              <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-navy-900 text-white">
-                  <MessageSquare className="h-7 w-7" />
-                </div>
-                <h2 className="mt-5 font-[family-name:var(--vm-font-display)] text-2xl font-semibold text-navy-900">
-                  {t('messages.brandTitle')}
-                </h2>
-                <p className="mt-2 max-w-sm text-sm text-slate-500">
-                  {t('messages.selectThread')}
-                  {canCompose ? t('messages.selectThreadOrNew') : ''}.
+          {error && (
+            <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200" role="alert">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">{error}</span>
+              <button type="button" className="shrink-0 font-semibold underline" onClick={() => void loadThreads()}>
+                {t('messages.retry')}
+              </button>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {loading ? (
+              <ul className="space-y-1 p-3" aria-busy="true" aria-label={t('common.loading')}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <li key={i} className="flex animate-pulse items-center gap-3 rounded-xl px-2 py-2.5">
+                    <div className="h-10 w-10 rounded-full bg-slate-100" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-1/2 rounded bg-slate-100" />
+                      <div className="h-3 w-3/4 rounded bg-slate-100" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : filtered.length === 0 ? (
+              <div className="px-6 py-14 text-center">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                  <MessageSquare className="h-6 w-6" />
+                </span>
+                <p className="mt-3 text-sm font-semibold text-navy-950">
+                  {threads.length === 0 ? t('messages.noMessages') : t('messages.noMatches')}
                 </p>
-              </div>
-            ) : detailLoading || !detail ? (
-              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> {t('messages.loadingThread')}
+                <p className="mt-1 text-xs text-slate-500">
+                  {threads.length === 0
+                    ? canCompose
+                      ? t('messages.emptyListHintStaff')
+                      : t('messages.emptyListHintInbox')
+                    : t('messages.noMatchesHint')}
+                </p>
+                {canCompose && threads.length === 0 && (
+                  <Button size="sm" className="mt-4" onClick={openCompose} icon={<Plus className="h-4 w-4" />}>
+                    {t('messages.newMessage')}
+                  </Button>
+                )}
               </div>
             ) : (
-              <>
-                <header className="flex items-center gap-3 border-b border-slate-200/80 bg-white/80 px-3 py-3 backdrop-blur-sm sm:px-5">
+              <ul className="p-2">
+                {filtered.map((th) => {
+                  const active = threadId === th.thread_id
+                  const name = th.counterpart_name || channelLabel(th.channel, t)
+                  const unread = th.unread_count > 0
+                  return (
+                    <li key={th.thread_id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/mesajlar/${th.thread_id}`)}
+                        aria-current={active ? 'true' : undefined}
+                        className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${
+                          active ? 'bg-teal-50 ring-1 ring-inset ring-teal-200' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="relative shrink-0">
+                          <span className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${avatarTone(th.counterpart_role)}`}>
+                            {th.counterpart_role === 'support' ? <Shield className="h-4 w-4" /> : initials(name)}
+                          </span>
+                          {th.counterpart_online && (
+                            <span
+                              className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white"
+                              title={t('messages.online')}
+                            />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className={`truncate text-sm ${unread ? 'font-bold text-navy-950' : 'font-semibold text-navy-900'}`}>{name}</span>
+                            <span className={`shrink-0 text-[11px] ${unread ? 'font-semibold text-teal-700' : 'text-slate-400'}`}>
+                              {listTime(th.last_message_at || th.updated_at, locale, t)}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 flex items-center gap-2">
+                            <span className={`min-w-0 flex-1 truncate text-xs ${unread ? 'text-navy-800' : 'text-slate-500'}`}>
+                              <span className="font-medium">{th.subject}</span>
+                              {th.last_message_preview ? ` — ${th.last_message_preview}` : ''}
+                            </span>
+                            {unread && (
+                              <span
+                                className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-teal-600 px-1.5 text-[11px] font-bold text-white"
+                                aria-label={t('messages.unreadCount', { count: th.unread_count })}
+                              >
+                                {th.unread_count}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </aside>
+
+        {/* Chat */}
+        <section className={`min-h-0 min-w-0 flex-1 flex-col bg-slate-50 lg:flex ${showChat ? 'flex' : 'hidden'}`}>
+          {!threadId ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm ring-1 ring-slate-200">
+                <MessageSquare className="h-6 w-6" />
+              </span>
+              <h2 className="mt-4 text-lg font-semibold text-navy-900">{t('messages.brandTitle')}</h2>
+              <p className="mt-1 max-w-sm text-sm text-slate-500">
+                {t('messages.selectThread')}
+                {canCompose ? t('messages.selectThreadOrNew') : ''}.
+              </p>
+              {canCompose && (
+                <Button className="mt-5" onClick={openCompose} icon={<Plus className="h-4 w-4" />}>
+                  {t('messages.newMessage')}
+                </Button>
+              )}
+            </div>
+          ) : detailLoading && !detail ? (
+            <div className="flex flex-1 items-center justify-center gap-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('messages.loadingThread')}
+            </div>
+          ) : !detail || !thread ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">{t('messages.threadOpenFailed')}</div>
+          ) : (
+            <>
+              <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-5">
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-navy-800 hover:bg-slate-100 lg:hidden"
+                  onClick={() => navigate('/mesajlar')}
+                  aria-label={t('messages.backToThreads')}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <span className="relative shrink-0">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${avatarTone(thread.counterpart_role)}`}>
+                    {thread.counterpart_role === 'support' ? <Shield className="h-4 w-4" /> : initials(counterpartName)}
+                  </span>
+                  {thread.counterpart_online && (
+                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold text-navy-950">{counterpartName}</p>
+                  <p className="truncate text-xs text-slate-500" aria-live="polite">
+                    {typingName ? (
+                      <span className="font-medium text-teal-700">{t('messages.typing')}</span>
+                    ) : (
+                      <>
+                        {thread.counterpart_online ? (
+                          <span className="font-medium text-emerald-700">{t('messages.online')}</span>
+                        ) : (
+                          roleLabel(thread.counterpart_role || '', t)
+                        )}
+                        {` · ${thread.subject}`}
+                      </>
+                    )}
+                  </p>
+                </div>
+                {thread.related_case_id && (
+                  <LocalizedLink
+                    to={`/vakalar/${thread.related_case_id}`}
+                    className="hidden items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50 sm:inline-flex"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> {t('messages.goToCase')}
+                  </LocalizedLink>
+                )}
+                {canDeleteThread && (
                   <button
                     type="button"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-navy-800 transition hover:bg-slate-200 lg:hidden"
-                    onClick={() => navigate('/mesajlar')}
-                    aria-label={t('messages.backToThreads')}
+                    onClick={() => setPendingDeleteThread(true)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    title={t('messages.deleteThread')}
+                    aria-label={t('messages.deleteThread')}
                   >
-                    <ArrowLeft className="h-5 w-5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${channelTone(detail.thread.channel)}`}
-                  >
-                    {detail.thread.channel === 'admin' ? (
-                      <Shield className="h-5 w-5" />
-                    ) : (
-                      <Stethoscope className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-navy-900">{counterpartLabel(detail.thread, t)}</p>
-                    <p className="truncate text-[11px] text-slate-500">
-                      {authorLabel(detail.thread.counterpart_role || '', '', t) || channelLabel(detail.thread.channel, t)}
-                      {` · ${detail.thread.subject}`}
-                      {detail.thread.related_case_id ? (
-                        <>
-                          {' · '}
-                          <LocalizedLink
-                            className="font-medium text-teal-700 underline decoration-teal-300/60 underline-offset-2 hover:decoration-teal-700"
-                            to={`/vakalar/${detail.thread.related_case_id}`}
-                          >
-                            {t('messages.goToCase')}
-                          </LocalizedLink>
-                        </>
-                      ) : null}
-                    </p>
-                  </div>
-                  {canDeleteThread && (
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteThread(true)}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                      title={t('messages.deleteThread')}
-                      aria-label={t('messages.deleteThread')}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </header>
+                )}
+              </header>
 
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-6">
-                  {groupedMessages.map((group) => (
-                    <div key={group.day} className="space-y-2">
-                      <div className="sticky top-0 z-10 flex justify-center py-1">
-                        <span className="rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200/80">
-                          {dayLabel(group.items[0].created_at, locale, t)}
-                        </span>
+              {liveStatus === 'retrying' && (
+                <div className="flex items-center justify-center gap-1.5 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800">
+                  <WifiOff className="h-3 w-3" /> {t('messages.reconnecting')}
+                </div>
+              )}
+
+              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6" role="log" aria-label={t('messages.historyLabel')}>
+                <div className="mx-auto max-w-3xl space-y-4">
+                  {groups.map((g) => (
+                    <div key={g.day} className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="h-px flex-1 bg-slate-200" />
+                        <span className="text-[11px] font-medium text-slate-500">{dayLabel(g.runs[0].items[0].created_at, locale, t)}</span>
+                        <span className="h-px flex-1 bg-slate-200" />
                       </div>
-                  {group.items.map((m) => {
-                    const mine = Boolean(me && m.author_subject === me)
-                    const canDeleteMsg = mine || role === 'admin'
-                    return (
-                      <div key={m.message_id} className={`group flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className={`relative max-w-[85%] rounded-2xl px-3.5 py-2 shadow-sm sm:max-w-[70%] ${
-                            mine
-                              ? 'rounded-br-md bg-[color:var(--vm-midnight,#0b1728)] text-white'
-                              : 'rounded-bl-md bg-white text-navy-900 ring-1 ring-slate-200/80'
-                          }`}
-                        >
-                          {!mine && (
-                            <p className="mb-0.5 text-[11px] font-semibold text-teal-700">
-                              {authorLabel(m.author_role, m.author_subject, t)}
-                            </p>
-                          )}
-                          <p className="whitespace-pre-wrap text-[14px] leading-snug">{m.body}</p>
-                          <div
-                            className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${
-                              mine ? 'text-slate-300' : 'text-slate-400'
-                            }`}
-                          >
-                            {canDeleteMsg && (
-                              <button
-                                type="button"
-                                onClick={() => setPendingDeleteMessageId(m.message_id)}
-                                className={`rounded p-0.5 opacity-70 transition hover:opacity-100 ${
-                                  mine ? 'hover:bg-white/10 hover:text-rose-300' : 'hover:bg-rose-50 hover:text-rose-600'
-                                }`}
-                                title={t('messages.deleteMessage')}
-                                aria-label={t('messages.deleteMessage')}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                      {g.runs.map((run, ri) => {
+                        const mine = run.author === me
+                        const name = run.role === 'admin' && thread.channel === 'admin' ? t('messages.roleSupport') : counterpartName
+                        return (
+                          <div key={`${g.day}-${ri}`} className={`flex gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                            {!mine && (
+                              <span className={`mt-5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${avatarTone(run.role)}`}>
+                                {initials(name || run.author)}
+                              </span>
                             )}
-                            <time dateTime={m.created_at} title={fmtDate(m.created_at, locale)}>
-                              {fmtClock(m.created_at) || fmtDate(m.created_at, locale)}
-                            </time>
+                            <div className={`flex max-w-[85%] flex-col gap-1 sm:max-w-[70%] ${mine ? 'items-end' : 'items-start'}`}>
+                              {!mine && (
+                                <span className="px-1 text-[11px] font-semibold text-slate-600">
+                                  {name} <span className="font-normal text-slate-400">· {roleLabel(run.role, t)}</span>
+                                </span>
+                              )}
+                              {run.items.map((m) => (
+                                <MessageBubble
+                                  key={m.localId || m.message_id}
+                                  m={m}
+                                  mine={mine}
+                                  canDelete={(mine || role === 'admin') && !m.localState}
+                                  onDelete={() => void deleteMessage(m)}
+                                  onRestore={() => void restoreMessage(thread.thread_id, m.message_id)}
+                                  onRetry={() => retry(m)}
+                                  onDiscard={() => discardFailed(m)}
+                                  t={t}
+                                />
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                        )
+                      })}
                     </div>
                   ))}
-                  <div ref={endRef} />
-                </div>
-
-                <form
-                  className="border-t border-slate-200/80 bg-white/90 px-3 py-3 backdrop-blur-sm sm:px-5"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    void sendReply()
-                  }}
-                >
-                  <div className="flex items-end gap-2">
-                    <div className="min-w-0 flex-1 rounded-2xl bg-slate-50 px-4 py-2 ring-1 ring-slate-200/80 focus-within:ring-2 focus-within:ring-teal-400/50">
-                      <label className="sr-only" htmlFor="wa-reply">
-                        {t('messages.messageLabel')}
-                      </label>
-                      <textarea
-                        id="wa-reply"
-                        rows={1}
-                        value={reply}
-                        onChange={(e) => setReply(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            void sendReply()
-                          }
-                        }}
-                        placeholder={t('messages.placeholder')}
-                        className="max-h-32 w-full resize-none border-0 bg-transparent py-1.5 text-sm text-navy-900 outline-none placeholder:text-slate-400"
-                      />
+                  {typingName && (
+                    <div className="flex items-center gap-2 pl-9 text-xs text-slate-500">
+                      <span className="flex gap-0.5" aria-hidden>
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+                      </span>
+                      {t('messages.typingNamed', { name: typingName })}
                     </div>
-                    <button
-                      type="submit"
-                      disabled={busy || !reply.trim()}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-400 text-navy-950 shadow-md transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label={t('messages.send')}
-                    >
-                      {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
-          </section>
-        </div>
-      </div>
+                  )}
+                </div>
+              </div>
 
-      <Modal
-        open={Boolean(pendingDeleteMessageId)}
-        onClose={() => {
-          if (!deleting) setPendingDeleteMessageId(null)
-        }}
-        title={t('messages.deleteMessageTitle')}
-        footer={
-          <>
-            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDeleteMessageId(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={deleting}
-              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              onClick={() => void confirmDeleteMessage()}
-            >
-              {deleting ? t('messages.deleting') : t('messages.confirmDelete')}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-slate-600">{t('messages.deleteMessageConfirm')}</p>
-      </Modal>
+              {undo && undo.threadId === thread.thread_id && (
+                <div className="mx-auto mb-2 flex w-[calc(100%-1.5rem)] max-w-md items-center gap-3 rounded-xl bg-navy-950 px-4 py-2.5 text-sm text-white shadow-lg" role="status">
+                  <span className="flex-1">{t('messages.messageDeleted')}</span>
+                  <button
+                    type="button"
+                    onClick={() => void restoreMessage(undo.threadId, undo.messageId)}
+                    className="inline-flex items-center gap-1 font-semibold text-teal-300 hover:text-teal-200"
+                  >
+                    <RotateCcw className="h-4 w-4" /> {t('messages.undo')}
+                  </button>
+                </div>
+              )}
+
+              <form
+                className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  sendReply()
+                }}
+              >
+                <div className="mx-auto flex max-w-3xl items-end gap-2">
+                  <label className="sr-only" htmlFor="message-composer">
+                    {t('messages.messageLabel')}
+                  </label>
+                  <textarea
+                    id="message-composer"
+                    ref={textareaRef}
+                    rows={1}
+                    value={reply}
+                    onChange={(e) => onReplyChange(e.target.value)}
+                    onKeyDown={onComposerKey}
+                    placeholder={t('messages.placeholder')}
+                    maxLength={4000}
+                    className="max-h-40 min-h-[44px] flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-navy-900 outline-none placeholder:text-slate-400 focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!reply.trim()}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    aria-label={t('messages.send')}
+                  >
+                    <Send className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="mx-auto mt-1 max-w-3xl px-1 text-[11px] text-slate-400">{t('messages.composerHint')}</p>
+              </form>
+            </>
+          )}
+        </section>
+      </div>
 
       <Modal
         open={pendingDeleteThread}
@@ -754,18 +922,14 @@ export default function Messages() {
             <p className="label">{t('messages.composeTo')}</p>
             {recipient ? (
               <div className="mt-1.5 flex items-center gap-3 rounded-xl bg-teal-50 px-3 py-2 ring-1 ring-inset ring-teal-200">
-                <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${channelTone(recipient.channel)}`}>
+                <span className={`flex h-9 w-9 items-center justify-center rounded-full ${avatarTone(recipient.role)}`}>
                   {recipient.channel === 'admin' ? <Shield className="h-4 w-4" /> : <Stethoscope className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-navy-900">{recipient.display_name}</span>
-                  <span className="block text-xs text-slate-500">{authorLabel(recipient.role, recipient.subject, t)}</span>
+                  <span className="block text-xs text-slate-500">{roleLabel(recipient.role, t)}</span>
                 </span>
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-teal-800 hover:underline"
-                  onClick={() => setRecipient(null)}
-                >
+                <button type="button" className="text-xs font-semibold text-teal-800 hover:underline" onClick={() => setRecipient(null)}>
                   {t('messages.changeRecipient')}
                 </button>
               </div>
@@ -805,14 +969,13 @@ export default function Messages() {
                             onClick={() => setRecipient(r)}
                             className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-slate-50"
                           >
-                            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${channelTone(r.channel)}`}>
-                              {r.channel === 'admin' ? <Shield className="h-4 w-4" /> : <Stethoscope className="h-4 w-4" />}
+                            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${avatarTone(r.role)}`}>
+                              {r.channel === 'admin' ? <Shield className="h-4 w-4" /> : initials(r.display_name)}
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium text-navy-900">{r.display_name}</span>
-                              <span className="block text-xs text-slate-500">{authorLabel(r.role, r.subject, t)}</span>
+                              <span className="block text-xs text-slate-500">{roleLabel(r.role, t)}</span>
                             </span>
-                            <Check className="h-4 w-4 text-transparent" aria-hidden />
                           </button>
                         </li>
                       ))}
@@ -824,12 +987,7 @@ export default function Messages() {
           </div>
           <label className="block">
             <span className="label">{t('messages.subject')}</span>
-            <input
-              className="input mt-1"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder={t('messages.subjectPlaceholder')}
-            />
+            <input className="input mt-1" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('messages.subjectPlaceholder')} maxLength={200} />
           </label>
           <label className="block">
             <span className="label">{t('messages.messageLabel')}</span>
@@ -838,6 +996,7 @@ export default function Messages() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder={t('messages.bodyPlaceholder')}
+              maxLength={4000}
             />
           </label>
           <div className="flex flex-wrap justify-end gap-2 pt-1">
@@ -845,15 +1004,119 @@ export default function Messages() {
               {t('common.cancel')}
             </Button>
             <Button
-              disabled={busy || !recipient || !subject.trim() || !body.trim()}
+              disabled={composeBusy || !recipient || !subject.trim() || !body.trim()}
               onClick={() => void startConversation()}
-              icon={<Send className="h-4 w-4" />}
+              icon={composeBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             >
-              {busy ? t('messages.sending') : t('messages.send')}
+              {composeBusy ? t('messages.sending') : t('messages.send')}
             </Button>
           </div>
         </div>
       </Modal>
     </>
+  )
+}
+
+// --- bubble ------------------------------------------------------------------------------
+
+function MessageBubble({
+  m,
+  mine,
+  canDelete,
+  onDelete,
+  onRestore,
+  onRetry,
+  onDiscard,
+  t,
+}: {
+  m: UiMessage
+  mine: boolean
+  canDelete: boolean
+  onDelete: () => void
+  onRestore: () => void
+  onRetry: () => void
+  onDiscard: () => void
+  t: TranslateFn
+}) {
+  const [, force] = useState(0)
+  const restorableUntil = m.restorable_until ? new Date(m.restorable_until).getTime() : 0
+  const canRestore = Boolean(m.deleted && restorableUntil > Date.now())
+
+  // Re-render once the undo window closes so the button disappears on time.
+  useEffect(() => {
+    if (!canRestore) return
+    const id = window.setTimeout(() => force((n) => n + 1), Math.max(0, restorableUntil - Date.now()) + 50)
+    return () => window.clearTimeout(id)
+  }, [canRestore, restorableUntil])
+
+  if (m.deleted) {
+    return (
+      <div
+        className={`flex items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/60 px-3 py-1.5 text-xs italic text-slate-500 ${
+          mine ? 'rounded-br-md' : 'rounded-bl-md'
+        }`}
+      >
+        <Trash2 className="h-3 w-3" aria-hidden />
+        <span>{t('messages.deletedPlaceholder')}</span>
+        {canRestore && (
+          <button type="button" onClick={onRestore} className="inline-flex items-center gap-1 font-semibold not-italic text-teal-700 hover:underline">
+            <RotateCcw className="h-3 w-3" /> {t('messages.undo')}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const failed = m.localState === 'failed'
+  return (
+    <div className={`group flex items-center gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
+      <div
+        className={`relative rounded-2xl px-3.5 py-2 text-[14px] leading-snug shadow-sm ${
+          mine
+            ? failed
+              ? 'rounded-br-md bg-rose-50 text-rose-900 ring-1 ring-rose-200'
+              : 'rounded-br-md bg-teal-600 text-white'
+            : 'rounded-bl-md bg-white text-navy-900 ring-1 ring-slate-200'
+        } ${m.localState === 'sending' ? 'opacity-70' : ''}`}
+      >
+        <p className="whitespace-pre-wrap break-words">{m.body}</p>
+        <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine && !failed ? 'text-teal-100' : 'text-slate-400'}`}>
+          <time dateTime={m.created_at} title={new Date(m.created_at).toLocaleString('tr-TR')}>
+            {clock(m.created_at)}
+          </time>
+          {mine &&
+            (m.localState === 'sending' ? (
+              <Clock className="h-3 w-3" aria-label={t('messages.statusSending')} />
+            ) : failed ? (
+              <AlertCircle className="h-3 w-3 text-rose-600" aria-label={t('messages.statusFailed')} />
+            ) : m.read_by_other ? (
+              <CheckCheck className="h-3.5 w-3.5 text-white" aria-label={t('messages.statusRead')} />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-label={t('messages.statusSent')} />
+            ))}
+        </span>
+        {failed && (
+          <span className="mt-1 flex gap-3 text-[11px] font-semibold">
+            <button type="button" onClick={onRetry} className="text-rose-700 hover:underline">
+              {t('messages.retrySend')}
+            </button>
+            <button type="button" onClick={onDiscard} className="text-slate-500 hover:underline">
+              {t('common.cancel')}
+            </button>
+          </span>
+        )}
+      </div>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-lg p-1.5 text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+          title={t('messages.deleteMessage')}
+          aria-label={t('messages.deleteMessage')}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   )
 }

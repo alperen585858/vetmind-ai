@@ -115,12 +115,25 @@ export async function markSupportThreadRead(threadId: string) {
   })
 }
 
-/** Returns remaining thread detail, or null when the conversation was removed (last message). */
+/** Soft delete: the message stays as a placeholder and can be restored for a few minutes. */
 export async function deleteSupportMessage(threadId: string, messageId: string) {
-  return request<import('../types').BackendSupportThreadDetail | void>(
+  return request<import('../types').BackendSupportThreadDetail>(
     `/messages/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
     { method: 'DELETE' },
-  ).then((r) => (r ? r : null))
+  )
+}
+
+/** Undo a delete (only the person who deleted it, within the undo window). */
+export async function restoreSupportMessage(threadId: string, messageId: string) {
+  return request<import('../types').BackendSupportThreadDetail>(
+    `/messages/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/restore`,
+    { method: 'POST' },
+  )
+}
+
+/** "Typing…" ping for the other participants (not stored). */
+export async function sendTypingPing(threadId: string) {
+  await request<void>(`/messages/threads/${encodeURIComponent(threadId)}/typing`, { method: 'POST' })
 }
 
 export async function deleteSupportThread(threadId: string) {

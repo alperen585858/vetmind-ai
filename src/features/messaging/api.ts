@@ -18,6 +18,8 @@ export {
   markSupportThreadRead,
   postCaseMessage,
   postSupportMessage,
+  restoreSupportMessage,
+  sendTypingPing,
 } from '../../shared/api/messaging'
 
 export type { AiChatResponse, AiChatTurn, AppNotification } from '../../shared/api/messaging'

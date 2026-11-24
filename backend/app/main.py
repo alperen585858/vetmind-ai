@@ -19,7 +19,7 @@ from app.api.notifications import router as notifications_router
 from app.api.admin_retention import router as admin_retention_router
 from app.api.llm_feedback import router as llm_feedback_router
 from app.api.feedback import router as feedback_router
-from app.api.messaging import router as messaging_router
+from app.api.messaging import live_router, router as messaging_router
 from app.api.radiologist_payouts import router as radiologist_payouts_router
 from app.api.workflow import router as workflow_router
 from app.api.settings import router as settings_router
@@ -73,6 +73,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(workflow_router)
     app.include_router(radiologist_payouts_router)
     app.include_router(messaging_router)
+    app.include_router(live_router)
     app.include_router(notifications_router)
     app.include_router(settings_router)
     app.include_router(llm_feedback_router)

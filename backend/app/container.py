@@ -52,6 +52,7 @@ from app.services.repository import CaseRepository, InMemoryCaseRepository, buil
 from app.services.messaging_facade import MessagingFacade
 from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
+from app.services.live_events import LiveEventBroker, StreamTicketService
 from app.services.payment_service import PaymentService
 from app.services.payment_store import build_payment_store
 from app.services.radiologist_payout_service import RadiologistPayoutService
@@ -381,12 +382,18 @@ class AppContainer:
         self.radiologist_payouts.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
         self.messaging_store = build_messaging_store(self.settings)
+        # Live updates (SSE): one in-process broker + single-use stream tickets.
+        self.live_events = LiveEventBroker()
+        self.stream_tickets = StreamTicketService()
+        if hasattr(self.notifications, "bind_live"):
+            self.notifications.bind_live(self.live_events)
         self.messaging = MessagingService(
             self.messaging_store,
             notifications=self.notifications,
             auth_users=self._auth_users,
             tenant_isolation=self.settings.tenant_isolation,
             user_directory=self.workflow_store,
+            live=self.live_events,
         )
         self.auth = AuthSettings(
             enabled=self.settings.auth_enabled,
