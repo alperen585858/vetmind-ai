@@ -705,6 +705,7 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
   - Etiketlerin bedeli asimetrik: eksik etiket sadece daha az filtre demek, yanlış etiket kaynağı gizler. Bu yüzden tür etiketi yalnızca başlıkta geçiyorsa veya metinde en az iki kez geçip diğer tür hiç geçmiyorsa konur; kafatası etiketi yalnızca kafatası terimleri baskınsa konur.
   - `VETMIND_RAG_CARD_LLM=1` ile kuralların bulamadığı boşluğu dil modeli doldurur (kurallarla çelişirse kural kazanır; hata olursa kurallarla devam eder).
   - Admin, Bilgi Tabanı sayfasındaki Kapsam sütunundan etiketi düzeltebilir (`PUT /rag/documents/{id}/card`); elle verilen etiket korunur. Kartlardan önce yüklenmiş kaynaklar `POST /rag/documents/retag` ile etiketlenir.
+- **Parçalama (chunking, #100)** (`rag/chunking.py`). Yüklenen uzun kaynaklar (en fazla 50.000 karakter) paragraf ve cümle sınırlarında ~600-900 karakterlik parçalara bölünür; her parça bir önceki parçanın son cümlesiyle birlikte vektörleşir ama saklanan metne eklenmez. Kart kaynağın tamamından bir kez çıkarılır ve bütün parçalara uygulanır. Aramada aynı kaynaktan en fazla 2 parça gelir; rapordaki bölüm adında "parça 2/5" gibi yazar. Kısa kaynaklar ve hazır kaynaklar tek parça kalır.
 - Sorgu Türkçe içerikten oluşur (bölge, şikâyet, bulgu metni). Enum ve bulgu kodları sorguya girmez.
 - Hash embedding 2048 boyutlu; Türkçe kök özelliği kullanıyor ve "ve/ile/bir" gibi dolgu kelimeleri atıyor.
 - Skor eşiğinin altında kalan kaynaklar atılır. İlgili kaynak yoksa model kaynaksız yazar.

@@ -57,7 +57,7 @@ function fromBackendDoc(d: RagCustomDocument, i: number): KbSource {
     license: license === 'İzinli' ? 'İzinli' : 'Beklemede',
     section: 'Eklenen kaynak',
     passage: d.passage,
-    chunks: 1,
+    chunks: d.chunks ?? 1,
     indexedAt: today(),
     keywords: d.keywords,
     ragApproved: Boolean(d.approved),

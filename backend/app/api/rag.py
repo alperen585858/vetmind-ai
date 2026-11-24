@@ -27,7 +27,8 @@ class RagDocumentCreate(BaseModel):
 
     title: str = Field(min_length=1, max_length=200)
     section: str = Field(default="Custom", max_length=200)
-    passage: str = Field(min_length=1, max_length=8000)
+    # Long sources are split into chunks on upload (#100).
+    passage: str = Field(min_length=1, max_length=50_000)
     keywords: list[str] = Field(default_factory=list)
     source_id: str | None = None
     # Default false — do not claim clinical approved KB unless explicitly set.
@@ -77,6 +78,7 @@ class RagDocumentResponse(BaseModel):
     species: list[str] = Field(default_factory=list)
     summary: str = ""
     tag_source: str = ""
+    chunks: int = 1
 
 
 class RagCardUpdate(BaseModel):
@@ -158,20 +160,24 @@ class RagCustomDocument(BaseModel):
     summary: str = ""
     # seed | manual | rules | llm | none ("" = uploaded before source cards existed)
     tag_source: str = ""
+    chunks: int = 1
 
 
-def _custom(d: IndexedDoc) -> RagCustomDocument:
+def _custom(chunks: list[IndexedDoc]) -> RagCustomDocument:
+    """One row per uploaded source; the passage is the chunks joined back together."""
+    d = chunks[0]
     return RagCustomDocument(
-        source_id=d.source_id,
+        source_id=d.source_key,
         title=d.title,
         section=d.section,
-        passage=d.passage,
+        passage="\n\n".join(c.passage for c in chunks),
         keywords=list(d.keywords),
         approved=bool(d.approved),
         regions=list(d.regions),
         species=list(d.species),
         summary=d.summary,
         tag_source=d.tag_source,
+        chunks=len(chunks),
     )
 
 
@@ -183,7 +189,7 @@ def list_custom_rag_documents(
     """Sources added through POST /documents (seed corpus excluded), so the UI can list them."""
     if container.vector_store is None:
         return []
-    return [_custom(d) for d in container.vector_store.documents if d.source_id.startswith("custom-")]
+    return [_custom(chunks) for chunks in container.vector_store.sources(prefix="custom-")]
 
 
 @router.post("/documents", response_model=RagDocumentResponse, status_code=201)
@@ -215,7 +221,7 @@ def add_rag_document(
         tag_source=card.tag_source,
     )
     return RagDocumentResponse(
-        source_id=doc.source_id,
+        source_id=doc.source_key,
         title=doc.title,
         section=doc.section,
         count=len(store),
@@ -224,6 +230,7 @@ def add_rag_document(
         species=list(doc.species),
         summary=doc.summary,
         tag_source=doc.tag_source,
+        chunks=doc.chunk_count,
     )
 
 
@@ -236,18 +243,17 @@ def update_rag_document_card(
 ) -> RagCustomDocument:
     """Admin correction of an uploaded source's region / species tags (wins over inferred tags)."""
     store = _store(container)
-    doc = store.get(source_id)
-    if doc is None or not source_id.startswith("custom-"):
+    chunks = store.source_chunks(source_id)
+    if not chunks or not source_id.startswith("custom-"):
         raise HTTPException(status_code=404, detail="Custom knowledge-base source not found.")
-    updated = store.set_card(
+    store.set_card(
         source_id,
         regions=[r for r in DOC_REGIONS if r in set(payload.regions)],
         species=sorted(set(payload.species)),
-        summary=doc.summary,
+        summary=chunks[0].summary,
         tag_source="manual",
     )
-    assert updated is not None
-    return _custom(updated)
+    return _custom(store.source_chunks(source_id))
 
 
 @router.post("/documents/retag", response_model=RagRetagResponse)
@@ -260,15 +266,15 @@ def retag_rag_documents(
     store = _store(container)
     tagger = _tagger(container)
     retagged = skipped = 0
-    for doc in store.documents:
-        if not doc.source_id.startswith("custom-"):
-            continue
+    for chunks in store.sources(prefix="custom-"):
+        doc = chunks[0]
         if doc.tag_source == "manual":
             skipped += 1
             continue
-        card = tagger.card(title=doc.title, section=doc.section, passage=doc.passage, keywords=doc.keywords)
+        full_text = " ".join(c.passage for c in chunks)
+        card = tagger.card(title=doc.title, section=doc.section, passage=full_text, keywords=doc.keywords)
         store.set_card(
-            doc.source_id, regions=card.regions, species=card.species, summary=card.summary, tag_source=card.tag_source
+            doc.source_key, regions=card.regions, species=card.species, summary=card.summary, tag_source=card.tag_source
         )
         retagged += 1
     return RagRetagResponse(retagged=retagged, skipped_manual=skipped, uses_llm=tagger.uses_llm)
@@ -297,6 +303,6 @@ def add_rag_documents_bulk(
     added = store.add_documents_bulk(rows, default_approved=False, tagger=_tagger(container))
     return RagBulkResponse(
         added=len(added),
-        source_ids=[d.source_id for d in added],
+        source_ids=[d.source_key for d in added],
         count=len(store),
     )

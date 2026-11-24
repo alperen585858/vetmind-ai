@@ -50,7 +50,7 @@ export function KbSourcesProvider({ children }: { children: ReactNode }) {
             license: license === 'İzinli' ? 'İzinli' : 'Beklemede',
             section: d.section || 'Custom',
             passage: d.passage,
-            chunks: 1,
+            chunks: d.chunks ?? 1,
             indexedAt: today(),
             keywords: d.keywords || [],
             ragApproved: Boolean(d.approved),
