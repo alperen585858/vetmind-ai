@@ -203,3 +203,5 @@ class ConfirmClassificationRequest(BaseModel):
     # (see pixel_authorization + allows_pixel_analysis on capabilities).
     imaging_source_permission_verified: bool = False
     imaging_analysis_consent_verified: bool = False
+    # Issue #108: existing clinic patient this study belongs to (optional).
+    patient_id: Optional[str] = Field(default=None, max_length=40)

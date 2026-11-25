@@ -146,6 +146,8 @@ class CaseCreate(BaseModel):
     owner_email: Optional[str] = Field(default=None, max_length=200)
     owner_email_consent: bool = False
     pet_owner_subject: Optional[str] = Field(default=None, max_length=120)
+    # Issue #108: existing clinic patient this study belongs to (optional).
+    patient_id: Optional[str] = Field(default=None, max_length=40)
 
 
 class CaseOwnerUpdate(BaseModel):
@@ -187,6 +189,8 @@ class ReportDraftUpdate(BaseModel):
     findings: Optional[str] = None
     impression: Optional[str] = None
     recommendations: Optional[str] = None
+    # Issue #108: radiologist's wording of the "change since the prior study" section.
+    comparison: Optional[str] = Field(default=None, max_length=4000)
     note: Optional[str] = None
 
 
@@ -220,6 +224,8 @@ class CaseRecord(BaseModel):
     species: Species
     breed: Optional[str] = None
     patient_age_years: Optional[float] = None
+    # Issue #108: clinic patient record (None for cases created before patients existed).
+    patient_id: Optional[str] = None
     modality: Modality
     anatomical_region: AnatomicalRegion
     clinical_history: Optional[str] = None
@@ -303,6 +309,7 @@ class CaseSummary(BaseModel):
     species: Species
     breed: Optional[str] = None
     patient_age_years: Optional[float] = None
+    patient_id: Optional[str] = None
     # Chief complaint for list cards (owner dashboard) without fetching the full record.
     complaint: Optional[str] = None
     modality: Modality

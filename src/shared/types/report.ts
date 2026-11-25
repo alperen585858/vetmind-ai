@@ -43,6 +43,8 @@ export interface BackendDraftReport {
   used_passage_ids?: string[]
   /** Inline citation alias → id, e.g. { F1: finding_id, S1: rag source_id }. */
   citation_map?: Record<string, string>
+  /** Issue #108: change since the prior study (null = case has no patient record). */
+  comparison?: import('./patient').BackendReportComparison | null
   differentials?: BackendDifferential[]
   /** Model text per section at generation time; unchanged by expert edits. */
   ai_sections?: Record<string, string>

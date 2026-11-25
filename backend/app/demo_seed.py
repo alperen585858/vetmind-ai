@@ -26,6 +26,7 @@ from app.dicom.fixtures import (
 from app.schemas.case import CaseAssignmentUpdate, CasePriority, ReviewFeedback, StructuredClinicalHistory
 from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import ReviewAction, Species
+from app.schemas.patient import PatientRecord
 from app.schemas.workflow import PetRecord
 
 if TYPE_CHECKING:
@@ -39,6 +40,8 @@ DEMO_VET = "vet@demo.local"
 DEMO_EXPERT = "expert@demo.local"
 # Demo pet profiles use this id prefix so --remove can find them (PetRecord has no flag).
 DEMO_PET_PREFIX = "pet-demo-"
+# Issue #108: one clinic patient record per demo animal (removed with the demo set).
+DEMO_PATIENT_PREFIX = "pat-demo-"
 
 Stage = Literal["created", "analyzed", "assigned", "revision", "approved"]
 
@@ -70,6 +73,28 @@ class DemoPatient:
 
 
 DEMO_PATIENTS: tuple[DemoPatient, ...] = (
+    # Issue #108: Duman's first MRI four months earlier, so the newer study below has an
+    # approved prior to compare with (prior-studies panel, side-by-side viewer, report).
+    DemoPatient(
+        patient_name="Duman",
+        species=Species.FELINE,
+        breed="British Shorthair",
+        age_years=4,
+        fixture="brain_mri",
+        instances=12,
+        stage="approved",
+        days_ago=128,
+        priority="normal",
+        history=StructuredClinicalHistory(
+            complaint="İlk jeneralize nöbet",
+            onset="Akut",
+            course="Stabil",
+            relevant_history="Kapalı ortamda yaşıyor, toksin maruziyeti öyküsü yok.",
+            medications="Yok",
+        ),
+        exam="Postiktal dönemde hafif sersemlik; sonrasında nörolojik muayene normal.",
+        review_comment="İlk tetkik; takip MR'ı önerildi.",
+    ),
     DemoPatient(
         patient_name="Duman",
         species=Species.FELINE,
@@ -235,8 +260,34 @@ def demo_case_ids(container: AppContainer) -> list[str]:
     return [c.case_id for c in container.repo.list_cases() if c.demo_seed]
 
 
+def _slug(name: str) -> str:
+    table = str.maketrans("ıİşŞğĞüÜöÖçÇ", "iissgguuoocc")
+    return "".join(ch for ch in name.translate(table).lower() if ch.isalnum()) or "hasta"
+
+
+def _demo_patient(container: AppContainer, p: DemoPatient, now: datetime) -> PatientRecord:
+    """Find or create the clinic patient record for a demo animal (one per name)."""
+    patient_id = f"{DEMO_PATIENT_PREFIX}{_slug(p.patient_name)}"
+    existing = container.patient_store.get(patient_id)
+    if existing is not None:
+        return existing
+    return container.patient_store.save(
+        PatientRecord(
+            patient_id=patient_id,
+            clinic_id=DEMO_CLINIC_ID,
+            owner_subject=DEMO_VET,
+            name=p.patient_name,
+            species=p.species,
+            breed=p.breed,
+            sex=p.sex,
+            created_at=now - timedelta(days=p.days_ago),
+        )
+    )
+
+
 def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
     repo = container.repo
+    patient = _demo_patient(container, p, now)
     upload = container.dicom.upload(
         files=_FIXTURES[p.fixture](p.instances),
         patient_name=p.patient_name,
@@ -252,11 +303,15 @@ def _seed_one(container: AppContainer, p: DemoPatient, now: datetime) -> str:
             imaging_analysis_consent_verified=True,
             # B2B: optional owner name only — owners have no account and get no email.
             owner_name=f"{p.patient_name} sahibi",
+            patient_id=patient.patient_id,
         ),
     )
     # Flag before any review so feedback hooks can skip the case.
     case.demo_seed = True
     case.created_at = now - timedelta(days=p.days_ago)
+    if case.dicom_study is not None:
+        # Fixtures all carry one StudyDate; give each demo study its own date (prior studies).
+        case.dicom_study.study_date = case.created_at.strftime("%Y%m%d")
     case.patient_age_years = p.age_years
     case.priority = p.priority
     case.clinical_history_structured = p.history
@@ -318,6 +373,9 @@ def remove_demo_cases(container: AppContainer) -> int:
     for pet in container.workflow_store.list_pets():
         if pet.pet_id.startswith(DEMO_PET_PREFIX):
             container.workflow_store.delete_pet(pet.pet_id)
+    for patient in container.patient_store.list():
+        if patient.patient_id.startswith(DEMO_PATIENT_PREFIX):
+            container.patient_store.delete(patient.patient_id)
     return len(doomed)
 
 

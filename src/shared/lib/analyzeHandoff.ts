@@ -25,6 +25,8 @@ export type AnalyzeHandoff = {
   vetName: string
   /** Optional pet-owner name (owners get no account and no email). */
   ownerName: string
+  /** Issue #108: existing clinic patient chosen in the wizard. */
+  patientId?: string | null
 }
 
 let pending: AnalyzeHandoff | null = null

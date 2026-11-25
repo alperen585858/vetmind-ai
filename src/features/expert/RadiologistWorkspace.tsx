@@ -37,6 +37,8 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { ProvenanceBanner, provenanceKindFromSource } from '../../shared/ui/ProvenanceBanner'
 import { PriorityBadge } from '../../shared/ui/StatusBadge'
 import { ReportDocumentEditor } from '../../shared/ui/ReportDocumentEditor'
+import { PriorStudiesPanel } from '../patients/PriorStudiesPanel'
+import { ComparisonSection } from '../patients/ComparisonSection'
 import {
   BackendUnavailableError,
   PollingCancelledError,
@@ -719,6 +721,13 @@ export default function RadiologistWorkspace() {
         ) : null}
       </Card>
 
+      {(c.backendCaseId || isBackendCaseId(c.id)) && (
+        <div className="mb-4">
+          {/* Issue #108: radiologists read prior studies; linking is the referring vet's job. */}
+          <PriorStudiesPanel caseId={canonicalizeCaseId(c.backendCaseId || c.id)} canLink={false} />
+        </div>
+      )}
+
       <div className={`grid gap-4 ${showDicom ? 'xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}>
         {showDicom && (
           <div className="min-h-[420px] space-y-3 xl:min-h-[560px] xl:sticky xl:top-20 xl:self-start">
@@ -883,6 +892,15 @@ export default function RadiologistWorkspace() {
             findings={c.backendFindings}
             frames={frames}
           />
+
+          {c.backendDraft?.comparison && c.backendCaseId && (
+            <ComparisonSection
+              caseId={c.backendCaseId}
+              comparison={c.backendDraft.comparison}
+              editable={!immutable}
+              onSaved={(draft) => updateCase(c.id, { backendDraft: draft })}
+            />
+          )}
 
           <Card className="p-4">
             <div className="flex flex-wrap gap-2">

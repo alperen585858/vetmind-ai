@@ -22,6 +22,8 @@ import { vhsSpeciesFrom } from '../../shared/lib/vhs'
 import { DicomViewer } from '../../shared/dicom/DicomViewer'
 import { SeriesExplorer } from '../dicom/SeriesExplorer'
 import { setAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
+import { PatientPicker } from '../patients/PatientPicker'
+import { patientFormFromRecord } from '../patients/patientLib'
 import { estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
 import {
   PollingCancelledError,
@@ -29,6 +31,8 @@ import {
   draftToSections,
   pipelineToAssessment,
   confirmDocumentAndAnalyze,
+  createPatient,
+  toBackendSpecies,
   uploadDicomDemo,
   uploadDicomFiles,
   uploadDocuments,
@@ -44,6 +48,7 @@ import type {
   DicomUploadResponse,
   DocType,
   NeuroExam,
+  BackendPatient,
   Patient,
   Priority,
   VetCase,
@@ -202,6 +207,28 @@ export default function NewCase() {
   const submitAbortRef = useRef<AbortController | null>(null)
 
   const P = <K extends keyof Patient>(k: K, v: Patient[K]) => setPatient((p) => ({ ...p, [k]: v }))
+  // Issue #108: clinic patient record this study belongs to (null = create one on submit).
+  const [linkedPatient, setLinkedPatient] = useState<BackendPatient | null>(null)
+  const pickPatient = (record: BackendPatient | null) => {
+    setLinkedPatient(record)
+    if (record) setPatient((p) => patientFormFromRecord(p, record))
+  }
+  /** Chosen patient, or a new record for this animal. Never blocks the case if it fails. */
+  const ensurePatientId = async (): Promise<string | null> => {
+    if (linkedPatient) return linkedPatient.patient_id
+    try {
+      const created = await createPatient({
+        name: patient.name.trim(),
+        species: toBackendSpecies(patient.species),
+        breed: patient.breed.trim() || null,
+        sex: patient.sex,
+      })
+      setLinkedPatient(created)
+      return created.patient_id
+    } catch {
+      return null
+    }
+  }
   const C = <K extends keyof ClinicalInfo>(k: K, v: ClinicalInfo[K]) => setClinical((c) => ({ ...c, [k]: v }))
   const N = <K extends keyof NeuroExam>(k: K, v: NeuroExam[K]) => setNeuro((n) => ({ ...n, [k]: v }))
 
@@ -434,6 +461,7 @@ export default function NewCase() {
         .join('\n')
         .trim()
       const ownerName = patient.ownerName.trim() || undefined
+      const patientId = await ensurePatientId()
       let result
       if (pipeline === 'dicom_metadata') {
         if (dicomFiles.length === 0 && !pendingDemoKind && !(dicomPreview && !dicomPreview.blocked)) {
@@ -469,6 +497,7 @@ export default function NewCase() {
           overrideRegion,
           vetName: 'Dr. Elif Kaya',
           ownerName: patient.ownerName.trim(),
+          patientId,
         })
         addCase({
           id: pendingId,
@@ -527,9 +556,11 @@ export default function NewCase() {
           signal: controller.signal,
           cancelBackendOnAbort: true,
           ownerName,
+          patientId,
         })
       } else {
         result = await createAndAnalyzeCase({
+          patientId,
           patientName: patient.name,
           species: patient.species,
           breed: patient.breed,
@@ -774,6 +805,14 @@ export default function NewCase() {
         {step === 0 && (
           <div className="animate-fade-up">
             <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('newCase.patientSection')}</h2>
+            <div className="mb-5">
+              <PatientPicker
+                selected={linkedPatient}
+                onSelect={pickPatient}
+                typedName={patient.name}
+                typedSpecies={patient.species}
+              />
+            </div>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field label={`${t('newCase.patientName')} *`}>
                 <input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder={t('newCase.patientNamePlaceholder')} />

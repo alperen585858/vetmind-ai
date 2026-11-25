@@ -14,6 +14,7 @@ import { analyzeCaseAsyncAndWait, enqueueAnalyzeCase } from './analysis'
 import type { BackendAnalysisJob } from './analysis'
 import { toBackendSpecies, updateCaseOwner } from './cases'
 import { fetchWithAuth, request, throwIfNotOk } from './client'
+import { linkCasePatient } from './patients'
 
 /** Multipart DICOM metadata upload (pixels ignored for diagnosis). */
 export async function uploadDicomFiles(input: {
@@ -151,11 +152,16 @@ export async function confirmDocumentAndAnalyze(
     cancelBackendOnAbort?: boolean
     /** Optional pet-owner name (no account, no email). */
     ownerName?: string
+    /** Issue #108: link to this clinic patient before analysis (so the report can compare). */
+    patientId?: string | null
   },
 ): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDocumentIngest(ingestId)
   if (opts?.ownerName?.trim()) {
     await updateCaseOwner(caseRecord.case_id, { owner_name: opts.ownerName.trim() })
+  }
+  if (opts?.patientId) {
+    await linkCasePatient(caseRecord.case_id, opts.patientId)
   }
   return analyzeCaseAsyncAndWait(caseRecord.case_id, {
     signal: opts?.signal,
@@ -172,6 +178,8 @@ export async function confirmDicomClassification(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  /** Issue #108: existing clinic patient this study belongs to. */
+  patientId?: string | null
   /** Maps UI consent → case flags (does not enable pixel inference by itself). */
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
@@ -187,6 +195,7 @@ export async function confirmDicomClassification(input: {
       patient_name: input.patientName ?? null,
       clinical_history: input.clinicalHistory ?? null,
       owner_name: input.ownerName?.trim() || null,
+      patient_id: input.patientId || null,
       imaging_source_permission_verified: Boolean(input.imagingSourcePermissionVerified),
       imaging_analysis_consent_verified: Boolean(input.imagingAnalysisConsentVerified),
     }),
@@ -203,6 +212,7 @@ export async function confirmDicomAndEnqueueAnalyze(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  patientId?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
@@ -222,6 +232,7 @@ export async function confirmDicomAndAnalyze(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  patientId?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal

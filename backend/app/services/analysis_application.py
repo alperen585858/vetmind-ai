@@ -271,6 +271,7 @@ class AnalysisApplication(HostBound):
             latest.updated_at = working.updated_at
             latest.model_input = working.model_input or latest.model_input
             if result.report is not None:
+                self._attach_comparison(latest, result.report)
                 attach_pipeline_draft(latest, result.report)
                 result.report = latest.draft_report
                 latest.status = working.status

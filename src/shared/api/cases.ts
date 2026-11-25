@@ -36,6 +36,8 @@ function scenarioRouting(scenario: BackendScenario): {
 }
 
 export async function createAndAnalyzeCase(input: {
+  /** Issue #108: existing clinic patient (optional). */
+  patientId?: string | null
   patientName: string
   species: Species
   breed: string
@@ -78,6 +80,7 @@ export async function createAndAnalyzeCase(input: {
       scenario: input.scenario,
       referring_clinic: '',
       owner_name: input.ownerName?.trim() || null,
+      patient_id: input.patientId || null,
     }),
   })
   return analyzeCaseAsyncAndWait(created.case_id, {

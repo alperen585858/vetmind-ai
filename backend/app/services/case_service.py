@@ -41,6 +41,7 @@ from app.schemas.workflow import (
     InfoRequestCreate,
     InfoRequestReply,
 )
+from app.llm.comparison import build_comparison, comparison_warnings
 from app.llm.interfaces import LLMProviderError
 from app.services.activity import append_activity
 from app.review_sla import (
@@ -137,6 +138,7 @@ class CaseService:
         self._tenant_isolation = tenant_isolation
         self._audit_log = audit
         self._radiologist_payouts = radiologist_payouts
+        self._patients = None  # issue #108, set by bind_patients
         self._feedback = feedback
         self._evidence_store = evidence_store
         self._notifications = notifications
@@ -183,6 +185,28 @@ class CaseService:
         self.collaboration = (
             collaboration if collaboration is not None else CaseCollaborationService(self)
         )
+
+    def bind_patients(self, service) -> None:
+        """Issue #108: patient records (validate the patient chosen for a new case)."""
+        self._patients = service
+
+    def _attach_comparison(
+        self, case: CaseRecord, draft: DraftReport, *, principal: AuthPrincipal | None = None
+    ) -> None:
+        """Issue #108: fill the "change since the prior study" section of a new AI draft.
+
+        Cases without a patient record keep ``comparison=None`` (unchanged behaviour). A
+        failure here never blocks the report; it only leaves the section out.
+        """
+        if self._patients is None or not case.patient_id:
+            return
+        try:
+            prior = self._patients.prior_for_report(case)
+            language = self._resolve_report_language(case, principal=principal)
+            draft.comparison = build_comparison(case, draft, prior, language=language)
+            draft.validation_warnings.extend(comparison_warnings(draft))
+        except Exception:  # noqa: BLE001 — comparison is optional context, never fatal
+            draft.comparison = None
 
     def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
         """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
@@ -366,6 +390,8 @@ class CaseService:
             status=CaseLifecycleStatus.CREATED,
         )
         self._apply_owner_contact(case, owner_name=payload.owner_name)
+        if payload.patient_id and self._patients is not None:
+            case.patient_id = self._patients.resolve_for_new_case(payload.patient_id, principal=principal).patient_id
         caps = self._orchestrator._router.list_capabilities()  # noqa: SLF001 — live caps for F4
         case.model_input = build_imaging_model_input(case, capabilities=caps)
         saved = self._repo.save_case(case)
@@ -451,6 +477,7 @@ class CaseService:
             report_delivered_at=getattr(c, "report_delivered_at", None),
             report_viewed_at=getattr(c, "report_viewed_at", None),
             pet_id=getattr(c, "pet_id", None),
+            patient_id=c.patient_id,
             pet_owner_subject=getattr(c, "pet_owner_subject", None),
             owner_contact_name=getattr(c, "owner_contact_name", None),
             owner_contact_email=getattr(c, "owner_contact_email", None),

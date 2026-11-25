@@ -144,3 +144,25 @@ def test_duplicate_notification_does_not_keep_the_database_locked(tmp_path: Path
     other.execute("DELETE FROM notifications")  # would raise "database is locked" before the fix
     other.commit()
     other.close()
+
+
+def test_seed_links_patients_and_gives_duman_a_prior_study(tmp_path: Path) -> None:
+    """Issue #108: demo animals have patient records; Duman's newer MRI compares to the older one."""
+    c = _container(tmp_path)
+    seed_demo_cases(c)
+    cases = [c.repo.get_case(i) for i in demo_case_ids(c)]
+    assert all(case.patient_id and case.patient_id.startswith("pat-demo-") for case in cases)
+    duman = sorted((x for x in cases if x.patient_name == "Duman"), key=lambda x: x.created_at)
+    assert len(duman) == 2 and duman[0].patient_id == duman[1].patient_id
+    older, newer = duman
+    assert older.dicom_study.study_date < newer.dicom_study.study_date
+    comp = newer.draft_report.comparison
+    assert comp is not None and comp.prior_case_id == older.case_id
+    assert "[P1]" in comp.text
+
+    client = TestClient(create_app(c))
+    studies = client.get(f"/api/v1/cases/{newer.case_id}/prior-studies").json()["studies"]
+    assert studies[0]["case_id"] == older.case_id and studies[0]["comparable"] is True
+
+    remove_demo_cases(c)
+    assert not [p for p in c.patient_store.list() if p.patient_id.startswith("pat-demo-")]

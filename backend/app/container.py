@@ -50,6 +50,8 @@ from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
+from app.services.patient_service import PatientService
+from app.services.patient_store import build_patient_store
 from app.services.user_settings_store import build_user_settings_store
 from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
 from app.services.messaging_facade import MessagingFacade
@@ -369,6 +371,16 @@ class AppContainer:
             feedback=self.feedback,
             metadata_classifier=self.metadata_classifier,
         )
+        # Issue #108: clinic patient records and the same animal's earlier studies.
+        self.patient_store = build_patient_store(self.settings)
+        self.patients = PatientService(
+            self.patient_store,
+            self.repo,
+            tenant_isolation=self.settings.tenant_isolation,
+            audit=self.audit,
+        )
+        self.cases.bind_patients(self.patients)
+        self.dicom.bind_patients(self.patients)
         doc_adapter = build_document_text_adapter(
             ocr_endpoint=self.settings.document_ocr_endpoint,
             ocr_timeout_s=self.settings.document_ocr_timeout_s,

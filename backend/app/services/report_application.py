@@ -278,6 +278,10 @@ class ReportApplication(HostBound):
             report.impression.text = payload.impression
         if payload.recommendations is not None:
             report.recommendations.text = payload.recommendations
+        if payload.comparison is not None and report.comparison is not None:
+            report.comparison = report.comparison.model_copy(
+                update={"text": payload.comparison.strip(), "source": "expert"}
+            )
         if payload.note:
             report.revision_notes = payload.note
         report.updated_at = _now()
@@ -571,6 +575,8 @@ class ReportApplication(HostBound):
                     status_code=status.HTTP_409_CONFLICT,
                     detail="The draft changed while the rewrite was running; reload and try again.",
                 )
+            # The rewrite only changes the prose; the prior-study comparison stays as it was.
+            report.comparison = latest.draft_report.comparison
             attach_pipeline_draft(latest, report, notes=f"Uzman revizyon talebiyle yeniden üretildi: {expert_note}")
             latest.status = CaseLifecycleStatus.AWAITING_REVIEW
             apply_review_sla(latest)
