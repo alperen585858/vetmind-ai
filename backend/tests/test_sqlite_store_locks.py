@@ -1,7 +1,7 @@
-"""Shared sqlite connections must be locked (follow-up to #36).
+"""Shared database connections must be locked (follow-up to #36).
 
-FastAPI runs sync endpoints in a threadpool. Every store keeps ONE sqlite connection
-with ``check_same_thread=False``; unlocked parallel use raised
+FastAPI runs sync endpoints in a threadpool. Every store keeps ONE connection
+(``SqlConnection``: Postgres or SQLite, #102); unlocked parallel use raised
 ``sqlite3.InterfaceError`` and could read back None for existing rows.
 
 1. A guard: every class in app/ that opens such a connection creates ``self._lock``
@@ -60,14 +60,16 @@ def test_every_shared_sqlite_connection_is_locked() -> None:
     problems: dict[str, list[str]] = {}
     checked = 0
     for path in APP.rglob("*.py"):
+        if path.parent.name == "storage" and path.name == "sql.py":
+            continue  # the connection wrapper itself; its users hold the locks
         src = path.read_text(encoding="utf-8")
-        if "check_same_thread=False" not in src:
+        if "self._conn" not in src:
             continue
         for node in ast.walk(ast.parse(src)):
             if not isinstance(node, ast.ClassDef):
                 continue
             cls_src = ast.get_source_segment(src, node) or ""
-            if "check_same_thread=False" not in cls_src or "self._conn" not in cls_src:
+            if "self._conn" not in cls_src or "self._conn =" not in cls_src:
                 continue
             checked += 1
             key = f"{path.relative_to(APP)}::{node.name}"
@@ -75,7 +77,7 @@ def test_every_shared_sqlite_connection_is_locked() -> None:
                 problems[key] = ["<no self._lock>"]
             elif bad := _unlocked_conn_uses(node):
                 problems[key] = bad
-    assert checked >= 7, checked  # case repo + 6 stores (+ auth stores use their own pattern)
+    assert checked >= 13, checked  # case repo, 9 stores, audit, feedback, lessons
     assert problems == {}, problems
 
 

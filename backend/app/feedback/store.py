@@ -86,10 +86,13 @@ class FeedbackEvent:
 
 
 class FeedbackStore:
-    """Thread-safe JSONL sink. In-memory when path is None (tests/demo)."""
+    """Thread-safe feedback sink: the ``feedback_events`` table when ``conn`` is given (#102),
+    else a JSONL file at ``path``, else memory only (tests)."""
 
-    def __init__(self, path: Path | None = None) -> None:
-        self._path = path
+    def __init__(self, path: Path | None = None, *, conn: Any = None) -> None:
+        self._conn = conn
+        self._in_db = conn is not None
+        self._path = None if conn is not None else path
         self._lock = threading.Lock()
         self._memory: list[FeedbackEvent] = []
         if self._path is not None:
@@ -130,12 +133,7 @@ class FeedbackStore:
             rag_passage_ids=tuple(rag_passage_ids or ()),
             created_at=datetime.now(timezone.utc).isoformat(),
         )
-        line = json.dumps(event.to_json(), ensure_ascii=False)
-        with self._lock:
-            self._memory.append(event)
-            if self._path is not None:
-                with self._path.open("a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
+        self._append(event)
         return event
 
     def record_classification_correction(
@@ -162,13 +160,34 @@ class FeedbackStore:
             confirmed_anatomical_region=confirmed_anatomical_region,
             created_at=datetime.now(timezone.utc).isoformat(),
         )
-        line = json.dumps(event.to_json(), ensure_ascii=False)
+        self._append(event)
+        return event
+
+    def _append(self, event: FeedbackEvent | ClassificationCorrectionEvent) -> None:
+        if self._in_db:
+            self.insert(event)
+            return
         with self._lock:
             self._memory.append(event)
             if self._path is not None:
                 with self._path.open("a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
-        return event
+                    fh.write(json.dumps(event.to_json(), ensure_ascii=False) + "\n")
+
+    def insert(self, event: FeedbackEvent | ClassificationCorrectionEvent) -> None:
+        """Write one event to the database (also used to import old JSONL files)."""
+        with self._lock:
+            self._insert(event)
+
+    def _insert(self, event: FeedbackEvent | ClassificationCorrectionEvent) -> None:
+        self._conn.execute(
+            "INSERT INTO feedback_events (event_id, case_id, created_at, payload) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(event_id) DO NOTHING",
+            (event.event_id, event.case_id, event.created_at, json.dumps(event.to_json(), ensure_ascii=False)),
+        )
+        self._conn.commit()
+
+    def parse(self, data: dict[str, Any]) -> FeedbackEvent | ClassificationCorrectionEvent:
+        return self._parse_line(data)
 
     def _parse_line(self, data: dict[str, Any]) -> FeedbackEvent | ClassificationCorrectionEvent:
         if data.get("event_kind") == "classification_correction":
@@ -207,7 +226,12 @@ class FeedbackStore:
         limit: int = 500,
     ) -> list[FeedbackEvent | ClassificationCorrectionEvent]:
         with self._lock:
-            if self._path is not None and self._path.exists():
+            if self._conn is not None:
+                rows = self._conn.execute(
+                    "SELECT payload FROM feedback_events ORDER BY created_at, event_id"
+                ).fetchall()
+                items = [self._parse_line(json.loads(r["payload"])) for r in rows]
+            elif self._path is not None and self._path.exists():
                 items: list[FeedbackEvent | ClassificationCorrectionEvent] = []
                 for raw in self._path.read_text(encoding="utf-8").splitlines():
                     if not raw.strip():

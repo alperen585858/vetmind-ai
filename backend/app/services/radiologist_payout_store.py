@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional, Protocol
@@ -12,6 +11,7 @@ from app.schemas.radiologist_payout import (
     RadiologistCasePayout,
     RadiologistPayoutSettings,
 )
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class RadiologistPayoutStore(Protocol):
@@ -67,41 +67,19 @@ class InMemoryRadiologistPayoutStore:
         return settings
 
 
-class SqliteRadiologistPayoutStore:
-    def __init__(self, db_path: Path | str) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
-        # One connection is shared by FastAPI's threadpool: serialize every use of it
-        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+class SqlRadiologistPayoutStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
         self._lock = threading.RLock()
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS radiologist_payouts (
-                payout_id TEXT PRIMARY KEY,
-                case_id TEXT NOT NULL UNIQUE,
-                radiologist_subject TEXT NOT NULL,
-                approved_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_rpay_radiologist
-                ON radiologist_payouts(radiologist_subject);
-            CREATE INDEX IF NOT EXISTS idx_rpay_case
-                ON radiologist_payouts(case_id);
-            CREATE TABLE IF NOT EXISTS radiologist_payout_settings (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                payload TEXT NOT NULL
-            );
-            """
-        )
-        self._conn.commit()
-        if self._conn.execute("SELECT 1 FROM radiologist_payout_settings WHERE id=1").fetchone() is None:
-            default = RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE)
+        with self._lock:
+            # The single settings row: created once with the default fee.
             self._conn.execute(
-                "INSERT INTO radiologist_payout_settings (id, payload) VALUES (1, ?)",
-                (default.model_dump_json(),),
+                "INSERT INTO radiologist_payout_settings (id, payload) VALUES (1, ?) ON CONFLICT(id) DO NOTHING",
+                (RadiologistPayoutSettings(fee_per_case=RADIOLOGIST_CASE_FEE).model_dump_json(),),
             )
             self._conn.commit()
 
@@ -185,8 +163,14 @@ class SqliteRadiologistPayoutStore:
             return settings
 
 
+class SqliteRadiologistPayoutStore(SqlRadiologistPayoutStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_radiologist_payout_store(settings) -> RadiologistPayoutStore:
     if settings.storage_backend == "memory":
         return InMemoryRadiologistPayoutStore()
-    path = Path(settings.sqlite_path).with_name("vetmind_radiologist_payouts.sqlite3")
-    return SqliteRadiologistPayoutStore(path)
+    return SqlRadiologistPayoutStore(connect_from_settings(settings))

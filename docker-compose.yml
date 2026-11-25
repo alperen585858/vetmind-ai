@@ -1,16 +1,50 @@
 # One-command local stack (issue #29):
 #
 #   docker compose up --build        → http://localhost:8080  (demo: vet@demo.local / demo1234)
-#   docker compose down              → stop (data is kept in the vetmind_data volume)
+#   docker compose down              → stop (data is kept in the named volumes)
 #   docker compose down -v           → stop and delete all data
+#   docker compose up -d db          → only PostgreSQL on localhost:5432, for `npm run backend:dev`
 #
+# Data (#102): every record is in PostgreSQL (`db`), RAG vectors in ChromaDB (`chroma`),
+# DICOM files in the vetmind_data volume. No SQLite files.
 # Settings: put VETMIND_* overrides in a .env file next to this file (see backend/.env.example).
-# Optional Postgres + Redis for development live in backend/docker-compose.yml.
+# Optional Redis (RQ jobs) for development lives in backend/docker-compose.yml.
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vetmind
+      POSTGRES_PASSWORD: ${VETMIND_DB_PASSWORD:-vetmind}
+      POSTGRES_DB: vetmind
+    ports:
+      - "${VETMIND_DB_PORT:-5432}:5432"
+    volumes:
+      - vetmind_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vetmind -d vetmind"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  chroma:
+    # Same version as the chromadb client in backend/requirements.txt.
+    image: chromadb/chroma:1.5.9
+    volumes:
+      - vetmind_chroma:/data
+    restart: unless-stopped
+
   backend:
     build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_started
     environment:
-      VETMIND_STORAGE: ${VETMIND_STORAGE:-sqlite}
+      VETMIND_STORAGE: ${VETMIND_STORAGE:-postgres}
+      VETMIND_DATABASE_URL: ${VETMIND_DATABASE_URL:-postgresql://vetmind:${VETMIND_DB_PASSWORD:-vetmind}@db:5432/vetmind}
+      VETMIND_CHROMA_URL: ${VETMIND_CHROMA_URL:-http://chroma:8000}
       VETMIND_AUTH_ENABLED: ${VETMIND_AUTH_ENABLED:-0}
       VETMIND_DEPLOYMENT_MODE: ${VETMIND_DEPLOYMENT_MODE:-demo}
       VETMIND_JWT_SECRET: ${VETMIND_JWT_SECRET:-vetmind-demo-secret-change-me}
@@ -24,7 +58,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # Everything persistent, including the RAG vectors (ChromaDB folder /app/data/chroma).
+      # DICOM quarantine and other files; records are in Postgres, vectors in Chroma.
       - vetmind_data:/app/data
     restart: unless-stopped
 
@@ -39,3 +73,5 @@ services:
 
 volumes:
   vetmind_data:
+  vetmind_pg:
+  vetmind_chroma:

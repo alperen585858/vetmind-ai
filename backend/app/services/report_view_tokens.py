@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional, Protocol
+
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class ReportViewTokenError(Exception):
@@ -64,29 +65,14 @@ class InMemoryReportViewTokenStore:
         return n
 
 
-class SqliteReportViewTokenStore:
-    def __init__(self, db_path: Path | str) -> None:
-        path = Path(db_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS report_view_tokens (
-                token_hash TEXT PRIMARY KEY,
-                case_id TEXT NOT NULL,
-                report_version INTEGER NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL,
-                used_at REAL,
-                revoked_at REAL
-            );
-            CREATE INDEX IF NOT EXISTS ix_report_view_case ON report_view_tokens(case_id);
-            """
-        )
-        self._conn.commit()
+class SqlReportViewTokenStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
+        self._lock = threading.RLock()
 
     def save(self, rec: ReportViewRecord) -> None:
         with self._lock:
@@ -136,12 +122,17 @@ class SqliteReportViewTokenStore:
             return cur.rowcount
 
 
+class SqliteReportViewTokenStore(SqlReportViewTokenStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_report_view_token_store(settings) -> ReportViewTokenStore:
     if settings.storage_backend == "memory":
         return InMemoryReportViewTokenStore()
-    path = Path(settings.sqlite_path).with_name("report_view_tokens.sqlite3")
-    return SqliteReportViewTokenStore(path)
-
+    return SqlReportViewTokenStore(connect_from_settings(settings))
 
 class ReportViewTokenService:
     def __init__(self, store: ReportViewTokenStore, *, ttl_seconds: int = 72 * 3600) -> None:

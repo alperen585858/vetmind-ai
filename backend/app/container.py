@@ -40,6 +40,7 @@ from app.feedback.store import FeedbackStore
 from app.llm.lessons import LessonStore
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
 from app.security.audit import AuditLogger
+from app.storage.sql import connect_from_settings
 from app.security.retention import RetentionPolicy
 from app.services.case_service import CaseService
 from app.services.ports import OwnerDelivery
@@ -88,8 +89,15 @@ class AppContainer:
             max_file_bytes=25 * 1024 * 1024,
             scrub_identity=bool(getattr(self.settings, "dicom_identity_scrub", False)),
         )
-        self.audit = AuditLogger(self.settings.audit_log_path)
-        self.feedback = FeedbackStore(self.settings.feedback_log_path)
+        # #102: everything persistent lives in the one database (Postgres, or SQLite for local
+        # dev); memory mode (tests) keeps the old in-memory / file behaviour.
+        in_db = self.storage_backend != "memory"
+        self.audit = AuditLogger(
+            self.settings.audit_log_path, conn=connect_from_settings(self.settings) if in_db else None
+        )
+        self.feedback = FeedbackStore(
+            self.settings.feedback_log_path, conn=connect_from_settings(self.settings) if in_db else None
+        )
         self.encryption = encryption_status(self.settings.encryption_at_rest)
         self.malware_scanner = build_scanner(required=self.settings.malware_scan_required)
         self.retention_policy = RetentionPolicy(
@@ -271,7 +279,10 @@ class AppContainer:
         self.llm_provider = build_llm_provider(self.settings)
         # Fails fast on a bad config (like the report LLM); runtime errors fall back to rules.
         self.metadata_classifier = build_metadata_classifier(self.settings)
-        self.lessons = LessonStore(self.settings.lessons_path)
+        self.lessons = LessonStore(
+            self.settings.lessons_path,
+            conn=connect_from_settings(self.settings) if self.storage_backend != "memory" else None,
+        )
         anatomy_path = self.settings.report_anatomy_dictionary_path or (
             Path(__file__).resolve().parent / "llm" / "data" / "VetMind_AI_Search_Dictionary.json"
         )

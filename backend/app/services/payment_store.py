@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
 from app.schemas.payment import DemoPayment
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class PaymentStore(Protocol):
@@ -41,29 +41,14 @@ class InMemoryPaymentStore:
         return sorted(self._by_id.values(), key=lambda p: p.created_at, reverse=True)
 
 
-class SqlitePaymentStore:
-    def __init__(self, db_path: Path | str) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
-        # One connection is shared by FastAPI's threadpool: serialize every use of it
-        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+class SqlPaymentStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
         self._lock = threading.RLock()
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS demo_payments (
-                payment_id TEXT PRIMARY KEY,
-                submission_id TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_demo_payments_submission
-                ON demo_payments(submission_id);
-            """
-        )
-        self._conn.commit()
 
     def save_payment(self, payment: DemoPayment) -> DemoPayment:
         with self._lock:
@@ -108,8 +93,14 @@ class SqlitePaymentStore:
             return [DemoPayment.model_validate_json(r["payload"]) for r in rows]
 
 
+class SqlitePaymentStore(SqlPaymentStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_payment_store(settings) -> PaymentStore:
     if settings.storage_backend == "memory":
         return InMemoryPaymentStore()
-    path = Path(settings.sqlite_path).with_name("vetmind_payments.sqlite3")
-    return SqlitePaymentStore(path)
+    return SqlPaymentStore(connect_from_settings(settings))

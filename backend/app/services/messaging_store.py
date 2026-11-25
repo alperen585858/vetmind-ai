@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
 from app.schemas.messaging import SupportThread
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class MessagingStore(Protocol):
@@ -38,26 +38,14 @@ class InMemoryMessagingStore:
         return self._threads.pop(thread_id, None) is not None
 
 
-class SqliteMessagingStore:
-    def __init__(self, db_path: Path | str) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
-        # One connection is shared by FastAPI's threadpool: serialize every use of it
-        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+class SqlMessagingStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
         self._lock = threading.RLock()
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS support_threads (
-                thread_id TEXT PRIMARY KEY,
-                updated_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            """
-        )
-        self._conn.commit()
 
     def save_thread(self, thread: SupportThread) -> SupportThread:
         with self._lock:
@@ -94,8 +82,14 @@ class SqliteMessagingStore:
             return cur.rowcount > 0
 
 
+class SqliteMessagingStore(SqlMessagingStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_messaging_store(settings) -> MessagingStore:
     if settings.storage_backend == "memory":
         return InMemoryMessagingStore()
-    path = Path(settings.sqlite_path).with_name("vetmind_messaging.sqlite3")
-    return SqliteMessagingStore(path)
+    return SqlMessagingStore(connect_from_settings(settings))

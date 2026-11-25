@@ -9,7 +9,7 @@ Acıbadem Üniversitesi CSE 401/402 bitirme projesi · VRM Teknoloji iş birliğ
 | Backend sürüm | `0.2.0` |
 | Frontend | React 18 · TypeScript · Vite 5 · Tailwind · React Router 6 |
 | Backend | Python 3.11+ · FastAPI · Pydantic · pydicom |
-| Kalıcılık | SQLite (varsayılan) · memory · PostgreSQL JSON(B) |
+| Kalıcılık | PostgreSQL (varsayılan, Alembic migration'ları) · SQLite (yerel geliştirme) · memory (testler) |
 | Jobs | Thread worker (varsayılan) · opsiyonel RQ + Redis |
 | Demo hazırlık | **GO** (sentetik veri) |
 | Klinik üretim / gerçek AI | **NO-GO** |
@@ -76,7 +76,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
 | **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
 | **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (veteriner, admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik izolasyonu; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
-| **Kalıcılık** | memory / SQLite / PostgreSQL JSON(B) — CaseRecord, jobs, ingestions |
+| **Kalıcılık** | Tek PostgreSQL veritabanı (#102): vakalar, kullanıcılar, bildirimler, mesajlar, token'lar, audit, geri bildirim, dersler; SQLite yalnızca yerel geliştirme, memory testler |
 | **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
 | **Remote Vision** | `HttpRemoteVisionModel` + `scripts/mock_vision_server.py` iskeleti |
 | **Provenance** | `source_kind` ∈ {mock, real, mixed}; UI’da DEMO/MOCK / REAL/MIXED banner’ları |
@@ -129,11 +129,12 @@ docker compose up --build
 
 - Arayüz: **http://localhost:8080** · demo giriş `vet@demo.local` / `demo1234` (diğer hesaplar §5)
 - İki servis: `backend` (FastAPI, Python 3.12) ve `web` (nginx: derlenmiş arayüz + `/api` → backend proxy)
-- Veriler (SQLite, karantina, audit, dersler) `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
+- Dört servis: `db` (PostgreSQL 16, bütün kayıtlar), `chroma` (RAG vektörleri), `backend`, `web`. SQLite dosyası oluşmaz; DICOM dosyaları `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
 - Ayarlar: compose dosyasının yanına `.env` koyup `VETMIND_*` değişkenlerini yazın (bkz. `backend/.env.example`). Port: `VETMIND_WEB_PORT` (varsayılan 8080)
 - Bilgi bankası araması varsayılan olarak **bge-m3** (anlamsal) kullanır: bilgisayarda Ollama çalışıyor ve `ollama pull bge-m3` yapılmışsa backend ona `host.docker.internal` üzerinden bağlanır. Ollama yoksa sistem hata vermeden kelime benzerliğiyle (hash) açılır; Admin → **Sistem Durumu** hangisinin çalıştığını ve uyarıyı gösterir
 - Varsayılanlar demo modudur: auth kapalı, mock LLM. Gerçek LLM için `VETMIND_LLM_PROVIDER` ve ilgili ayarlar (§4.4) `.env`'e eklenir. Ollama bilgisayarda çalışıyorsa `VETMIND_LLM_ENDPOINT=http://host.docker.internal:11434/v1`
-- Opsiyonel Postgres + Redis (geliştirme): `backend/docker-compose.yml`
+- Eski SQLite verisi varsa: `docker compose exec backend python scripts/migrate_sqlite_to_postgres.py --data-dir <eski data klasörü>` (bkz. §6 Kalıcılık)
+- Opsiyonel Redis (RQ işleri): `backend/docker-compose.yml`
 
 Geliştirme yaparken (hot reload) aşağıdaki yerel kurulum kullanılır.
 
@@ -178,7 +179,14 @@ npm run dev
 | Health | http://127.0.0.1:8000/api/v1/health |
 
 Vite `/api` → `http://127.0.0.1:8000` (`vite.config.ts`).  
-Kalıcılık varsayılanı: SQLite → `backend/data/vetmind.sqlite3`.
+Kalıcılık varsayılanı PostgreSQL'dir (#102). Yerelde en kolay yol repo kökünden yalnızca veritabanını açmak:
+
+```bash
+docker compose up -d db        # localhost:5432, kullanıcı/şifre vetmind/vetmind
+npm run backend:dev            # şema ilk açılışta migration'larla kurulur
+```
+
+Docker yoksa `VETMIND_STORAGE=sqlite` ile aynı tablolar tek dosyada (`backend/data/vetmind.sqlite3`) tutulur.
 
 ### 4.3 npm script’leri
 
@@ -428,7 +436,7 @@ yeni ve boş bir veritabanıyla başlamak en temizidir.
 3. Viewer’da dilim gez (`Im: n/m`); W/L / zoom / pan isteğe bağlı.  
 4. Metadata sınıflandırma önizlemesini onayla → **Demo analize devam et**.  
 5. İşleme ekranında `DEMO / MOCK ANALYSIS` ve job alanlarını gör.  
-6. **Vakalar → Backend’den yenile** (SQLite kalıcılık; restart sonrası da kalır).  
+6. **Vakalar → Backend’den yenile** (PostgreSQL kalıcılık; restart sonrası da kalır).  
 7. Vaka detay → **Bulgular** → mock / SYNTHETIC provenance.  
 8. Üst barda rolü **Uzman Veteriner Radyolog** yap → **Çalışma alanı** (`/calisma`) → **Onayla**.  
 9. Vaka geçmişinde sürüm / immutable; **Raporlar** → onaylı rapor; **PDF olarak indir**.  
@@ -483,7 +491,7 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 |-------|------|
 | `api/` | HTTP: auth, cases, analysis, reports, dicom, documents, rag; `deps.py` |
 | `auth/` | JWT / API key, `require_auth` / `require_capability`, RBAC |
-| `services/` | `CaseService`, `DicomService`, `DocumentService`; repository Protocol + sqlite/postgres |
+| `services/` | `CaseService`, `DicomService`, `DocumentService`; repository Protocol + `SqlCaseRepository` (`storage/sql.py` üzerinden Postgres/SQLite) |
 | `storage/` | `QuarantineStore` |
 | `dicom/` | ingest, parser, validator, classifier, fixtures |
 | `ingest/` | dosya türü sniff, doküman metin çıkarma |
@@ -502,9 +510,15 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 
 | Backend | Env | Not |
 |---------|-----|-----|
-| memory | `VETMIND_STORAGE=memory` | Test / ephemeral |
-| sqlite | `sqlite` (varsayılan) | `backend/data/vetmind.sqlite3` — JSON blob’lar |
-| postgres | `postgres` | JSONB; `VETMIND_DATABASE_URL` gerekir |
+| **postgres (varsayılan)** | `VETMIND_STORAGE=postgres` | Bütün kayıtlar tek veritabanında (JSONB belgeler); `VETMIND_DATABASE_URL` (varsayılan `postgresql://vetmind:vetmind@localhost:5432/vetmind`) |
+| sqlite | `sqlite` | Docker'sız yerel geliştirme: aynı tablolar tek dosyada (`backend/data/vetmind.sqlite3`) |
+| memory | `memory` | Testler |
+
+Tek veritabanında (#102): vakalar, işler, DICOM/doküman kayıtları, kullanıcılar, hayvanlar ve talepler, kullanıcı ayarları, bildirimler, mesajlar, demo ödemeleri, radyolog ödemeleri, rapor bağlantıları, oturum ve şifre sıfırlama token'ları (yalnızca hash), denetim kaydı (audit), uzman geri bildirimi ve AI dersleri. Ayrı SQLite/JSONL dosyası yok. Şema `backend/migrations/` altındaki Alembic migration'larıyla kurulur; uygulama açılırken `alembic upgrade head` kendisi çalışır (elle: `cd backend && alembic upgrade head`, yeni değişiklik: `alembic revision -m "..."`). DICOM dosyaları `data/quarantine/` altında, RAG vektörleri ChromaDB'de kalır.
+
+**Eski veriyi taşıma:** `python scripts/migrate_sqlite_to_postgres.py` (`backend/` içinden) `data/` altındaki eski `*.sqlite3` dosyalarını (ana dosya + `vetmind_workflow`, `vetmind_auth`, `vetmind_notifications`... yan dosyaları) ve `audit/security.jsonl`, `feedback/feedback.jsonl`, `revision_lessons.json` dosyalarını hedef veritabanına kopyalar; var olan satırlara dokunmaz, iki kez çalıştırmak güvenlidir, kaynak dosyalar değişmez (`--dry-run` ile önce sayar, `--to sqlite:///data/vetmind.sqlite3` ile SQLite'ta kalanlar için yan dosyaları tek dosyada birleştirir). Demo verisiyle denendi: 37 vaka, 51 iş, 85 DICOM kaydı, 17 talep, 7 kullanıcı, 198 oturum token'ı, 36 geri bildirim (509 satır).
+
+**Karar (SQLite kalsın mı?):** testler bellek içi depo kullanır; çalışan sistem için varsayılan ve önerilen PostgreSQL. SQLite yalnızca Docker'sız yerel geliştirme için duruyor; kod aynı SQL'i iki veritabanında da çalıştırdığı için ayrı bakım gerektirmiyor.
 
 Saklanan başlıca varlıklar: `CaseRecord`, `AnalysisJob`, `DicomIngestionRecord`, `DocumentIngestionRecord`, `report_versions[]`.
 
@@ -956,9 +970,9 @@ Backend özeti: [backend/README.md](backend/README.md).
 
 | Değişken | Varsayılan | Anlam |
 |----------|------------|--------|
-| `VETMIND_STORAGE` | `sqlite` | `memory` \| `sqlite` \| `postgres` |
-| `VETMIND_SQLITE_PATH` | `./data/vetmind.sqlite3` | SQLite yolu |
-| `VETMIND_DATABASE_URL` / `DATABASE_URL` | — | Postgres DSN |
+| `VETMIND_STORAGE` | `postgres` | `postgres` \| `sqlite` (yerel geliştirme) \| `memory` (testler) |
+| `VETMIND_DATABASE_URL` / `DATABASE_URL` | `postgresql://vetmind:vetmind@localhost:5432/vetmind` | Postgres DSN |
+| `VETMIND_SQLITE_PATH` | `./data/vetmind.sqlite3` | `VETMIND_STORAGE=sqlite` iken tek dosya |
 | `VETMIND_QUARANTINE_ROOT` | `./data/quarantine` | Karantina kökü |
 | `VETMIND_ASYNC_DELAY_MS` | `400` | Async yapay gecikme (0–10000) |
 | `VETMIND_DEMO_SEED` | `0` | `1` → vaka yokken örnek vakaları yükle (§5 Örnek vakalar) |
@@ -1020,13 +1034,12 @@ Backend özeti: [backend/README.md](backend/README.md).
 
 ## 14. Opsiyonel altyapı
 
-### PostgreSQL + Redis (RQ)
+### Redis (RQ işleri)
 
 ```bash
+docker compose up -d db                              # repo kökünden: PostgreSQL
 cd backend
-docker compose -f docker-compose.yml up -d
-export VETMIND_STORAGE=postgres
-export VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind
+docker compose -f docker-compose.yml up -d           # Redis
 pip install -r requirements-optional.txt
 export VETMIND_JOB_BACKEND=rq
 export VETMIND_REDIS_URL=redis://127.0.0.1:6379/0
@@ -1078,9 +1091,9 @@ npm run e2e                                          # demo modu (masaüstü + m
 E2E_PROTECTED=1 npx playwright test --project=e2e-protected   # korumalı mod (auth açık)
 # Sistem Google Chrome kullanılır (channel: chrome); tarayıcı indirmez.
 
-# Postgres entegrasyonu (opsiyonel):
-VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind \
-  pytest tests/test_postgres_repo.py -q
+# PostgreSQL testleri (CI'da ayrı iş; boş bir test veritabanı verin, tabloları siler):
+VETMIND_TEST_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind_test \
+  pytest -m postgres tests/test_sql_stores.py tests/test_postgres_app.py -q
 ```
 
 ### Browser E2E kapsamı
@@ -1142,7 +1155,8 @@ veteriner/
     ├── .env.example
     ├── requirements.txt
     ├── requirements-optional.txt  # redis, rq, psycopg
-    ├── docker-compose.yml         # Postgres 16 + Redis 7
+    ├── docker-compose.yml         # Redis 7 (Postgres kök docker-compose.yml'de)
+    ├── migrations/                # Alembic şema migration'ları (#102)
     ├── pytest.ini
     ├── scripts/                   mock_vision_server, bench_dicom_synthetic
     ├── data/                      runtime (gitignore)
@@ -1180,7 +1194,7 @@ Gerçek modeller / altyapı eklerken orchestrator’ı yeniden yazmak gerekmez:
 | Vision | `models/mock_vision.py`, `models/http_vision.py`, `models/interfaces.py` |
 | LLM | `llm/mock_provider.py`, `llm/http_provider.py`, `llm/interfaces.py`, `llm/factory.py` |
 | RAG | `rag/embedding_retriever.py`, `rag/vector_store.py` |
-| Repo | `services/repository.py` (+ sqlite/postgres) |
+| Repo | `services/repository.py`, `services/sqlite_repository.py` (`SqlCaseRepository`), `storage/sql.py` |
 | Jobs | `workers/job_backend.py` |
 | Wiring | `container.py` (yalnızca bağlama) |
 | Capabilities | `routing/capabilities.py`, `routing/remote_config.py` |

@@ -12,11 +12,14 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app ./app
+# Database schema (#102): the app runs `alembic upgrade head` on startup.
+COPY alembic.ini ./
+COPY migrations ./migrations
 # Model Performance page reads saved evaluation results from here.
 COPY eval ./eval
 
-# All runtime data (SQLite files, quarantine, audit, lessons) lives under /app/data,
-# which docker-compose mounts as a named volume.
+# Files (DICOM quarantine, local Chroma folder if no Chroma server) live under /app/data,
+# which docker-compose mounts as a named volume. Records are in PostgreSQL (#102).
 RUN useradd --create-home --uid 1000 vetmind \
     && mkdir -p /app/data \
     && chown -R vetmind:vetmind /app/data
