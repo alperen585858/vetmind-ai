@@ -973,7 +973,11 @@
       "addDocument": "Belge ekle",
       "documentsCount": "Belgeler ({count})",
       "documentsHint": "Laboratuvar sonucu, önceki rapor gibi PDF, görsel veya metin belgelerini bu vakaya ekleyebilirsiniz.",
-      "noExtractedText": "Bu belgeden metin çıkarılamadı."
+      "noExtractedText": "Bu belgeden metin çıkarılamadı.",
+      "citationsNone": "Bu vakada AI taslağında kullanılan kaynak pasajı yok (veya analiz henüz çalışmadı).",
+      "citationsLegacy": "Eski kayıt: modelin hangi pasajları kullandığı bilgisi yok; bulunan tüm pasajlar gösteriliyor, modelin kullandığı anlamına gelmez.",
+      "citationRelatedFinding": "İlgili bulgu:",
+      "citationScoreHint": "Metin benzerliği {score}; yalnızca aramadaki eşleşme ölçüsüdür, klinik güven düzeyi değildir."
     },
     "processing": {
       "title": "AI İşleme",
