@@ -2431,6 +2431,7 @@
       "mock": "Mock",
       "fallback": "Fell back",
       "off": "Off / not configured"
-    }
+    },
+    "code": "Code"
   }
 }

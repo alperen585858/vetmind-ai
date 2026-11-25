@@ -1,69 +1,85 @@
+<!-- Bu dosya otomatik üretilir; elle düzenlemeyin.
+     Kaynak: backend/app/services/architecture_status.py
+     Yeniden üretmek için: cd backend && python scripts/generate_architecture_doc.py -->
+
 # VetMind AI — Yapay Zekâ Akışı
 
-Yüklemeden onaylı rapora kadar kodda gerçekten çalışan AI akışı. Kesik çizgiler opsiyonel / yan girdileri gösterir.
+Yüklemeden onaylı rapora kadar AI akışı. Diyagram koddan üretilir: analiz adımları `orchestration/progress.py` içindeki `PIPELINE_STAGES` listesinden, router dalları `Modality` listesinden, modeller kayıtlı model tablosundan gelir. Kod değişince GitHub Action bu dosyayı yeniden üretir.
+
+Renkler **varsayılan kurulumu** gösterir (`.env` yok: mock LLM, mock görüntü modelleri, hash embedding). Çalışan sistemin canlı durumu admin panelinde **AI Mimarisi** sayfasındadır.
 
 ```mermaid
 flowchart TD
-    A("Drag & Drop Upload<br/>DICOM · PDF · JPG · PNG") --> B("Upload API<br/>Malware Scan + Quarantine Storage<br/>SHA256 + manifest")
-    B --> C("File Type Detector")
-    C --> D("DICOM Metadata Parser + Validator<br/>pydicom · Study → Series → Instance")
-    C --> E("PDF / JPG / PNG / Text Parser")
-    D --> F("Species / Modality / Body Region Classifier<br/>kurallar + opsiyonel LLM")
-    E --> F
-    F --> G("Kullanıcı Onayı<br/>sınıflandırma onayı → Vaka")
-    G --> H("Model Input Builder<br/>seri seçimi · görüntü kalitesi · piksel izni")
-    H --> R("AI Model Router<br/>capability → senaryo → execution policy")
-
-    R -->|X-Ray| X("X-Ray Vision Model<br/>DenseNet121 TorchXRayVision + MONAI<br/>veya mock")
-    R -->|CT| CT("CT 3D Model<br/>MONAI entrypoint veya mock")
-    R -->|MRI| M("MRI Model<br/>beyin · servikal · TL<br/>MONAI entrypoint veya mock")
-    R -->|Image + Text| V("Multimodal VLM<br/>OpenAI-uyumlu VLM")
-    R -.->|Remote| HV("HTTP Remote Vision")
-    R -.->|Desteklenmiyor| MRV("Manual Review<br/>AI taslağı üretilmez")
-
-    X --> N("Structured Findings + Evidence<br/>normalize · fusion · çatışma ipuçları<br/>kanıt görüntüleri")
-    CT --> N
-    M --> N
-    V --> N
-    HV --> N
-
-    N --> L("LLM Gateway<br/>KVKK maskeleme · prompt-injection temizleme<br/>uzman dersleri")
-    RAG[("RAG<br/>bge-m3 / hash embedding · ChromaDB<br/>kaynak kartları · bölge/tür filtresi")] -.-> L
-    L --> LLM("Veterinary LLM<br/>Ollama qwen2.5 · OpenAI-uyumlu · Claude · mock<br/>taslak → onarım → ayırıcı tanılar → hakem")
-    LLM --> VAL("Report Validation<br/>ReportValidator + atıf grounding")
-    VAL --> RR("Veteriner Radyolog İncelemesi<br/>onay · red · revizyon")
-    RR -.->|"Yapay zekâ ile yeniden yaz"| L
-    RR --> OK("Onaylı Rapor<br/>değişmez sürüm → PDF")
-    RR -.->|"geri bildirim veri seti · dersler"| FB[("Uzman Geri Bildirimi")]
-    FB -.-> L
-
-    classDef box fill:#0b2a4a,stroke:#1e4d7a,color:#cfe3ff;
-    classDef router fill:#06182b,stroke:#3b6ea5,color:#cfe3ff,stroke-dasharray:3 3;
-    classDef store fill:#0b2a4a,stroke:#3b6ea5,color:#cfe3ff;
-    classDef optional fill:#0b2a4a,stroke:#1e4d7a,color:#8fb3d9,stroke-dasharray:4 4;
-    class A,B,C,D,E,F,G,H,X,CT,M,V,N,L,LLM,VAL,RR,OK box;
-    class R router;
-    class RAG,FB store;
-    class HV,MRV optional;
+    upload("Dosya Yükleme<br/>DICOM · PDF · JPG · PNG · TXT")
+    quarantine("Karantina<br/>SHA256 + manifest · virüs taraması kapalı")
+    dicom_parser("DICOM Okuyucu<br/>pydicom · Study → Series → Instance")
+    doc_parser("Doküman Okuyucu<br/>Metin çıkarma (OCR yok)")
+    classifier("Tür / Modalite / Bölge Sınıflandırma<br/>Yalnızca kurallar")
+    confirm("Kullanıcı Onayı<br/>Sınıflandırma onaylanınca vaka açılır")
+    model_input("Model Girdisi Hazırlama<br/>Seri seçimi · görüntü kalitesi · piksel izni")
+    router("AI Model Router<br/>Yalnızca gerçek modeller öncelikli")
+    mri("MRI Modeli<br/>mock-brain-mri-v1 +2")
+    ct("CT 3D Modeli<br/>mock-ct-3d-v1")
+    xray("X-Ray Vision Modeli<br/>mock-xr-vision-v1")
+    document("Multimodal VLM<br/>mock-multimodal-vlm-v1")
+    findings("Yapılandırılmış Bulgular + Kanıt<br/>Normalize · birleştirme · kanıt görüntüleri")
+    gateway("LLM Gateway<br/>KVKK maskeleme · prompt-injection temizleme · uzman dersleri")
+    rag("RAG Bilgi Bankası<br/>hash · memory")
+    llm("Rapor LLM<br/>Şablon (mock)")
+    validation("Rapor Doğrulama<br/>ReportValidator + atıf kontrolü")
+    review("Veteriner Radyolog İncelemesi<br/>Onay · red · revizyon")
+    approved("Onaylı Rapor<br/>Değişmez sürüm → PDF")
+    upload --> quarantine
+    quarantine --> dicom_parser
+    quarantine --> doc_parser
+    dicom_parser --> classifier
+    doc_parser --> classifier
+    classifier --> confirm
+    confirm --> model_input
+    model_input --> router
+    router -->|"MRI"| mri
+    router -->|"CT"| ct
+    router -->|"X-Ray"| xray
+    router -->|"Görüntü + Metin"| document
+    mri --> findings
+    ct --> findings
+    xray --> findings
+    document --> findings
+    rag -.-> gateway
+    findings --> gateway
+    gateway --> llm
+    llm --> validation
+    validation --> review
+    review --> approved
+    classDef active fill:#0b2a4a,stroke:#34d399,color:#cfe3ff,stroke-width:2px;
+    classDef mock fill:#0b2a4a,stroke:#fbbf24,color:#cfe3ff,stroke-width:2px;
+    classDef fallback fill:#0b2a4a,stroke:#f97316,color:#cfe3ff,stroke-width:2px;
+    classDef off fill:#0a1e33,stroke:#64748b,color:#8fb3d9,stroke-dasharray:4 4;
+    class upload,quarantine,dicom_parser,doc_parser,classifier,confirm,model_input,router,findings,gateway,rag,validation,review,approved active;
+    class mri,ct,xray,document,llm mock;
 ```
+
+🟢 Gerçek / her zaman çalışan adım · 🟡 Mock (sahte çıktı) · 🟠 Yedeğe düştü · ⚪ Kapalı / yapılandırılmamış
 
 ## Kod karşılıkları
 
 | Kutu | Kod |
 |------|-----|
-| Upload API / Quarantine | `api/dicom.py`, `api/documents.py`, `storage/quarantine.py`, `storage/malware_scan.py` |
-| File Type Detector | `ingest/filetype.py` |
-| DICOM Parser / Validator | `dicom/parser.py`, `dicom/validator.py`, `dicom/ingest.py` |
-| Doküman Parser | `ingest/documents.py` |
-| Classifier | `dicom/classifier.py`, `dicom/llm_classifier.py` |
-| Model Input Builder | `models/model_input_builder.py`, `imaging/series_selection.py`, `imaging/quality.py`, `models/pixel_authorization.py` |
+| Dosya Yükleme | `api/dicom.py`, `api/documents.py` |
+| Karantina | `storage/quarantine.py`, `storage/malware_scan.py`, `ingest/filetype.py` |
+| DICOM Okuyucu | `dicom/parser.py`, `dicom/validator.py`, `dicom/ingest.py` |
+| Doküman Okuyucu | `ingest/documents.py` |
+| Tür / Modalite / Bölge Sınıflandırma | `dicom/classifier.py`, `dicom/llm_classifier.py` |
+| Kullanıcı Onayı | `services/dicom_service.py` |
+| Model Girdisi Hazırlama | `models/model_input_builder.py`, `imaging/series_selection.py`, `imaging/quality.py`, `models/pixel_authorization.py` |
 | AI Model Router | `routing/model_router.py`, `routing/scenario_policy.py`, `routing/execution_policy.py`, `routing/capabilities.py` |
-| X-Ray / CT / MRI | `models/local_torch.py`, `models/entrypoints/{xray,ct,mri}_monai.py`, `models/mock_vision.py` |
-| Multimodal VLM | `models/vlm_vision.py` |
-| HTTP Remote Vision | `models/http_vision.py` |
-| Structured Findings + Evidence | `models/normalizer.py`, `models/evidence_attach.py` |
+| Router dalları (MRI, CT, X-Ray, Görüntü + Metin) | `models/mock_vision.py`, `models/local_torch.py`, `models/vlm_vision.py`, `models/http_vision.py` |
+| Yapılandırılmış Bulgular + Kanıt | `models/normalizer.py`, `models/evidence_attach.py` |
 | LLM Gateway | `llm/gateway.py`, `llm/privacy.py`, `llm/lessons.py` |
-| RAG | `rag/retriever.py`, `rag/relevance.py`, `rag/chroma_store.py`, `rag/ollama_embeddings.py` |
-| Veterinary LLM | `llm/factory.py`, `llm/chat_providers.py`, `llm/verifier.py` |
-| Report Validation | `validation/report_validator.py`, `llm/grounding.py` |
-| Akışı yöneten | `orchestration/orchestrator.py` (`AIOrchestrator.run`) |
+| RAG Bilgi Bankası | `rag/retriever.py`, `rag/relevance.py`, `rag/chroma_store.py`, `rag/ollama_embeddings.py` |
+| Rapor LLM | `llm/factory.py`, `llm/chat_providers.py`, `llm/verifier.py` |
+| Rapor Doğrulama | `validation/report_validator.py`, `llm/grounding.py` |
+| Veteriner Radyolog İncelemesi | `services/workflow_service.py`, `services/report_versioning.py` |
+| Onaylı Rapor | `services/pdf_report.py` |
+
+Akışı yöneten: `orchestration/orchestrator.py` (`AIOrchestrator.run`).
