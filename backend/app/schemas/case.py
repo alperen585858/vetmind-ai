@@ -189,6 +189,8 @@ class ReportDraftUpdate(BaseModel):
     findings: Optional[str] = None
     impression: Optional[str] = None
     recommendations: Optional[str] = None
+    # Issue #108: radiologist's wording of the "change since the prior study" section.
+    comparison: Optional[str] = Field(default=None, max_length=4000)
     note: Optional[str] = None
 
 

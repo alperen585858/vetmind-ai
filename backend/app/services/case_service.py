@@ -41,6 +41,7 @@ from app.schemas.workflow import (
     InfoRequestCreate,
     InfoRequestReply,
 )
+from app.llm.comparison import build_comparison, comparison_warnings
 from app.llm.interfaces import LLMProviderError
 from app.services.activity import append_activity
 from app.review_sla import (
@@ -188,6 +189,24 @@ class CaseService:
     def bind_patients(self, service) -> None:
         """Issue #108: patient records (validate the patient chosen for a new case)."""
         self._patients = service
+
+    def _attach_comparison(
+        self, case: CaseRecord, draft: DraftReport, *, principal: AuthPrincipal | None = None
+    ) -> None:
+        """Issue #108: fill the "change since the prior study" section of a new AI draft.
+
+        Cases without a patient record keep ``comparison=None`` (unchanged behaviour). A
+        failure here never blocks the report; it only leaves the section out.
+        """
+        if self._patients is None or not case.patient_id:
+            return
+        try:
+            prior = self._patients.prior_for_report(case)
+            language = self._resolve_report_language(case, principal=principal)
+            draft.comparison = build_comparison(case, draft, prior, language=language)
+            draft.validation_warnings.extend(comparison_warnings(draft))
+        except Exception:  # noqa: BLE001 — comparison is optional context, never fatal
+            draft.comparison = None
 
     def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
         """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
