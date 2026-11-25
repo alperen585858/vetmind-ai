@@ -54,7 +54,7 @@ def test_unsupported_cannot_approve_ai_draft(client: TestClient) -> None:
         json={"reviewer_id": "expert-demo", "action": "approve"},
     )
     assert res.status_code == 409
-    assert "manual" in res.json()["detail"].lower() or "unsupported" in res.json()["detail"].lower()
+    assert "manual" in res.json()["detail"]["message"].lower() or "unsupported" in res.json()["detail"]["message"].lower()
     case = client.get(f"/api/v1/cases/{case_id}").json()
     assert case["status"] == "manual_review"
     assert case["draft_report"] is None

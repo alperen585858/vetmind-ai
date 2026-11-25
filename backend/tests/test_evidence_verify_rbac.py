@@ -69,4 +69,4 @@ def test_vet_with_review_cannot_verify(tmp_path: Path, monkeypatch) -> None:
         headers=_hdr(vet),
     )
     assert denied.status_code == 403, denied.text
-    assert "training:verify" in denied.json()["detail"]
+    assert "training:verify" in denied.json()["detail"]["message"]

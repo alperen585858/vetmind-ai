@@ -114,6 +114,10 @@ export function presentApiError(err: unknown, t: TranslateFn): PresentedError {
     if (localized) {
       return { message: localized, technical, code }
     }
+    // Generic status code without a translation: a specific one may hide in the message.
+    const inferred = technical ? inferFromMessage(technical) : {}
+    const specific = inferred.code ? lookupCode(t, inferred.code, inferred.params ?? params) : undefined
+    if (specific) return { message: specific, technical, code: inferred.code! }
   }
 
   // Heuristic fallbacks (status / network wording)

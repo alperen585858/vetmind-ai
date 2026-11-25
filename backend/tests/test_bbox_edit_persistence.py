@@ -54,7 +54,7 @@ def test_model_input_without_chain_rejected(tmp_path: Path) -> None:
         headers=_hdr(exp),
     )
     assert res.status_code == 400, res.text
-    assert "transform_chain" in res.json()["detail"].lower() or "model_input" in res.json()["detail"].lower()
+    assert "transform_chain" in res.json()["detail"]["message"].lower() or "model_input" in res.json()["detail"]["message"].lower()
 
 
 def test_patient_space_bbox_rejected(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.api.analysis import router as analysis_router
@@ -26,6 +27,7 @@ from app.api.settings import router as settings_router
 from app.api.training_export import router as training_export_router
 from app.api.lessons import router as lessons_router
 from app.container import AppContainer
+from app.http_errors import normalize_detail, validation_detail
 from app.demo_seed import ensure_demo_seed
 
 
@@ -48,7 +50,16 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         # Same 422 body as FastAPI, minus echoed inputs: NaN/inf inputs cannot be JSON-encoded
         # (the default handler turned them into a 500) and inputs may carry sensitive text.
         errors = [{k: v for k, v in err.items() if k not in {"input", "ctx", "url"}} for err in exc.errors()]
-        return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+        return JSONResponse(status_code=422, content={"detail": jsonable_encoder(validation_detail(errors))})
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        # One error shape for the whole API (#85): {"detail": {"code", "message", ...}}.
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": jsonable_encoder(normalize_detail(exc.status_code, exc.detail))},
+            headers=getattr(exc, "headers", None),
+        )
     ensure_demo_seed(app.state.container)
     app.add_middleware(
         CORSMiddleware,

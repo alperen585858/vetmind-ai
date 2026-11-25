@@ -69,7 +69,7 @@ def test_regenerate_failure_keeps_current_draft(tmp_path: Path) -> None:
     res = client.post(
         f"/api/v1/cases/{case_id}/report/regenerate", json={"reviewer_id": "expert-demo", "note": NOTE}
     )
-    assert res.status_code == 502 and "unchanged" in res.json()["detail"]
+    assert res.status_code == 502 and "unchanged" in res.json()["detail"]["message"]
     after = client.get(f"/api/v1/cases/{case_id}/report").json()
     assert after["version"] == before["version"] and after["report_id"] == before["report_id"]
 

@@ -382,7 +382,7 @@ def test_api_upload_rejects_total_budget(client: TestClient, monkeypatch) -> Non
         ],
     )
     assert res.status_code == 413
-    assert "Total upload exceeds" in res.json()["detail"]
+    assert "Total upload exceeds" in res.json()["detail"]["message"]
 
 
 def test_case_dicom_files_from_quarantine(client: TestClient) -> None:

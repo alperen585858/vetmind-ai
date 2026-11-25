@@ -46,7 +46,7 @@ def test_evidence_frozen_after_approval(tmp_path: Path) -> None:
         f"/api/v1/cases/{cid}/review", json={"reviewer_id": "expert@demo.local", "action": "approve"}, headers=_hdr(exp)
     ).status_code == 200
     res = _add(c, exp, cid, fid)
-    assert res.status_code == 409 and "approved" in res.json()["detail"]
+    assert res.status_code == 409 and "approved" in res.json()["detail"]["message"]
 
 
 def test_manual_mark_gets_an_overlay_so_it_can_reach_the_report(tmp_path: Path) -> None:

@@ -237,7 +237,7 @@ def test_admin_cannot_activate_pending_vet_without_clinic(tmp_path: Path) -> Non
     admin = _admin(client)
     res = client.patch("/api/v1/admin/users/vet.pending@clinic.test", json={"active": True}, headers=admin)
     assert res.status_code == 422
-    assert "Assign a clinic" in res.json()["detail"]
+    assert "Assign a clinic" in res.json()["detail"]["message"]
     assert container.workflow_store.get_user("vet.pending@clinic.test").active is False
     assert _login(client, "vet.pending@clinic.test", GOOD_PASSWORD).status_code == 401
 

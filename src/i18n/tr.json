@@ -284,7 +284,16 @@
     "report_link_used": "Bu rapor bağlantısı daha önce kullanılmış.",
     "report_link_revoked": "Rapor bağlantısı iptal edilmiş.",
     "report_link_invalid": "Rapor bağlantısı geçersiz.",
-    "report_not_available": "Onaylı rapor bulunamadı."
+    "report_not_available": "Onaylı rapor bulunamadı.",
+    "forbidden": "Bu işlem için yetkiniz yok.",
+    "not_found": "Kayıt bulunamadı.",
+    "conflict": "Bu işlem kaydın şu anki durumunda yapılamaz.",
+    "validation_error": "Girilen bilgiler geçersiz: {count} alan kontrol edilmeli.",
+    "case_not_cancellable": "Yalnızca radyoloğa gönderilmemiş taslak vakalar iptal edilebilir.",
+    "case_cancel_forbidden": "Vakayı yalnızca klinik iptal edebilir.",
+    "case_delete_admin_only": "Kalıcı silmeyi yalnızca yönetici yapabilir; taslağı iptal edin.",
+    "case_delete_reason_required": "Kalıcı silme için sebep gerekli.",
+    "case_cancelled": "Bu vaka iptal edildi; analiz edilemez."
   },
   "auth": {
     "loginTitle": "Giriş yap",

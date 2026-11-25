@@ -284,7 +284,16 @@
     "report_link_used": "This report link was already used.",
     "report_link_revoked": "This report link was revoked.",
     "report_link_invalid": "This report link is invalid.",
-    "report_not_available": "Approved report not found."
+    "report_not_available": "Approved report not found.",
+    "forbidden": "You do not have permission for this action.",
+    "not_found": "Record not found.",
+    "conflict": "This action is not possible in the record's current state.",
+    "validation_error": "The entered data is invalid: check {count} field(s).",
+    "case_not_cancellable": "Only drafts not yet sent to a radiologist can be cancelled.",
+    "case_cancel_forbidden": "Only the clinic can cancel a case.",
+    "case_delete_admin_only": "Only an administrator can delete permanently; cancel the draft instead.",
+    "case_delete_reason_required": "A reason is required for permanent deletion.",
+    "case_cancelled": "This case was cancelled and cannot be analysed."
   },
   "auth": {
     "loginTitle": "Sign in",
