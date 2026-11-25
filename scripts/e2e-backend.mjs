@@ -51,10 +51,8 @@ const env = {
         VETMIND_MALWARE_SCANNER: 'fake_clean',
       }
     : {
-        // Auth-off demo principal is limited (no admin / training:verify); demo E2E drives
-        // admin and radiologist screens, so the test backend gets full access. Permission
-        // checks are covered by backend RBAC tests and the protected (auth-on) E2E run.
-        VETMIND_ALLOW_INSECURE_DEMO: '1',
+        // Demo mode acts as the role picked in the UI (X-VetMind-Demo-Role, issue #104),
+        // so admin and radiologist screens work without VETMIND_ALLOW_INSECURE_DEMO.
       }),
   // Keep delay modest; E2E waits on URL/DOM, not arbitrary sleeps.
   VETMIND_ASYNC_DELAY_MS: '50',

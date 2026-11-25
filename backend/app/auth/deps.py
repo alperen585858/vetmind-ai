@@ -17,6 +17,30 @@ _bearer = HTTPBearer(auto_error=False)
 __all__ = ["AuthPrincipal", "require_actor", "require_auth", "require_capability", "require_roles"]
 
 
+# Roles the demo UI can switch between (issue #104).
+DEMO_SWITCHABLE_ROLES = frozenset({"vet", "expert", "clinic_owner", "admin"})
+
+
+def _demo_session_principal(request: Request, container: AppContainer) -> AuthPrincipal | None:
+    """Auth off + deployment_mode=demo: act as the role picked in the UI ("Rol değiştir").
+
+    The frontend sends ``X-VetMind-Demo-Role`` / ``X-VetMind-Demo-Subject``. The role's real
+    capabilities apply, so a vet still cannot do admin work. Protected mode never reaches
+    here (auth is always on there) and the headers are ignored.
+    """
+    if getattr(container.settings, "deployment_mode", "demo") != "demo":
+        return None
+    role = (request.headers.get("X-VetMind-Demo-Role") or "").strip().lower()
+    if role not in DEMO_SWITCHABLE_ROLES:
+        return None
+    subject = (request.headers.get("X-VetMind-Demo-Subject") or "").strip().lower()
+    if not subject:
+        subject = "clinic-owner@demo.local" if role == "clinic_owner" else f"{role}@demo.local"
+    entry = (container.auth.users or {}).get(subject)
+    clinic_id = getattr(entry, "clinic_id", None) if entry is not None else None
+    return AuthPrincipal(subject=subject, role=role, via="disabled", clinic_id=clinic_id)
+
+
 def require_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
@@ -28,12 +52,12 @@ def require_auth(
         # Demo-only principal when auth is off — never minted as a signed JWT.
         # Full "*" admin only with VETMIND_ALLOW_INSECURE_DEMO=1 (uses service role).
         insecure = bool(getattr(container.settings, "allow_insecure_demo", False))
-        return AuthPrincipal(
-            subject="anonymous",
-            role="service" if insecure else "demo",
-            via="disabled",
-            clinic_id=None,
-        )
+        if insecure:
+            return AuthPrincipal(subject="anonymous", role="service", via="disabled", clinic_id=None)
+        demo = _demo_session_principal(request, container)
+        if demo is not None:
+            return demo
+        return AuthPrincipal(subject="anonymous", role="demo", via="disabled", clinic_id=None)
 
     api_key = request.headers.get("X-API-Key")
     if verify_api_key(api_key, auth.api_key):
