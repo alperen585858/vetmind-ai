@@ -166,7 +166,8 @@
     "aiLessons": "AI Lessons",
     "menu": "Menu",
     "mainMenuAria": "Main menu",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "aiArchitecture": "AI Architecture"
   },
   "topbar": {
     "openMenu": "Open menu",
@@ -2413,5 +2414,23 @@
     "doneTitle": "AI analysis complete",
     "failedTitle": "AI analysis failed",
     "keepWorking": "You can keep working on other pages; progress shows in the top bar."
+  },
+  "architecture": {
+    "title": "AI Architecture",
+    "subtitle": "Live flow: which component is real, mock or off. Refreshes every 15 seconds.",
+    "refresh": "Refresh",
+    "updated": "Updated",
+    "recentJobs": "last {n} analyses checked",
+    "loading": "Loading architecture…",
+    "loadFail": "Could not load the architecture.",
+    "pickNode": "Click a box to see its details.",
+    "close": "Close",
+    "uses": "{n} analyses",
+    "status": {
+      "active": "Real / running",
+      "mock": "Mock",
+      "fallback": "Fell back",
+      "off": "Off / not configured"
+    }
   }
 }
