@@ -217,6 +217,8 @@ class ManagedUserPublic(BaseModel):
     # admin-created users count as verified; only self-registration stores False.
     email_verified: bool = True
     email_verified_at: Optional[datetime] = None
+    # Issue #107: two-step sign-in (TOTP) is on for this account.
+    mfa_enabled: bool = False
 
 
 class ManagedUser(ManagedUserPublic):
@@ -230,10 +232,29 @@ class ManagedUser(ManagedUserPublic):
     # Legacy plaintext from rows written before password hashing. Read only so
     # WorkflowService can migrate it to ``password_hash`` at startup; never written.
     password: Optional[str] = None
+    # Issue #107 — TOTP. Secrets are Fernet-sealed (app/auth/mfa_crypto.py), backup codes
+    # are scrypt hashes; none of these ever leave the backend.
+    mfa_secret_sealed: Optional[str] = None
+    mfa_pending_sealed: Optional[str] = None
+    mfa_enabled_at: Optional[datetime] = None
+    mfa_last_step: Optional[int] = None
+    mfa_backup_hashes: list[str] = Field(default_factory=list)
 
     def to_public(self) -> ManagedUserPublic:
         return ManagedUserPublic.model_validate(
-            self.model_dump(exclude={"password", "password_hash", "token_version", "updated_at"})
+            self.model_dump(
+                exclude={
+                    "password",
+                    "password_hash",
+                    "token_version",
+                    "updated_at",
+                    "mfa_secret_sealed",
+                    "mfa_pending_sealed",
+                    "mfa_enabled_at",
+                    "mfa_last_step",
+                    "mfa_backup_hashes",
+                }
+            )
         )
 
 

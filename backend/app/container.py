@@ -2,6 +2,8 @@ from pathlib import Path
 
 from app.auth.email_verification import EmailVerificationService, build_email_verification_store
 from app.auth.mailer import build_mailer
+from app.auth.mfa import MfaService
+from app.auth.mfa_crypto import MfaSecretBox
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
 from app.services.report_view_tokens import ReportViewTokenService, build_report_view_token_store
@@ -437,6 +439,13 @@ class AppContainer:
             build_refresh_token_store(self.settings),
             ttl_seconds=self.settings.refresh_ttl_seconds,
             directory=self._auth_users,
+        )
+        # Issue #107: TOTP two-step sign-in (opt-in; demo accounts exempt).
+        self.mfa = MfaService(
+            self.workflow_store,
+            self.workflow,
+            box=MfaSecretBox(dedicated_key=self.settings.mfa_encryption_key, jwt_secret=self.settings.jwt_secret),
+            required_roles=self.settings.mfa_required_roles,
         )
         self.password_resets = PasswordResetService(
             build_password_reset_store(self.settings),

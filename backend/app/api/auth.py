@@ -20,6 +20,8 @@ from app.security.rate_limit import (
     FORGOT_PER_IP,
     LOGIN_PER_EMAIL,
     LOGIN_PER_IP,
+    MFA_CODE_PER_IP,
+    MFA_CODE_PER_USER,
     PASSWORD_CHANGE_PER_USER,
     REGISTER_PER_IP,
     RESET_PER_IP,
@@ -682,3 +684,161 @@ def reset_password(
         clinic_id=user.clinic_id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- two-step sign-in setup (issue #107) -------------------------------------------------
+
+
+class MfaStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    backup_codes_left: int
+    required_for_role: bool
+    demo_account: bool
+    setup_pending: bool
+    required_roles: list[str]
+
+
+class MfaSetupResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Shown once for manual entry; the QR code encodes ``otpauth_uri``.
+    secret: str
+    otpauth_uri: str
+
+
+class MfaCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=6, max_length=20)
+
+
+class MfaPasswordCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=6, max_length=20)
+
+
+class MfaBackupCodesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    backup_codes: list[str]
+    # Fresh token pair: turning 2FA on/off ends every other session, not this one.
+    session: TokenResponse | None = None
+
+
+def _jwt_user(principal: AuthPrincipal) -> str:
+    if principal.via != "jwt":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=api_error("sign_in_required", "Sign in with a user account first."),
+        )
+    return principal.subject
+
+
+def _mfa_audit(container: AppContainer, actor: str, event: str, outcome: AuditOutcome, detail: str | None = None) -> None:
+    container.audit.record(event_type=event, actor=actor, resource="/api/v1/auth/mfa", outcome=outcome, detail=detail)
+
+
+def _mfa_code_limits(request: Request, container: AppContainer, email: str) -> list[tuple[str, str, Limit]]:
+    return [
+        ("mfa_code_user", email, MFA_CODE_PER_USER),
+        ("mfa_code_ip", _client_ip(request, container), MFA_CODE_PER_IP),
+    ]
+
+
+def _with_code_limits(request: Request, container: AppContainer, email: str, event: str, action):
+    """Run ``action``; a wrong code counts against the limiter and is audited."""
+    limits = _mfa_code_limits(request, container, email)
+    _enforce_limits(container, request, email, limits)
+    try:
+        return action()
+    except HTTPException as exc:
+        if isinstance(exc.detail, dict) and exc.detail.get("code") == "mfa_invalid_code":
+            _hit(container, limits)
+            _mfa_audit(container, email, event, AuditOutcome.DENIED, "invalid_code")
+        raise
+
+
+def _fresh_session(container: AppContainer, email: str) -> TokenResponse:
+    container.refresh_tokens.revoke_all_for(email)
+    return _issue_token(container, email=email, entry=container.auth.users[email])
+
+
+@router.get("/mfa/status", response_model=MfaStatusResponse)
+def mfa_status(
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> MfaStatusResponse:
+    st = container.mfa.status(principal.subject, principal.role)
+    return MfaStatusResponse(**st.__dict__, required_roles=list(container.mfa.required_roles))
+
+
+@router.post("/mfa/setup", response_model=MfaSetupResponse)
+def mfa_setup(
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> MfaSetupResponse:
+    email = _jwt_user(principal)
+    secret, uri = container.mfa.begin_setup(email)
+    _mfa_audit(container, email, "auth.mfa_setup_started", AuditOutcome.INFO)
+    return MfaSetupResponse(secret=secret, otpauth_uri=uri)
+
+
+@router.post("/mfa/enable", response_model=MfaBackupCodesResponse)
+def mfa_enable(
+    payload: MfaCodeRequest,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> MfaBackupCodesResponse:
+    email = _jwt_user(principal)
+    codes = _with_code_limits(request, container, email, "auth.mfa_enabled", lambda: container.mfa.enable(email, payload.code))
+    _mfa_audit(container, email, "auth.mfa_enabled", AuditOutcome.SUCCESS)
+    return MfaBackupCodesResponse(backup_codes=codes, session=_fresh_session(container, email))
+
+
+@router.post("/mfa/disable", response_model=TokenResponse)
+def mfa_disable(
+    payload: MfaPasswordCodeRequest,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> TokenResponse:
+    email = _jwt_user(principal)
+    entry = container.auth.users.get(email) if container.auth.users else None
+    if entry is None or not verify_password(payload.password, entry.password):
+        limits = [("password_change_user", email, PASSWORD_CHANGE_PER_USER)]
+        _enforce_limits(container, request, email, limits)
+        _hit(container, limits)
+        _mfa_audit(container, email, "auth.mfa_disabled", AuditOutcome.DENIED, "wrong_password")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=api_error("wrong_current_password", "Current password is incorrect."),
+        )
+    _with_code_limits(request, container, email, "auth.mfa_disabled", lambda: container.mfa.disable(email, payload.code))
+    _mfa_audit(container, email, "auth.mfa_disabled", AuditOutcome.SUCCESS)
+    return _fresh_session(container, email)
+
+
+@router.post("/mfa/backup-codes", response_model=MfaBackupCodesResponse)
+def mfa_backup_codes(
+    payload: MfaPasswordCodeRequest,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_auth),
+    container: AppContainer = Depends(get_container),
+) -> MfaBackupCodesResponse:
+    email = _jwt_user(principal)
+    entry = container.auth.users.get(email) if container.auth.users else None
+    if entry is None or not verify_password(payload.password, entry.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=api_error("wrong_current_password", "Current password is incorrect."),
+        )
+    codes = _with_code_limits(
+        request, container, email, "auth.mfa_backup_regenerated", lambda: container.mfa.regenerate_backup_codes(email, payload.code)
+    )
+    _mfa_audit(container, email, "auth.mfa_backup_regenerated", AuditOutcome.SUCCESS)
+    return MfaBackupCodesResponse(backup_codes=codes)

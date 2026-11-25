@@ -110,6 +110,10 @@ class Settings:
     self_registration_owner_clinic_id: str | None = "clinic-demo-a"
     # Issue #31 step 4 — password reset links (single use).
     password_reset_ttl_seconds: int = 30 * 60
+    # Issue #107 — two-step sign-in. Fernet key for TOTP secrets (derived from the JWT
+    # secret when unset) and roles that must turn 2FA on (demo accounts are always exempt).
+    mfa_encryption_key: str | None = None
+    mfa_required_roles: tuple[str, ...] = ()
     # Issue #41 — email verification links for self-registered accounts (single use).
     email_verify_ttl_seconds: int = 24 * 60 * 60
     # Single-use approved-report email links (default 72h).
@@ -447,6 +451,11 @@ def load_settings() -> Settings:
         email_verify_ttl = int(os.getenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS", str(24 * 60 * 60)))
     except ValueError:
         email_verify_ttl = 24 * 60 * 60
+    mfa_encryption_key = (os.getenv("VETMIND_MFA_ENCRYPTION_KEY") or "").strip() or None
+    mfa_required_roles = tuple(
+        r for r in (x.strip().lower() for x in os.getenv("VETMIND_MFA_REQUIRED_ROLES", "").split(","))
+        if r in {"admin", "expert", "vet", "clinic_owner"}
+    )
     public_base_url = (os.getenv("VETMIND_PUBLIC_BASE_URL") or "http://localhost:5173").strip().rstrip("/")
     smtp_host = (os.getenv("VETMIND_SMTP_HOST") or "").strip() or None
     try:
@@ -608,6 +617,8 @@ def load_settings() -> Settings:
         self_registration_owner_clinic_id=self_registration_owner_clinic_id,
         password_reset_ttl_seconds=min(max(300, password_reset_ttl), 24 * 60 * 60),
         email_verify_ttl_seconds=min(max(300, email_verify_ttl), 7 * 24 * 60 * 60),
+        mfa_encryption_key=mfa_encryption_key,
+        mfa_required_roles=mfa_required_roles,
         report_view_token_ttl_seconds=min(
             max(3600, int(os.getenv("VETMIND_REPORT_VIEW_TOKEN_TTL_SECONDS", str(72 * 60 * 60)))),
             14 * 24 * 60 * 60,
