@@ -184,6 +184,7 @@ export function startHandoffTask(handoff: AnalyzeHandoff, messages: { blocked: s
         patientName: handoff.patientName,
         clinicalHistory: handoff.history,
         ownerName: handoff.ownerName,
+        patientId: handoff.patientId ?? null,
         imagingSourcePermissionVerified: handoff.consent,
         imagingAnalysisConsentVerified: handoff.consent,
       })

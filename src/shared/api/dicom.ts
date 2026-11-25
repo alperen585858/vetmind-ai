@@ -172,6 +172,8 @@ export async function confirmDicomClassification(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  /** Issue #108: existing clinic patient this study belongs to. */
+  patientId?: string | null
   /** Maps UI consent → case flags (does not enable pixel inference by itself). */
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
@@ -187,6 +189,7 @@ export async function confirmDicomClassification(input: {
       patient_name: input.patientName ?? null,
       clinical_history: input.clinicalHistory ?? null,
       owner_name: input.ownerName?.trim() || null,
+      patient_id: input.patientId || null,
       imaging_source_permission_verified: Boolean(input.imagingSourcePermissionVerified),
       imaging_analysis_consent_verified: Boolean(input.imagingAnalysisConsentVerified),
     }),
@@ -203,6 +206,7 @@ export async function confirmDicomAndEnqueueAnalyze(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  patientId?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
@@ -222,6 +226,7 @@ export async function confirmDicomAndAnalyze(input: {
   clinicalHistory?: string
   /** Optional pet-owner name (no account, no email). */
   ownerName?: string
+  patientId?: string | null
   imagingSourcePermissionVerified?: boolean
   imagingAnalysisConsentVerified?: boolean
   signal?: AbortSignal
