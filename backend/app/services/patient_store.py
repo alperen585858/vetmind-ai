@@ -16,6 +16,8 @@ class PatientStore(Protocol):
 
     def list(self) -> list[PatientRecord]: ...
 
+    def delete(self, patient_id: str) -> None: ...
+
 
 class InMemoryPatientStore:
     def __init__(self) -> None:
@@ -34,6 +36,10 @@ class InMemoryPatientStore:
     def list(self) -> list[PatientRecord]:
         with self._lock:
             return sorted(self._rows.values(), key=lambda p: p.created_at)
+
+    def delete(self, patient_id: str) -> None:
+        with self._lock:
+            self._rows.pop(patient_id, None)
 
 
 class SqlPatientStore:
@@ -68,6 +74,11 @@ class SqlPatientStore:
         with self._lock:
             rows = self._conn.execute("SELECT payload FROM patients ORDER BY created_at").fetchall()
         return [PatientRecord.model_validate_json(r["payload"]) for r in rows]
+
+    def delete(self, patient_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM patients WHERE patient_id=?", (patient_id,))
+            self._conn.commit()
 
 
 def build_patient_store(settings) -> PatientStore:
