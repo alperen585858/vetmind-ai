@@ -5,6 +5,8 @@ import type {
   BackendDraftReport,
   BackendFindings,
   BackendModality,
+  AttachedDocType,
+  CaseDocument,
   CaseStatus,
   ClinicalInfo,
   NeuroExam,
@@ -56,6 +58,8 @@ function neuroFromStructured(
     hyperesthesia: str('hyperesthesia', UNKNOWN_NEURO.hyperesthesia) as NeuroExam['hyperesthesia'],
   }
 }
+
+const ATTACHED_DOC_KIND: Record<string, AttachedDocType> = { pdf: 'PDF', jpeg: 'Görsel', png: 'Görsel', text: 'Metin' }
 
 export function speciesFromBackend(species: string): Species {
   if (species === 'feline') return 'Kedi'
@@ -330,7 +334,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     by: ['expert@demo.local', 'expert-demo'].includes(h.reviewer_id) ? USERS.expert.name : h.reviewer_id,
   }))
 
-  const docs =
+  const docs: CaseDocument[] =
     r.study?.dicom_available || r.dicom_study
       ? [
           {
@@ -350,6 +354,18 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
           },
         ]
       : []
+  // Attached documents (Belgeler tab, #70): the extracted text is shown as the document text.
+  for (const [i, d] of (r.document_context?.documents ?? []).entries()) {
+    docs.push({
+      id: `${r.case_id}-doc-${i}`,
+      name: d.filename,
+      type: ATTACHED_DOC_KIND[d.content_kind] ?? 'Belge',
+      size: d.char_count ? `${d.char_count.toLocaleString('tr-TR')} karakter` : '—',
+      pages: 1,
+      rawText: (d.extracted_text ?? '') + (d.text_truncated ? ' …' : ''),
+      extracted: [],
+    })
+  }
 
   return {
     id: r.case_id,

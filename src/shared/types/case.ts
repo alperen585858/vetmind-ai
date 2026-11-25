@@ -34,6 +34,8 @@ export type Species = 'Köpek' | 'Kedi' | 'Diğer'
 export type Priority = 'STAT' | 'Acil' | 'Yüksek' | 'Normal'
 export type Severity = 'Yüksek' | 'Orta' | 'Düşük'
 export type DocType = 'MR Raporu' | 'BT Raporu' | 'Laboratuvar Sonucu' | 'Önceki Rapor'
+/** Kind of a document attached to a backend case (PDF / image / text upload, #70). */
+export type AttachedDocType = 'PDF' | 'Görsel' | 'Metin' | 'Belge'
 
 export interface Patient {
   name: string
@@ -82,7 +84,7 @@ export interface ExtractedField {
 export interface CaseDocument {
   id: string
   name: string
-  type: DocType
+  type: DocType | AttachedDocType
   size: string
   pages: number
   rawText: string
@@ -235,6 +237,16 @@ export interface BackendCaseRecord {
   report_delivered_at?: string | null
   report_viewed_at?: string | null
   dicom_study?: DicomStudyMeta | null
+  /** Documents attached to the case (PDF / image / text), with extracted text (#70). */
+  document_context?: {
+    documents: {
+      filename: string
+      content_kind: string
+      extracted_text?: string | null
+      text_truncated?: boolean
+      char_count?: number
+    }[]
+  } | null
   dicom_ingest_id?: string | null
   study: {
     study_id?: string | null

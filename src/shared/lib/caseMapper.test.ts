@@ -154,6 +154,54 @@ describe('caseMapper list/detail helpers', () => {
   })
 })
 
+describe('attached documents (#70)', () => {
+  const base = {
+    case_id: 'case-docs',
+    patient_name: 'Rex',
+    species: 'canine',
+    modality: 'OTHER',
+    anatomical_region: 'UNKNOWN',
+    status: 'awaiting_review',
+    created_at: '2026-11-26T10:00:00Z',
+    updated_at: '2026-11-26T10:00:00Z',
+    classification_confirmed: true,
+  }
+
+  it('lists documents attached to a case with their extracted text', () => {
+    const mapped = recordToVetCase({
+      ...base,
+      study: { dicom_available: false },
+      document_context: {
+        documents: [
+          { filename: 'kan.pdf', content_kind: 'pdf', extracted_text: 'ALT 120', char_count: 7 },
+          { filename: 'not.txt', content_kind: 'text', extracted_text: 'Uzun metin', char_count: 9000, text_truncated: true },
+          { filename: 'foto.png', content_kind: 'png', extracted_text: null },
+        ],
+      },
+    } as unknown as BackendCaseRecord)
+    expect(mapped.documents.map((d) => [d.name, d.type])).toEqual([
+      ['kan.pdf', 'PDF'],
+      ['not.txt', 'Metin'],
+      ['foto.png', 'Görsel'],
+    ])
+    expect(mapped.documents[0].rawText).toBe('ALT 120')
+    expect(mapped.documents[1].rawText).toBe('Uzun metin …')
+    expect(mapped.documents[2].rawText).toBe('')
+    expect(mapped.documents.every((d) => d.extracted.length === 0)).toBe(true)
+  })
+
+  it('keeps the DICOM entry first and has no documents without a document context', () => {
+    const withDicom = recordToVetCase({
+      ...base,
+      study: { dicom_available: true, study_instance_uid: '1.2.3', instance_count: 4 },
+      document_context: { documents: [{ filename: 'kan.pdf', content_kind: 'pdf', extracted_text: 'x' }] },
+    } as unknown as BackendCaseRecord)
+    expect(withDicom.documents.map((d) => d.name)).toEqual(['DICOM 1.2.3', 'kan.pdf'])
+    const none = recordToVetCase({ ...base, study: { dicom_available: false } } as unknown as BackendCaseRecord)
+    expect(none.documents).toEqual([])
+  })
+})
+
 describe('caseBelongsToOwner', () => {
   it('matches pet_owner_subject email and ignores orphan approved cases', () => {
     const mine = ownerCase({ petOwnerSubject: 'owner@demo.local' })
