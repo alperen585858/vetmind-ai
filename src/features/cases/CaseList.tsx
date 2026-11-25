@@ -7,10 +7,8 @@ import {
   CheckCircle2,
   FilePlus2,
   FolderOpen,
-  Loader2,
   RefreshCw,
   Search,
-  Trash2,
   UploadCloud,
   Users,
 } from 'lucide-react'
@@ -19,9 +17,7 @@ import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { CaseTable } from '../../shared/ui/CaseTable'
 import { EmptyState } from '../../shared/ui/EmptyState'
-import { Modal } from '../../shared/ui/Modal'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
-import { deleteBackendCase } from '../../shared/api'
 import type { BackendModality, CaseStatus, VetCase } from '../../shared/types'
 import { AWAITING_REPORT_FILTER, isAwaitingReport } from './lib/caseStatusMap'
 
@@ -49,7 +45,7 @@ function expertKey(c: VetCase): string {
 }
 
 export default function CaseList() {
-  const { cases, role, refreshBackendCases, backendSyncing, pushToast, removeCase } = useApp()
+  const { cases, role, refreshBackendCases, backendSyncing, pushToast } = useApp()
   const { t, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
   const [q, setQ] = useState('')
@@ -62,9 +58,6 @@ export default function CaseList() {
   const [expert, setExpert] = useState('')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [initialLoad, setInitialLoad] = useState(true)
-  const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const canDeleteCases = role === 'expert' || role === 'vet' || role === 'admin'
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +96,8 @@ export default function CaseList() {
     const s = q.trim().toLocaleLowerCase(intlLocale)
     return cases.filter(
       (c) =>
+        // Cancelled drafts are kept but only shown when the "İptal edilenler" filter is on.
+        (status === 'iptal' || c.status !== 'iptal') &&
         (!status ||
           (status === 'failed'
             ? c.status === 'analiz_basarisiz' || c.status === 'reddedildi'
@@ -141,30 +136,6 @@ export default function CaseList() {
     setSpecies('')
     setModality('')
     setExpert('')
-  }
-
-  const confirmDelete = async () => {
-    if (!pendingDelete || deleting) return
-    const target = pendingDelete
-    setDeleting(true)
-    try {
-      await deleteBackendCase(target.backendCaseId || target.id)
-      removeCase(target.id)
-      setPendingDelete(null)
-      pushToast({
-        tone: 'success',
-        title: t('cases.deleted'),
-        body: `${target.patient.name} · ${target.no}`,
-      })
-    } catch (err) {
-      pushToast({
-        tone: 'error',
-        title: t('cases.deleteFailed'),
-        body: err instanceof Error ? err.message : t('cases.serverError'),
-      })
-    } finally {
-      setDeleting(false)
-    }
   }
 
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
@@ -348,7 +319,6 @@ export default function CaseList() {
             <CaseTable
               cases={filtered}
               showPriority={role === 'expert'}
-              onDelete={canDeleteCases ? (c) => setPendingDelete(c) : undefined}
             />
           ) : cases.length === 0 ? (
             <EmptyState
@@ -383,42 +353,6 @@ export default function CaseList() {
         </div>
       </div>
 
-      <Modal
-        open={Boolean(pendingDelete)}
-        onClose={() => {
-          if (!deleting) setPendingDelete(null)
-        }}
-        title={t('cases.deleteConfirmTitle')}
-        footer={
-          <>
-            <Button variant="secondary" size="sm" disabled={deleting} onClick={() => setPendingDelete(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={deleting}
-              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              onClick={() => void confirmDelete()}
-            >
-              {deleting ? t('cases.deleting') : t('cases.deleteConfirmYes')}
-            </Button>
-          </>
-        }
-      >
-        {pendingDelete ? (
-          <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              {t('cases.deleteConfirmBody', {
-                name: pendingDelete.patient.name,
-                no: pendingDelete.no,
-              })}
-            </p>
-            <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-500">{pendingDelete.id}</p>
-            <p className="text-xs text-rose-700">{t('cases.deleteIrreversible')}</p>
-          </div>
-        ) : null}
-      </Modal>
     </>
   )
 }

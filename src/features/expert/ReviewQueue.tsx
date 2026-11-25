@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Clock, Info, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Clock, EyeOff, Info, Loader2, RefreshCw, Search } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
@@ -8,7 +8,7 @@ import { ExpertWorklistTable } from './ExpertWorklistTable'
 import { Modal } from '../../shared/ui/Modal'
 import { currentActorId } from '../../shared/auth/session'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
-import { deleteBackendCase, listBackendWorklist, updateCaseAssignment } from '../../shared/api'
+import { hideBackendCase, listBackendWorklist, updateCaseAssignment } from '../../shared/api'
 import { summaryToVetCase } from '../../shared/lib/caseMapper'
 import { compareBySlaUrgency, isSlaAttention } from '../../shared/lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../../shared/types'
@@ -311,11 +311,12 @@ export default function ReviewQueue() {
             secondaryActions={(c) => (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-[color:var(--vm-danger)]"
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-navy-700"
                 onClick={() => setPendingDelete(c)}
-                aria-label={t('common.delete')}
+                aria-label={t('review.hideFromMyList')}
+                title={t('review.hideFromMyList')}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <EyeOff className="h-3.5 w-3.5" />
               </button>
             )}
           />
@@ -338,15 +339,15 @@ export default function ReviewQueue() {
               {t('common.cancel')}
             </Button>
             <Button
-              variant="danger"
+              variant="primary"
               size="sm"
               disabled={deleting}
-              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
               onClick={() => {
                 if (!pendingDelete || deleting) return
                 const target = pendingDelete
                 setDeleting(true)
-                void deleteBackendCase(target.backendCaseId || target.id)
+                void hideBackendCase(target.backendCaseId || target.id)
                   .then(() => {
                     removeCase(target.id)
                     setPendingDelete(null)

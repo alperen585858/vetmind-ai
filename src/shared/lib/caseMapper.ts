@@ -80,6 +80,8 @@ export function caseStatusFromLifecycle(status: string): CaseStatus {
       return 'revizyon'
     case 'failed':
       return 'analiz_basarisiz'
+    case 'cancelled':
+      return 'iptal'
     case 'awaiting_classification_confirmation':
     case 'created':
     default:
@@ -437,6 +439,9 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     ownerEmailDeliveryStatus: r.owner_email_delivery_status ?? undefined,
     ownerEmailDeliveryDetail: r.owner_email_delivery_detail ?? undefined,
     vetEmailDeliveryStatus: r.vet_email_delivery_status ?? undefined,
+    cancelReason: r.cancel_reason ?? undefined,
+    cancelledBy: r.cancelled_by ?? undefined,
+    cancelledAt: r.cancelled_at ?? undefined,
   }
 }
 

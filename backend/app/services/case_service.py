@@ -507,6 +507,9 @@ class CaseService:
         def _match(s: CaseSummary) -> bool:
             if status_l and s.status.value != status_l:
                 return False
+            # Cancelled drafts never belong on a worklist unless asked for explicitly.
+            if not status_l and s.status == CaseLifecycleStatus.CANCELLED:
+                return False
             if modality_l and s.modality.value != modality_l:
                 return False
             if priority_l and (s.priority or "normal") != priority_l:
@@ -759,40 +762,91 @@ class CaseService:
             # never here: services save what get_case returns.
         return case
 
-    def delete_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
-        """Permanently remove a case (and its jobs). Demo / list cleanup — not clinical archival."""
+    # Drafts that have not reached a radiologist yet (#78).
+    CANCELLABLE_STATUSES = frozenset(
+        {
+            CaseLifecycleStatus.CREATED,
+            CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION,
+            CaseLifecycleStatus.FAILED,
+        }
+    )
+
+    def _load_for_change(self, case_id: str, principal: AuthPrincipal) -> CaseRecord:
         case_id = canonicalize_case_id(case_id)
         case = self._repo.get_case(case_id)
         if case is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
         assert_case_access(principal, case, isolation=self._tenant_isolation)
+        return case
 
-        # Pet owners may only delete their own finalized reports.
-        if principal.role == "owner" and principal.via == "jwt":
-            if case.status != CaseLifecycleStatus.APPROVED:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
-            pet_owner = getattr(case, "pet_owner_subject", None) or case.owner_subject
-            if pet_owner is None or pet_owner != principal.subject:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
-        elif principal.via != "disabled" and not (
-            principal.can(CAP_CASE_WRITE)
-            or principal.can(CAP_ADMIN)
-            or principal.role in {"clinic_owner", "expert", "admin", "demo", "service"}
-        ):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
+    @classmethod
+    def is_cancellable(cls, case: CaseRecord) -> bool:
+        if case.status not in cls.CANCELLABLE_STATUSES:
+            return False
+        # A failed case a radiologist already picked up is in their hands.
+        return not case.assigned_reviewer_id and case.draft_report is None
 
-        if not self._may_hard_delete(case, principal):
-            # Everyone else removes it from their own list only; the record is kept.
-            subject = principal.subject.strip().lower()
-            with self._lock:
-                latest = self._repo.get_case(case_id) or case
-                if subject not in latest.hidden_for:
-                    latest.hidden_for = [*latest.hidden_for, subject]
-                    latest.updated_at = _now()
-                    self._repo.save_case(latest)
-            self._emit_audit("case.hide", principal=principal, resource=case_id)
-            return
+    def cancel_case(self, case_id: str, reason: str, *, principal: AuthPrincipal) -> CaseRecord:
+        """Mark a draft case as cancelled (kept, audited). Sent-to-radiologist cases are refused."""
+        case = self._load_for_change(case_id, principal)
+        if not (principal.can(CAP_CASE_WRITE) or principal.role == "admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=api_error("case_cancel_forbidden", "Only the clinic can cancel a case."),
+            )
+        if case.status == CaseLifecycleStatus.CANCELLED:
+            return case
+        if not self.is_cancellable(case):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=api_error(
+                    "case_not_cancellable",
+                    "Only draft cases that have not been sent to a radiologist can be cancelled.",
+                ),
+            )
+        clean = " ".join(reason.split())
+        with self._lock:
+            latest = self._repo.get_case(case.case_id) or case
+            latest.status = CaseLifecycleStatus.CANCELLED
+            latest.cancelled_at = _now()
+            latest.cancelled_by = principal.subject
+            latest.cancel_reason = clean
+            latest.updated_at = latest.cancelled_at
+            append_activity(latest, kind="case_cancelled", actor_subject=principal.subject, detail=clean)
+            saved = self._repo.save_case(latest)
+        self._emit_audit("case.cancel", principal=principal, resource=saved.case_id, detail=clean)
+        return saved
 
+    def hide_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
+        """"Listemden gizle": remove the case from this user's own lists; the record is kept."""
+        case = self._load_for_change(case_id, principal)
+        subject = principal.subject.strip().lower()
+        with self._lock:
+            latest = self._repo.get_case(case.case_id) or case
+            if subject not in latest.hidden_for:
+                latest.hidden_for = [*latest.hidden_for, subject]
+                latest.updated_at = _now()
+                self._repo.save_case(latest)
+        self._emit_audit("case.hide", principal=principal, resource=case.case_id)
+
+    def delete_case(self, case_id: str, *, principal: AuthPrincipal, reason: str | None = None) -> None:
+        """Permanent delete — administrators only, with a reason (e.g. a KVKK erasure request)."""
+        case = self._load_for_change(case_id, principal)
+        if principal.role not in {"admin", "service"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=api_error(
+                    "case_delete_admin_only",
+                    "Only an administrator can permanently delete a case. Cancel the draft instead.",
+                ),
+            )
+        clean = " ".join((reason or "").split())
+        if len(clean) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=api_error("case_delete_reason_required", "A reason is required for permanent deletion."),
+            )
+        case_id = case.case_id
         self._repo.delete_case(case_id)
         store = self._evidence_store
         if store is not None and hasattr(store, "delete_case_artifacts"):
@@ -800,25 +854,7 @@ class CaseService:
                 store.delete_case_artifacts(case_id)  # type: ignore[union-attr]
             except Exception:  # noqa: BLE001 — leftover files must not block the delete
                 pass
-        nsvc = self._notifications
-        if nsvc is not None and hasattr(nsvc, "delete_for_cases"):
-            try:
-                nsvc.delete_for_cases({case_id})  # type: ignore[union-attr]
-            except Exception:
-                pass
-        self._emit_audit("case.delete", principal=principal, resource=case_id)
-
-    @staticmethod
-    def _may_hard_delete(case: CaseRecord, principal: AuthPrincipal) -> bool:
-        """Permanent delete: admin always; the clinic (cases:write) only before approval."""
-        if principal.role == "admin" or (principal.can(CAP_ADMIN) and principal.via != "disabled"):
-            return True
-        approved = (
-            case.status == CaseLifecycleStatus.APPROVED
-            or (case.draft_report is not None and case.draft_report.immutable)
-            or any(v.immutable for v in case.report_versions)
-        )
-        return principal.can(CAP_CASE_WRITE) and principal.role != "owner" and not approved
+        self._emit_audit("case.delete", principal=principal, resource=case_id, detail=clean)
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
         return self.analysis._assert_analyzable(case)

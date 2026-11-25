@@ -18,7 +18,7 @@ import {
   Send,
   Sparkles,
   Square,
-  Trash2,
+  EyeOff,
   XCircle,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
@@ -43,7 +43,7 @@ import {
   appendCaseInternalNote,
   createCaseInfoRequest,
   createLesson,
-  deleteBackendCase,
+  hideBackendCase,
   fetchCaseDicomFiles,
   listBackendWorklist,
   listReportVersions,
@@ -989,7 +989,7 @@ export default function RadiologistWorkspace() {
                     size="sm"
                     variant="ghost"
                     className="text-[color:var(--vm-danger)]"
-                    icon={<Trash2 className="h-3.5 w-3.5" />}
+                    icon={<EyeOff className="h-3.5 w-3.5" />}
                     onClick={() => setModal('sil')}
                   >
                     {t('review.workspace.deleteCase')}
@@ -1103,11 +1103,11 @@ export default function RadiologistWorkspace() {
               variant="danger"
               size="sm"
               disabled={deleting || !caseKey.startsWith('case-')}
-              icon={deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              icon={deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <EyeOff className="h-3.5 w-3.5" />}
               onClick={() => {
                 if (!caseRow || deleting || !caseKey.startsWith('case-')) return
                 setDeleting(true)
-                void deleteBackendCase(caseKey)
+                void hideBackendCase(caseKey)
                   .then(() => {
                     removeCase(caseRow.id)
                     pushToast({ tone: 'success', title: t('review.workspace.toastDeleted'), body: caseRow.patient.name })

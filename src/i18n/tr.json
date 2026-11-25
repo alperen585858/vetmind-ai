@@ -92,7 +92,8 @@
     "reddedildi": "Reddedildi",
     "revizyon": "Revizyon İstendi",
     "analiz_basarisiz": "Analiz Başarısız",
-    "manuel_inceleme": "Manuel İnceleme"
+    "manuel_inceleme": "Manuel İnceleme",
+    "iptal": "İptal edildi"
   },
   "priority": {
     "STAT": "STAT",
@@ -1044,7 +1045,23 @@
     "bulkDeleted": "{count} vaka silindi",
     "bulkDeletePartial": "{count} vaka silinemedi.",
     "bulkDeleteNone": "Hiçbir vaka silinemedi",
-    "filterAwaitingReport": "Rapor bekleyenler"
+    "filterAwaitingReport": "Rapor bekleyenler",
+    "cancel": {
+      "button": "Vakayı iptal et",
+      "title": "Vakayı iptal et",
+      "body": "Vaka silinmez; “İptal edildi” durumuna alınır ve kayıt saklanır. Yalnızca henüz radyoloğa gönderilmemiş taslaklar iptal edilebilir.",
+      "reason": "İptal sebebi",
+      "reasonPlaceholder": "ör. Yanlış hasta seçildi, çift açılmış vaka",
+      "confirm": "İptal et",
+      "done": "Vaka iptal edildi",
+      "failed": "İşlem yapılamadı",
+      "bannerTitle": "Bu vaka iptal edildi.",
+      "deleteButton": "Kalıcı olarak sil",
+      "deleteTitle": "Vakayı kalıcı olarak sil",
+      "deleteBody": "Yalnızca yönetici içindir (ör. KVKK silme talebi). Görüntüler, AI sonuçları ve rapor geri dönüşü olmadan silinir; işlem denetim kaydına yazılır.",
+      "deleteConfirm": "Kalıcı olarak sil",
+      "deleted": "Vaka kalıcı olarak silindi"
+    }
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",
@@ -1105,14 +1122,14 @@
     "claimCase": "Üstlen",
     "assignedToast": "Vaka size atandı",
     "assignFailed": "Atama başarısız",
-    "caseDeleted": "Vaka silindi",
-    "deleteFailed": "Silinemedi",
+    "caseDeleted": "Vaka listenizden gizlendi",
+    "deleteFailed": "Gizlenemedi",
     "footerNote": "Hiçbir AI taslağı uzman onayı olmadan iletilmez. Onaylı raporlar değiştirilemez.",
-    "deleteCaseTitle": "Vakayı silmek istediğinize emin misiniz?",
-    "deleteCaseConfirm": "{name} vakası listenizden kaldırılsın mı? (Onaylı raporlar tıbbi kayıt olarak saklanır; kalıcı silme yalnızca yöneticidedir.)",
+    "deleteCaseTitle": "Listemden gizle",
+    "deleteCaseConfirm": "{name} vakası yalnızca sizin listenizden gizlensin mi? Vaka silinmez; klinik ve diğer kullanıcılar görmeye devam eder.",
     "irreversible": "Bu işlem geri alınamaz.",
-    "deleting": "Siliniyor…",
-    "confirmDelete": "Evet, sil",
+    "deleting": "Gizleniyor…",
+    "confirmDelete": "Evet, gizle",
     "slaHoursTitle": "{hours} saat SLA",
     "workspace": {
       "loading": "Çalışma alanı yükleniyor…",
@@ -1136,7 +1153,7 @@
       "savingDraft": "Kaydediliyor…",
       "saveDraftShortcut": "Taslak kaydet ⌘S",
       "openDicomSide": "DICOM yanına aç",
-      "deleteCase": "Vakayı sil",
+      "deleteCase": "Listemden gizle",
       "reviseBtn": "Revize et",
       "revisionBtn": "Revizyon",
       "immutableHint": "Onaylı sürüm kilitli. Revize et ile yeni düzenlenebilir sürüm açılır; eski onaylı sürüm geçmişte kalır.",
@@ -1155,10 +1172,10 @@
       "askVetInfo": "Veterinerden ek klinik bilgi iste",
       "requestPlaceholder": "İstek metni",
       "sendRequest": "İstek gönder",
-      "deleteConfirmTitle": "Vakayı silmek istediğinize emin misiniz?",
+      "deleteConfirmTitle": "Listemden gizle",
       "giveUp": "Vazgeç",
-      "yesDelete": "Evet, sil",
-      "deleting": "Siliniyor…",
+      "yesDelete": "Evet, gizle",
+      "deleting": "Gizleniyor…",
       "deleteIrreversible": "Bu işlem geri alınamaz.",
       "modalApproveTitle": "Raporu onayla",
       "modalReviseApproved": "Onaylı raporu revize et",
@@ -1188,8 +1205,8 @@
       "toastInternalFailed": "İç not kaydedilemedi",
       "toastInfoOpened": "Bilgi isteği açıldı (OPEN)",
       "toastRequestFailed": "İstek açılamadı",
-      "toastDeleted": "Vaka silindi",
-      "toastDeleteFailed": "Silinemedi",
+      "toastDeleted": "Vaka listenizden gizlendi",
+      "toastDeleteFailed": "Gizlenemedi",
       "dicomLoadFailed": "DICOM yüklenemedi",
       "dicomCaseMissing": "DICOM için vaka bulunamadı. Sayfayı yenileyin veya iş listesinden yeniden açın.",
       "ageYears": "{age} yaş",
@@ -1221,7 +1238,7 @@
       "toastRegenerateFailed": "Yeniden yazma başarısız",
       "slaTitle": "{hours} saat uzman yanıt SLA",
       "shortcutsHelp": "Kısayollar: W/L · P pan · Z zoom · M mesafe · A açı · O ROI · Space cine · F tam ekran · C seri karşılaştır · R reset · ok tuşları dilim. AI kutusu: kesikli kırmızı; vet: mavi.",
-      "deleteConfirmBody": "vakası listenizden kaldırılacak. Onaylı raporlar tıbbi kayıt olarak saklanır; kalıcı silme yalnızca yönetici (ve onay öncesi veteriner hekim) içindir.",
+      "deleteConfirmBody": "vakası yalnızca sizin listenizden gizlenecek. Vaka silinmez; kalıcı silme yalnızca yöneticidedir.",
       "rememberLesson": "Bu düzeltmeyi benzer vakalar için hatırla",
       "rememberLessonHint": "Gerekçeniz bir ders olarak kaydedilir; aynı bölge ve türdeki sonraki taslaklarda modele hatırlatılır. AI Dersleri sayfasından kapatabilirsiniz.",
       "lessonSaved": "Ders kaydedildi",
@@ -1235,7 +1252,8 @@
       "evidenceReviewFailed": "Kanıt incelemesi başarısız",
       "verificationFailed": "Doğrulama başarısız"
     },
-    "staleFallbackBanner": "Sunucu listesi alınamadı — yerel önbellekteki eski veriler gösteriliyor. Güncel olmayabilir."
+    "staleFallbackBanner": "Sunucu listesi alınamadı — yerel önbellekteki eski veriler gösteriliyor. Güncel olmayabilir.",
+    "hideFromMyList": "Listemden gizle"
   },
   "analysis": {
     "pending": "Bekliyor",

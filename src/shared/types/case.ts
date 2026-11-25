@@ -27,6 +27,8 @@ export type CaseStatus =
   | 'analiz_basarisiz'
   /** Unsupported modality/region — manual review, no approvable AI draft. */
   | 'manuel_inceleme'
+  /** Draft cancelled by the clinic; kept for the record (#78). */
+  | 'iptal'
 
 export type Species = 'Köpek' | 'Kedi' | 'Diğer'
 export type Priority = 'STAT' | 'Acil' | 'Yüksek' | 'Normal'
@@ -214,6 +216,9 @@ export interface BackendCaseRecord {
   owner_email_delivery_detail?: string | null
   vet_email_delivery_status?: string | null
   vet_email_delivery_detail?: string | null
+  cancel_reason?: string | null
+  cancelled_by?: string | null
+  cancelled_at?: string | null
   submission_id?: string | null
   vet_verified?: boolean
   structured_findings?: BackendFindings | null
@@ -315,4 +320,8 @@ export interface VetCase {
   ownerEmailDeliveryDetail?: string
   /** Report-ready email to the submitting vet (issue #90). */
   vetEmailDeliveryStatus?: string
+  /** Cancelled draft (#78). */
+  cancelReason?: string
+  cancelledBy?: string
+  cancelledAt?: string
 }

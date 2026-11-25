@@ -113,6 +113,8 @@ class CaseLifecycleStatus(str, Enum):
     REJECTED = "rejected"
     REVISION_REQUESTED = "revision_requested"
     FAILED = "failed"
+    # Draft opened by mistake; kept for the record, never analysed or reviewed (#78).
+    CANCELLED = "cancelled"
 
 
 class DicomValidationSeverity(str, Enum):

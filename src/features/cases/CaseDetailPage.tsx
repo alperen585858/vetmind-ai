@@ -38,6 +38,7 @@ import {
 } from '../../shared/lib/reviewSla'
 
 import { Overview } from './tabs/ClinicalTab'
+import { CaseCancelActions } from './CaseCancelActions'
 import { Imaging } from './tabs/DicomTab'
 import { AssessmentView } from './tabs/FindingsTab'
 import { SourcesView } from './tabs/RagTab'
@@ -318,6 +319,7 @@ export default function CaseDetail() {
               {t('cases.detail.viewApprovedReport')}
             </Button>
           )}
+          <CaseCancelActions c={c} />
           {role === 'expert' && c.status === 'onaylandi' && (
             <Button
               variant="secondary"
@@ -440,6 +442,14 @@ export default function CaseDetail() {
               </Button>
             )}
           </div>
+        </div>
+      )}
+      {c.status === 'iptal' && (
+        <div className="mb-5 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700" role="status">
+          <strong>{t('cases.cancel.bannerTitle')}</strong>{' '}
+          {c.cancelReason ? `${t('cases.cancel.reason')}: ${c.cancelReason}` : ''}
+          {c.cancelledBy ? ` · ${c.cancelledBy}` : ''}
+          {c.cancelledAt ? ` · ${fmtDate(c.cancelledAt, locale)}` : ''}
         </div>
       )}
       {c.status === 'manuel_inceleme' && (

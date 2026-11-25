@@ -16,7 +16,7 @@ import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
 import { SpeciesIcon } from '../../shared/ui/CaseTable'
-import { deleteBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../../shared/api'
+import { hideBackendCase, downloadApprovedReportPdf, submitBackendReview } from '../../shared/api'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { regionLabel } from '../../shared/lib/displayClean'
 import { fmtDate } from '../../shared/lib/format'
@@ -151,7 +151,7 @@ export default function ReportList() {
     const target = pendingDelete
     setDeleting(true)
     try {
-      await deleteBackendCase(reportCaseId(target))
+      await hideBackendCase(reportCaseId(target))
       removeCase(target.id)
       setSelected((prev) => {
         const next = new Set(prev)
@@ -184,7 +184,7 @@ export default function ReportList() {
     try {
       for (const target of targets) {
         try {
-          await deleteBackendCase(reportCaseId(target))
+          await hideBackendCase(reportCaseId(target))
           removeCase(target.id)
           ok += 1
         } catch (err) {

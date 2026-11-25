@@ -92,7 +92,8 @@
     "reddedildi": "Rejected",
     "revizyon": "Revision Requested",
     "analiz_basarisiz": "Analysis Failed",
-    "manuel_inceleme": "Manual Review"
+    "manuel_inceleme": "Manual Review",
+    "iptal": "Cancelled"
   },
   "priority": {
     "STAT": "STAT",
@@ -1044,7 +1045,23 @@
     "bulkDeleted": "{count} cases deleted",
     "bulkDeletePartial": "{count} cases could not be deleted.",
     "bulkDeleteNone": "No cases could be deleted",
-    "filterAwaitingReport": "Awaiting report"
+    "filterAwaitingReport": "Awaiting report",
+    "cancel": {
+      "button": "Cancel case",
+      "title": "Cancel case",
+      "body": "The case is not deleted; it is marked “Cancelled” and the record is kept. Only drafts that have not been sent to a radiologist can be cancelled.",
+      "reason": "Reason",
+      "reasonPlaceholder": "e.g. wrong patient, opened twice",
+      "confirm": "Cancel case",
+      "done": "Case cancelled",
+      "failed": "Could not complete",
+      "bannerTitle": "This case was cancelled.",
+      "deleteButton": "Delete permanently",
+      "deleteTitle": "Delete case permanently",
+      "deleteBody": "Administrators only (e.g. a KVKK erasure request). Images, AI results and the report are removed for good; the action is written to the audit log.",
+      "deleteConfirm": "Delete permanently",
+      "deleted": "Case deleted permanently"
+    }
   },
   "sections": {
     "klinikOzet": "Technical / Clinical summary",
@@ -1105,14 +1122,14 @@
     "claimCase": "Claim",
     "assignedToast": "Case assigned to you",
     "assignFailed": "Assignment failed",
-    "caseDeleted": "Case deleted",
-    "deleteFailed": "Could not delete",
+    "caseDeleted": "Case hidden from your list",
+    "deleteFailed": "Could not hide",
     "footerNote": "No AI draft is delivered without specialist approval. Approved reports cannot be changed.",
-    "deleteCaseTitle": "Delete this case?",
-    "deleteCaseConfirm": "Remove the case for {name} from your list? (Approved reports are kept as medical records; only admins can delete permanently.)",
+    "deleteCaseTitle": "Hide from my list",
+    "deleteCaseConfirm": "Hide {name} from your list only? The case is not deleted; the clinic and others still see it.",
     "irreversible": "This cannot be undone.",
-    "deleting": "Deleting…",
-    "confirmDelete": "Yes, delete",
+    "deleting": "Hiding…",
+    "confirmDelete": "Yes, hide",
     "slaHoursTitle": "{hours}-hour SLA",
     "workspace": {
       "loading": "Loading workspace…",
@@ -1136,7 +1153,7 @@
       "savingDraft": "Saving…",
       "saveDraftShortcut": "Save draft ⌘S",
       "openDicomSide": "Open DICOM beside",
-      "deleteCase": "Delete case",
+      "deleteCase": "Hide from my list",
       "reviseBtn": "Revise",
       "revisionBtn": "Revision",
       "immutableHint": "Approved version is locked. Revise opens a new editable version; the prior approved version stays in history.",
@@ -1155,10 +1172,10 @@
       "askVetInfo": "Request additional clinical info from vet",
       "requestPlaceholder": "Request text",
       "sendRequest": "Send request",
-      "deleteConfirmTitle": "Delete this case?",
+      "deleteConfirmTitle": "Hide from my list",
       "giveUp": "Cancel",
-      "yesDelete": "Yes, delete",
-      "deleting": "Deleting…",
+      "yesDelete": "Yes, hide",
+      "deleting": "Hiding…",
       "deleteIrreversible": "This cannot be undone.",
       "modalApproveTitle": "Approve report",
       "modalReviseApproved": "Revise approved report",
@@ -1188,8 +1205,8 @@
       "toastInternalFailed": "Could not save internal note",
       "toastInfoOpened": "Info request opened (OPEN)",
       "toastRequestFailed": "Could not open request",
-      "toastDeleted": "Case deleted",
-      "toastDeleteFailed": "Could not delete",
+      "toastDeleted": "Case hidden from your list",
+      "toastDeleteFailed": "Could not hide",
       "dicomLoadFailed": "Could not load DICOM",
       "dicomCaseMissing": "Case not found for DICOM. Refresh the page or reopen from the worklist.",
       "ageYears": "{age} y",
@@ -1221,7 +1238,7 @@
       "toastRegenerateFailed": "Rewrite failed",
       "slaTitle": "{hours}-hour specialist response SLA",
       "shortcutsHelp": "Shortcuts: W/L · P pan · Z zoom · M distance · A angle · O ROI · Space cine · F full screen · C compare series · R reset · arrow keys slice. AI box: dashed red; vet: blue.",
-      "deleteConfirmBody": "will be removed from your list. Approved reports are kept as medical records; permanent deletion is for admins (and the clinic before approval) only.",
+      "deleteConfirmBody": "will be hidden from your list only. The case is not deleted; only an administrator can delete permanently.",
       "rememberLesson": "Remember this correction for similar cases",
       "rememberLessonHint": "Your reason is saved as a lesson and reminded to the model in later drafts with the same region and species. You can switch it off on the AI Lessons page.",
       "lessonSaved": "Lesson saved",
@@ -1235,7 +1252,8 @@
       "evidenceReviewFailed": "Evidence review failed",
       "verificationFailed": "Verification failed"
     },
-    "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale."
+    "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale.",
+    "hideFromMyList": "Hide from my list"
   },
   "analysis": {
     "pending": "Pending",

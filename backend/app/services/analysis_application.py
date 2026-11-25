@@ -115,6 +115,11 @@ class AnalysisApplication(HostBound):
         self._analyze_gate.release()
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
+        if case.status == CaseLifecycleStatus.CANCELLED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=api_error("case_cancelled", "This case was cancelled and cannot be analysed."),
+            )
         if getattr(case, "vet_verified", True) is False:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

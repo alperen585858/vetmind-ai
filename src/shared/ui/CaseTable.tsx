@@ -4,7 +4,6 @@ import {
   ChevronRight,
   FolderOpen,
   Image as ImageIcon,
-  Trash2,
   XCircle,
 } from 'lucide-react'
 import type { VetCase } from '../types'
@@ -90,12 +89,10 @@ function expertDisplay(c: VetCase, t: TranslateFn): string {
 export function CaseTable({
   cases,
   showPriority = false,
-  onDelete,
 }: {
   cases: VetCase[]
   showPriority?: boolean
   /** When set, shows a delete control (caller must confirm). */
-  onDelete?: (c: VetCase) => void
 }) {
   const nav = useLocalizedNavigate()
   const { t, locale } = useLocale()
@@ -197,18 +194,6 @@ export function CaseTable({
                   >
                     {t('cases.open')} <ChevronRight className="h-3.5 w-3.5" />
                   </button>
-                  {onDelete ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
-                      onClick={() => onDelete(c)}
-                      aria-label={t('cases.deleteCaseAria', { no: c.no })}
-                      title={t('cases.deleteCaseTitle')}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                      {t('common.delete')}
-                    </button>
-                  ) : null}
                 </div>
               </td>
             </tr>

@@ -12,6 +12,7 @@ export const STATUS_META: Record<CaseStatus, { labelKey: string; cls: string; do
   revizyon: { labelKey: 'status.revizyon', cls: 'bg-orange-50 text-orange-700 ring-orange-200', dot: 'bg-orange-500' },
   analiz_basarisiz: { labelKey: 'status.analiz_basarisiz', cls: 'bg-rose-50 text-rose-800 ring-rose-300', dot: 'bg-rose-600' },
   manuel_inceleme: { labelKey: 'status.manuel_inceleme', cls: 'bg-slate-100 text-slate-800 ring-slate-300', dot: 'bg-slate-600' },
+  iptal: { labelKey: 'status.iptal', cls: 'bg-slate-50 text-slate-500 ring-slate-200 line-through', dot: 'bg-slate-300' },
 }
 
 export const STATUS_ORDER: CaseStatus[] = [
@@ -24,6 +25,7 @@ export const STATUS_ORDER: CaseStatus[] = [
   'onaylandi',
   'reddedildi',
   'revizyon',
+  'iptal',
 ]
 
 export function statusLabel(status: CaseStatus, t: TranslateFn): string {

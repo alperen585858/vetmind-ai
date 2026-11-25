@@ -271,6 +271,10 @@ class CaseRecord(BaseModel):
     # Last outbound report-email attempt: sent | failed_smtp | skipped_no_consent | skipped_linked | none
     owner_email_delivery_status: Optional[str] = None
     owner_email_delivery_detail: Optional[str] = None
+    # Cancellation of a draft case (#78): the record is kept, never hard-deleted.
+    cancelled_at: Optional[datetime] = None
+    cancelled_by: Optional[str] = None
+    cancel_reason: Optional[str] = None
     # Report-ready email to the submitting vet (issue #90):
     # sent | failed | not_configured | skipped_no_recipient
     vet_email_delivery_status: Optional[str] = None
@@ -334,3 +338,11 @@ class CaseSummary(BaseModel):
     # Report revision signal for list UIs (approved v1 stays locked; v2+ = revised).
     current_report_version: Optional[int] = None
     report_version_count: int = 0
+
+
+class CaseCancelRequest(BaseModel):
+    """Cancel a draft case; the reason is required and kept with the record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=500)

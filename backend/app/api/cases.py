@@ -11,6 +11,7 @@ from app.schemas.case import (
     AiChatResponse,
     AiChatTurn,
     CaseAssignmentUpdate,
+    CaseCancelRequest,
     CaseCreate,
     CaseMessageCreate,
     CaseMessageView,
@@ -333,19 +334,34 @@ def get_case(
 )
 def delete_case(
     case_id: str,
+    reason: str | None = Query(default=None, max_length=500),
     service: CaseService = Depends(get_case_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> None:
-    """Delete a case/report from the store (confirmation is UI-side)."""
-    # Owners have cases:read only; staff need write/review/admin — service enforces ownership.
-    if not (
-        principal.can(CAP_CASE_WRITE)
-        or principal.can(CAP_REVIEW)
-        or principal.can(CAP_ADMIN)
-        or principal.role in {"owner", "clinic_owner", "demo", "service"}
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete cases.")
-    service.delete_case(case_id, principal=principal)
+    """Permanent delete — administrators only, reason required (#78). Clinics cancel drafts."""
+    service.delete_case(case_id, principal=principal, reason=reason)
+
+
+@router.post("/{case_id}/cancel", response_model=CaseRecord)
+def cancel_case(
+    case_id: str,
+    payload: CaseCancelRequest,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> CaseRecord:
+    """Cancel a draft case that has not reached a radiologist; the record is kept."""
+    return case_for_principal(service.cancel_case(case_id, payload.reason, principal=principal), principal)
+
+
+@router.post("/{case_id}/hide", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def hide_case(
+    case_id: str,
+    service: CaseService = Depends(get_case_service),
+    principal: AuthPrincipal = Depends(require_auth),
+) -> Response:
+    """"Listemden gizle" — remove the case from the caller's own lists only."""
+    service.hide_case(case_id, principal=principal)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{case_id}/model-input", response_model=ImagingModelInput)

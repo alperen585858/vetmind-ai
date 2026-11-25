@@ -104,8 +104,23 @@ export async function listBackendCases(): Promise<BackendCaseSummary[]> {
   return request<BackendCaseSummary[]>('/cases')
 }
 
-export async function deleteBackendCase(caseId: string): Promise<void> {
-  await request<void>(`/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' })
+/** Permanent delete — administrators only, reason required (e.g. KVKK erasure). */
+export async function deleteBackendCase(caseId: string, reason: string): Promise<void> {
+  const qs = new URLSearchParams({ reason })
+  await request<void>(`/cases/${encodeURIComponent(caseId)}?${qs}`, { method: 'DELETE' })
+}
+
+/** Cancel a draft that has not reached a radiologist; the record is kept (#78). */
+export async function cancelBackendCase(caseId: string, reason: string): Promise<BackendCaseRecord> {
+  return request<BackendCaseRecord>(`/cases/${encodeURIComponent(caseId)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+/** "Listemden gizle": hide the case from the caller's own lists only. */
+export async function hideBackendCase(caseId: string): Promise<void> {
+  await request<void>(`/cases/${encodeURIComponent(caseId)}/hide`, { method: 'POST' })
 }
 
 export async function listBackendWorklist(filters?: {
