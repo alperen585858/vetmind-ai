@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -34,6 +35,9 @@ class CasePriorStudies(BaseModel):
     patient: Optional[PatientRecord] = None
     studies: list[PriorStudy] = Field(default_factory=list)
     suggestions: list[PatientMatch] = Field(default_factory=list)
+    # The case being read, so the UI can say "3 months earlier".
+    case_created_at: Optional[datetime] = None
+    case_study_date: Optional[str] = None
 
 
 class CasePatientLink(BaseModel):
@@ -107,10 +111,14 @@ def case_prior_studies(
     principal: AuthPrincipal = Depends(require_capability(CAP_CASE_READ)),
 ) -> CasePriorStudies:
     case = container.cases.get_case(case_id, principal=principal)
+    when = {
+        "case_created_at": case.created_at,
+        "case_study_date": case.dicom_study.study_date if case.dicom_study else None,
+    }
     if not case.patient_id:
-        return CasePriorStudies(suggestions=container.patients.suggest_for_case(case, principal=principal))
+        return CasePriorStudies(suggestions=container.patients.suggest_for_case(case, principal=principal), **when)
     result = container.patients.studies(case.patient_id, principal=principal, relative_to=case)
-    return CasePriorStudies(patient=result.patient, studies=result.studies)
+    return CasePriorStudies(patient=result.patient, studies=result.studies, **when)
 
 
 @router.put("/cases/{case_id}/patient", response_model=CaseRecord)

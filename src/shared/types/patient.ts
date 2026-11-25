@@ -54,6 +54,8 @@ export interface BackendCasePriorStudies {
   patient: BackendPatient | null
   studies: BackendPriorStudy[]
   suggestions: BackendPatientMatch[]
+  case_created_at?: string | null
+  case_study_date?: string | null
 }
 
 export interface BackendPatientStudies {

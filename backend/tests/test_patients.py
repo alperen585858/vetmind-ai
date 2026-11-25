@@ -90,7 +90,9 @@ def test_case_without_patient_still_works(client: TestClient) -> None:
     assert case["patient_id"] is None
     res = client.get(f"/api/v1/cases/{case['case_id']}/prior-studies")
     assert res.status_code == 200
-    assert res.json() == {"patient": None, "studies": [], "suggestions": []}
+    body = res.json()
+    assert (body["patient"], body["studies"], body["suggestions"]) == (None, [], [])
+    assert body["case_created_at"] and body["case_study_date"] is None
 
 
 # --- CRUD + search ---------------------------------------------------------------------
