@@ -1,4 +1,11 @@
-"""Public single-use report view links (no login)."""
+"""Public report view links (no login).
+
+#84: opening the page does not use up the link. The page first checks the link
+(``GET /report-link``, no report content), and the report itself is only returned when
+the reader presses "Raporu görüntüle" (``GET /report-view``). E-mail link scanners load
+pages but do not press buttons. The link works until it expires (72 h by default) or
+the vet revokes it; every view is written to the audit log.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +16,8 @@ from app.api.deps import get_container
 from app.container import AppContainer
 from app.http_errors import api_error
 from app.schemas.enums import CaseLifecycleStatus, ReportStatus
-from app.services.report_view_tokens import ReportViewTokenError
+from app.security.audit import AuditOutcome
+from app.services.report_view_tokens import ReportViewRecord, ReportViewTokenError
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -26,24 +34,25 @@ class PublicReportView(BaseModel):
     recommendations: str | None = None
     note: str = Field(
         default=(
-            "Bu bağlantı tek kullanımlıktır ve süre dolunca geçersiz olur. "
+            "Bu bağlantı süresi dolana veya veteriner iptal edene kadar geçerlidir. "
             "Klinik karar için veterinerinize danışın."
         )
     )
 
 
-@router.get("/report-view", response_model=PublicReportView)
-def view_report_by_token(
-    token: str = Query(min_length=10, max_length=200),
-    consume: bool = Query(default=True),
-    container: AppContainer = Depends(get_container),
-) -> PublicReportView:
-    """Open an approved report via emailed magic link. Consumes the token by default."""
+class PublicReportLinkStatus(BaseModel):
+    """Link check without report content (safe for link scanners)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    valid: bool = True
+    report_version: int
+    expires_at: float
+
+
+def _check_token(container: AppContainer, token: str) -> ReportViewRecord:
     try:
-        if consume:
-            rec = container.report_view_tokens.consume(token)
-        else:
-            rec = container.report_view_tokens.peek(token)
+        return container.report_view_tokens.peek(token)
     except ReportViewTokenError as exc:
         code = {
             "expired": "report_link_expired",
@@ -55,6 +64,25 @@ def view_report_by_token(
             status_code=status.HTTP_410_GONE if exc.reason in {"expired", "used", "revoked"} else status.HTTP_404_NOT_FOUND,
             detail=api_error(code, f"Report link is {exc.reason}."),
         ) from exc
+
+
+@router.get("/report-link", response_model=PublicReportLinkStatus)
+def check_report_link(
+    token: str = Query(min_length=10, max_length=200),
+    container: AppContainer = Depends(get_container),
+) -> PublicReportLinkStatus:
+    """Is the link still valid? Returns no report content and does not count as a view."""
+    rec = _check_token(container, token)
+    return PublicReportLinkStatus(report_version=rec.report_version, expires_at=rec.expires_at)
+
+
+@router.get("/report-view", response_model=PublicReportView)
+def view_report_by_token(
+    token: str = Query(min_length=10, max_length=200),
+    container: AppContainer = Depends(get_container),
+) -> PublicReportView:
+    """Return the approved report. Re-usable until expiry or revocation; every view is audited."""
+    rec = _check_token(container, token)
 
     case = container.repo.get_case(rec.case_id)
     if case is None or case.status != CaseLifecycleStatus.APPROVED:
@@ -80,6 +108,16 @@ def view_report_by_token(
             detail=api_error("report_not_available", "Approved report snapshot not found."),
         )
 
+    audit = getattr(container, "audit", None)
+    if audit is not None:
+        audit.record(
+            event_type="report_link.view",
+            actor="public-report-link",
+            resource=case.case_id,
+            outcome=AuditOutcome.SUCCESS,
+            detail=f"v{version}",
+            clinic_id=case.clinic_id,
+        )
     return PublicReportView(
         case_id=case.case_id,
         patient_name=case.patient_name,

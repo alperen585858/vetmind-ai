@@ -234,10 +234,13 @@
     "loadingTitle": "Rapor açılıyor",
     "loadingBody": "Bağlantı doğrulanıyor…",
     "errorTitle": "Rapor açılamadı",
-    "errorBody": "Bağlantının süresi dolmuş, kullanılmış veya iptal edilmiş olabilir.",
+    "errorBody": "Bağlantının süresi dolmuş veya iptal edilmiş olabilir. Raporu veterinerinizden isteyin.",
     "title": "{patient} — rapor",
-    "subtitle": "Sürüm {version} · tek kullanımlık bağlantı",
-    "registerCta": "VetMind’e üye olun — raporlarınıza hesabınızdan ulaşın"
+    "subtitle": "Sürüm {version} · süresi dolana kadar tekrar açılabilir",
+    "readyTitle": "Radyoloji raporunuz hazır",
+    "readyBody": "Onaylanmış rapor (sürüm {version}) görüntülenmeye hazır.",
+    "open": "Raporu görüntüle",
+    "validUntil": "Bu bağlantı {date} tarihine kadar geçerlidir."
   },
   "apiErrors": {
     "unexpected": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",

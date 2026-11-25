@@ -234,10 +234,13 @@
     "loadingTitle": "Opening report",
     "loadingBody": "Validating the link…",
     "errorTitle": "Could not open report",
-    "errorBody": "The link may be expired, already used, or revoked.",
+    "errorBody": "The link may have expired or been revoked. Ask your veterinarian for the report.",
     "title": "{patient} — report",
-    "subtitle": "Version {version} · single-use link",
-    "registerCta": "Create a VetMind account to view reports in your dashboard"
+    "subtitle": "Version {version} · can be reopened until it expires",
+    "readyTitle": "Your radiology report is ready",
+    "readyBody": "The approved report (version {version}) is ready to view.",
+    "open": "View report",
+    "validUntil": "This link is valid until {date}."
   },
   "apiErrors": {
     "unexpected": "Something went wrong. Please try again.",

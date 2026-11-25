@@ -16,9 +16,14 @@ export type PublicReportView = {
   note?: string
 }
 
-export async function fetchPublicReportView(token: string, consume = true): Promise<PublicReportView> {
-  const qs = new URLSearchParams({ token, consume: consume ? 'true' : 'false' })
-  return request(`/public/report-view?${qs}`)
+/** Check a report link without loading the report (does not count as a view). */
+export async function checkPublicReportLink(token: string): Promise<{ valid: boolean; report_version: number; expires_at: number }> {
+  return request(`/public/report-link?${new URLSearchParams({ token })}`)
+}
+
+/** Load the approved report behind a link. Re-usable until expiry / revoke; audited. */
+export async function fetchPublicReportView(token: string): Promise<PublicReportView> {
+  return request(`/public/report-view?${new URLSearchParams({ token })}`)
 }
 
 export async function markReportDelivered(caseId: string): Promise<BackendCaseRecord> {
