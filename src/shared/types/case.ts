@@ -151,6 +151,8 @@ export interface BackendCaseSummary {
   species: BackendSpecies
   breed?: string | null
   patient_age_years?: number | null
+  /** Issue #108: clinic patient record. */
+  patient_id?: string | null
   complaint?: string | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
@@ -194,6 +196,8 @@ export interface BackendCaseRecord {
   species: BackendSpecies
   breed?: string | null
   patient_age_years?: number | null
+  /** Issue #108: clinic patient record. */
+  patient_id?: string | null
   modality: BackendModality
   anatomical_region: BackendAnatomicalRegion
   clinical_history?: string | null
