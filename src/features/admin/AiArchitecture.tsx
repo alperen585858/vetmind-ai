@@ -212,6 +212,16 @@ export default function AiArchitecture() {
                     ))}
                   </dl>
                 ) : null}
+                {selected.code && selected.code.length > 0 ? (
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <p className="text-xs text-slate-400">{t('architecture.code')}</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {selected.code.map((path) => (
+                        <li key={path} className="break-all font-mono text-[11px] text-slate-600">{path}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </>
             ) : (
               <p className="text-sm text-slate-500">{t('architecture.pickNode')}</p>

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.container import AppContainer
 from app.routing.capabilities import default_capabilities
 from app.routing.execution_policy import VisionExecutionMode
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
-from app.services.architecture_status import build_architecture, models_for_modality
+from app.orchestration.progress import PIPELINE_STAGES
+from app.services import architecture_status
+from app.services.architecture_status import KNOWN_STAGES, build_architecture, models_for_modality
 from tests.conftest import make_payload
 
 ADMIN = {"X-VetMind-Demo-Role": "admin"}
@@ -24,7 +28,7 @@ def test_admin_only(client: TestClient) -> None:
     # Every id in the layout has a node, and the four router branches are one row.
     ids = [i for row in body["rows"] for i in row]
     assert set(ids) == set(body["nodes"])
-    assert ["xray", "ct", "mri", "document"] in body["rows"]
+    assert any(set(row) == {"xray", "ct", "mri", "document"} for row in body["rows"])
     assert body["side_nodes"] == ["rag"]
 
 
@@ -67,3 +71,38 @@ def test_recent_analysis_is_counted(client: TestClient) -> None:
     assert nodes["xray"]["recent_uses"] == 0
     assert nodes["review"]["detail"].startswith("1 ")
     assert nodes["llm"]["info"]["Son taslak"] != "henüz yok"
+
+
+# --- The diagram must follow the code (single source of truth) ---------------
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def test_every_pipeline_stage_has_a_box() -> None:
+    missing = [s for s in PIPELINE_STAGES if s not in KNOWN_STAGES]
+    assert not missing, (
+        f"New pipeline stage(s) {missing} in orchestration/progress.py. They already appear as a "
+        "generic box; give them a proper one in services/architecture_status.py (_stage_rows + "
+        "KNOWN_STAGES), then run: python scripts/generate_architecture_doc.py"
+    )
+
+
+def test_unknown_stage_still_shows_up(container: AppContainer, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(architecture_status, "PIPELINE_STAGES", (*PIPELINE_STAGES[:-1], "ocr_check", "finalize"))
+    arch = build_architecture(container)
+    assert ["stage_ocr_check"] in arch["rows"]
+    assert arch["rows"].index(["stage_ocr_check"]) < arch["rows"].index(["review"])
+
+
+def test_every_modality_is_a_branch(container: AppContainer) -> None:
+    nodes = build_architecture(container)["nodes"]
+    branches = {n["branch_label"] for n in nodes.values() if n.get("branch_label")}
+    assert len(branches) == len(Modality)
+
+
+def test_code_paths_exist(container: AppContainer) -> None:
+    for node in build_architecture(container)["nodes"].values():
+        assert node["code"], f"{node['id']} lists no code"
+        for rel in node["code"]:
+            assert (REPO / rel).is_file(), f"{node['id']}: {rel} does not exist (moved or renamed?)"
+

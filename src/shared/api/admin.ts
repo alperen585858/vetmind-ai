@@ -88,6 +88,8 @@ export type ArchitectureNode = {
   branch_label?: string
   /** Analyses of this branch among the most recent cases. */
   recent_uses?: number
+  /** Repo-relative source files behind this box. */
+  code?: string[]
 }
 
 export type ArchitectureResponse = {

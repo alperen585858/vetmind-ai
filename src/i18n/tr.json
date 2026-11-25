@@ -2431,6 +2431,7 @@
       "mock": "Mock",
       "fallback": "Yedeğe düştü",
       "off": "Kapalı / yapılandırılmamış"
-    }
+    },
+    "code": "Kod"
   }
 }
