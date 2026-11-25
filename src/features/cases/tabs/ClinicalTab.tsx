@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
 import {
   Brain,
@@ -21,14 +21,12 @@ import { fmtDate } from '../../../shared/lib/format'
 import { cleanClinicalHistory, displayClinic } from '../../../shared/lib/displayClean'
 import {
   appendCaseClinicalNote,
-  attachCaseDocument,
   closeCaseInfoRequest,
   createCaseInfoRequest,
   getBackendCase,
   replyCaseInfoRequest,
   revokeCaseReportViewLinks,
   updateCaseOwner,
-  uploadDocuments,
 } from '../../../shared/api'
 import type { BackendCaseRecord } from '../../../shared/types'
 import { analysisStatusLabel, expertReviewLabel } from '../../../shared/lib/caseMapper'
@@ -58,10 +56,8 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
   const caseKey = c.backendCaseId || c.id
   const [note, setNote] = useState('')
   const [infoBody, setInfoBody] = useState('')
-  const [infoTarget, setInfoTarget] = useState<'vet' | 'expert'>(isExpert ? 'vet' : 'expert')
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  const docInputRef = useRef<HTMLInputElement>(null)
   const [backendExtras, setBackendExtras] = useState<Pick<
     BackendCaseRecord,
     'info_requests' | 'clinical_notes_log'
@@ -120,7 +116,6 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
   const roleLabel = (role: string) => {
     if (role === 'expert') return t('cases.detail.roleExpert')
     if (role === 'vet' || role === 'clinic_owner') return t('cases.detail.roleVet')
-    if (role === 'owner') return t('cases.detail.roleOwner') // legacy rows
     return role
   }
   const statusLabel = (status: string) => {
@@ -130,9 +125,10 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
     return status
   }
 
-  const askInfo = async (toRole?: 'vet' | 'expert') => {
+  // The vet <-> radiologist channel (#70): a vet always asks the radiologist, a radiologist the vet.
+  const askInfo = async () => {
     if (!infoBody.trim() || !caseKey.startsWith('case-')) return
-    const target = toRole || (isExpert ? 'vet' : infoTarget)
+    const target = isExpert ? 'vet' : 'expert'
     setBusy(true)
     try {
       await createCaseInfoRequest(caseKey, {
@@ -155,27 +151,6 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
     }
   }
 
-  const onDocFiles = async (list: FileList | null) => {
-    if (!list?.length || !caseKey.startsWith('case-')) return
-    setBusy(true)
-    try {
-      const files = Array.from(list)
-      const up = await uploadDocuments({
-        files,
-        patientName: c.patient.name,
-        species: c.patient.species,
-        breed: c.patient.breed,
-        clinicalHistory: c.clinical.history || c.clinical.complaint,
-      })
-      await attachCaseDocument(caseKey, up.ingest_id)
-      pushToast({ tone: 'success', title: t('cases.detail.toastDocAttached'), body: t('cases.detail.toastDocAttachedBody') })
-      await refresh()
-    } catch (e) {
-      pushToast({ tone: 'error', title: t('cases.detail.toastDocFailed'), body: toastErrorBody(e, t) })
-    } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <div className="grid gap-6 xl:grid-cols-3">
@@ -304,72 +279,32 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
         </div>
         {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
           <Card>
-            <CardHeader title={t('cases.detail.infoRequestsDocs')} icon={<Info className="h-5 w-5" />} />
+            <CardHeader
+              title={isExpert ? t('cases.detail.qaTitleExpert') : t('cases.detail.qaTitleVet')}
+              subtitle={isExpert ? t('cases.detail.qaHintExpert') : t('cases.detail.qaHintVet')}
+              icon={<Info className="h-5 w-5" />}
+            />
             <div className="space-y-3 px-5 pb-5">
-              {isExpert ? (
-                <label className="block text-xs text-slate-600">
-                  {t('cases.detail.askVet')}
-                  <input
-                    className="input mt-1 text-sm"
-                    value={infoBody}
-                    onChange={(e) => setInfoBody(e.target.value)}
-                    placeholder={t('cases.detail.requestPlaceholder')}
-                  />
-                </label>
-              ) : (
-                <div className="space-y-2">
-                  <label className="block text-xs text-slate-600">
-                    {t('cases.detail.askTarget')}
-                    <select
-                      className="input mt-1 text-sm"
-                      value={infoTarget}
-                      onChange={(e) => setInfoTarget(e.target.value as 'vet' | 'expert')}
-                    >
-                      <option value="expert">{t('cases.detail.roleExpert')}</option>
-                    </select>
-                  </label>
-                  <label className="block text-xs text-slate-600">
-                    {infoTarget === 'expert' ? t('cases.detail.askExpert') : t('cases.detail.askOwner')}
-                    <input
-                      className="input mt-1 text-sm"
-                      value={infoBody}
-                      onChange={(e) => setInfoBody(e.target.value)}
-                      placeholder={
-                        infoTarget === 'expert'
-                          ? t('cases.detail.expertQuestionPlaceholder')
-                          : t('cases.detail.requestPlaceholder')
-                      }
-                    />
-                  </label>
-                </div>
-              )}
+              <label className="block text-xs text-slate-600">
+                {isExpert ? t('cases.detail.askVet') : t('cases.detail.askExpert')}
+                <input
+                  className="input mt-1 text-sm"
+                  data-testid="info-request-input"
+                  value={infoBody}
+                  onChange={(e) => setInfoBody(e.target.value)}
+                  placeholder={isExpert ? t('cases.detail.requestPlaceholder') : t('cases.detail.expertQuestionPlaceholder')}
+                />
+              </label>
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   variant="secondary"
+                  data-testid="info-request-send"
                   disabled={busy || !infoBody.trim()}
                   onClick={() => void askInfo()}
                 >
-                  {isExpert
-                    ? t('cases.detail.openRequest')
-                    : infoTarget === 'expert'
-                      ? t('cases.detail.sendToExpert')
-                      : t('cases.detail.openRequest')}
+                  {isExpert ? t('cases.detail.openRequest') : t('cases.detail.sendToExpert')}
                 </Button>
-                <Button size="sm" variant="secondary" disabled={busy} onClick={() => docInputRef.current?.click()}>
-                  Belge ekle (mevcut vaka)
-                </Button>
-                <input
-                  ref={docInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    void onDocFiles(e.target.files)
-                    e.target.value = ''
-                  }}
-                />
               </div>
               <ul className="space-y-2 text-xs">
                 {(backendExtras?.info_requests || []).map((r) => (
