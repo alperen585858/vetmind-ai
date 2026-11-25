@@ -33,6 +33,7 @@ export function SourcesView({ c }: { c: VetCase }) {
           note={c.backendDraft?.rag_note}
           citationMap={c.backendDraft?.citation_map}
           usedPassageIds={c.backendDraft?.used_passage_ids}
+          findings={c.backendFindings?.findings}
         />
       ) : sourceIds.length ? (
         <SourceList ids={sourceIds} />
@@ -74,10 +75,13 @@ function SourceList({ ids }: { ids: number[] }) {
         return (
           <li key={id}>
             <button onClick={() => openSource(id)} className="flex w-full items-start gap-3 px-5 py-3 text-left hover:bg-slate-50">
-              <span className="mt-0.5 rounded bg-teal-50 px-1.5 text-[11px] font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">[{id}]</span>
+              <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" aria-hidden />
               <span>
                 <span className="block text-sm font-medium text-navy-900">{source.title}</span>
-                <span className="block text-xs text-slate-500">{source.type} · {source.section}</span>
+                <span className="block text-xs text-slate-500">
+                  {source.type} · {source.section}
+                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{id}</span>
+                </span>
               </span>
             </button>
           </li>

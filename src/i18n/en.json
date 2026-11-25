@@ -973,7 +973,11 @@
       "addDocument": "Add document",
       "documentsCount": "Documents ({count})",
       "documentsHint": "You can add PDF, image or text documents such as lab results or previous reports to this case.",
-      "noExtractedText": "No text could be extracted from this document."
+      "noExtractedText": "No text could be extracted from this document.",
+      "citationsNone": "No source passages were used in this case's AI draft (or the analysis has not run yet).",
+      "citationsLegacy": "Older record: which passages the model used was not stored; all retrieved passages are shown, which does not mean the model used them.",
+      "citationRelatedFinding": "Related finding:",
+      "citationScoreHint": "Text similarity {score}; only a search match measure, not a clinical confidence level."
     },
     "processing": {
       "title": "AI processing",
