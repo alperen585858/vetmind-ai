@@ -2348,6 +2348,7 @@
     "intakeDocuments": "Documents (PDF / image)",
     "intakeDicom": "DICOM images",
     "dicomNote": "DICOM tags are read to suggest modality and region; this is not a diagnosis. You confirm the suggestion on the summary step.",
+    "viewerNoPixels": "Files are selected but none can be shown in the browser (no pixel data or unsupported compression). You can continue with the metadata preview.",
     "dicomLimits": ".dcm / DICOM Part 10 · up to 200 files · 25 MB per file",
     "previewMetadata": "Show modality / region suggestion",
     "consentLabel": "I understand the AI result is a preliminary assessment and approval by a specialist veterinary radiologist is required.",

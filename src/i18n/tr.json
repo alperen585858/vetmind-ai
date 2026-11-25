@@ -2348,6 +2348,7 @@
     "intakeDocuments": "Belge (PDF / görüntü)",
     "intakeDicom": "DICOM görüntüleri",
     "dicomNote": "DICOM bilgileri modalite ve bölge önerisi için okunur; kesin tanı değildir. Öneriyi özet adımında onaylarsınız.",
+    "viewerNoPixels": "Dosyalar seçildi ama tarayıcıda gösterilebilecek görüntü yok (piksel verisi yok veya desteklenmeyen sıkıştırma). Metadata önizlemesiyle devam edebilirsiniz.",
     "dicomLimits": ".dcm / DICOM Part 10 · en fazla 200 dosya · dosya başına 25 MB",
     "previewMetadata": "Modalite / bölge önerisini göster",
     "consentLabel": "AI sonucunun ön değerlendirme olduğunu ve uzman veteriner radyolog onayının zorunlu olduğunu kabul ediyorum.",
