@@ -74,7 +74,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **LLM katmanı** | Gerçek model bağlantısı, atıflı Türkçe rapor (`[F1]`/`[S1]`), iki adımlı üretim + onarım, yapılandırılmış ayırıcı tanılar, KVKK maskeleme, prompt-injection temizleme, atıf doğrulama + hakem (GREEN tarzı), uzman revizyonuyla yeniden yazma, uzman geri bildirim veri seti, değerlendirme aracı, Model Performansı sayfası — bkz. [§4.4](#44-gerçek-yapay-zekâ-modeliyle-çalıştırma-llm), [§8.3](#83-llm-katmanı) |
 | **Async analyze** | Thread (varsayılan) veya RQ+Redis; job poll, timeout alanları, cooperative cancel |
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
-| **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
+| **RAG** | bge-m3 anlamsal embedding (varsayılan, Ollama; yoksa hash'e düşer) veya lexical; vektörler ChromaDB'de; kaynak kartları + bölge/tür filtresi; `rag_citations` UI — bkz. [§8.4](#84-rag) |
 | **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (veteriner, admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik izolasyonu; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
 | **Kalıcılık** | Tek PostgreSQL veritabanı (#102): vakalar, kullanıcılar, bildirimler, mesajlar, token'lar, audit, geri bildirim, dersler; SQLite yalnızca yerel geliştirme, memory testler |
 | **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
@@ -87,11 +87,11 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 
 | Yok | Açıklama |
 |-----|----------|
-| Eğitilmiş klinik Vision / VLM | Varsayılan: fixture mock; piksel analizi yok (`metadata_only`). Röntgen için insan verisiyle eğitilmiş demo modeli takılabilir (§4.5); MR / BT için eğitilmiş model yok |
+| Eğitilmiş klinik Vision / VLM | Varsayılan: fixture mock; piksel analizi yok (`metadata_only`). `VETMIND_VLM_ENABLED` ile genel amaçlı bir VLM (ör. Gemini) görüntüleri yorumlayabilir ama veterinerde eğitilmiş/valide değildir. Röntgen için insan verisiyle eğitilmiş demo modeli takılabilir (§4.5); MR / BT için eğitilmiş model yok. Eğitim/değerlendirme altyapısı `ml/` ve `evaluation/` altında hazır, etiketli veteriner verisi bekleniyor |
 | Ücretli / üretim LLM | Varsayılan `MockLLMProvider` |
 | PACS / DICOMweb | Yok |
 | OCR | Doküman metin stub |
-| sentence-transformers / Qdrant | Hash embedding + JSON indeks |
+| Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + ChromaDB) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
 | OAuth / SSO / e-posta doğrulama | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz) |
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
@@ -497,10 +497,10 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 | `ingest/` | dosya türü sniff, doküman metin çıkarma |
 | `imaging/` | metadata-only preparation pipeline (Phase 3) |
 | `routing/` | capabilities, `ModelRouter`, scenario + execution policy |
-| `models/` | `ImagingModel` protokolü, mock registry, HTTP remote, normalizer, pixel authz |
+| `models/` | `ImagingModel` protokolü, mock registry, VLM, yerel torch, HTTP remote, normalizer, pixel authz |
 | `orchestration/` | `AIOrchestrator.run()` |
-| `llm/` | gateway + mock / stub / HTTP provider |
-| `rag/` | corpus, lexical, hash embeddings, JSON vector store |
+| `llm/` | gateway + mock / stub / HTTP / OpenAI-uyumlu (Ollama, Gemini …) / Anthropic sağlayıcıları, hakem, KVKK maskeleme |
+| `rag/` | corpus, lexical, bge-m3 / hash embedding, ChromaDB (JSON eski seçenek), kaynak kartları, chunking |
 | `validation/` | yapısal report validator |
 | `workers/` | Thread / RQ job backend |
 | `security/` | audit logger, retention hooks |
@@ -542,25 +542,9 @@ Job alanları (özet): `status`, `outcome`, `cancel_requested`, `idempotency_key
 
 ## 7. Uçtan uca veri akışı
 
-```text
-Drag & Drop / Demo Upload
-  → Upload API
-  → Quarantine Storage          (byte’lar diskte; SHA256 + manifest)
-  → File Type Detector
-       ├─ DICOM Metadata Parser (pydicom; Study → Series → Instance)
-       └─ PDF / JPG / PNG / Text Parser
-  → Species / Modality / Body Region Classifier
-  → Kullanıcı onayı (classification confirm) → CaseRecord
-  → AI Model Router (capability + scenario + execution policy)
-       ├─ X-Ray Vision (mock)     ├─ CT 3D (mock)
-       ├─ MRI (mock)              └─ Multimodal VLM (mock)
-       └─ (opsiyonel) HttpRemoteVision
-  → Structured Findings + Evidence (normalize / fuse)
-  → LLM Gateway + Optional RAG → Draft Report (+ rag_citations)
-  → Report Validator (yapısal)
-  → Veteriner radyolog incelemesi (approve / reject / revision)
-  → Onaylı immutable rapor sürümü → print / PDF
-```
+Akış diyagramı koddan otomatik üretilir ve elle güncellenmez: **[docs/AI_MIMARISI.md](docs/AI_MIMARISI.md)** (varsayılan kurulum; GitHub Action her `main` push'unda yeniler). Çalışan sistemin canlı hâli — hangi kutu gerçek, hangisi mock, hangi model çalışıyor — admin panelinde **AI Mimarisi** sayfasındadır (`GET /api/v1/admin/architecture`).
+
+Özet: yükleme → karantina → DICOM/doküman okuma → tür/modalite/bölge sınıflandırma → kullanıcı onayı → model girdisi → router → görüntü modeli/VLM → yapılandırılmış bulgular → LLM gateway (+ RAG) → rapor doğrulama → radyolog incelemesi → onaylı rapor.
 
 ### Kod yolları
 
@@ -1261,7 +1245,7 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 **Olası sonraki adımlar (platform):**
 
 1. Gerçek şirket Vision / GPU serving (HTTP adapter üzerinde)  
-2. Sentence-transformers + Qdrant / pgvector  
+2. ~~Anlamsal embedding + vektör veritabanı~~ → bge-m3 + ChromaDB (#101, #103)  
 3. OAuth / SSO IdP  
 4. Object storage quarantine + malware scan  
 5. K8s / managed queue  
