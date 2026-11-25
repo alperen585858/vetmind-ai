@@ -2323,7 +2323,23 @@
     "radiologistQuestionsPlaceholder": "e.g. Is there a cervical disc herniation? How far does the oedema extend?",
     "radiologistQuestionsHint": "Questions you want the radiologist to answer in the report.",
     "patientSection": "Patient Details",
-    "optional": "Optional"
+    "optional": "Optional",
+    "uploadIntro": "Add DICOM images or earlier reports / lab documents. The analysis channel follows what you upload.",
+    "intakeDocuments": "Documents (PDF / image)",
+    "intakeDicom": "DICOM images",
+    "dicomNote": "DICOM tags are read to suggest modality and region; this is not a diagnosis. You confirm the suggestion on the summary step.",
+    "dicomLimits": ".dcm / DICOM Part 10 · up to 200 files · 25 MB per file",
+    "previewMetadata": "Show modality / region suggestion",
+    "consentLabel": "I understand the AI result is a preliminary assessment and approval by a specialist veterinary radiologist is required.",
+    "consentRequired": "Tick the acknowledgement on the upload step.",
+    "dicomRequired": "DICOM required",
+    "pipelineTitle": "Analysis channel (demo / test)",
+    "pipelineHint": "Shown in demo mode only, to try failure and conflicting-output scenarios.",
+    "classificationTitle": "Confirm modality and region",
+    "classificationHint": "Suggested from DICOM tags; not an anatomical diagnosis. Correct it if needed.",
+    "acceptSuggestion": "Accept suggestion",
+    "overrideModality": "Modality",
+    "overrideRegion": "Anatomical region"
   },
   "anatomy": {
     "region": {

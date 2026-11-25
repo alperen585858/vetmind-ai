@@ -359,7 +359,7 @@ export default function Processing() {
             </Button>
           )}
           {isPending && (
-            <Button size="sm" variant="secondary" onClick={() => nav('/dicom-yukle')}>
+            <Button size="sm" variant="secondary" onClick={() => nav('/vakalar/yeni')}>
               {t('common.retry')}
             </Button>
           )}
@@ -473,7 +473,7 @@ export default function Processing() {
                   {t('cases.processing.retryAsync')}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => nav(isPending ? '/dicom-yukle' : `/vakalar/${c.id}`)}>
+              <Button size="sm" variant="ghost" onClick={() => nav(isPending ? '/vakalar/yeni' : `/vakalar/${c.id}`)}>
                 {isPending ? t('common.retry') : t('cases.processing.caseDetail')}
               </Button>
             </div>

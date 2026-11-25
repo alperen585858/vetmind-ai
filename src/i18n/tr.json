@@ -2323,7 +2323,23 @@
     "radiologistQuestionsPlaceholder": "ör. Servikal bölgede disk herniasyonu var mı? Ödem yayılımı nedir?",
     "radiologistQuestionsHint": "Radyoloğun raporda özellikle yanıtlamasını istediğiniz sorular.",
     "patientSection": "Hasta Bilgileri",
-    "optional": "İsteğe bağlı"
+    "optional": "İsteğe bağlı",
+    "uploadIntro": "DICOM görüntülerini veya önceki rapor / laboratuvar belgelerini ekleyin. Analiz kanalı yüklediğiniz türe göre otomatik seçilir.",
+    "intakeDocuments": "Belge (PDF / görüntü)",
+    "intakeDicom": "DICOM görüntüleri",
+    "dicomNote": "DICOM bilgileri modalite ve bölge önerisi için okunur; kesin tanı değildir. Öneriyi özet adımında onaylarsınız.",
+    "dicomLimits": ".dcm / DICOM Part 10 · en fazla 200 dosya · dosya başına 25 MB",
+    "previewMetadata": "Modalite / bölge önerisini göster",
+    "consentLabel": "AI sonucunun ön değerlendirme olduğunu ve uzman veteriner radyolog onayının zorunlu olduğunu kabul ediyorum.",
+    "consentRequired": "Tetkik adımındaki onay kutusunu işaretleyin.",
+    "dicomRequired": "DICOM gerekli",
+    "pipelineTitle": "Analiz kanalı (demo / test)",
+    "pipelineHint": "Yalnızca demo modunda görünür; hata ve çelişen çıktı senaryolarını denemek içindir.",
+    "classificationTitle": "Modalite ve bölge onayı",
+    "classificationHint": "DICOM bilgilerinden gelen öneridir; anatomik tanı değildir. Gerekirse düzeltin.",
+    "acceptSuggestion": "Öneriyi kabul et",
+    "overrideModality": "Modalite",
+    "overrideRegion": "Anatomik bölge"
   },
   "anatomy": {
     "region": {

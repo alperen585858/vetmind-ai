@@ -9,7 +9,6 @@ import {
   FolderOpen,
   RefreshCw,
   Search,
-  UploadCloud,
   Users,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
@@ -214,9 +213,6 @@ export default function CaseList() {
               </button>
               {role === 'vet' && (
                 <>
-                  <Button variant="secondary" icon={<UploadCloud className="h-4 w-4" />} onClick={() => nav('/dicom-yukle')}>
-                    {t('nav.dicomUpload')}
-                  </Button>
                   <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
                     {t('nav.newCase')}
                   </Button>
@@ -328,9 +324,6 @@ export default function CaseList() {
               action={
                 role === 'vet' ? (
                   <div className="mt-3 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => nav('/dicom-yukle')}>
-                      {t('nav.dicomUpload')}
-                    </Button>
                     <Button size="sm" onClick={() => nav('/vakalar/yeni')}>
                       {t('nav.newCase')}
                     </Button>

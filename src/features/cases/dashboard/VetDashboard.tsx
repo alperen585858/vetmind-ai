@@ -22,7 +22,6 @@ import {
   Hourglass,
   MoreHorizontal,
   Timer,
-  UploadCloud,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../../shared/shell/AppContext'
@@ -179,23 +178,10 @@ export function VetDashboard() {
         <div className="flex flex-col gap-2.5">
           <button
             type="button"
-            onClick={() => nav('/dicom-yukle')}
+            onClick={() => nav('/vakalar/yeni')}
             className="flex flex-1 items-center gap-3 rounded-2xl bg-teal-700 px-4 py-3.5 text-left text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-              <UploadCloud className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold">{t('dashboard.uploadDicom')}</span>
-              <span className="block text-xs text-teal-100">{t('dashboard.uploadDicomHint')}</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => nav('/vakalar/yeni')}
-            className="flex flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-soft transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-navy-700">
               <FilePlus2 className="h-5 w-5" />
             </span>
             <span>

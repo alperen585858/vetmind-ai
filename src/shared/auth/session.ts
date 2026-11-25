@@ -180,7 +180,7 @@ export function userFromSession(session: DemoSession): User {
 }
 
 export function postLoginPath(role: Role, locale: Locale = 'tr'): string {
-  const tr = role === 'vet' ? '/dicom-yukle' : '/'
+  const tr = '/'
   return localizePath(tr, locale)
 }
 
