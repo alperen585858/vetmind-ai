@@ -14,6 +14,7 @@ import { analyzeCaseAsyncAndWait, enqueueAnalyzeCase } from './analysis'
 import type { BackendAnalysisJob } from './analysis'
 import { toBackendSpecies, updateCaseOwner } from './cases'
 import { fetchWithAuth, request, throwIfNotOk } from './client'
+import { linkCasePatient } from './patients'
 
 /** Multipart DICOM metadata upload (pixels ignored for diagnosis). */
 export async function uploadDicomFiles(input: {
@@ -151,11 +152,16 @@ export async function confirmDocumentAndAnalyze(
     cancelBackendOnAbort?: boolean
     /** Optional pet-owner name (no account, no email). */
     ownerName?: string
+    /** Issue #108: link to this clinic patient before analysis (so the report can compare). */
+    patientId?: string | null
   },
 ): Promise<BackendPipelineResult> {
   const caseRecord = await confirmDocumentIngest(ingestId)
   if (opts?.ownerName?.trim()) {
     await updateCaseOwner(caseRecord.case_id, { owner_name: opts.ownerName.trim() })
+  }
+  if (opts?.patientId) {
+    await linkCasePatient(caseRecord.case_id, opts.patientId)
   }
   return analyzeCaseAsyncAndWait(caseRecord.case_id, {
     signal: opts?.signal,
