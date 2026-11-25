@@ -16,10 +16,10 @@ test.describe('Protected mode smoke', () => {
 })
 
 test.describe('Protected mode accounts (issue #31)', () => {
-  test('self sign-up is vet-only and waits for admin approval', async ({ page }) => {
+  test('self sign-up is vet-only and asks to verify the email', async ({ page }) => {
     const email = uniqueEmail('prot-vet')
     await fillRegister(page, { email, password: 'Patiler2026' })
-    await expect(page.getByRole('heading', { name: 'Hesabınız onay bekliyor' })).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByRole('heading', { name: 'E-postanızı kontrol edin' })).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText(email)).toBeVisible()
   })
 })
