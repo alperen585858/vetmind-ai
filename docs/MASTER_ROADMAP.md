@@ -55,7 +55,7 @@
 
 | Field | Content |
 |-------|---------|
-| **Existing** | 24 pages, i18n TR/EN, `RadiologistWorkspace`, `DicomViewer`, `src/lib/backend.ts` |
+| **Existing** | 24 pages, i18n TR/EN, `RadiologistWorkspace`, `DicomViewer`, `src/shared/api/*` |
 | **Verified** | Vitest under `src/lib/*.test.ts`; Playwright `e2e/` |
 | **Gaps** | Dashboard/Modules/SystemStatus mock charts; Register localStorage illusion; some i18n holes |
 | **Dependencies** | Health/readiness APIs for honesty wiring |
@@ -70,7 +70,7 @@
 
 | Field | Content |
 |-------|---------|
-| **Existing** | Parse/validate/anonymize, quarantine, display PNG, 2D viewer (`backend/app/dicom/`, `imaging/`, `src/components/DicomViewer.tsx`) |
+| **Existing** | Parse/validate/anonymize, quarantine, display PNG, 2D viewer (`backend/app/dicom/`, `imaging/`, `src/shared/dicom/DicomViewer.tsx`) |
 | **Verified** | `test_dicom*.py`, `test_quarantine.py`, `test_phase19_dicom_viewer.py`, e2e slice nav |
 | **Gaps** | No DICOMweb/PACS/3D; malware scan off by default; large-study FE limits |
 | **Dependencies** | Storage quarantine; pixel opt-in for LocalTorch |

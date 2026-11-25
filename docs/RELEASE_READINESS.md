@@ -88,4 +88,4 @@ Retention helpers and admin hooks exist for Goal A baselines. Production retenti
 - [MASTER_ROADMAP.md](MASTER_ROADMAP.md)  
 - [ENGINEERING_STATUS.md](ENGINEERING_STATUS.md)  
 - [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md)  
-- [P2_HARDENING_BACKLOG.md](P2_HARDENING_BACKLOG.md)  
+- [P2_HARDENING_BACKLOG.md](arsiv/P2_HARDENING_BACKLOG.md)  

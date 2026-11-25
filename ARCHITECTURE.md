@@ -9,10 +9,7 @@ Bu belge, depo yapısını, hedef veri akışını, backend/frontend mimarisini,
 
 - [README.md](README.md) — hızlı başlangıç ve demo
 - [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md) — sistem + LLM/AI pipeline ve eksikler (detay)
-- [docs/audits/01_AI_ARCHITECTURE.md](docs/audits/01_AI_ARCHITECTURE.md) — AI audit bulguları (F1–F14)
-- [docs/audits/02_DICOM_PHASE1_AUDIT.md](docs/audits/02_DICOM_PHASE1_AUDIT.md) — Phase 1 DICOM workspace audit
-- [docs/PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) — Phase 1.1 stabilization + Phase 2 case management (no payment)
-- [docs/DEMO_PAYMENT_SUBMISSION_FLOW.md](docs/DEMO_PAYMENT_SUBMISSION_FLOW.md) — demo payment (100 EUR) before imaging submission finalize
+- [docs/README.md](docs/README.md) — `docs/` dizini; tarihsel faz raporları ve denetimler `docs/arsiv/` altında
 - [backend/README.md](backend/README.md) — backend env / API özeti
 - [backend/.env.example](backend/.env.example) — ortam değişkeni şablonu
 
@@ -247,7 +244,7 @@ Açıkken: `Authorization: Bearer <JWT>` ve/veya `X-API-Key`.
 | `demo` / `service` / `admin` | `*` |
 | `vet` | cases write/read, analyze, dicom, documents, rag:search |
 | `expert` | cases read, analyze, review, rag:search, dicom (demo) |
-| `owner` | cases read, rag:search |
+| `clinic_owner` | cases read, rag:search, clinic manage, dicom (okuma) |
 
 Capability sabitleri: `auth/rbac.py` (`cases:write`, `review`, `rag:admin`, …).
 
@@ -258,7 +255,7 @@ Demo kullanıcılar (backend `auth/security.py` + frontend seed): şifre `demo12
 | `vet@demo.local` | vet |
 | `expert@demo.local` | expert |
 | `admin@demo.local` | admin |
-| `owner@demo.local` | owner |
+| `clinic-owner@demo.local` | clinic_owner |
 
 ---
 
@@ -303,40 +300,45 @@ OpenAPI: http://127.0.0.1:8000/docs
 
 - Vite dev server `:5173`, `/api` → `:8000` proxy (`vite.config.ts`).
 - **Çift katmanlı auth:**
-  1. UI oturumu: `src/lib/auth.ts` → localStorage (`vetmind.demo.session`)
-  2. API JWT: login/register/rol değişiminde `backendLogin` → `vetmind.backend.jwt`; `src/lib/backend.ts` `Authorization: Bearer` ekler
+  1. UI oturumu: `src/shared/auth/session.ts` → localStorage (`vetmind.demo.session`)
+  2. API JWT: login/register/rol değişiminde `backendLogin` → `vetmind.backend.jwt`; `src/shared/api/*` `Authorization: Bearer` ekler
 - Durum: `AppContext` — seed vakalar + backend senkron (`refreshBackendCases`, `hydrateBackendCase`, `caseMapper.ts`).
 
 ### 6.2 Rotalar ve roller
 
-| Rota | Sayfa | Roller | Backend kullanımı (özet) |
-|------|-------|--------|---------------------------|
-| `/giris` | `Login.tsx` | — | `POST /auth/login` |
-| `/kayit` | `Register.tsx` | — | localStorage + best-effort JWT |
-| `/` | `Dashboard.tsx` | tümü | — |
-| `/dicom-yukle` | `DicomUpload.tsx` | vet | upload, confirm, async analyze, fixtures |
-| `/vakalar/yeni` | `NewCase.tsx` | vet | create+analyze veya yerel prototip |
-| `/vakalar` | `CaseList.tsx` | vet, expert | list / refresh |
-| `/vakalar/:id` | `CaseDetail.tsx` | vet, expert | get case, findings, RAG panel |
-| `/vakalar/:id/isleme` | `Processing.tsx` | vet, expert | pipeline animasyonu / job bilgisi |
-| `/vakalar/:id/calisma` | `RadiologistWorkspace.tsx` | expert | `submitBackendReview` (canonical) |
-| `/vakalar/:id/inceleme` | redirect → `/calisma` | expert | legacy alias |
-| `/kuyruk` | `ReviewQueue.tsx` | expert | kuyruk UI |
-| `/raporlar`, `/raporlar/:id` | Report* | vet, owner, expert | onaylı rapor + RAG |
-| `/moduller` | `Modules.tsx` | admin | — |
-| `/bilgi-tabani` | `KnowledgeBase.tsx` | admin | `rag/search` |
-| `/sistem` | `SystemStatus.tsx` | admin | `GET /health` + mock GPU kartları |
+| Rota (TR; EN karşılığı da var) | Sayfa (aksi yazmadıkça `src/features/…`) | Roller | Backend kullanımı |
+|------|-------|--------|-------------------|
+| `/` | `shared/shell/Landing.tsx` (misafir) / `src/app/Dashboard.tsx` | misafir / tümü | — |
+| `/giris`, `/kayit` | `auth/Login.tsx`, `auth/Register.tsx` | — | `POST /auth/login`, `POST /auth/register` (yalnız veteriner, admin onayıyla) |
+| `/sifremi-unuttum`, `/sifre-sifirla` | `auth/ForgotPassword.tsx`, `auth/ResetPassword.tsx` | — / tümü | `POST /auth/password/forgot`, `/reset` |
+| `/ayarlar` | `auth/Settings.tsx` | vet, expert, clinic_owner, admin | ayarlar, şifre değiştir |
+| `/vakalar/yeni` | `cases/NewCase.tsx` | vet | vaka aç → tetkik yükleme (DICOM) → analiz |
+| `/vakalar` | `cases/CaseList.tsx` | vet, expert, clinic_owner | liste; `?durum=onaylandi` onaylı raporlar |
+| `/vakalar/:id` | `cases/CaseDetailPage.tsx` | vet, expert, clinic_owner | vaka, bulgular, geçmiş, RAG |
+| `/vakalar/:id/isleme` | `analysis/Processing.tsx` | vet, expert | job poll |
+| `/vakalar/:id/calisma` | `expert/RadiologistWorkspace.tsx` | expert | review submit (+ hydrate) |
+| `/vakalar/:id/inceleme` | yönlendirme → `/calisma` | expert | eski bağlantı |
+| `/kuyruk`, `/ai-tekrar` | `expert/ReviewQueue.tsx`, `expert/ExpertAiResend.tsx` | expert | kuyruk, AI'ye yeniden gönderme |
+| `/raporlar/:id` | `reports/ApprovedReport.tsx` | vet, expert, clinic_owner | onaylı rapor + PDF |
+| `/raporlar` | yönlendirme → `/vakalar?durum=onaylandi` | — | eski bağlantı (#81) |
+| `/rapor-baglanti` | `reports/ReportLink.tsx` | herkes (bağlantıyla) | paylaşılan rapor |
+| `/dicom-yukle` | yönlendirme → `/vakalar/yeni` | — | eski bağlantı (#79); test build'inde eski sayfa |
+| `/mesajlar` | `messaging/Messages.tsx` | vet, expert, clinic_owner, admin | mesajlaşma |
+| `/ai-dersleri` | `rag-admin/AiLessons.tsx` | expert, admin | `/lessons` |
+| `/moduller`, `/bilgi-tabani` | `rag-admin/Modules.tsx`, `rag-admin/KnowledgeBase.tsx` | admin | `rag/*` |
+| `/kullanicilar`, `/radyologlarim` | `admin/AdminUsers.tsx`, `admin/AdminRadiologists.tsx` | admin | kullanıcı yönetimi |
+| `/sistem`, `/model-performansi` | `admin/SystemStatus.tsx`, `admin/ModelPerformance.tsx` | admin | `GET /health`, değerlendirme sonuçları |
 
-Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
+Rotalar her feature'ın `routes.tsx` dosyasında; `src/App.tsx` bunları bağlar. Rol kapısı: `src/shared/shell/routing.tsx` → `<Gate roles={[...]}>`.
 
 ### 6.3 Önemli UI bileşenleri
 
 | Bileşen / lib | Amaç |
 |---------------|------|
-| `DicomViewer.tsx` + `dicomPreview.ts` | Tarayıcıda W/L, dilim, zoom/pan (klinik PACS değil) |
-| `RagCitations.tsx` | Backend `rag_citations` gösterimi |
-| `shared/api/*` (+ geçici `lib/backend.ts` facade) | Domain’lere ayrılmış `/api/v1` istemcisi |
-| `caseMapper.ts` | Backend record → UI `VetCase` |
+| `src/shared/dicom/DicomViewer.tsx` + `src/shared/lib/dicomPreview.ts` | Tarayıcıda W/L, dilim, zoom/pan (klinik PACS değil) |
+| `src/shared/ui/RagCitations.tsx` | Backend `rag_citations` gösterimi |
+| `src/shared/api/*` | Domain’lere ayrılmış `/api/v1` istemcisi |
+| `src/shared/lib/caseMapper.ts` | Backend record → UI `VetCase` |
 
 ### 6.4 Feature modules
 
@@ -427,7 +429,7 @@ Kök script kısayolları:
 ### 8.2 Önerilen demo akışı
 
 1. `vet@demo.local` / `demo1234` ile giriş (JWT best-effort).
-2. **DICOM Yükle** → Demo Brain MRI / CT / Thorax XR (veya `.dcm` sürükle).
+2. **Yeni Vaka** → tetkik yükleme adımında `.dcm` sürükle (demo build'inde hazır Brain MRI / CT / Thorax XR örnekleri).
 3. Metadata sınıflandırmasını onayla → async mock analiz (poll).
 4. **Vakalar → Backend’den yenile** (SQLite kalıcılık).
 5. Rolü **Uzman Hekim** yap → incele / onayla (`rag_citations` panelleri).
@@ -553,10 +555,10 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine (`uzman_incele
 | Auth | `backend/app/auth/*`, `src/shared/auth/` |
 | UI router | `src/App.tsx` mounts `src/features/*/routes.tsx` (`src/pages/` removed) |
 | Screens | `src/features/`, `src/shared/shell/` |
-| API client | `src/shared/api/*` (facade: `src/lib/backend.ts`) |
-| Demo auth | `src/shared/auth/`, `src/lib/auth.ts`, seeds `src/shared/demo/users.ts` |
-| Demo seeds | `src/shared/demo/`, `src/features/rag-admin/demoKb.ts`, `src/features/admin/demoInfra.ts` (facade: `src/data/mock.ts`) |
-| Case state | `src/features/cases` (facade: `src/context/AppContext.tsx`) |
+| API client | `src/shared/api/*` |
+| Demo auth | `src/shared/auth/`, `src/shared/auth/session.ts`, seeds `src/shared/demo/users.ts` |
+| Demo seeds | `src/shared/demo/`, `src/features/rag-admin/demoKb.ts`, `src/features/admin/demoInfra.ts` |
+| Case state | `src/features/cases` (state: `src/shared/shell/AppContext.tsx`) |
 | Modularization | `docs/modularization.md` |
 
 ---

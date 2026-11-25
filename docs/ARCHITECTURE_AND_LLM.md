@@ -11,9 +11,9 @@ Bu belge, şu ana kadarki **ürün mimarisini**, **AI/LLM pipeline’ını**, **
 | Belge | Amaç |
 |--------|------|
 | [ARCHITECTURE.md](../ARCHITECTURE.md) | Genel ürün mimarisi, API, depo, demo |
-| [docs/PHASE_1_1_AND_2.md](PHASE_1_1_AND_2.md) | DICOM 1.1 + vaka yönetimi (ödeme yok) |
-| [docs/audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) | AI güvenlik/swap-in audit bulguları (F1–F14) |
-| [docs/audits/02_DICOM_PHASE1_AUDIT.md](audits/02_DICOM_PHASE1_AUDIT.md) | Phase 1 DICOM audit |
+| [docs/PHASE_1_1_AND_2.md](arsiv/PHASE_1_1_AND_2.md) | DICOM 1.1 + vaka yönetimi (ödeme yok) |
+| [docs/audits/01_AI_ARCHITECTURE.md](arsiv/audits/01_AI_ARCHITECTURE.md) | AI güvenlik/swap-in audit bulguları (F1–F14) |
+| [docs/audits/02_DICOM_PHASE1_AUDIT.md](arsiv/audits/02_DICOM_PHASE1_AUDIT.md) | Phase 1 DICOM audit |
 | [backend/README.md](../backend/README.md) | Backend env / API özeti |
 | [backend/.env.example](../backend/.env.example) | Ortam değişkeni şablonu |
 
@@ -319,7 +319,7 @@ Validasyon fail → `ReportStatus.VALIDATION_FAILED`; orchestrator outcome `PART
 | `KnowledgeBase` | Canlı `searchRag` · loading satırları DEMO FICTION etiketli |
 | `SystemStatus` | Health + model readiness canlı; GPU/Qdrant/token-s kartları **not configured** |
 
-**Risk (ISS-FE-01 — kapatıldı):** `src/lib/pipeline.ts` fiction log’ları `[DEMO FICTION · not backend]` önekli; yalnızca `local` mode’da kullanılır. Backend Processing fiction layer göstermez. SystemStatus GPU/queue sahte “ok” yanılsaması kaldırıldı.
+**Risk (ISS-FE-01 — kapatıldı):** `src/shared/lib/pipeline.ts` fiction log’ları `[DEMO FICTION · not backend]` önekli; yalnızca `local` mode’da kullanılır. Backend Processing fiction layer göstermez. SystemStatus GPU/queue sahte “ok” yanılsaması kaldırıldı.
 
 ---
 

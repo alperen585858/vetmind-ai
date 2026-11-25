@@ -1,7 +1,7 @@
 # Yapay zeka / dil modeli / veri gelince nasıl bağlanır?
 
 > **Basit kılavuz.** Gerçek model eğitmez. Sadece “elimize gelince ne yaparız?” sorusuna cevap verir.  
-> Teknik derinlik: [PHASE_20_FINAL_AI_READINESS.md](PHASE_20_FINAL_AI_READINESS.md) · [LLM_KATMANI.md](LLM_KATMANI.md) · [HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](HEDEF_MIMARI_GAP_ISSUE_LISTESI.md)
+> Teknik derinlik: [PHASE_20_FINAL_AI_READINESS.md](arsiv/PHASE_20_FINAL_AI_READINESS.md) · [LLM_KATMANI.md](LLM_KATMANI.md) · [HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](HEDEF_MIMARI_GAP_ISSUE_LISTESI.md)
 
 **Şu an varsayılan:** sahte (mock) görüntü AI + sahte dil modeli + demo metinler. Klinik sistem değildir.
 
