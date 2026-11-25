@@ -1061,7 +1061,10 @@
       "deleteBody": "Administrators only (e.g. a KVKK erasure request). Images, AI results and the report are removed for good; the action is written to the audit log.",
       "deleteConfirm": "Delete permanently",
       "deleted": "Case deleted permanently"
-    }
+    },
+    "viewTabs": "Case view",
+    "viewInProgress": "In progress",
+    "viewApprovedReports": "Approved reports"
   },
   "sections": {
     "klinikOzet": "Technical / Clinical summary",

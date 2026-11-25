@@ -199,7 +199,7 @@ export function ExpertDashboard() {
           delayMs={120}
         />
         <LocalizedLink
-          to="/raporlar"
+          to="/vakalar?durum=onaylandi"
           aria-label={`${t('dashboard.expertApprovedSession')}: ${approvedCount}`}
           className="vm-expert-card vm-fade-up block px-4 py-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
           style={{ animationDelay: '160ms' }}

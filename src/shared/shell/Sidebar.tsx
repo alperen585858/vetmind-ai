@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ClipboardCheck,
   FilePlus2,
-  FileText,
   FolderOpen,
   Gauge,
   GraduationCap,
@@ -66,7 +65,6 @@ export function Sidebar({
       { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar/yeni', label: t('nav.newCase'), icon: <FilePlus2 className={ic} /> },
       { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
-      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: t('nav.messages'), icon: <MessageSquare className={ic} /> },
     ],
     expert: [
@@ -75,13 +73,11 @@ export function Sidebar({
       { to: '/ai-tekrar', label: t('nav.expertAiAnalysis'), icon: <Sparkles className={ic} /> },
       { to: '/ai-dersleri', label: t('nav.aiLessons'), icon: <GraduationCap className={ic} /> },
       { to: '/vakalar', label: t('nav.cases'), icon: <FolderOpen className={ic} /> },
-      { to: '/raporlar', label: t('nav.expertApproved'), icon: <FileText className={ic} /> },
       { to: '/mesajlar', label: t('nav.expertMessages'), icon: <MessageSquare className={ic} /> },
     ],
     clinic_owner: [
       { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
-      { to: '/raporlar', label: t('nav.approvedReports'), icon: <FileText className={ic} /> },
     ],
     admin: [
       { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },

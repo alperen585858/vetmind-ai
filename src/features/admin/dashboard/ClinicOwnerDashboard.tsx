@@ -189,7 +189,7 @@ export function ClinicOwnerDashboard() {
           label={t('dashboard.clinicStatApproved')}
           value={stats || dash ? approved : dashFallback}
           hint={t('dashboard.clinicStatApprovedHint')}
-          to="/raporlar"
+          to="/vakalar?durum=onaylandi"
           delayMs={120}
         />
         <ClinicMetric

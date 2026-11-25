@@ -1061,7 +1061,10 @@
       "deleteBody": "Yalnızca yönetici içindir (ör. KVKK silme talebi). Görüntüler, AI sonuçları ve rapor geri dönüşü olmadan silinir; işlem denetim kaydına yazılır.",
       "deleteConfirm": "Kalıcı olarak sil",
       "deleted": "Vaka kalıcı olarak silindi"
-    }
+    },
+    "viewTabs": "Vaka görünümü",
+    "viewInProgress": "Devam eden",
+    "viewApprovedReports": "Onaylı raporlar"
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",

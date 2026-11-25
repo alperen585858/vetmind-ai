@@ -17,5 +17,5 @@ export const AWAITING_REPORT_FILTER = 'rapor-bekleyen'
 
 /** A case whose report is not approved yet (rejected cases are closed, not waiting). */
 export function isAwaitingReport(status: CaseStatus): boolean {
-  return status !== 'onaylandi' && status !== 'reddedildi'
+  return status !== 'onaylandi' && status !== 'reddedildi' && status !== 'iptal'
 }

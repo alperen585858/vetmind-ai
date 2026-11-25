@@ -23,6 +23,11 @@ const MODALITY_CLS: Record<string, string> = {
   OTHER: 'bg-slate-100 text-slate-700 ring-slate-200',
 }
 
+/** #81: approved cases open straight on the approved report (PDF download there). */
+export function caseOpenPath(c: Pick<VetCase, 'id' | 'status'>): string {
+  return c.status === 'onaylandi' ? `/raporlar/${c.id}` : `/vakalar/${c.id}`
+}
+
 export function SpeciesIcon({ species }: { species: string }) {
   return (
     <span className="text-base leading-none" role="img" aria-label={species}>
@@ -122,13 +127,13 @@ export function CaseTable({
               key={c.id}
               tabIndex={0}
               aria-label={`${c.patient.name} — ${c.no}`}
-              onClick={() => nav(`/vakalar/${c.id}`)}
+              onClick={() => nav(caseOpenPath(c))}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter' && e.key !== ' ') return
                 const target = e.target as HTMLElement
                 if (target.closest('button, a, input')) return
                 e.preventDefault()
-                nav(`/vakalar/${c.id}`)
+                nav(caseOpenPath(c))
               }}
               className="cursor-pointer transition hover:bg-teal-50/40 focus-visible:bg-teal-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600"
             >
@@ -190,7 +195,7 @@ export function CaseTable({
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"
-                    onClick={() => nav(`/vakalar/${c.id}`)}
+                    onClick={() => nav(caseOpenPath(c))}
                   >
                     {t('cases.open')} <ChevronRight className="h-3.5 w-3.5" />
                   </button>

@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   FilePlus2,
+  FileText,
   FolderOpen,
   RefreshCw,
   Search,
@@ -49,9 +50,11 @@ export default function CaseList() {
   const nav = useLocalizedNavigate()
   const [q, setQ] = useState('')
   const [searchParams] = useSearchParams()
-  const [status, setStatus] = useState<StatusFilter>(() =>
-    searchParams.get('durum') === AWAITING_REPORT_FILTER ? AWAITING_REPORT_FILTER : '',
-  )
+  const [status, setStatus] = useState<StatusFilter>(() => {
+    const d = searchParams.get('durum')
+    if (d === AWAITING_REPORT_FILTER || d === 'onaylandi' || d === 'iptal') return d
+    return ''
+  })
   const [species, setSpecies] = useState('')
   const [modality, setModality] = useState<BackendModality | ''>('')
   const [expert, setExpert] = useState('')
@@ -88,7 +91,8 @@ export default function CaseList() {
     const approved = byStatus.onaylandi ?? 0
     const failed = (byStatus.analiz_basarisiz ?? 0) + (byStatus.reddedildi ?? 0)
     const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0)
-    return { byStatus, total, review, approved, failed, pct }
+    const inProgress = cases.filter((c) => isAwaitingReport(c.status) && c.status !== 'iptal').length
+    return { byStatus, total, review, approved, failed, pct, inProgress }
   }, [cases])
 
   const filtered = useMemo(() => {
@@ -307,6 +311,38 @@ export default function CaseList() {
             </Button>
           </div>
         )}
+
+        {/* #81: approved reports are a view of the case list, not a separate page. */}
+        <div className="flex flex-wrap gap-1 rounded-2xl bg-white p-1 ring-1 ring-slate-200/70" role="tablist" aria-label={t('cases.viewTabs')}>
+          {(
+            [
+              { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0) },
+              { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress },
+              { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved },
+            ] as { id: StatusFilter; label: string; n: number }[]
+          ).map((v) => (
+            <button
+              key={v.id || 'all'}
+              type="button"
+              role="tab"
+              aria-selected={status === v.id}
+              onClick={() => setStatus(v.id)}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                status === v.id
+                  ? v.id === 'onaylandi'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-navy-900 text-white shadow-sm'
+                  : v.id === 'onaylandi'
+                    ? 'text-emerald-800 hover:bg-emerald-50'
+                    : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {v.id === 'onaylandi' && <FileText className="h-4 w-4" aria-hidden />}
+              {v.label}
+              <span className={`rounded-full px-1.5 text-xs ${status === v.id ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{v.n}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="relative overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70">
           {showSkeleton ? (
