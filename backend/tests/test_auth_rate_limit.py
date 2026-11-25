@@ -162,7 +162,7 @@ def test_register_limited_per_ip(tmp_path: Path) -> None:
             "/api/v1/auth/register",
             json={"email": f"o{i}@owner.test", "password": "Patiler2026", "role": "vet"},
         )
-        assert res.status_code == 201, res.text
+        assert res.status_code == 202, res.text
     res = client.post(
         "/api/v1/auth/register", json={"email": "late@owner.test", "password": "Patiler2026", "role": "vet"}
     )

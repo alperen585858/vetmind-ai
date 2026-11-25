@@ -123,8 +123,8 @@ def test_owner_self_registration_is_rejected(tmp_path: Path) -> None:
         "/api/v1/auth/register",
         json={"email": "new-vet@example.com", "password": "Patiler2026!x", "role": "vet"},
     )
-    assert vet.status_code == 201, vet.text
-    assert vet.json()["status"] == "pending_approval"
+    assert vet.status_code == 202, vet.text
+    assert vet.json()["status"] == "verification_sent"
 
 
 def test_legacy_owner_account_is_kept_but_cannot_sign_in(tmp_path: Path) -> None:
