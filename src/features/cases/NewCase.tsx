@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { ArrowLeft, ArrowRight, Brain, FileText, FolderOpen, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
@@ -16,7 +16,11 @@ import { nowStamp, today } from '../../shared/lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../../shared/lib/pipeline'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { OwnerNameField } from '../../shared/ui/OwnerNameField'
-import { isLikelyDicomFile } from '../../shared/lib/dicomFolder'
+import { MAX_VIEWER_FRAMES, isLikelyDicomFile } from '../../shared/lib/dicomFolder'
+import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
+import { vhsSpeciesFrom } from '../../shared/lib/vhs'
+import { DicomViewer } from '../../shared/dicom/DicomViewer'
+import { SeriesExplorer } from '../dicom/SeriesExplorer'
 import { setAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
 import { estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
 import {
@@ -202,6 +206,52 @@ export default function NewCase() {
   const N = <K extends keyof NeuroExam>(k: K, v: NeuroExam[K]) => setNeuro((n) => ({ ...n, [k]: v }))
 
   const hint = localize(neuro, clinical, locale)
+
+  // In-browser viewer for the picked DICOM files (#79 moved upload here; the viewer came with it).
+  const [frames, setFrames] = useState<DicomFramePreview[]>([])
+  const [framesLoading, setFramesLoading] = useState(false)
+  const [activeSeriesKey, setActiveSeriesKey] = useState<string | null>(null)
+  const [activeSopUid, setActiveSopUid] = useState<string | null>(null)
+  const [focusSopUid, setFocusSopUid] = useState<string | null>(null)
+  const [focusRequestId, setFocusRequestId] = useState(0)
+  const viewerFiles = useMemo(() => dicomFiles.slice(0, MAX_VIEWER_FRAMES), [dicomFiles])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!viewerFiles.length) {
+      setFrames([])
+      setFramesLoading(false)
+      return
+    }
+    setFramesLoading(true)
+    void buildDicomPreviews(viewerFiles).then((next) => {
+      if (!cancelled) {
+        setFrames(next)
+        setFramesLoading(false)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [viewerFiles])
+
+  const onActiveFrameChange = useCallback((frame: DicomFramePreview) => {
+    if (frame.sopInstanceUid) setActiveSopUid(frame.sopInstanceUid)
+    if (frame.seriesInstanceUid) setActiveSeriesKey(frame.seriesInstanceUid)
+    else if (frame.seriesDescription) setActiveSeriesKey(`desc:${frame.seriesDescription}`)
+    else setActiveSeriesKey(null)
+  }, [])
+
+  const isRadiograph =
+    dicomPreview?.classification?.suggested_modality === 'XR' ||
+    frames.some((f) => ['CR', 'DX', 'XR'].includes((f.modality ?? '').toUpperCase()))
+
+  const clearDicomFiles = () => {
+    setDicomPreview(null)
+    setDicomFiles([])
+    setActiveSeriesKey(null)
+    setActiveSopUid(null)
+  }
 
   const fillSample = () => {
     setPipeline('document_context')
@@ -1009,29 +1059,45 @@ export default function NewCase() {
                   <span>{t('newCase.consentLabel')}</span>
                 </label>
                 {dicomFiles.length > 0 && (
-                  <ul className="mt-5 divide-y divide-slate-100 rounded-xl border border-slate-200">
-                    {dicomFiles.map((f) => (
-                      <li key={`${f.name}-${f.lastModified}`} className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-lg bg-teal-50 p-2 text-teal-700"><FileText className="h-5 w-5" /></div>
-                          <div>
-                            <p className="text-sm font-medium text-navy-900">{f.name}</p>
-                            <p className="text-xs text-slate-500">{f.size > 1024 ? `${Math.round(f.size / 1024)} KB` : `${f.size} B`}</p>
-                          </div>
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,32%)]">
+                    <div className="min-w-0">
+                      {framesLoading || frames.length > 0 ? (
+                        <DicomViewer
+                          frames={frames}
+                          loading={framesLoading}
+                          onActiveFrameChange={onActiveFrameChange}
+                          focusSopUid={focusSopUid}
+                          focusRequestId={focusRequestId}
+                          vhsEnabled={isRadiograph}
+                          vhsSpecies={vhsSpeciesFrom(patient.species)}
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
+                          {t('newCase.viewerNoPixels')}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDicomPreview(null)
-                            setDicomFiles((fs) => fs.filter((x) => x !== f))
-                          }}
-                          className="rounded-md p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                      )}
+                    </div>
+                    <SeriesExplorer
+                      files={dicomFiles}
+                      frames={frames}
+                      study={dicomPreview?.study}
+                      activeSeriesKey={activeSeriesKey}
+                      activeSopUid={activeSopUid}
+                      onRemoveFile={(file) => {
+                        setDicomPreview(null)
+                        setDicomFiles((fs) => fs.filter((x) => x !== file))
+                      }}
+                      onClearAll={clearDicomFiles}
+                      onSelectInstance={(ref) => {
+                        setActiveSeriesKey(ref.seriesKey)
+                        if (ref.sopInstanceUid) {
+                          setActiveSopUid(ref.sopInstanceUid)
+                          setFocusSopUid(ref.sopInstanceUid)
+                          setFocusRequestId((n) => n + 1)
+                        }
+                      }}
+                    />
+                  </div>
                 )}
                 {dicomPreview && (
                   <div className={`mt-5 rounded-xl border p-4 text-sm ${dicomPreview.blocked ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-teal-200 bg-teal-50/60 text-navy-900'}`}>
