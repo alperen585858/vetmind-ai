@@ -111,3 +111,84 @@ def test_admin_cannot_unverify(tmp_path: Path) -> None:
         "/api/v1/admin/users/vet@demo.local", json={"email_verified": False}, headers=_admin(client)
     )
     assert res.status_code == 422
+
+
+# --- step 2: verification tokens ----------------------------------------------
+
+import sqlite3  # noqa: E402
+
+import pytest  # noqa: E402
+
+from app.auth.email_verification import EmailVerificationError, EmailVerificationService  # noqa: E402
+from app.auth.password_reset import (  # noqa: E402
+    InMemoryPasswordResetStore,
+    SqlitePasswordResetStore,
+)
+
+
+def _svc(clock: list[float]) -> EmailVerificationService:
+    return EmailVerificationService(InMemoryPasswordResetStore(), ttl_seconds=86400, clock=lambda: clock[0])
+
+
+def test_verification_token_works_once() -> None:
+    svc = _svc([0.0])
+    raw = svc.issue("A@B.co")
+    assert svc.consume(raw) == "a@b.co"
+    with pytest.raises(EmailVerificationError) as exc:
+        svc.consume(raw)
+    assert exc.value.reason == "used"
+
+
+def test_verification_token_expires_after_ttl() -> None:
+    clock = [0.0]
+    svc = _svc(clock)
+    raw = svc.issue("a@b.co")
+    clock[0] += 86400
+    with pytest.raises(EmailVerificationError) as exc:
+        svc.consume(raw)
+    assert exc.value.reason == "expired"
+
+
+def test_new_verification_link_voids_the_old_one() -> None:
+    svc = _svc([0.0])
+    old = svc.issue("a@b.co")
+    new = svc.issue("a@b.co")
+    with pytest.raises(EmailVerificationError):
+        svc.consume(old)
+    assert svc.consume(new) == "a@b.co"
+
+
+def test_unknown_or_empty_token_is_rejected() -> None:
+    svc = _svc([0.0])
+    for raw, reason in (("", "missing"), ("nope", "unknown")):
+        with pytest.raises(EmailVerificationError) as exc:
+            svc.consume(raw)
+        assert exc.value.reason == reason
+
+
+def test_sql_store_uses_its_own_table_and_keeps_only_hashes(tmp_path: Path) -> None:
+    db = tmp_path / "auth.sqlite3"
+    svc = EmailVerificationService(SqlitePasswordResetStore(db, table="email_verifications"), ttl_seconds=60)
+    raw = svc.issue("a@b.co")
+    with sqlite3.connect(db) as conn:
+        rows = conn.execute("SELECT token_hash FROM email_verifications").fetchall()
+        resets = conn.execute("SELECT count(*) FROM password_resets").fetchone()[0]
+    assert rows and all(raw not in r[0] for r in rows)
+    assert resets == 0  # a verification link is not a password reset link
+    assert svc.consume(raw) == "a@b.co"
+
+
+def test_sql_store_rejects_unknown_table(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        SqlitePasswordResetStore(tmp_path / "x.sqlite3", table="managed_users")
+
+
+def test_ttl_setting_is_clamped(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.settings import load_settings
+
+    monkeypatch.setenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS", "10")
+    assert load_settings().email_verify_ttl_seconds == 300
+    monkeypatch.setenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS", "999999999")
+    assert load_settings().email_verify_ttl_seconds == 7 * 24 * 60 * 60
+    monkeypatch.delenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS")
+    assert load_settings().email_verify_ttl_seconds == 24 * 60 * 60
