@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { createTranslator } from '../../i18n'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { createTranslator, loadLocale } from '../../i18n'
 import { ApiError } from '../api'
 import { presentApiError, userErrorMessage } from './apiErrors'
+
+beforeAll(() => loadLocale('en'))
 
 describe('presentApiError', () => {
   const tTr = createTranslator('tr')
