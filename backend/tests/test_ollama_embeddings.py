@@ -6,7 +6,12 @@ import pytest
 
 from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.embeddings import HashEmbeddingBackend
-from app.rag.ollama_embeddings import OllamaEmbeddingBackend, OllamaEmbeddingError, build_embedding_backend
+from app.rag.ollama_embeddings import (
+    OllamaEmbeddingBackend,
+    OllamaEmbeddingError,
+    build_embedding_backend,
+    build_embedding_backend_with_status,
+)
 from app.rag.relevance import RagFilter
 from app.rag.vector_store import JsonVectorStore
 
@@ -68,9 +73,43 @@ def test_errors_are_typed() -> None:
         OllamaEmbeddingBackend(transport=down).embed("x")
 
 
-def test_factory_defaults_to_hash_and_falls_back_when_ollama_is_down(monkeypatch) -> None:
+def test_factory_defaults_to_ollama_and_falls_back_when_ollama_is_down(monkeypatch) -> None:
+    # #101: bge-m3 is the default; with nothing listening the app still starts, on hash.
     monkeypatch.delenv("VETMIND_RAG_EMBEDDING", raising=False)
-    assert isinstance(build_embedding_backend(), HashEmbeddingBackend)
-    monkeypatch.setenv("VETMIND_RAG_EMBEDDING", "ollama")
     monkeypatch.setenv("VETMIND_RAG_EMBEDDING_URL", "http://127.0.0.1:9")  # nothing listens here
+    backend, status = build_embedding_backend_with_status()
+    assert isinstance(backend, HashEmbeddingBackend)
+    assert (status.requested, status.active, status.fell_back) == ("ollama", "hash", True)
+    assert status.warning
+
+
+def test_factory_hash_when_asked(monkeypatch) -> None:
+    monkeypatch.setenv("VETMIND_RAG_EMBEDDING", "hash")
+    backend, status = build_embedding_backend_with_status()
+    assert isinstance(backend, HashEmbeddingBackend)
+    assert (status.requested, status.active, status.fell_back, status.warning) == ("hash", "hash", False, "")
     assert isinstance(build_embedding_backend(), HashEmbeddingBackend)
+
+
+def test_factory_reports_bge_m3_when_reachable(monkeypatch) -> None:
+    monkeypatch.delenv("VETMIND_RAG_EMBEDDING", raising=False)
+    calls: list = []
+    real_init = OllamaEmbeddingBackend.__init__
+
+    def fake_init(self, *args, **kwargs):  # noqa: ANN001, ANN202
+        kwargs["transport"] = _fake_ollama(calls)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(OllamaEmbeddingBackend, "__init__", fake_init)
+    backend, status = build_embedding_backend_with_status()
+    assert isinstance(backend, OllamaEmbeddingBackend)
+    assert status.as_dict() == {
+        "requested": "ollama", "active": "ollama", "model": "bge-m3", "fell_back": False, "warning": "",
+    }
+
+
+def test_health_shows_embedding_and_store(client) -> None:
+    body = client.get("/api/v1/health").json()
+    assert body["rag_embedding"]["active"] == "hash"
+    assert body["rag_embedding"]["fell_back"] is False
+    assert body["rag_store"] == "memory"

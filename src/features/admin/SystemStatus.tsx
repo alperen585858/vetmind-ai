@@ -157,6 +157,30 @@ export default function SystemStatus() {
             <div><dt className="text-xs text-slate-500">version</dt><dd className="font-mono font-medium text-navy-900">{health.version}</dd></div>
             <div><dt className="text-xs text-slate-500">storage</dt><dd className="font-mono font-medium text-navy-900">{health.storage}</dd></div>
             <div><dt className="text-xs text-slate-500">rag</dt><dd className="font-mono font-medium text-navy-900">{health.rag}</dd></div>
+            {health.rag_embedding ? (
+              <div data-testid="rag-embedding">
+                <dt className="text-xs text-slate-500">{t('admin.ragEmbeddingLabel')}</dt>
+                <dd className="font-medium text-navy-900">
+                  {health.rag_embedding.active === 'ollama'
+                    ? t('admin.ragEmbeddingBge', { model: health.rag_embedding.model })
+                    : t('admin.ragEmbeddingHash')}
+                </dd>
+              </div>
+            ) : null}
+            {health.rag_store ? (
+              <div><dt className="text-xs text-slate-500">{t('admin.ragStoreLabel')}</dt><dd className="font-mono font-medium text-navy-900">{health.rag_store}</dd></div>
+            ) : null}
+            {health.rag_embedding?.fell_back ? (
+              <div className="sm:col-span-2 lg:col-span-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-inset ring-amber-200" role="alert" data-testid="rag-embedding-fallback">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-sm">{t('admin.ragEmbeddingFallback')}</p>
+                  {health.rag_embedding.warning ? (
+                    <p className="mt-1 break-all font-mono text-xs text-amber-800">{health.rag_embedding.warning}</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div><dt className="text-xs text-slate-500">job_backend</dt><dd className="font-mono font-medium text-navy-900">{health.job_backend}</dd></div>
             <div><dt className="text-xs text-slate-500">auth_enabled</dt><dd className="font-mono font-medium text-navy-900">{String(health.auth_enabled)}</dd></div>
             <div><dt className="text-xs text-slate-500">vision_endpoint</dt><dd className="font-mono font-medium text-navy-900">{String(health.vision_endpoint)}</dd></div>

@@ -1,9 +1,10 @@
 """Semantic embeddings from a local Ollama model (default ``bge-m3``, multilingual).
 
 Unlike the hash backend this understands meaning: "disk ekstrüzyonu" and "IVDD"
-land close together even with no shared words. Enable with
-``VETMIND_RAG_EMBEDDING=ollama`` (see ``build_embedding_backend``). If Ollama is not
-reachable at startup the app falls back to the hash backend instead of failing.
+land close together even with no shared words. Default since #101
+(``VETMIND_RAG_EMBEDDING=ollama``; ``hash`` turns it off). If Ollama is not reachable
+at startup the app falls back to the hash backend instead of failing, and
+``EmbeddingStatus`` records why.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import math
 import os
 import sys
 from collections import OrderedDict
+from dataclasses import dataclass
 
 import httpx
 
@@ -91,15 +93,42 @@ class OllamaEmbeddingBackend:
         return out
 
 
-def build_embedding_backend() -> EmbeddingBackend:
-    """``VETMIND_RAG_EMBEDDING=hash`` (default) or ``ollama``; never fails app startup."""
-    kind = os.getenv("VETMIND_RAG_EMBEDDING", "hash").strip().lower()
+@dataclass(frozen=True)
+class EmbeddingStatus:
+    """What was asked for and what runs; shown on the System Status page (#101)."""
+
+    requested: str  # "ollama" | "hash"
+    active: str  # "ollama" | "hash"
+    model: str  # "bge-m3" or the hash signature
+    url: str = ""
+    warning: str = ""
+
+    @property
+    def fell_back(self) -> bool:
+        return self.requested != self.active
+
+    def as_dict(self) -> dict:
+        return {
+            "requested": self.requested,
+            "active": self.active,
+            "model": self.model,
+            "fell_back": self.fell_back,
+            "warning": self.warning,
+        }
+
+
+def build_embedding_backend_with_status() -> tuple[EmbeddingBackend, EmbeddingStatus]:
+    """``VETMIND_RAG_EMBEDDING=ollama`` (default, bge-m3) or ``hash``; never fails app startup.
+
+    If Ollama or the model is not reachable the hash backend is used and the status says why.
+    """
+    kind = os.getenv("VETMIND_RAG_EMBEDDING", "ollama").strip().lower()
     if kind != "ollama":
-        return default_embedding_backend()
-    backend = OllamaEmbeddingBackend(
-        os.getenv("VETMIND_RAG_EMBEDDING_MODEL", OLLAMA_EMBED_DEFAULT_MODEL).strip() or OLLAMA_EMBED_DEFAULT_MODEL,
-        base_url=os.getenv("VETMIND_RAG_EMBEDDING_URL", OLLAMA_EMBED_DEFAULT_URL),
-    )
+        hashed = default_embedding_backend()
+        return hashed, EmbeddingStatus("hash", "hash", str(getattr(hashed, "signature", "hash")))
+    model = os.getenv("VETMIND_RAG_EMBEDDING_MODEL", OLLAMA_EMBED_DEFAULT_MODEL).strip() or OLLAMA_EMBED_DEFAULT_MODEL
+    url = os.getenv("VETMIND_RAG_EMBEDDING_URL", OLLAMA_EMBED_DEFAULT_URL)
+    backend = OllamaEmbeddingBackend(model, base_url=url)
     try:
         backend.embed("bağlantı testi")
     except OllamaEmbeddingError as exc:
@@ -107,5 +136,12 @@ def build_embedding_backend() -> EmbeddingBackend:
         msg = f"RAG: {exc} — falling back to hash embeddings."
         log.warning(msg)
         print(f"WARNING: {msg}", file=sys.stderr)
-        return default_embedding_backend()
-    return backend
+        hashed = default_embedding_backend()
+        return hashed, EmbeddingStatus(
+            "ollama", "hash", str(getattr(hashed, "signature", "hash")), url=url, warning=str(exc)
+        )
+    return backend, EmbeddingStatus("ollama", "ollama", model, url=url)
+
+
+def build_embedding_backend() -> EmbeddingBackend:
+    return build_embedding_backend_with_status()[0]

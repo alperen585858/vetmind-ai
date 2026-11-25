@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -94,7 +96,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(lessons_router)
 
     @app.get("/api/v1/health")
-    def health() -> dict[str, str | bool | None]:
+    def health() -> dict[str, Any]:
         c: AppContainer = app.state.container
         # Protected / auth-enabled: do not leak absolute filesystem paths.
         expose_paths = c.auth.deployment_mode == "demo" and not c.auth.enabled
@@ -123,6 +125,9 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "sqlite_path": sqlite_path,
             "quarantine_root": quarantine_root,
             "rag": c.rag_method,
+            # #101: which embedding runs (bge-m3 or hash) and why, if it fell back.
+            "rag_embedding": c.rag_embedding.as_dict() if getattr(c, "rag_embedding", None) else None,
+            "rag_store": c.vector_store.kind if getattr(c, "vector_store", None) is not None else None,
             "job_backend": c.job_backend.name,
             "auth_enabled": c.auth.enabled,
             "deployment_mode": c.auth.deployment_mode,

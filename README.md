@@ -131,6 +131,7 @@ docker compose up --build
 - İki servis: `backend` (FastAPI, Python 3.12) ve `web` (nginx: derlenmiş arayüz + `/api` → backend proxy)
 - Veriler (SQLite, karantina, audit, dersler) `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
 - Ayarlar: compose dosyasının yanına `.env` koyup `VETMIND_*` değişkenlerini yazın (bkz. `backend/.env.example`). Port: `VETMIND_WEB_PORT` (varsayılan 8080)
+- Bilgi bankası araması varsayılan olarak **bge-m3** (anlamsal) kullanır: bilgisayarda Ollama çalışıyor ve `ollama pull bge-m3` yapılmışsa backend ona `host.docker.internal` üzerinden bağlanır. Ollama yoksa sistem hata vermeden kelime benzerliğiyle (hash) açılır; Admin → **Sistem Durumu** hangisinin çalıştığını ve uyarıyı gösterir
 - Varsayılanlar demo modudur: auth kapalı, mock LLM. Gerçek LLM için `VETMIND_LLM_PROVIDER` ve ilgili ayarlar (§4.4) `.env`'e eklenir. Ollama bilgisayarda çalışıyorsa `VETMIND_LLM_ENDPOINT=http://host.docker.internal:11434/v1`
 - Opsiyonel Postgres + Redis (geliştirme): `backend/docker-compose.yml`
 
@@ -156,6 +157,8 @@ py -3.12 -m venv .venv
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+**Anlamsal arama (önerilen, ~1.2 GB):** [Ollama](https://ollama.com) kurup bir kez `ollama pull bge-m3` çalıştırın. Backend açılışta bge-m3'e bağlanır; Ollama kapalıysa veya model yoksa uyarı verip hash embedding ile devam eder (`VETMIND_RAG_EMBEDDING=hash` ile kapatılır).
 
 Kurulumdan sonra backend her işletim sisteminde repo kökünden `npm run backend:dev` ile de başlatılabilir
 (`scripts/backend.mjs`, `.venv`'deki Python'u bulur). Kod değiştiği halde backend eski gibi davranıyorsa
@@ -725,12 +728,18 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 - **Ölçüm:** `python scripts/rag_eval.py --store chroma` sonuçları bellek içi depoyla birebir aynı (yalnızca depolama değişti).
 - Boyut/embedding ayarı değişirse vektörler ilk açılışta özel kaynaklar dahil yeniden hesaplanır.
 
-**Anlamsal embedding (bge-m3).** `VETMIND_RAG_EMBEDDING=ollama` ile kaynaklar Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`). `npm run backend:dev:ai` bunu otomatik açar. Model yoksa ya da Ollama kapalıysa uygulama hash embedding'e geri döner. Kurulum: `ollama pull bge-m3` (~1.2 GB).
+**Anlamsal embedding (bge-m3, varsayılan, #101).** Kaynaklar ve sorgular Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`); "nöbet" ile "konvülsiyon", "akciğer" ile "pulmoner" yakın düşer. Kurulum: `ollama pull bge-m3` (~1.2 GB). Ollama kapalıysa veya model yoksa uygulama hata vermeden hash embedding'e döner; Admin → **Sistem Durumu** hangi embedding'in çalıştığını ve geri dönüldüyse nedenini gösterir (`/api/v1/health` → `rag_embedding`). `VETMIND_RAG_EMBEDDING=hash` bge-m3'ü kapatır.
 
-| | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız |
-|---|---:|---:|---:|---:|---:|
-| Hash (varsayılan) | 0.72 | 1.00 | 0.57 | 1.00 | 0.42 |
-| bge-m3 | 0.82 | 1.00 | 0.71 | 1.00 | 0.32 |
+Güncel ölçüm (25 Kasım 2026, kaynak kartları ve parçalama sonrası, 19 sentetik vaka; `eval/results/rag-20261125-141935.md`):
+
+| Embedding | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız | Vaka başı kaynak |
+|---|---:|---:|---:|---:|---:|---:|
+| Hash (yedek) | 0.72 | 1.00 | 0.57 | 1.00 | 0.42 | 1.53 |
+| **bge-m3 (varsayılan)** | **0.82** | 1.00 | **0.71** | 1.00 | **0.32** | 1.74 |
+
+Hazır kaynaklar tek parça olduğu ve kartları elle verildiği için sayılar 11 Kasım ölçümüyle aynı; kartlar ve parçalama klinik yüklemeleri etkiliyor.
+
+**Yeniden sıralama (reranking) denendi, eklenmedi.** bge-m3 + bölge/tür filtresiyle bulunan ilk 12 aday `qwen2.5:7b`'ye verildi; model yalnızca listeden seçip sıraladı (`scripts/rag_rerank_experiment.py`, `eval/results/rerank-20261125-143506.md`). Kapsam 0.71 → 0.89'a çıktı ama isabetlilik 0.82 → 0.65'e düştü, vaka başı alakasız kaynak 0.32 → 0.95'e çıktı ve kaynak olmaması gereken iki vakada da model kaynak seçti (boş vakada kaynaksız 1.00 → 0.00). Rapor başına ~25 sn (medyan 29 sn) ek süre de geldi. İyileşme olmadığı için üretim hattına girmedi.
 
 bge-m3 sıralamada çok daha iyi (ilgili kaynağı olan her vakada 1. sıradaki kaynak doğru), ama yoğun vektörlerde alakasız metin de yüksek puan aldığı için eşikler daha yüksek: bölgeli vakada 0.50, bölgesi "diğer/bilinmiyor" vakada 0.60. Torakolomber vakalar (#49) kendi bölgeleriyle yalnızca omurga kaynaklarını görür (SPINE_TL + SPINE); önceden "diğer" sayıldıkları için göğüs kaynakları geliyor ve bge-m3'te eşiğe takılıyorlardı. Ölçüm seti 19 vaka (2 torakolomber).
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
@@ -967,6 +976,8 @@ Backend özeti: [backend/README.md](backend/README.md).
 | Değişken | Varsayılan | Anlam |
 |----------|------------|--------|
 | `VETMIND_RAG` | `embedding` | `embedding` \| `lexical` |
+| `VETMIND_RAG_EMBEDDING` | `ollama` | `ollama` (bge-m3, anlamsal; ulaşılamazsa hash) \| `hash` |
+| `VETMIND_RAG_EMBEDDING_MODEL` / `_URL` | `bge-m3` / `http://localhost:11434` | Embedding modeli ve Ollama adresi |
 | `VETMIND_RAG_STORE` | `chroma` | `chroma` \| `json` (eski tek dosya) |
 | `VETMIND_CHROMA_PATH` | `./data/chroma` | Chroma klasörü |
 | `VETMIND_CHROMA_URL` | — | Ayrı Chroma sunucusu (ör. `http://chroma:8000`); boşsa yerel klasör |

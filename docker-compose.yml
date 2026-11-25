@@ -17,6 +17,12 @@ services:
       # Reset links in emails / the server log point at the web container.
       VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-http://localhost:8080}
       VETMIND_LLM_PROVIDER: ${VETMIND_LLM_PROVIDER:-mock}
+      # Semantic RAG (#101): bge-m3 from the host's Ollama (`ollama pull bge-m3`).
+      # Without it the backend starts anyway on hash embeddings; System Status shows a warning.
+      VETMIND_RAG_EMBEDDING: ${VETMIND_RAG_EMBEDDING:-ollama}
+      VETMIND_RAG_EMBEDDING_URL: ${VETMIND_RAG_EMBEDDING_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Everything persistent, including the RAG vectors (ChromaDB folder /app/data/chroma).
       - vetmind_data:/app/data

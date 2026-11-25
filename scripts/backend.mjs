@@ -26,8 +26,7 @@ const AI_ENV = {
   VETMIND_LLM_MODEL_ID: 'qwen2.5:7b',
   VETMIND_LLM_TIMEOUT_S: '600',
   VETMIND_LLM_VERIFY: 'false',
-  // Semantic RAG (needs `ollama pull bge-m3`; falls back to hash embeddings if missing).
-  VETMIND_RAG_EMBEDDING: 'ollama',
+  // Semantic RAG is the default in every mode (#101): bge-m3, hash if Ollama is missing.
 }
 const VISION_ENV = {
   ...AI_ENV,

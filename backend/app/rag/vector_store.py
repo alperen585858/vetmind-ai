@@ -105,6 +105,11 @@ class VectorStore:
     def persistent(self) -> bool:
         return self.path is not None
 
+    @property
+    def kind(self) -> str:
+        """Short storage name for /health: "memory", "json" or "chroma"."""
+        return "json" if self.path is not None else "memory"
+
     def _read(self) -> tuple[list[IndexedDoc], str] | None:
         """Stored documents and the embedding signature they were made with (None = nothing stored)."""
         raise NotImplementedError

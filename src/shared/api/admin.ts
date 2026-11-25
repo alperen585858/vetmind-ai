@@ -8,6 +8,15 @@ export type BackendHealth = {
   sqlite_path?: string
   quarantine_root?: string
   rag: string
+  /** #101: which embedding runs; fell_back = bge-m3 requested but Ollama unreachable. */
+  rag_embedding?: {
+    requested: string
+    active: string
+    model: string
+    fell_back: boolean
+    warning: string
+  } | null
+  rag_store?: string | null
   job_backend: string
   auth_enabled: boolean
   vision_endpoint: boolean
