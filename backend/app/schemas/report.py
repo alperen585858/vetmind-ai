@@ -139,6 +139,29 @@ class ReportEvidenceFigure(BaseModel):
     frame_index: Optional[int] = None
 
 
+class ReportComparison(BaseModel):
+    """"Change since the prior study" section (issue #108).
+
+    Built from the structured findings of this case and of the patient's most recent
+    approved earlier study with the same modality and region. ``P1`` cites that prior
+    report; ``F…`` aliases are the draft's own finding citations.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # None when the patient has no comparable approved prior study.
+    prior_case_id: Optional[str] = None
+    prior_study_date: Optional[str] = None
+    prior_report_version: Optional[int] = None
+    text: str
+    new_finding_codes: list[str] = Field(default_factory=list)
+    persisting_finding_codes: list[str] = Field(default_factory=list)
+    resolved_finding_codes: list[str] = Field(default_factory=list)
+    # {"P1": prior case id}
+    citation_map: dict[str, str] = Field(default_factory=dict)
+    source: Literal["template", "expert"] = "template"
+
+
 class DraftReport(BaseModel):
     """LLM (or mock LLM) radiology report draft. Always requires expert review.
 
@@ -176,6 +199,8 @@ class DraftReport(BaseModel):
     ai_sections: dict[str, str] = Field(default_factory=dict)
     # Frozen at approve: selected vet-approved evidence overlays (durable paths).
     evidence_figures: list[ReportEvidenceFigure] = Field(default_factory=list)
+    # Issue #108: change since the prior study (None = case has no patient record).
+    comparison: Optional[ReportComparison] = None
     rag_note: str = (
         "Optional RAG citations list retrieved demo passages (retrieval similarity score only). "
         "Score is not clinical confidence. Citations are not clinical evidence and do not validate findings."
