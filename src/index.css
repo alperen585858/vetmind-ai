@@ -223,6 +223,15 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Mobile menu drawer open (Layout sets data-drawer): the page behind it must not scroll,
+   otherwise taps/scrolls move the content under the fixed drawer. */
+@media (max-width: 1023.98px) {
+  html[data-drawer='open'],
+  html[data-drawer='open'] body {
+    overflow: hidden;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-spin,
   .animate-pulse,

@@ -28,6 +28,17 @@ export function Layout({
   const { role, refreshBackendCases, pushToast } = useApp()
   const { pathname } = useLocation()
 
+  // Mobile drawer open → toasts step aside so they never cover the menu (e.g. "Çıkış yap"
+  // right after the sign-in toast). Read by Toasts via the data attribute.
+  useEffect(() => {
+    const root = document.documentElement
+    if (menu) root.dataset.drawer = 'open'
+    else delete root.dataset.drawer
+    return () => {
+      delete root.dataset.drawer
+    }
+  }, [menu])
+
   // Cases start empty after a page refresh; load them once for every signed-in page
   // (dashboards, sidebar badge) instead of relying on each page to fetch.
   useEffect(() => {

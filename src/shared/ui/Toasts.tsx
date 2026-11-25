@@ -10,7 +10,9 @@ export function Toasts() {
     error: <XCircle className="h-5 w-5 text-rose-600" />,
   }
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-full max-w-sm flex-col gap-2 no-print">
+    // Phones: full width inside the screen edges. While the mobile menu drawer is open
+    // (Layout sets html[data-drawer=open]) toasts are hidden so they cannot cover it.
+    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex flex-col gap-2 no-print sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm max-lg:[[data-drawer=open]_&]:hidden">
       {toasts.map((t) => (
         <div key={t.id} className="pointer-events-auto flex animate-fade-up items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
           {icons[t.tone]}

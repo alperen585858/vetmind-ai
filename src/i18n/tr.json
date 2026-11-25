@@ -313,7 +313,7 @@
     "modeAuthOnBanner": "Sunucu: auth açık. JWT/RBAC zorunlu.",
     "modeProtectedBanner": "Sunucu: protected mod. Auth + scrub/AV fail-closed. Gerçek PHI kullanmayın. Bkz. docs/PROTECTED_DEMO_RUNBOOK.md",
     "registerTitle": "Hesap oluştur",
-    "registerSubtitle": "Hayvan sahibi hesabı hemen açılır. Veteriner hesabı bir yönetici onaylayınca açılır.",
+    "registerSubtitle": "Veteriner hesabı bir yönetici onaylayınca açılır.",
     "fullName": "Ad soyad",
     "role": "Rol",
     "submitRegister": "Kayıt ol ve devam et",
