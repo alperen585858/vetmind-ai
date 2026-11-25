@@ -63,7 +63,7 @@ E2E_PROTECTED=1 npm run e2e -- e2e/protected.spec.ts
 
 ## Goal B still deferred
 
-OIDC, KMS encryption at rest, real malware signatures, institutional PHI policy, clinical validation — see [P2_HARDENING_BACKLOG.md](P2_HARDENING_BACKLOG.md).
+OIDC, KMS encryption at rest, real malware signatures, institutional PHI policy, clinical validation — see [P2_HARDENING_BACKLOG.md](arsiv/P2_HARDENING_BACKLOG.md).
 
 ## Related
 

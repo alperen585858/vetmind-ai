@@ -7,13 +7,13 @@
 
 Bu belge, fotoğraftaki hedef mimariyi **bileşen bileşen** mevcut kodla karşılaştırır ve tüm açık issue’ları tek listede toplar. Davranış çelişkisinde kaynak kod (`container.py`, `orchestrator.py`, adapter’lar) esas alınır.
 
-**Bağlama kılavuzu (AI/LLM/veri gelince):** [INTEGRATION_PLAYBOOK.md](INTEGRATION_PLAYBOOK.md) · [PHASE_20_FINAL_AI_READINESS.md](PHASE_20_FINAL_AI_READINESS.md)
+**Bağlama kılavuzu (AI/LLM/veri gelince):** [INTEGRATION_PLAYBOOK.md](INTEGRATION_PLAYBOOK.md) · [PHASE_20_FINAL_AI_READINESS.md](arsiv/PHASE_20_FINAL_AI_READINESS.md)
 
 **2026-10-25 senkron (kod kazanımları):** ISS-CLS-01 hibrit iskelet (metadata + series_hint) · ISS-AUD-01 FeedbackStore · ISS-FUS-01 ontology/laterality · ISS-FE-01 DEMO FICTION etiketleri — aşağıdaki tablolarda **DONE** işaretli.
 
 **2026-10-30 pre-data sprint:** `/calisma` canonical (ExpertReview kaldırıldı) · FE retention dry-run/apply · RAG `approved` + bulk KB UI · DICOM classification override → FeedbackStore · Document OCR adapter stub (`VETMIND_DOCUMENT_OCR_ENDPOINT`) · pixel opt-in dokümante · A/B plug-in yüzeyleri (bulk KB, wire fixtures, protected E2E projesi) **DONE** notu — klinik üretim **BOUNDARY / NO-GO** değişmedi.
 
-İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [audits/01_AI_ARCHITECTURE.md](audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](audits/PHASE_8_SECURITY_ASYNC.md)
+İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [audits/01_AI_ARCHITECTURE.md](arsiv/audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](arsiv/audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](arsiv/audits/PHASE_8_SECURITY_ASYNC.md)
 
 ---
 

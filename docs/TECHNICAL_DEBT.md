@@ -8,10 +8,10 @@
 | ID | Debt | Evidence | Resolution track |
 |----|------|----------|------------------|
 | TD-01 | Auth disabled by default; demo principal has broad capabilities | `backend/app/settings.py` `auth_enabled=False`; `auth/deps.py` | **Mitigated (ops)** — Tier A/B runbook + Login honesty; default remains demo by design. Real accounts, hashed passwords, short JWT + refresh rotation, password reset and attempt limits exist (#31) for auth-on deployments |
-| TD-02 | Dashboard / Modules / SystemStatus mock GPU & deploy charts | `src/data/mock.ts` consumers | **Mitigated** — demoFiction badges + live /health panels (charts still illustrative) |
-| TD-03 | Register creates localStorage-only “accounts” | `src/pages/Register.tsx` | **Resolved (#31)** — sign-up uses `POST /auth/register`; browser-only accounts removed and purged from old browsers |
+| TD-02 | Dashboard / Modules / SystemStatus mock GPU & deploy charts | `src/shared/demo/*` + feature demo modules | **Mitigated** — demoFiction badges + live /health panels (charts still illustrative) |
+| TD-03 | Register creates localStorage-only “accounts” | `src/features/auth/Register.tsx` | **Resolved (#31)** — sign-up uses `POST /auth/register`; browser-only accounts removed and purged from old browsers |
 | TD-04 | No hosted CI | Missing `.github/workflows` | **Mitigated** — `.github/workflows/ci.yml` |
-| TD-05 | Vitest cancelled-job polling edge case | `src/lib/backend.polling.test.ts` | **Verified green** (2026-11-09) |
+| TD-05 | Vitest cancelled-job polling edge case | `src/shared/api/backend.polling.test.ts` | **Verified green** (2026-11-09) |
 | TD-06 | Dead env key `VETMIND_ALLOW_MOCK_LLM` not read by settings | `.env` / docs vs `settings.py` | Document or wire; do not silently change LLM routing |
 
 ## P1 — Productization of existing APIs
@@ -19,7 +19,7 @@
 | ID | Debt | Evidence | Resolution track |
 |----|------|----------|------------------|
 | TD-10 | Training export API lacks ops UI/runbook | `api/training_export.py` exists; FE weak | Phase 2 |
-| TD-11 | `markReportDelivered` API ahead of UX | `src/lib/backend.ts` | Phase 2 deliver UX |
+| TD-11 | `markReportDelivered` API ahead of UX | `src/shared/api/*` | Phase 2 deliver UX |
 | TD-12 | Anonymize is scrub-not-certified | `dicom/anonymize.py` | Document in Phase 2/4; Goal B for certified de-ID |
 | TD-13 | i18n / hardcode gaps in sidebar/payment/KB | prior audits | Incremental polish; not blocking Goal A software |
 

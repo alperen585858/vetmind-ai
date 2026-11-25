@@ -10,7 +10,7 @@ HTTP: thin FastAPI routers under `backend/app/api/` mounted from `backend/app/ma
 
 ```mermaid
 flowchart TB
-  FE[React Vite FE src/] -->|src/lib/backend.ts| API[FastAPI routers]
+  FE[React Vite FE src/] -->|src/shared/api| API[FastAPI routers]
   API --> SVC[services]
   SVC --> ORCH[AIOrchestrator]
   ORCH --> Router[model_router]
@@ -47,8 +47,8 @@ flowchart TB
 | Area | Path |
 |------|------|
 | Routes / gates | `src/App.tsx`, role `Gate` |
-| API client | `src/lib/backend.ts` |
-| Radiologist | `src/pages/RadiologistWorkspace.tsx`, `src/components/DicomViewer.tsx`, `AIFindingsPanel.tsx`, `ReportDocumentEditor.tsx`, `ProvenanceBanner.tsx` |
+| API client | `src/shared/api/*` |
+| Radiologist | `src/features/expert/RadiologistWorkspace.tsx`, `src/shared/dicom/DicomViewer.tsx`, `AIFindingsPanel.tsx`, `ReportDocumentEditor.tsx`, `ProvenanceBanner.tsx` |
 | Clinical flow | `DicomUpload`, `Processing`, `CaseList`, `CaseDetail`, `ReviewQueue`, `ApprovedReport` |
 | Admin / ops | `Dashboard`, `Modules`, `SystemStatus`, `AdminUsers`, `ModelPerformance` |
 | i18n | `src/i18n/en.json`, `tr.json` |

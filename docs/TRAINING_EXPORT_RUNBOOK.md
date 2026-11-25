@@ -3,7 +3,7 @@
 **API:** `POST /api/v1/training/export`  
 **Capability:** `CAP_TRAINING_VERIFY` (expert/admin when auth enabled; unrestricted demo principal when auth off)  
 **UI:** Admin → Model Performance → Training export panel  
-**Client:** `exportTrainingDataset()` in `src/lib/backend.ts`
+**Client:** `exportTrainingDataset()` in `src/shared/api/*`
 
 ## Purpose
 

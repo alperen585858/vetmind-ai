@@ -75,7 +75,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **Async analyze** | Thread (varsayılan) veya RQ+Redis; job poll, timeout alanları, cooperative cancel |
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
 | **RAG** | Hash-embedding cosine (varsayılan) veya lexical; seed corpus; `rag_citations` UI |
-| **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (sahip hemen, veteriner admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik/owner izolasyon; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
+| **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (veteriner, admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik izolasyonu; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
 | **Kalıcılık** | memory / SQLite / PostgreSQL JSON(B) — CaseRecord, jobs, ingestions |
 | **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
 | **Remote Vision** | `HttpRemoteVisionModel` + `scripts/mock_vision_server.py` iskeleti |
@@ -96,7 +96,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
-| Ödeme / faturalama | Gerçek tahsilat yok · demo ödeme (100 EUR) görüntüleme talebi öncesi — [docs/DEMO_PAYMENT_SUBMISSION_FLOW.md](docs/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
+| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı (100 EUR) backend'de duruyor, arayüzde yok — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
 
 Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri için backend auth zorunludur.
 
@@ -104,14 +104,16 @@ Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri içi
 
 ## 3. Geliştirme fazları
 
+Bu raporlar tarihseldir (`docs/arsiv/`); güncel durum için kod ve bu README esastır.
+
 | Faz | Belge | Konu | Sonuç |
 |-----|-------|------|--------|
-| 1–2 | [PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) | DICOM ingest, quarantine, sınıflandırma, vaka yönetimi | Stabil |
-| 3 | [PHASE_3_AI_READINESS.md](docs/PHASE_3_AI_READINESS.md) | ImagingModelInput, execution policy, job cancel/timeout, LLM DTO | Adapter sözleşmeleri hazır; mock default |
-| 4 | [PHASE_4_REPORT_LIFECYCLE.md](docs/PHASE_4_REPORT_LIFECYCLE.md) | Rapor versiyonlama, uzman inceleme sertleştirme, print-to-PDF | Immutable onaylı sürümler |
-| 5 | [PHASE_5_SECURITY_PERFORMANCE.md](docs/PHASE_5_SECURITY_PERFORMANCE.md) | Auth/tenant, quarantine integrity, audit, retention hooks, concurrency | Protected mode kapıları |
-| 6 | [PHASE_6_END_TO_END_READINESS.md](docs/PHASE_6_END_TO_END_READINESS.md) | Sentetik E2E + release readiness | Demo **GO** · klinik **NO-GO** |
-| 6.1 | [PHASE_6_1_FULL_WORKFLOW_E2E.md](docs/PHASE_6_1_FULL_WORKFLOW_E2E.md) | Browser tam klinik workflow | Playwright yeşil |
+| 1–2 | [PHASE_1_1_AND_2.md](docs/arsiv/PHASE_1_1_AND_2.md) | DICOM ingest, quarantine, sınıflandırma, vaka yönetimi | Stabil |
+| 3 | [PHASE_3_AI_READINESS.md](docs/arsiv/PHASE_3_AI_READINESS.md) | ImagingModelInput, execution policy, job cancel/timeout, LLM DTO | Adapter sözleşmeleri hazır; mock default |
+| 4 | [PHASE_4_REPORT_LIFECYCLE.md](docs/arsiv/PHASE_4_REPORT_LIFECYCLE.md) | Rapor versiyonlama, uzman inceleme sertleştirme, print-to-PDF | Immutable onaylı sürümler |
+| 5 | [PHASE_5_SECURITY_PERFORMANCE.md](docs/arsiv/PHASE_5_SECURITY_PERFORMANCE.md) | Auth/tenant, quarantine integrity, audit, retention hooks, concurrency | Protected mode kapıları |
+| 6 | [PHASE_6_END_TO_END_READINESS.md](docs/arsiv/PHASE_6_END_TO_END_READINESS.md) | Sentetik E2E + release readiness | Demo **GO** · klinik **NO-GO** |
+| 6.1 | [PHASE_6_1_FULL_WORKFLOW_E2E.md](docs/arsiv/PHASE_6_1_FULL_WORKFLOW_E2E.md) | Browser tam klinik workflow | Playwright yeşil |
 
 ---
 
@@ -330,7 +332,7 @@ Model dosyası **Git'e girmez** (`artifacts/` yok sayılır); her bilgisayarda 2
 | 1 | `npm run backend:dev:vision` | API (8000) — gerçek LLM **ve** gerçek röntgen modeli. **Kapatmayın.** |
 | 2 | `npm run dev` | Arayüz (5173) |
 
-**Nasıl denenir:** Veteriner olarak DICOM yükleme sayfasından bir **göğüs röntgeni** (DX/CR, bölge THORAX)
+**Nasıl denenir:** Veteriner olarak Yeni Vaka → tetkik yükleme adımından bir **göğüs röntgeni** (DX/CR, bölge THORAX)
 yükleyin, tür seçin, onay kutularını işaretleyip analizi başlatın. Röntgen analizi 1–2 saniye sürer; ardından
 rapor qwen ile yazılır (birkaç dakika). Bulgular "gerçek model" (`source_kind=real`) olarak görünür.
 
@@ -418,8 +420,8 @@ yeni ve boş bir veritabanıyla başlamak en temizidir.
 
 ### Önerilen senaryo (5–10 dk)
 
-1. `vet@demo.local` ile giriş → otomatik **`/dicom-yukle`**.  
-2. **Demo · Brain MRI** (veya CT / Thorax XR) veya `.dcm` sürükle.  
+1. `vet@demo.local` ile giriş → **Yeni Vaka** (`/vakalar/yeni`).  
+2. Tetkik yükleme adımında `.dcm` dosyalarını sürükle (demo build'inde hazır Brain MRI / CT / Thorax XR örnekleri de var).  
 3. Viewer’da dilim gez (`Im: n/m`); W/L / zoom / pan isteğe bağlı.  
 4. Metadata sınıflandırma önizlemesini onayla → **Demo analize devam et**.  
 5. İşleme ekranında `DEMO / MOCK ANALYSIS` ve job alanlarını gör.  
@@ -749,7 +751,7 @@ Küçük bir duman testi; model dersi her seferinde uygulamıyor. Son karar yine
 
 ### 8.6 VHS ölçüm aracı (vertebral kalp skoru)
 
-Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir. İlk kullanımda bir **rehber penceresi** VHS'nin ne olduğunu ve 6 noktanın yerini şemayla anlatır (veteriner olmayanlar ve jüri için de); "Anladım, bir daha gösterme" işaretlenirse 30 gün çıkmaz, şeritteki **?** ile her zaman açılır.
+Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/shared/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir. İlk kullanımda bir **rehber penceresi** VHS'nin ne olduğunu ve 6 noktanın yerini şemayla anlatır (veteriner olmayanlar ve jüri için de); "Anladım, bir daha gösterme" işaretlenirse 30 gün çıkmaz, şeritteki **?** ile her zaman açılır.
 
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).
 
@@ -798,7 +800,7 @@ PDF: sunucu tarafı PDF kütüphanesi yok; `ApprovedReport` + `@media print` + `
 | `demo` / `service` / `admin` | `*` |
 | `vet` | cases write/read, analyze, dicom, documents, rag:search |
 | `expert` | cases read, analyze, review, rag:search, dicom (demo) |
-| `owner` | cases read, rag:search |
+| `clinic_owner` | cases read, rag:search, clinic manage, dicom (okuma) |
 
 Capability sabitleri: `backend/app/auth/rbac.py` (`cases:write`, `review`, `rag:admin`, …).
 
@@ -810,7 +812,7 @@ Tüm hesaplar backend'de tutulur: demo seed kullanıcılar, kayıt olanlar ve Ad
 |------|----------|
 | Şifre saklama | stdlib scrypt hash (`backend/app/auth/passwords.py`). Eski düz metin kayıtlar backend açılırken otomatik hash'lenir |
 | Şifre politikası | En az 8 karakter, en az bir harf ve bir rakam (kayıt, admin, sıfırlama, değiştirme) |
-| Kayıt | `POST /api/v1/auth/register`. `owner` hemen aktif (kliniği `VETMIND_SELF_REGISTRATION_OWNER_CLINIC`), `vet` admin onayı bekler. Diğer roller kayıtla açılmaz. `VETMIND_SELF_REGISTRATION=0` kapatır |
+| Kayıt | `POST /api/v1/auth/register`. Yalnızca `vet` kayıt olabilir ve admin onayı bekler (kliniği `VETMIND_SELF_REGISTRATION_OWNER_CLINIC`). Diğer roller kayıtla açılmaz. `VETMIND_SELF_REGISTRATION=0` kapatır |
 | Klinik kuralı | `vet` / `expert` / `clinic_owner` hesapları klinik atanmadan aktif olamaz |
 | Access token | HS256 JWT, varsayılan 15 dk (`VETMIND_JWT_TTL_SECONDS`), `tv` (token_version) claim'i taşır |
 | Refresh token | Opak, 7 gün kayan pencere (`VETMIND_REFRESH_TTL_SECONDS`). Her kullanımda döner. Kullanılmış token 20 sn sonra tekrar gelirse oturum ailesi iptal edilir. DB'de sadece SHA-256 |
@@ -824,7 +826,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
 ### Frontend ↔ backend auth
 
-1. Giriş / kayıt `backendLogin` / `backendRegister` ile yapılır. UI oturumu `src/lib/auth.ts` → localStorage (`vetmind.demo.session`)
+1. Giriş / kayıt `backendLogin` / `backendRegister` ile yapılır. UI oturumu `src/shared/auth/session.ts` → localStorage (`vetmind.demo.session`)
 2. Token çifti: `vetmind.backend.jwt` + `vetmind.backend.refresh` (protected modda sessionStorage). `backend.ts` `Authorization: Bearer` ekler, 401'de bir kez sessizce yenileyip isteği tekrarlar. Yenileme reddedilirse `vetmind:auth-expired` olayıyla çıkış yapılır
 3. Sayfalar: `/kayit`, `/giris`, `/sifremi-unuttum`, `/sifre-sifirla?token=…` (EN: `/register`, `/login`, `/forgot-password`, `/reset-password`), Ayarlar → Şifre değiştir (sadece auth açıkken)
 4. Çıkışta backend'deki refresh token iptal edilir ve IndexedDB DICOM önbelleği temizlenir
@@ -845,40 +847,45 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
 ### Rotalar
 
-| Rota | Sayfa | Roller | Backend kullanımı |
+| Rota (TR; EN karşılığı da var) | Sayfa (aksi yazmadıkça `src/features/…`) | Roller | Backend kullanımı |
 |------|-------|--------|-------------------|
-| `/` | Landing / Dashboard | misafir / tümü | — |
-| `/giris` | Login | — | `POST /auth/login` |
-| `/kayit` | Register | — | `POST /auth/register` |
-| `/sifremi-unuttum` | ForgotPassword | — | `POST /auth/password/forgot` |
-| `/sifre-sifirla` | ResetPassword | — / tümü | `POST /auth/password/reset` |
-| `/dicom-yukle` | DicomUpload | vet | upload, confirm, async analyze, fixtures |
-| `/vakalar/yeni` | NewCase | vet | create+analyze veya yerel prototip |
-| `/vakalar` | CaseList | vet, expert | list / refresh |
-| `/vakalar/:id` | CaseDetail | vet, expert | case, findings, history, RAG |
-| `/vakalar/:id/isleme` | Processing | vet, expert | job poll |
-| `/vakalar/:id/calisma` | RadiologistWorkspace (canonical) | expert | review submit (+ hydrate) |
-| `/vakalar/:id/inceleme` | redirect → `/calisma` | expert | legacy alias |
-| `/kuyruk` | ReviewQueue | expert | kuyruk UI |
-| `/raporlar`, `/raporlar/:id` | Report* | vet, owner, expert | onaylı rapor + print |
-| `/moduller` | Modules | admin | — |
-| `/bilgi-tabani` | KnowledgeBase | admin | `rag/search` |
-| `/sistem` | SystemStatus | admin | `GET /health` |
+| `/` | `shared/shell/Landing.tsx` (misafir) / `src/app/Dashboard.tsx` | misafir / tümü | — |
+| `/giris`, `/kayit` | `auth/Login.tsx`, `auth/Register.tsx` | — | `POST /auth/login`, `POST /auth/register` (yalnız veteriner, admin onayıyla) |
+| `/sifremi-unuttum`, `/sifre-sifirla` | `auth/ForgotPassword.tsx`, `auth/ResetPassword.tsx` | — / tümü | `POST /auth/password/forgot`, `/reset` |
+| `/ayarlar` | `auth/Settings.tsx` | vet, expert, clinic_owner, admin | ayarlar, şifre değiştir |
+| `/vakalar/yeni` | `cases/NewCase.tsx` | vet | vaka aç → tetkik yükleme (DICOM) → analiz |
+| `/vakalar` | `cases/CaseList.tsx` | vet, expert, clinic_owner | liste; `?durum=onaylandi` onaylı raporlar |
+| `/vakalar/:id` | `cases/CaseDetailPage.tsx` | vet, expert, clinic_owner | vaka, bulgular, geçmiş, RAG |
+| `/vakalar/:id/isleme` | `analysis/Processing.tsx` | vet, expert | job poll |
+| `/vakalar/:id/calisma` | `expert/RadiologistWorkspace.tsx` | expert | review submit (+ hydrate) |
+| `/vakalar/:id/inceleme` | yönlendirme → `/calisma` | expert | eski bağlantı |
+| `/kuyruk`, `/ai-tekrar` | `expert/ReviewQueue.tsx`, `expert/ExpertAiResend.tsx` | expert | kuyruk, AI'ye yeniden gönderme |
+| `/raporlar/:id` | `reports/ApprovedReport.tsx` | vet, expert, clinic_owner | onaylı rapor + PDF |
+| `/raporlar` | yönlendirme → `/vakalar?durum=onaylandi` | — | eski bağlantı (#81) |
+| `/rapor-baglanti` | `reports/ReportLink.tsx` | herkes (bağlantıyla) | paylaşılan rapor |
+| `/dicom-yukle` | yönlendirme → `/vakalar/yeni` | — | eski bağlantı (#79); test build'inde eski sayfa |
+| `/mesajlar` | `messaging/Messages.tsx` | vet, expert, clinic_owner, admin | mesajlaşma |
+| `/ai-dersleri` | `rag-admin/AiLessons.tsx` | expert, admin | `/lessons` |
+| `/moduller`, `/bilgi-tabani` | `rag-admin/Modules.tsx`, `rag-admin/KnowledgeBase.tsx` | admin | `rag/*` |
+| `/kullanicilar`, `/radyologlarim` | `admin/AdminUsers.tsx`, `admin/AdminRadiologists.tsx` | admin | kullanıcı yönetimi |
+| `/sistem`, `/model-performansi` | `admin/SystemStatus.tsx`, `admin/ModelPerformance.tsx` | admin | `GET /health`, değerlendirme sonuçları |
 
-Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
+Rotalar her feature'ın `routes.tsx` dosyasında; `src/App.tsx` bunları bağlar. Rol kapısı: `src/shared/shell/routing.tsx` → `<Gate roles={[...]}>`.
 
 ### Önemli bileşenler / lib
 
 | Dosya | Amaç |
 |-------|------|
-| `lib/lazyPage.ts` + `components/PageLoader.tsx` | Sayfalar `React.lazy` ile ayrı parçalarda yüklenir. Yeni sürümden sonra eski parça bulunamazsa sayfa bir kez yenilenir |
+| `src/shared/shell/lazyPage.ts` + `src/shared/ui/PageLoader.tsx` | Sayfalar `React.lazy` ile ayrı parçalarda yüklenir. Yeni sürümden sonra eski parça bulunamazsa sayfa bir kez yenilenir |
 | `vite.config.ts` (`manualChunks`) | `react-vendor`, `icons`, `charts` (sadece grafikli sayfalar), `dicom` kütüphane parçaları |
-| `components/DicomViewer.tsx` + `lib/dicomPreview.ts` | Tarayıcı viewer (klinik PACS değil) |
-| `components/RagCitations.tsx` | `rag_citations` paneli |
-| `lib/backend.ts` | `/api/v1` client, async poll |
-| `lib/caseMapper.ts` | Backend record → UI `VetCase` |
-| `lib/auth.ts` | Demo session + JWT saklama |
-| `context/AppContext.tsx` | Seed + backend hydrate / refresh |
+| `src/shared/dicom/DicomViewer.tsx` + `src/shared/lib/dicomPreview.ts` | Tarayıcı viewer (klinik PACS değil) |
+| `src/shared/ui/RagCitations.tsx` | `rag_citations` paneli |
+| `src/shared/api/*` | Domain'lere ayrılmış `/api/v1` istemcisi (`client.ts`: token, 401'de yenileme), async poll |
+| `src/shared/lib/caseMapper.ts` | Backend record → UI `VetCase` |
+| `src/shared/auth/session.ts` | Oturum + JWT saklama |
+| `src/shared/shell/AppContext.tsx` | Backend hydrate / refresh |
+
+Modül sınırları ve import kuralları: [docs/modularization.md](docs/modularization.md).
 
 ---
 
@@ -891,7 +898,7 @@ Rol gate: `App.tsx` → `<Gate roles={[...]}>`.
 | GET | `/health` | Canlılık + storage / rag / jobs / auth / vision bayrakları |
 | GET | `/auth/status` | Auth zorunlu mu? |
 | POST | `/auth/login` | Access + refresh token |
-| POST | `/auth/register` | Kayıt (owner aktif, vet onay bekler) |
+| POST | `/auth/register` | Veteriner kaydı (admin onayı bekler) |
 | POST | `/auth/refresh` | Token çiftini yenile (rotation) |
 | POST | `/auth/logout` | Refresh ailesini iptal et |
 | POST | `/auth/password/change` | Şifre değiştir (giriş gerekli) |
@@ -986,7 +993,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_JWT_SECRET` | demo secret | Auth açıkken değiştirin |
 | `VETMIND_JWT_TTL_SECONDS` | `43200` | Token TTL |
 | `VETMIND_DEPLOYMENT_MODE` | `demo` | `demo` \| `protected` |
-| `VETMIND_TENANT_ISOLATION` | off | Klinik/owner izolasyon |
+| `VETMIND_TENANT_ISOLATION` | off | Klinik izolasyonu |
 | `VETMIND_ALLOW_INSECURE_DEMO` | off | Protected’da demo secret’a izin (yalnızca bilinçli) |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
@@ -1034,7 +1041,7 @@ export VETMIND_STORAGE=memory
 
 | Katman | Konum | Not |
 |--------|-------|-----|
-| Frontend unit | `src/lib/*.test.ts` | Vitest |
+| Frontend unit | `src/**/*.test.ts` | Vitest |
 | Backend | `backend/tests/` | ~238 pytest (+1 skip tipik) |
 | Phase 6 API journeys | `test_phase6_e2e_journey.py` | DICOM→approve→versions, authz, persistence, … |
 | Browser E2E | `e2e/*.spec.ts` | Tam workflow + negatives + smoke |
@@ -1172,34 +1179,29 @@ Gerçek modeller / altyapı eklerken orchestrator’ı yeniden yazmak gerekmez:
 
 ## 18. Dokümantasyon indeksi
 
+Tam liste ve hangi belgenin güncel olduğu: [docs/README.md](docs/README.md).
+
 | Belge | Amaç |
 |-------|------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Mimari, API, kalıcılık, frontend, güvenlik, demo |
-| [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) | **Master engineering roadmap** — 12 workstream, fazlar, kabul kriterleri |
-| [docs/ENGINEERING_STATUS.md](docs/ENGINEERING_STATUS.md) | Canlı olgunluk skorları ve quality-gate listesi |
+| [docs/README.md](docs/README.md) | `docs/` dizini: güncel belgeler ve arşiv |
+| [docs/modularization.md](docs/modularization.md) | Frontend/backend modül sınırları (`src/features`, `src/shared`) |
 | [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md) | Paket → API → FE mimari haritası |
-| [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) | Öncelikli teknik borç kaydı |
-| [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md) | Demo / protected / Goal A / Goal B GO–NO-GO |
-| [docs/TRAINING_EXPORT_RUNBOOK.md](docs/TRAINING_EXPORT_RUNBOOK.md) | Verify → training export operasyon runbook’u |
-| [docs/MODEL_PROMOTION.md](docs/MODEL_PROMOTION.md) | Experimental checkpoint promotion kuralları (Gemini path korunur) |
-| [docs/PROTECTED_DEMO_RUNBOOK.md](docs/PROTECTED_DEMO_RUNBOOK.md) | Auth-on / protected demo Tier A–B runbook |
-| [docs/READINESS_GOALS.md](docs/READINESS_GOALS.md) | Goal A vs Goal B ayrımı (karıştırma) |
-| [docs/INTEGRATION_PLAYBOOK.md](docs/INTEGRATION_PLAYBOOK.md) | AI/LLM/veri gelince bağlama (basit Türkçe) |
-| [docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md) | Hedef mimari gap / issue listesi |
-| [docs/PHASE_20_FINAL_AI_READINESS.md](docs/PHASE_20_FINAL_AI_READINESS.md) | İlk gerçek model için 8 adım |
 | [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md) | AI/LLM pipeline, mock↔real, eksikler |
 | [docs/LLM_KATMANI.md](docs/LLM_KATMANI.md) | **LLM katmanı:** sağlayıcılar, prompt sürümleri, doğrulama/hakem, KVKK, değerlendirme, geri bildirim |
 | [docs/ACIK_KAYNAK_ARASTIRMA.md](docs/ACIK_KAYNAK_ARASTIRMA.md) | Açık kaynak modeller, doğrulayıcılar, değerlendirme araçları, veri setleri — araştırma |
-| [backend/eval/](backend/eval/) | LLM değerlendirme seti ve sonuçları |
-| [docs/PHASE_1_1_AND_2.md](docs/PHASE_1_1_AND_2.md) | DICOM + vaka yönetimi |
-| [docs/PHASE_3_AI_READINESS.md](docs/PHASE_3_AI_READINESS.md) | Model adapter hazırlığı |
-| [docs/PHASE_4_REPORT_LIFECYCLE.md](docs/PHASE_4_REPORT_LIFECYCLE.md) | Rapor sürümleri + inceleme |
-| [docs/PHASE_5_SECURITY_PERFORMANCE.md](docs/PHASE_5_SECURITY_PERFORMANCE.md) | Güvenlik / performans |
-| [docs/PHASE_6_END_TO_END_READINESS.md](docs/PHASE_6_END_TO_END_READINESS.md) | GO / NO-GO readiness |
-| [docs/PHASE_6_1_FULL_WORKFLOW_E2E.md](docs/PHASE_6_1_FULL_WORKFLOW_E2E.md) | Browser E2E detayı |
-| [docs/audits/01_AI_ARCHITECTURE.md](docs/audits/01_AI_ARCHITECTURE.md) | AI audit (F1–F14) |
-| [docs/audits/02_DICOM_PHASE1_AUDIT.md](docs/audits/02_DICOM_PHASE1_AUDIT.md) | DICOM audit |
-| [docs/audits/03_PDF_BACKEND_AUDIT.md](docs/audits/03_PDF_BACKEND_AUDIT.md) | PDF / rapor audit |
+| [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) | Master engineering roadmap — workstream'ler, kabul kriterleri |
+| [docs/ENGINEERING_STATUS.md](docs/ENGINEERING_STATUS.md) | Olgunluk skorları ve quality-gate listesi |
+| [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) | Öncelikli teknik borç kaydı |
+| [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md) | Demo / protected / Goal A / Goal B GO–NO-GO |
+| [docs/READINESS_GOALS.md](docs/READINESS_GOALS.md) | Goal A vs Goal B ayrımı (karıştırma) |
+| [docs/PROTECTED_DEMO_RUNBOOK.md](docs/PROTECTED_DEMO_RUNBOOK.md) | Auth-on / protected demo runbook |
+| [docs/TRAINING_EXPORT_RUNBOOK.md](docs/TRAINING_EXPORT_RUNBOOK.md) | Verify → training export runbook |
+| [docs/MODEL_PROMOTION.md](docs/MODEL_PROMOTION.md) | Deneysel checkpoint promotion kuralları |
+| [docs/INTEGRATION_PLAYBOOK.md](docs/INTEGRATION_PLAYBOOK.md) | AI/LLM/veri gelince bağlama (basit Türkçe) |
+| [docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md](docs/HEDEF_MIMARI_GAP_ISSUE_LISTESI.md) | Hedef mimari gap / issue listesi |
+| [docs/arsiv/](docs/arsiv/) | Tarihsel faz raporları (PHASE_*), Ekim denetimleri, uygulanmamış planlar |
+| [backend/eval/](backend/eval/) | Değerlendirme setleri; [results/README.md](backend/eval/results/README.md) hangi sonucun nerede kullanıldığını yazar |
 | [backend/README.md](backend/README.md) | Backend env + API kısa özet |
 | [backend/.env.example](backend/.env.example) | Ortam şablonu |
 
