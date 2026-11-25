@@ -105,7 +105,9 @@ export async function verifyEvidenceViaApi(
 }
 
 export async function exportTraining(request: APIRequestContext, caseId: string) {
+  // Demo mode reads the acting role from this header (#104); in the UI an admin runs the export.
   const res = await request.post(`${API}/training/export`, {
+    headers: { 'X-VetMind-Demo-Role': 'admin' },
     data: {
       dataset_version: 'e2e-ann-1',
       case_ids: [caseId],

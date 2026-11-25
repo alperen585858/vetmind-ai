@@ -115,7 +115,7 @@ export function Sidebar({
       )}
       <aside
         aria-label={t('nav.menuAria')}
-        className={`vm-sidebar no-print fixed inset-y-0 left-0 z-40 flex flex-col bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
+        className={`vm-sidebar no-print fixed inset-y-0 left-0 z-40 flex flex-col overflow-y-auto overscroll-contain bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
           collapsed ? 'lg:w-[64px]' : isExpert ? 'lg:w-56' : 'lg:w-64'
         } w-64 ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >

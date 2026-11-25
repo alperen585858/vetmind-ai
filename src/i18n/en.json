@@ -313,7 +313,7 @@
     "modeAuthOnBanner": "Server: auth on. JWT/RBAC enforced.",
     "modeProtectedBanner": "Server: protected mode. Auth + scrub/AV fail-closed. Do not use real PHI. See docs/PROTECTED_DEMO_RUNBOOK.md",
     "registerTitle": "Create an account",
-    "registerSubtitle": "Pet owner accounts open right away. Vet accounts open once an admin approves them.",
+    "registerSubtitle": "Vet accounts open once an admin approves them.",
     "fullName": "Full name",
     "role": "Role",
     "submitRegister": "Register and continue",
