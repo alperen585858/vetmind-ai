@@ -68,6 +68,7 @@ class DicomService:
         self._capabilities = list(capabilities) if capabilities is not None else list(default_capabilities())
         self._tenant_isolation = tenant_isolation
         self._audit = audit
+        self._patients = None
         self._malware_scanner = malware_scanner
         self._auth_users: dict | None = None
         self._workflow_store: object | None = None
@@ -185,6 +186,10 @@ class DicomService:
                 detail=api_error("dicom_not_found", "DICOM ingestion not found."),
             )
         return record
+
+    def bind_patients(self, service) -> None:
+        """Issue #108: patient records (link the confirmed study to a chosen patient)."""
+        self._patients = service
 
     def confirm(
         self,
@@ -333,9 +338,15 @@ class DicomService:
         owner_name = clean_owner_name(payload.owner_name)
         if owner_name is not None:
             case.owner_contact_name = owner_name
+        patient = None
+        if self._patients is not None and payload.patient_id:
+            patient = self._patients.resolve_for_new_case(payload.patient_id, principal=principal)
+            case.patient_id = patient.patient_id
         # F4: use live capability list so prepared_for_models includes remote Vision when registered.
         case.model_input = build_imaging_model_input(case, capabilities=self._capabilities)
         saved = self._repo.save_case(case)
+        if patient is not None:
+            self._patients.remember_dicom_id(patient, saved)
         record.accepted = True
         record.case_id = saved.case_id
         self._repo.save_ingestion(record)

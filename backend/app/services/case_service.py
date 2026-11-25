@@ -137,6 +137,7 @@ class CaseService:
         self._tenant_isolation = tenant_isolation
         self._audit_log = audit
         self._radiologist_payouts = radiologist_payouts
+        self._patients = None  # issue #108, set by bind_patients
         self._feedback = feedback
         self._evidence_store = evidence_store
         self._notifications = notifications
@@ -183,6 +184,10 @@ class CaseService:
         self.collaboration = (
             collaboration if collaboration is not None else CaseCollaborationService(self)
         )
+
+    def bind_patients(self, service) -> None:
+        """Issue #108: patient records (validate the patient chosen for a new case)."""
+        self._patients = service
 
     def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
         """Optional ledger for admin radiologist fee tracking (fixed per approved case)."""
@@ -366,6 +371,8 @@ class CaseService:
             status=CaseLifecycleStatus.CREATED,
         )
         self._apply_owner_contact(case, owner_name=payload.owner_name)
+        if payload.patient_id and self._patients is not None:
+            case.patient_id = self._patients.resolve_for_new_case(payload.patient_id, principal=principal).patient_id
         caps = self._orchestrator._router.list_capabilities()  # noqa: SLF001 — live caps for F4
         case.model_input = build_imaging_model_input(case, capabilities=caps)
         saved = self._repo.save_case(case)
@@ -451,6 +458,7 @@ class CaseService:
             report_delivered_at=getattr(c, "report_delivered_at", None),
             report_viewed_at=getattr(c, "report_viewed_at", None),
             pet_id=getattr(c, "pet_id", None),
+            patient_id=c.patient_id,
             pet_owner_subject=getattr(c, "pet_owner_subject", None),
             owner_contact_name=getattr(c, "owner_contact_name", None),
             owner_contact_email=getattr(c, "owner_contact_email", None),
