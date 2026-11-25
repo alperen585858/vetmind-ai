@@ -6,6 +6,7 @@ const Login = lazyPage(() => import('./Login'))
 const Register = lazyPage(() => import('./Register'))
 const ForgotPassword = lazyPage(() => import('./ForgotPassword'))
 const ResetPassword = lazyPage(() => import('./ResetPassword'))
+const VerifyEmail = lazyPage(() => import('./VerifyEmail'))
 const Settings = lazyPage(() => import('./Settings'))
 
 export const publicAuthRoutes = [
@@ -15,11 +16,13 @@ export const publicAuthRoutes = [
   <Route key="register" path="/register" element={<Register />} />,
   ...dualRoutes('/sifremi-unuttum', '/forgot-password', <ForgotPassword />),
   ...dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />),
+  ...dualRoutes('/eposta-dogrula', '/verify-email', <VerifyEmail />),
 ]
 
-/** Emailed reset links work even when this browser is still signed in. */
+/** Emailed reset and verification links work even when this browser is still signed in. */
 export const signedInResetRoutes = [
   ...dualRoutes('/sifre-sifirla', '/reset-password', <ResetPassword />),
+  ...dualRoutes('/eposta-dogrula', '/verify-email', <VerifyEmail />),
 ]
 
 export const settingsRoutes = [
