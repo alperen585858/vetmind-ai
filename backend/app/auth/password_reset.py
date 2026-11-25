@@ -68,16 +68,20 @@ class SqlPasswordResetStore:
     """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
     Alembic migrations (#102)."""
 
-    def __init__(self, conn: SqlConnection) -> None:
+    def __init__(self, conn: SqlConnection, *, table: str = "password_resets") -> None:
         self._conn = conn
+        # Same row shape is reused for email verification links (issue #41).
+        if table not in {"password_resets", "email_verifications"}:
+            raise ValueError(f"unknown token table: {table}")
+        self._table = table
         # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
         self._lock = threading.RLock()
 
     def save(self, rec: ResetRecord) -> None:
         with self._lock:
             self._conn.execute(
-                """
-                INSERT INTO password_resets (token_hash, subject, created_at, expires_at, used_at)
+                f"""
+                INSERT INTO {self._table} (token_hash, subject, created_at, expires_at, used_at)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(token_hash) DO UPDATE SET used_at=excluded.used_at
                 """,
@@ -88,17 +92,17 @@ class SqlPasswordResetStore:
     def get(self, token_hash: str) -> Optional[ResetRecord]:
         with self._lock:
             row = self._conn.execute(
-                "SELECT * FROM password_resets WHERE token_hash=?", (token_hash,)
+                f"SELECT * FROM {self._table} WHERE token_hash=?", (token_hash,)
             ).fetchone()
         return ResetRecord(**dict(row)) if row else None
 
     def invalidate_subject(self, subject: str, at: float) -> int:
         with self._lock:
             cur = self._conn.execute(
-                "UPDATE password_resets SET used_at=? WHERE subject=? AND used_at IS NULL", (at, subject)
+                f"UPDATE {self._table} SET used_at=? WHERE subject=? AND used_at IS NULL", (at, subject)
             )
             # Housekeeping: rows past expiry can never be used again.
-            self._conn.execute("DELETE FROM password_resets WHERE expires_at < ?", (at - 24 * 60 * 60,))
+            self._conn.execute(f"DELETE FROM {self._table} WHERE expires_at < ?", (at - 24 * 60 * 60,))
             self._conn.commit()
             return cur.rowcount
 
@@ -106,8 +110,8 @@ class SqlPasswordResetStore:
 class SqlitePasswordResetStore(SqlPasswordResetStore):
     """Same store on one SQLite file (tests, local dev, old-data migration)."""
 
-    def __init__(self, db_path: Path | str) -> None:
-        super().__init__(Database.sqlite(db_path).connect())
+    def __init__(self, db_path: Path | str, *, table: str = "password_resets") -> None:
+        super().__init__(Database.sqlite(db_path).connect(), table=table)
 
 
 def build_password_reset_store(settings) -> PasswordResetStore:
