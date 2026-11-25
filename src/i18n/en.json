@@ -332,9 +332,6 @@
     "loginBody": "Sign in to the veterinary radiology workflow; continue with DICOM upload and specialist approval.",
     "loginBullet1": "Redirect to the board for your role",
     "loginBullet2": "Capstone prototype · not clinical production / autonomous diagnosis",
-    "registerSuccessTitle": "Your account is ready",
-    "registerPendingTitle": "Your account is awaiting approval",
-    "registerPendingBody": "Your vet account was created. You can sign in once an admin assigns your clinic and activates it.",
     "roleHelpVetSignup": "Your account opens once an admin assigns your clinic.",
     "passwordHint": "At least 8 characters, with a letter and a digit",
     "passwordTooShort": "Password must be at least 8 characters.",
@@ -365,7 +362,21 @@
     "requestNewLink": "Request a new link",
     "backendUnreachable": "Can't reach the server. Is the backend running?",
     "sessionExpired": "Your session expired. Sign in again.",
-    "fillDemo": "Fill demo account"
+    "fillDemo": "Fill demo account",
+    "registerCheckInboxTitle": "Check your inbox",
+    "registerCheckInboxBody": "We've sent a verification link to this address. Open it to verify your email. An administrator then assigns your clinic and activates your account.",
+    "registerCheckInboxHint": "No email? Check your spam folder or send it again below. If this address already has an account, we've emailed you how to sign in instead.",
+    "verifyTitle": "Email verification",
+    "verifyChecking": "Checking your link…",
+    "verifyDoneTitle": "Your email is verified",
+    "verifyDonePending": "Thanks! You can sign in once an administrator assigns your clinic and activates your account.",
+    "verifyDoneActive": "Thanks! You can sign in now.",
+    "verifyLinkInvalid": "This verification link is invalid, already used or expired. Request a new one below.",
+    "verifyMissingToken": "This link is incomplete or broken. Request a new verification link below.",
+    "verifyResend": "Send verification email again",
+    "verifyResendWait": "Send again in {seconds}s",
+    "verifyResent": "If this address has an unverified account, we've sent a new link.",
+    "verifyEmailRequired": "Enter your email address."
   },
   "settings": {
     "title": "Settings",
@@ -2065,7 +2076,10 @@
     "resetLinkHint": "Single use, valid for {minutes} minutes. No email was sent; pass the link on yourself.",
     "copyLink": "Copy",
     "copied": "Copied",
-    "close": "Close"
+    "close": "Close",
+    "emailUnverified": "Email not verified",
+    "markVerified": "Mark verified",
+    "markVerifiedHint": "Use this if you confirmed the address another way (e.g. by phone). Unverified accounts cannot be activated."
   },
   "notifications": {
     "title": "Notifications",

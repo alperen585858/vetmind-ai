@@ -332,9 +332,6 @@
     "loginBody": "Veteriner radyoloji iş akışına giriş yapın; DICOM yükleme ve uzman onay sürecine devam edin.",
     "loginBullet1": "Rolünüze uygun panoya yönlendirme",
     "loginBullet2": "Bitirme prototipi · klinik üretim / otonom tanı değildir",
-    "registerSuccessTitle": "Hesabınız hazır",
-    "registerPendingTitle": "Hesabınız onay bekliyor",
-    "registerPendingBody": "Veteriner hesabınız oluşturuldu. Bir yönetici kliniğinizi atayıp hesabı aktifleştirince giriş yapabilirsiniz.",
     "roleHelpVetSignup": "Hesabınız bir yönetici kliniğinizi atayınca açılır.",
     "passwordHint": "En az 8 karakter, en az bir harf ve bir rakam",
     "passwordTooShort": "Şifre en az 8 karakter olmalı.",
@@ -365,7 +362,21 @@
     "requestNewLink": "Yeni bağlantı iste",
     "backendUnreachable": "Sunucuya ulaşılamıyor. Backend çalışıyor mu?",
     "sessionExpired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
-    "fillDemo": "Demo hesabı doldur"
+    "fillDemo": "Demo hesabı doldur",
+    "registerCheckInboxTitle": "E-postanızı kontrol edin",
+    "registerCheckInboxBody": "Bu adrese bir doğrulama bağlantısı gönderdik. Bağlantıyı açarak e-postanızı doğrulayın. Ardından bir yönetici kliniğinizi atayıp hesabınızı etkinleştirecek.",
+    "registerCheckInboxHint": "E-posta gelmediyse gereksiz klasörüne bakın ya da aşağıdan yeniden gönderin. Bu adresle zaten hesabınız varsa size giriş bilgisi içeren bir e-posta gider.",
+    "verifyTitle": "E-posta doğrulama",
+    "verifyChecking": "Bağlantınız kontrol ediliyor…",
+    "verifyDoneTitle": "E-postanız doğrulandı",
+    "verifyDonePending": "Teşekkürler! Bir yönetici kliniğinizi atayıp hesabınızı etkinleştirince giriş yapabilirsiniz.",
+    "verifyDoneActive": "Teşekkürler! Artık giriş yapabilirsiniz.",
+    "verifyLinkInvalid": "Bu doğrulama bağlantısı geçersiz, kullanılmış ya da süresi dolmuş. Aşağıdan yeni bir bağlantı isteyin.",
+    "verifyMissingToken": "Bu bağlantı eksik veya bozuk. Aşağıdan yeni bir doğrulama bağlantısı isteyin.",
+    "verifyResend": "Doğrulama e-postasını yeniden gönder",
+    "verifyResendWait": "Yeniden göndermek için {seconds} sn",
+    "verifyResent": "Bu adreste doğrulanmamış bir hesap varsa yeni bir bağlantı gönderdik.",
+    "verifyEmailRequired": "E-posta adresinizi girin."
   },
   "settings": {
     "title": "Ayarlar",
@@ -2065,7 +2076,10 @@
     "resetLinkHint": "Tek kullanımlık, {minutes} dakika geçerli. E-posta gönderilmedi; linki kullanıcıya siz iletin.",
     "copyLink": "Kopyala",
     "copied": "Kopyalandı",
-    "close": "Kapat"
+    "close": "Kapat",
+    "emailUnverified": "E-posta doğrulanmadı",
+    "markVerified": "Doğrulanmış işaretle",
+    "markVerifiedHint": "Adresi başka bir yolla (ör. telefonla) teyit ettiyseniz kullanın. Doğrulanmamış hesap etkinleştirilemez."
   },
   "notifications": {
     "title": "Bildirimler",
