@@ -25,7 +25,7 @@ VetMind AI, **multimodal / multi-model AI destekli veteriner teleradyoloji** pla
 | Backend | Python 3.11+, FastAPI, Pydantic, pydicom |
 | Kalıcılık | PostgreSQL (varsayılan, Alembic) / SQLite (yerel geliştirme) / memory (testler) |
 | Jobs | Thread worker (varsayılan) veya RQ + Redis |
-| RAG | Hash-embedding cosine (varsayılan) veya lexical |
+| RAG | bge-m3 anlamsal embedding (varsayılan; Ollama yoksa hash) + ChromaDB, veya lexical |
 | Auth | Opsiyonel JWT (HS256) + API key + RBAC |
 
 **Mimari desen:** Modular monolith. Tüm bağımlılıklar `AppContainer` composition root’unda birleştirilir; HTTP katmanı ince router’lardır.
@@ -53,25 +53,7 @@ VetMind AI, **multimodal / multi-model AI destekli veteriner teleradyoloji** pla
 
 ## 2. Hedef veri akışı (pipeline)
 
-```text
-Drag & Drop / Demo Upload
-  → Upload API
-  → Quarantine Storage          (byte’lar diskte; SHA256 + manifest)
-  → File Type Detector
-       ├─ DICOM Metadata Parser (pydicom; Study → Series → Instance)
-       └─ PDF / JPG / PNG / Text Parser
-  → Species / Modality / Body Region Classifier
-  → Kullanıcı onayı (classification confirm) → CaseRecord
-  → AI Model Router (capability + scenario policy)
-       ├─ X-Ray Vision (mock)     ├─ CT 3D (mock)
-       ├─ MRI (mock)              └─ Multimodal VLM (mock)
-       └─ (opsiyonel) HttpRemoteVision
-  → Structured Findings + Evidence (normalize / fuse)
-  → LLM Gateway + Optional RAG → Draft Report (+ rag_citations)
-  → Report Validator (yapısal)
-  → Veteriner radyolog incelemesi (approve / reject / revision)
-  → Onaylı rapor
-```
+Diyagram koddan otomatik üretilir: **[docs/AI_MIMARISI.md](docs/AI_MIMARISI.md)** (varsayılan kurulum; kaynak `backend/app/services/architecture_status.py`, GitHub Action ile güncel tutulur). Çalışan sistemin canlı durumu admin panelinde **AI Mimarisi** sayfasındadır. Analiz adımları `orchestration/progress.py` içindeki `PIPELINE_STAGES` listesini izler; yeni adım ya da modalite eklenince diyagram kendiliğinden değişir.
 
 ### Adım adım (kod yolları)
 
@@ -168,10 +150,10 @@ Uygulama girişi: `uvicorn app.main:app --port 8000`.
 | `dicom/` | ingest, parser, validator, classifier, fixtures, placeholder |
 | `ingest/` | dosya türü sniff, doküman metin çıkarma |
 | `routing/` | capability tablosu, `ModelRouter`, `ScenarioRoutingPolicy` |
-| `models/` | `ImagingModel` protokolü, mock Vision registry, HTTP remote, model input builder, normalizer |
+| `models/` | `ImagingModel` protokolü, mock Vision registry, VLM, yerel torch, HTTP remote, model input builder, normalizer |
 | `orchestration/` | `AIOrchestrator.run()` |
-| `llm/` | gateway + mock / stub provider |
-| `rag/` | corpus, lexical retriever, hash embeddings, JSON vector store |
+| `llm/` | gateway + mock / stub / HTTP / OpenAI-uyumlu (Ollama, Gemini …) / Anthropic sağlayıcıları, hakem, KVKK maskeleme |
+| `rag/` | corpus, lexical retriever, bge-m3 / hash embedding, ChromaDB (JSON eski seçenek), kaynak kartları, chunking |
 | `validation/` | yapısal report validator |
 | `workers/` | `ThreadJobBackend`, `RqJobBackend`, RQ worker entry |
 | `schemas/` | Pydantic: case, dicom, documents, findings, report, jobs, rag, enums, model_input |
@@ -199,6 +181,8 @@ Gerçek modeller adapter olarak eklenir; orchestrator yeniden yazılmaz.
 | `mock-ct-3d-v1` | Beyin CT |
 | `mock-xr-vision-v1` | Toraks XR |
 | `mock-multimodal-vlm-v1` | Doküman / multimodal stub |
+| `vlm-vision-v1` | `VETMIND_VLM_ENABLED=1`: genel amaçlı VLM (ör. Gemini) görüntüleri yorumlar; `exclusive_real` politikasında mock'ların yerini alır, veterinerde valide değildir |
+| `vet-xr-thorax-v1` (yapılandırılabilir) | `VETMIND_LOCAL_TORCH_*`: yerel PyTorch/MONAI röntgen modeli (insan verisiyle eğitilmiş demo) |
 | `remote-vision-v1` (yapılandırılabilir) | `VETMIND_VISION_ENDPOINT` set ise `HttpRemoteVisionModel` |
 
 Provenance: findings üzerinde `source_kind` ∈ {`mock`, `real`, `mixed`}.
@@ -454,7 +438,7 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 | Capability router + orchestrator | Eğitilmiş GPU Vision |
 | `ImagingModel` / `LLMProvider` protokolleri | Ücretli veterinary LLM |
 | `HttpRemoteVisionModel` HTTP sözleşmesi | Varsayılan mock Vision çıktıları |
-| Hash-embedding RAG + JSON indeks | sentence-transformers, Qdrant/pgvector |
+| bge-m3 / hash RAG + ChromaDB | Klinik onaylı bilgi bankası, reranking |
 | JWT + API key + RBAC | OAuth/SSO; UI localStorage auth |
 | Thread / opsiyonel RQ | Celery / K8s autoscaled workers |
 | PDF/text extract stub, browser viewer | OCR, klinik PACS viewer |

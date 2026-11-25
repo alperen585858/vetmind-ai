@@ -13,6 +13,8 @@ Bu belge, fotoğraftaki hedef mimariyi **bileşen bileşen** mevcut kodla karş�
 
 **2026-10-30 pre-data sprint:** `/calisma` canonical (ExpertReview kaldırıldı) · FE retention dry-run/apply · RAG `approved` + bulk KB UI · DICOM classification override → FeedbackStore · Document OCR adapter stub (`VETMIND_DOCUMENT_OCR_ENDPOINT`) · pixel opt-in dokümante · A/B plug-in yüzeyleri (bulk KB, wire fixtures, protected E2E projesi) **DONE** notu — klinik üretim **BOUNDARY / NO-GO** değişmedi.
 
+**2026-11-25 senkron (kod gerçeği):** gerçek LLM sağlayıcıları (Ollama, OpenAI-uyumlu, Gemini, Anthropic; prompt v5, hakem, KVKK maskeleme) · genel amaçlı VLM adapter'ı (`vlm-vision-v1`, `VETMIND_VLM_ENABLED`; veterinerde valide değil) · yerel PyTorch/MONAI röntgen modeli (`vet-xr-thorax-v1`, insan verisiyle eğitilmiş demo, piksel opt-in ile) · bge-m3 anlamsal embedding + ChromaDB (#101, #103) · offline eğitim/değerlendirme altyapısı (`ml/`, `evaluation/`). Canlı durum: admin **AI Mimarisi** sayfası; otomatik diyagram: [AI_MIMARISI.md](AI_MIMARISI.md). Klinik üretim **NO-GO** değişmedi: hiçbir model veteriner verisiyle valide değil.
+
 İlgili belgeler: [ARCHITECTURE.md](../ARCHITECTURE.md) · [ARCHITECTURE_AND_LLM.md](ARCHITECTURE_AND_LLM.md) · [audits/01_AI_ARCHITECTURE.md](arsiv/audits/01_AI_ARCHITECTURE.md) · [audits/PHASE_7_DEEP_AUDIT.md](arsiv/audits/PHASE_7_DEEP_AUDIT.md) · [audits/PHASE_8_SECURITY_ASYNC.md](arsiv/audits/PHASE_8_SECURITY_ASYNC.md)
 
 ---
@@ -84,15 +86,15 @@ Vision Vision Vision     VLM           │
 | 6 | Model Router + Execution Policy | `routing/model_router.py`, `scenario_policy.py`, `execution_policy.py` | ✅ İskelet | Capability + exclusive_real çalışır; gerçek model yok |
 | 7 | MRI Vision Model | `models/mock_vision.py` (`mock-brain-mri-*`, cervical) | ❌ Mock | Fixture; eğitilmiş MR modeli yok |
 | 8 | CT Vision Model | `mock-ct-3d-v1` | ❌ Mock | Fixture; eğitilmiş CT modeli yok |
-| 9 | X-Ray Vision Model | `mock-xr-vision-v1` | ❌ Mock | Fixture; eğitilmiş XR modeli yok |
-| 10 | Multimodal VLM | `mock-multimodal-vlm-v1` | ❌ Stub | OCR/vision tanı yok; metin bağlam stub |
+| 9 | X-Ray Vision Model | `mock-xr-vision-v1`, `models/local_torch.py` + `entrypoints/xray_monai.py` | ⚠️ Demo | Varsayılan mock; yerel DenseNet121 (TorchXRayVision, insan verisi) takılabilir — veterinerde valide değil |
+| 10 | Multimodal VLM | `mock-multimodal-vlm-v1`, `models/vlm_vision.py` (`vlm-vision-v1`) | ⚠️ Genel amaçlı | Varsayılan stub; `VETMIND_VLM_ENABLED=1` ile genel amaçlı VLM (ör. Gemini) görüntüleri yorumlar; veterinerde valide değil, OCR motoru yok |
 | 11 | Output Normalizer | `models/normalizer.py` | ✅ | Normalize + finding ontology / laterality (ISS-FUS-01 DONE iskelet) |
 | 12 | Evidence Fusion + Provenance | `normalizer.py`, `evidence_validation.py`, `source_kind` | ✅ Kısmi | Provenance disiplinli; klinik fusion yok |
 | 13 | Structured Findings | `schemas/findings.py` | ✅ | Tip güvenli DTO mevcut |
 | 14 | Approved Knowledge Base | `rag/corpus.py` (`SEED_CORPUS`) | ⚠️ Demo | Sentetik/eğitim pasajları; onaylı klinik KB değil |
-| 15 | RAG Retriever | `rag/retriever.py`, `embedding_retriever.py`, `vector_store.py` | ⚠️ Stub | Hash n-gram + JSON; gerçek embed/vector DB yok |
+| 15 | RAG Retriever | `rag/embedding_retriever.py`, `ollama_embeddings.py`, `chroma_store.py` | ✅ Kısmi | bge-m3 anlamsal embedding (Ollama yoksa hash) + ChromaDB, kaynak kartları ve bölge/tür filtresi; içerik klinik onaylı değil |
 | 16 | LLM Orchestrator / Gateway | `orchestration/orchestrator.py`, `llm/gateway.py` | ✅ İskelet | Akış doğru; varsayılan mock LLM |
-| 17 | Veterinary LLM | `llm/mock_provider.py` (+ http/stub) | ❌ Mock | Veteriner-domain eğitilmiş LLM yok |
+| 17 | Veterinary LLM | `llm/factory.py`, `chat_providers.py` (+ mock/stub/http) | ⚠️ Genel amaçlı | Gerçek sağlayıcılar (Ollama, OpenAI-uyumlu, Gemini, Anthropic) + atıflı prompt v5 + hakem; varsayılan mock; veteriner-domain ince ayarlı model yok |
 | 18 | Report Validator | `validation/report_validator.py` | ✅ Yapısal | Klinik doğrulama bilinçli engelli |
 | 19 | Radiologist Review | `POST .../review`, FE `RadiologistWorkspace` (`/calisma`) | ✅ | Approve/reject/revision + reason codes + immutable sürüm |
 | 20 | Approved Report | `report_versioning.py`, PDF | ✅ | Immutable onaylı sürüm + print/PDF |
@@ -134,8 +136,8 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 |----|-----|-------|---------------|------|
 | **ISS-VIS-01** | BOUNDARY | MRI Vision Model eğitilmiş değil — mock fixture | `MockBrainMriModel` vb. | Diyagramdaki MRI kutusu karşılanmıyor |
 | **ISS-VIS-02** | BOUNDARY | CT Vision Model eğitilmiş değil — mock fixture | `MockCt3dModel` | Aynı |
-| **ISS-VIS-03** | BOUNDARY | X-Ray Vision Model eğitilmiş değil — mock fixture | `MockXrVisionModel` | Aynı |
-| **ISS-VIS-04** | BOUNDARY | Multimodal VLM gerçek değil — stub; OCR/tanı yok | `MockMultimodalVlmModel` | VLM kutusu karşılanmıyor |
+| **ISS-VIS-03** | BOUNDARY | X-Ray Vision Model veterinerde eğitilmiş değil — varsayılan mock; insan verisiyle eğitilmiş DenseNet121 demo olarak takılabilir | `MockXrVisionModel`, `entrypoints/xray_monai.py` | Veteriner etiketli veri bekleniyor (`ml/training/train_xray_classifier.py` hazır) |
+| **ISS-VIS-04** | BOUNDARY | Multimodal VLM genel amaçlı (Gemini vb.), veterinerde valide değil; varsayılan stub; OCR motoru yok | `MockMultimodalVlmModel`, `vlm_vision.py` | VLM kutusu çalışır ama klinik doğruluk ölçülmedi |
 | **ISS-VIS-05** | P1 | Gerçek model bağlama yalnızca HTTP adapter yüzeyi; vendor klinik wire doğrulanmamış | `http_vision.py`, Phase 8 “PARTIALLY READY” | Sentetik deneme mümkün; üretim READY değil |
 | **ISS-VIS-06** | P2 | Local torch yolu / bridge var ama ağırlık yükleme / GPU serve üretimde yok | `local_torch.py`, `pixel_bridge.py` | Phase 20 “remaining steps” açık |
 | **ISS-VIS-07** | P2 | Hiçbir default capability `allows_pixel_analysis=True` değil | `pixel_authorization.py`, capabilities | Piksel inference kapalı |
@@ -155,7 +157,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
 | **ISS-RAG-01** | BOUNDARY | Approved Knowledge Base = sentetik seed corpus; klinik onaylı KB değil | `rag/corpus.py` | Diyagramdaki “Approved” karşılanmıyor |
-| **ISS-RAG-02** | BOUNDARY | Gerçek embedding modeli yok (hash n-gram); sentence-transformers yok | `rag/embeddings.py` | Semantik retrieval zayıf |
+| **ISS-RAG-02** | KAPANDI (#101) | bge-m3 anlamsal embedding varsayılan; Ollama yoksa hash'e düşer ve Sistem Durumu bunu gösterir | `rag/ollama_embeddings.py` | Reranking denendi, eklenmedi (`eval/results/rerank-*`) |
 | **ISS-RAG-03** | KAPANDI (#103) | Vektörler ChromaDB'de; metadata filtresi veritabanında | `ChromaVectorStore` | — |
 | **ISS-RAG-04** | ✅ DONE | used_passage_ids: mock + HTTP wire + stub; chat path legacy uyarı | `rag_grounding.py`, `http_provider.py` | Finding-link soft (ISS-RAG-05) |
 | **ISS-RAG-05** | P2 | Citation ↔ finding bağlama zayıf; skor semantiği dikkat gerektirir | **F13** (kısmen iyileşti) | “Klinik kanıt” sanılabilir |
@@ -165,7 +167,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 
 | ID | Sev | Issue | Kanıt / konum | Etki |
 |----|-----|-------|---------------|------|
-| **ISS-LLM-01** | BOUNDARY | Veterinary LLM yok — varsayılan `MockLLMProvider` şablon taslak | `llm/mock_provider.py` | Diyagramdaki Veterinary LLM karşılanmıyor |
+| **ISS-LLM-01** | BOUNDARY | Veteriner-domain ince ayarlı LLM yok; genel amaçlı gerçek sağlayıcılar bağlanır (varsayılan mock) | `llm/chat_providers.py`, `mock_provider.py` | LoRA ince ayar verisi `feedback/export?format=chat` ile birikiyor |
 | **ISS-LLM-02** | P1 | HTTP LLM bağlanabilir ama VetMind wire contract; keyfi vendor API değil | `http_provider.py` | Entegrasyon sürtünmesi |
 | **ISS-LLM-03** | P2 | LLM sync blocking; async job içinde bile HTTP çağrısı thread’i tutar | gateway + workers | Uzun timeout / cancel zayıf |
 | **ISS-LLM-04** | ✅/P3 | Cancel probe LLM sonrası taslağı atar; HTTP çağrısı ortasında kill yok | orchestrator | True mid-HTTP abort ayrı (blocking) |
@@ -235,18 +237,18 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 | Hybrid classification | 3/10 | Rule-based; hybrid değil |
 | Document processing | 4/10 | Text/PDF + OCR HTTP stub; motor yok |
 | Model router + policy | 8/10 | İskelet olgun |
-| MRI/CT/XR/VLM | 1/10 | Hepsi mock/stub |
+| MRI/CT/XR/VLM | 3/10 | MR/CT mock; XR demo modeli ve genel amaçlı VLM var, hiçbiri veterinerde valide değil |
 | Normalizer / fusion | 6/10 | Provenance iyi; klinik fusion zayıf |
 | Structured findings | 8/10 | Şema sağlam |
-| Approved KB + RAG | 3/10 | Demo seed + hash embed |
+| Approved KB + RAG | 5/10 | bge-m3 + ChromaDB + kaynak kartları; içerik klinik onaylı değil |
 | LLM gateway | 7/10 | Orchestration iyi |
-| Veterinary LLM | 1/10 | Mock şablon |
+| Veterinary LLM | 4/10 | Gerçek genel amaçlı sağlayıcılar + atıf/hakem; domain ince ayarı yok |
 | Report validator | 7/10 | Yapısal; klinik değil |
 | Radiologist review | 8/10 | Ürün akışı var |
 | Approved report | 8/10 | Immutable + PDF |
 | Feedback / audit store | 3/10 | Security log var; model feedback yok |
 
-**Ortalama (ağırlıksız):** ~5.2/10 — **mimari iskelet hazır, diyagramdaki AI/klinik kutular çoğunlukla boş.**
+**Ortalama (ağırlıksız):** ~5.6/10 (2026-10-24: ~5.2) — **mimari iskelet hazır; AI kutuları artık çalışabilir durumda ama hiçbiri veteriner verisiyle valide değil.**
 
 ---
 

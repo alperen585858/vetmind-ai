@@ -3,6 +3,9 @@ import os
 # app.main builds an app at import time; tests never touch the real database (#102).
 # Postgres-specific tests set VETMIND_TEST_DATABASE_URL and build their own stores.
 os.environ.setdefault("VETMIND_STORAGE", "memory")
+# Never read backend/.env in tests: a local .env (e.g. VETMIND_VLM_ENABLED=1 with a real LLM)
+# would otherwise leak into every test via load_settings() and make CI-green tests fail locally.
+os.environ.setdefault("VETMIND_SKIP_DOTENV", "1")
 
 from pathlib import Path
 

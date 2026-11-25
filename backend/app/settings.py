@@ -228,7 +228,13 @@ def _env_optional_int(name: str) -> int | None:
 
 
 def _load_dotenv_files() -> None:
-    """Load backend/.env into os.environ when present (does not override existing vars)."""
+    """Load backend/.env into os.environ when present (does not override existing vars).
+
+    ``VETMIND_SKIP_DOTENV=1`` turns this off; the test suite sets it so a developer's local
+    .env (real LLM, VLM on …) never changes test behaviour.
+    """
+    if os.getenv("VETMIND_SKIP_DOTENV", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return
     try:
         from dotenv import load_dotenv
     except ImportError:
