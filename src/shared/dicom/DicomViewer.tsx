@@ -42,6 +42,7 @@ import {
 import { useLocale } from '../shell/LocaleContext'
 import { modalityLabel } from '../lib/displayClean'
 import { VhsGuideModal } from './VhsGuideModal'
+import { indexFor, positionOf, sameView, type ViewSyncState } from './viewerSync'
 import { shouldShowVhsGuide } from './vhsGuidePref'
 import { computeVhs, VHS_POINT_COUNT, VHS_STEP_KEYS, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../lib/vhs'
 import {
@@ -108,14 +109,14 @@ function formatDistance(
   dx: number,
   dy: number,
   spacing?: [number, number],
-): { text: string; calibrated: boolean } {
+): { text: string; calibrated: boolean; mm: number | null } {
   const pxDist = Math.hypot(dx, dy)
   if (spacing) {
     const [rowMm, colMm] = spacing
     const mm = Math.hypot(dx * colMm, dy * rowMm)
-    return { text: `${mm.toFixed(1)} mm`, calibrated: true }
+    return { text: `${mm.toFixed(1)} mm`, calibrated: true, mm }
   }
-  return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false }
+  return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false, mm: null }
 }
 
 const VHS_LABELS = ['1', '2', '3', '4', 'T4', 'T8']
@@ -180,6 +181,9 @@ export function DicomViewer({
   vhsEnabled = false,
   vhsSpecies = 'other',
   onVhsCommit,
+  syncView = null,
+  onViewChange,
+  onMeasureMm,
 }: {
   frames: DicomFramePreview[]
   loading?: boolean
@@ -208,6 +212,12 @@ export function DicomViewer({
   vhsSpecies?: VhsSpecies
   /** "Add to report" for a finished VHS measurement; button hidden when absent. */
   onVhsCommit?: (result: VhsResult) => void
+  /** Issue #108 comparison: view to follow (slice by relative position, zoom/pan, W/L). */
+  syncView?: ViewSyncState | null
+  /** Issue #108 comparison: reports user-driven view changes (not ones applied from syncView). */
+  onViewChange?: (view: ViewSyncState) => void
+  /** Issue #108 comparison: finished distance measurement in mm (null when uncalibrated). */
+  onMeasureMm?: (mm: number | null) => void
 }) {
   const { t } = useLocale()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -320,12 +330,48 @@ export function DicomViewer({
     }
   }, [focusSopUid, focusRequestId, seriesGroups])
 
+  // W/L that a sync just applied: a slice change must not reset it to the auto window.
+  const syncWindowRef = useRef<{ wc: number; ww: number } | null>(null)
+  // Last view applied from syncView, so following the other panel is not echoed back.
+  const appliedSyncRef = useRef<{ view: ViewSyncState; index: number } | null>(null)
+
   useEffect(() => {
     if (!frame) return
-    const aw = autoWindow(frame)
+    const synced = syncWindowRef.current
+    syncWindowRef.current = null
+    const aw = synced ? { center: synced.wc, width: synced.ww } : autoWindow(frame)
     setWc(aw.center)
     setWw(aw.width)
   }, [frame?.fileName, frame?.sopInstanceUid])
+
+  useEffect(() => {
+    if (!syncView || !viewable.length) return
+    const nextIndex = indexFor(syncView.position, viewable.length)
+    appliedSyncRef.current = { view: syncView, index: nextIndex }
+    if (nextIndex !== safeIndex) syncWindowRef.current = { wc: syncView.wc, ww: syncView.ww }
+    setIndex(nextIndex)
+    setZoom(syncView.zoom)
+    setPan({ x: syncView.panX, y: syncView.panY })
+    setWc(syncView.wc)
+    setWw(syncView.ww)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new syncView triggers this
+  }, [syncView, viewable.length])
+
+  useEffect(() => {
+    if (!onViewChange || !frame) return
+    const view: ViewSyncState = { position: positionOf(safeIndex, viewable.length), zoom, panX: pan.x, panY: pan.y, wc, ww }
+    const applied = appliedSyncRef.current
+    if (
+      applied &&
+      applied.index === safeIndex &&
+      sameView({ ...applied.view, position: view.position }, view)
+    ) {
+      return
+    }
+    appliedSyncRef.current = null
+    onViewChange(view)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- emit on view changes only
+  }, [safeIndex, viewable.length, zoom, pan.x, pan.y, wc, ww])
 
   useEffect(() => {
     if (!frame) return
@@ -615,8 +661,9 @@ export function DicomViewer({
     if (tool === 'measure' && measurePts && frame) {
       const dx = measurePts.x1 - measurePts.x0
       const dy = measurePts.y1 - measurePts.y0
-      const { text } = formatDistance(dx, dy, frame.pixelSpacingMm)
+      const { text, mm } = formatDistance(dx, dy, frame.pixelSpacingMm)
       setMeasureLabel(text)
+      onMeasureMm?.(mm)
     }
     if (tool === 'roi' && roiPts && frame) {
       const stats = roiStats(frame, roiPts.x0, roiPts.y0, roiPts.x1, roiPts.y1)
