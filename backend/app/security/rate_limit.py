@@ -36,6 +36,11 @@ FORGOT_PER_IP = Limit(10, 15 * 60)
 RESET_PER_IP = Limit(10, 15 * 60)
 # Every /register request.
 REGISTER_PER_IP = Limit(10, 60 * 60)
+# Issue #41: every /verify-email/resend request (each may send an email) and failed
+# /verify-email attempts (bad, used or expired link).
+VERIFY_RESEND_PER_EMAIL = Limit(3, 15 * 60)
+VERIFY_RESEND_PER_IP = Limit(10, 15 * 60)
+VERIFY_PER_IP = Limit(10, 15 * 60)
 
 
 class RateLimiterProtocol(Protocol):

@@ -380,16 +380,13 @@ class WorkflowService:
         self.sync_auth_directory()
         return user.to_public()
 
-    def register_user(
-        self,
-        *,
-        email: str,
-        password: str,
-        role: SelfRegisterRole,
-        display_name: str | None = None,
-        owner_clinic_id: str | None = None,
-    ) -> ManagedUser:
-        """Public sign-up for vets. Accounts wait for admin activation (B2B only)."""
+    @staticmethod
+    def validate_registration(*, email: str, password: str, role: str) -> str:
+        """Checks that do not depend on whether the address is registered (issue #41).
+
+        The API runs them before answering; the lookup itself happens after the response.
+        Returns the normalized email.
+        """
         email = email.strip().lower()
         if not _EMAIL_RE.match(email):
             raise HTTPException(
@@ -402,6 +399,19 @@ class WorkflowService:
                 detail=api_error("role_not_self_registerable", "This role cannot be self-registered."),
             )
         _assert_password_allowed(password)
+        return email
+
+    def register_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: SelfRegisterRole,
+        display_name: str | None = None,
+        owner_clinic_id: str | None = None,
+    ) -> ManagedUser:
+        """Public sign-up for vets. Accounts wait for admin activation (B2B only)."""
+        email = self.validate_registration(email=email, password=password, role=role)
         name = (display_name or "").strip() or email.split("@")[0]
         user = ManagedUser(
             email=email,
