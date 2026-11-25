@@ -13,7 +13,7 @@ from app.auth.security import DEFAULT_JWT_SECRET
 class Settings:
     """Environment-driven settings. Defaults favor local demo durability."""
 
-    storage_backend: str  # "memory" | "sqlite" | "postgres"
+    storage_backend: str  # "postgres" (default) | "sqlite" (local dev) | "memory" (tests)
     sqlite_path: Path
     quarantine_root: Path
     database_url: str | None = None
@@ -171,6 +171,10 @@ def _backend_root() -> Path:
     return Path(__file__).resolve().parents[1]  # backend/
 
 
+# Matches the `db` service in docker-compose.yml (`docker compose up -d db` for local dev).
+DEFAULT_DATABASE_URL = "postgresql://vetmind:vetmind@localhost:5432/vetmind"
+
+
 def _default_sqlite_path() -> Path:
     return _backend_root() / "data" / "vetmind.sqlite3"
 
@@ -236,14 +240,15 @@ def _load_dotenv_files() -> None:
 
 def load_settings() -> Settings:
     _load_dotenv_files()
-    backend = os.getenv("VETMIND_STORAGE", "sqlite").strip().lower()
+    # #102: PostgreSQL is the default; sqlite = one local file (dev without Docker), memory = tests.
+    backend = os.getenv("VETMIND_STORAGE", "postgres").strip().lower()
     if backend not in {"memory", "sqlite", "postgres"}:
-        backend = "sqlite"
+        backend = "postgres"
     path_raw = os.getenv("VETMIND_SQLITE_PATH")
     sqlite_path = Path(path_raw) if path_raw else _default_sqlite_path()
     q_raw = os.getenv("VETMIND_QUARANTINE_ROOT")
     quarantine_root = Path(q_raw) if q_raw else _default_quarantine_root()
-    database_url = os.getenv("VETMIND_DATABASE_URL") or os.getenv("DATABASE_URL")
+    database_url = os.getenv("VETMIND_DATABASE_URL") or os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL
     try:
         delay_ms = int(os.getenv("VETMIND_ASYNC_DELAY_MS", "400"))
     except ValueError:

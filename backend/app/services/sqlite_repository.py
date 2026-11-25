@@ -1,13 +1,8 @@
-"""SQLite-backed CaseRepository using versioned JSON document payloads.
-
-This is a persistence foundation for demos (survives process restart).
-It is not a full relational clinical schema and not PostgreSQL — that can
-implement the same CaseRepository Protocol later (e.g. JSONB columns).
-"""
+"""SQL CaseRepository (Postgres by default, SQLite for local dev) using versioned JSON
+document payloads. Not a full relational clinical schema."""
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional
@@ -16,52 +11,19 @@ from app.schemas.case import CaseRecord
 from app.schemas.dicom import DicomIngestionRecord
 from app.schemas.documents import DocumentIngestionRecord
 from app.schemas.jobs import AnalysisJob
+from app.storage.sql import Database, SqlConnection
 
 
-class SqliteCaseRepository:
-    def __init__(self, db_path: Path | str) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
+class SqlCaseRepository:
+    """Cases, jobs and ingestions in the shared VetMind database (Postgres, or SQLite for local
+    dev). Versioned JSON documents (JSONB on Postgres); schema from Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
         # One connection is shared by FastAPI's threadpool: serialize every use of it.
         # Without this, parallel requests (the workspace fires several at once) raised
         # sqlite3.InterfaceError or read back None for existing rows.
         self._lock = threading.RLock()
-        self._conn.row_factory = sqlite3.Row
-        # DELETE is more portable than WAL (some sandboxed/tmp FS reject -wal/-shm sidecars).
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.execute("PRAGMA foreign_keys=ON;")
-        self._init_schema()
-
-    def _init_schema(self) -> None:
-        with self._lock:
-            self._conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS cases (
-                    case_id TEXT PRIMARY KEY,
-                    created_at TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS jobs (
-                    job_id TEXT PRIMARY KEY,
-                    case_id TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS ingestions (
-                    ingest_id TEXT PRIMARY KEY,
-                    created_at TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS document_ingestions (
-                    ingest_id TEXT PRIMARY KEY,
-                    created_at TEXT NOT NULL,
-                    payload TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);
-                CREATE INDEX IF NOT EXISTS idx_jobs_case_id ON jobs(case_id);
-                """
-            )
-            self._conn.commit()
 
     def close(self) -> None:
         with self._lock:
@@ -193,3 +155,10 @@ class SqliteCaseRepository:
             self._conn.execute("DELETE FROM ingestions WHERE ingest_id = ?", (ingest_id,))
             self._conn.execute("DELETE FROM document_ingestions WHERE ingest_id = ?", (ingest_id,))
             self._conn.commit()
+
+
+class SqliteCaseRepository(SqlCaseRepository):
+    """Same repository on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())

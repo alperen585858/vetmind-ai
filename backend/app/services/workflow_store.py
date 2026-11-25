@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional, Protocol
 
 from app.schemas.workflow import ImagingSubmission, ManagedUser, PetRecord
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class WorkflowStore(Protocol):
@@ -83,35 +83,14 @@ class InMemoryWorkflowStore:
         return self._users.pop(email.lower(), None) is not None
 
 
-class SqliteWorkflowStore:
-    def __init__(self, db_path: Path | str) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
-        # One connection is shared by FastAPI's threadpool: serialize every use of it
-        # (unlocked parallel use raised sqlite3.InterfaceError / misread rows; see #36).
+class SqlWorkflowStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
         self._lock = threading.RLock()
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS pets (
-                pet_id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS submissions (
-                submission_id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS managed_users (
-                email TEXT PRIMARY KEY,
-                payload TEXT NOT NULL
-            );
-            """
-        )
-        self._conn.commit()
 
     def save_pet(self, pet: PetRecord) -> PetRecord:
         with self._lock:
@@ -202,12 +181,14 @@ class SqliteWorkflowStore:
             return cur.rowcount > 0
 
 
+class SqliteWorkflowStore(SqlWorkflowStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_workflow_store(settings) -> WorkflowStore:
     if settings.storage_backend == "memory":
         return InMemoryWorkflowStore()
-    # sqlite + postgres demos: use sidecar sqlite next to case db (or dedicated path)
-    if settings.storage_backend == "postgres":
-        # Keep workflow docs in a local sqlite sidecar for Phase 14 (cases remain in Postgres).
-        path = Path(settings.sqlite_path).with_name("vetmind_workflow.sqlite3")
-        return SqliteWorkflowStore(path)
-    return SqliteWorkflowStore(Path(settings.sqlite_path).with_name("vetmind_workflow.sqlite3"))
+    return SqlWorkflowStore(connect_from_settings(settings))

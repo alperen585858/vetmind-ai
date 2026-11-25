@@ -1,3 +1,9 @@
+import os
+
+# app.main builds an app at import time; tests never touch the real database (#102).
+# Postgres-specific tests set VETMIND_TEST_DATABASE_URL and build their own stores.
+os.environ.setdefault("VETMIND_STORAGE", "memory")
+
 from pathlib import Path
 
 import pytest

@@ -71,11 +71,11 @@ Offline training lives under repo-root `ml/` (never imported by FastAPI by defau
 | Değişken | Anlam |
 |----------|--------|
 | (see `.env.example`) | Tüm env anahtarları örnek dosyada |
-| `VETMIND_STORAGE=sqlite` | Varsayılan; `backend/data/vetmind.sqlite3` |
+| `VETMIND_STORAGE=postgres` | Varsayılan (#102): bütün kayıtlar tek PostgreSQL veritabanında; şema Alembic (`migrations/`) |
+| `VETMIND_STORAGE=sqlite` | Docker'sız yerel geliştirme; aynı tablolar `data/vetmind.sqlite3` içinde |
 | `VETMIND_STORAGE=memory` | Geçici (testler) |
-| `VETMIND_STORAGE=postgres` | PostgreSQL JSONB (`VETMIND_DATABASE_URL` gerekir) |
-| `VETMIND_DATABASE_URL` / `DATABASE_URL` | örn. `postgresql://vetmind:vetmind@localhost:5432/vetmind` |
-| `VETMIND_SQLITE_PATH` | Özel SQLite yolu |
+| `VETMIND_DATABASE_URL` / `DATABASE_URL` | Varsayılan `postgresql://vetmind:vetmind@localhost:5432/vetmind` (repo kökünde `docker compose up -d db`) |
+| `VETMIND_SQLITE_PATH` | `sqlite` modunda dosya yolu |
 | `VETMIND_QUARANTINE_ROOT` | Karantina kökü |
 | `VETMIND_ASYNC_DELAY_MS` | Async analyze yapay gecikme |
 | `VETMIND_RAG=embedding\|lexical` | Varsayılan `embedding` |
@@ -158,12 +158,12 @@ Bir sözlük güncellemesi dosya özetini değiştirir ve yeni sürüm için ona
 dosyası gerekir. Üretilen rapor veteriner radyolog incelemesine sunulan bir
 taslaktır.
 
-### PostgreSQL + Redis (opsiyonel)
+### PostgreSQL (varsayılan) + Redis (opsiyonel)
 
 ```bash
-docker compose -f docker-compose.yml up -d
-export VETMIND_STORAGE=postgres
-export VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind
+(cd .. && docker compose up -d db)                 # PostgreSQL, localhost:5432
+python scripts/migrate_sqlite_to_postgres.py       # eski data/*.sqlite3 + JSONL varsa bir kez
+docker compose -f docker-compose.yml up -d         # Redis (RQ işleri için)
 # Optional RQ:
 pip install -r requirements-optional.txt
 export VETMIND_JOB_BACKEND=rq
@@ -186,7 +186,7 @@ export VETMIND_VISION_ENDPOINT=http://127.0.0.1:8090/infer
 ```bash
 pytest
 # Postgres entegrasyonu:
-VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind pytest tests/test_postgres_repo.py -q
+VETMIND_TEST_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind_test pytest -m postgres tests/test_sql_stores.py tests/test_postgres_app.py -q
 ```
 
 ## API özeti
@@ -213,7 +213,7 @@ VETMIND_DATABASE_URL=postgresql://vetmind:vetmind@localhost:5432/vetmind pytest 
 
 ## Mimari notlar
 
-1. Modular monolith; `CaseRepository` → memory / sqlite / postgres.
+1. Modular monolith; `CaseRepository` → memory (testler) / `SqlCaseRepository` (Postgres varsayılan, SQLite yerel); şema Alembic migration'ları.
 2. Remote Vision: `HttpRemoteVisionModel` + env endpoint; yoksa mock registry.
 3. RAG: hash-embedding cosine (varsayılan) veya lexical.
 4. Auth kapalıyken RBAC no-op; açıkken JWT/API key + capability checks

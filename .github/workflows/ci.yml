@@ -83,6 +83,40 @@ jobs:
           PYTHONPATH: .:backend
         run: python -m pytest evaluation/tests -q --tb=line -p no:cacheprovider
 
+  backend-postgres:
+    name: Backend on PostgreSQL (migrations · stores · API)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vetmind
+          POSTGRES_PASSWORD: vetmind
+          POSTGRES_DB: vetmind_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vetmind -d vetmind_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      VETMIND_TEST_DATABASE_URL: postgresql://vetmind:vetmind@localhost:5432/vetmind_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: Schema from an empty database (alembic upgrade head)
+        run: alembic -x url=$VETMIND_TEST_DATABASE_URL upgrade head
+      - name: Store and API tests on PostgreSQL
+        run: python -m pytest -q --tb=short -m postgres tests/test_sql_stores.py tests/test_postgres_app.py
+
   ml-spine:
     name: ML spine segmentation (CPU smoke, synthetic data)
     runs-on: ubuntu-latest

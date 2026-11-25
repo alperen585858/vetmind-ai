@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass, replace
@@ -24,6 +23,7 @@ from pathlib import Path
 from typing import Callable, Optional, Protocol
 
 from app.auth.security import DemoUserRecord
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 # A rotated token presented again this soon is a racing tab, not a thief.
 CONCURRENT_GRACE_SECONDS = 20
@@ -98,32 +98,14 @@ class InMemoryRefreshTokenStore:
         return len(dead)
 
 
-class SqliteRefreshTokenStore:
-    def __init__(self, db_path: Path | str) -> None:
-        path = Path(db_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        # One connection shared by request threads: serialise access to it.
-        self._db_lock = threading.Lock()
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS refresh_tokens (
-                token_hash TEXT PRIMARY KEY,
-                subject TEXT NOT NULL,
-                family_id TEXT NOT NULL,
-                token_version INTEGER NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL,
-                revoked_at REAL,
-                replaced_by TEXT
-            );
-            CREATE INDEX IF NOT EXISTS ix_refresh_family ON refresh_tokens(family_id);
-            CREATE INDEX IF NOT EXISTS ix_refresh_subject ON refresh_tokens(subject);
-            """
-        )
-        self._conn.commit()
+class SqlRefreshTokenStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
+        self._db_lock = threading.RLock()
 
     def save(self, rec: RefreshRecord) -> None:
         with self._db_lock:
@@ -180,13 +162,17 @@ class SqliteRefreshTokenStore:
         return self._write("DELETE FROM refresh_tokens WHERE expires_at < ?", (now,))
 
 
+class SqliteRefreshTokenStore(SqlRefreshTokenStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_refresh_token_store(settings) -> RefreshTokenStore:
     if settings.storage_backend == "memory":
         return InMemoryRefreshTokenStore()
-    # sqlite and postgres deployments keep auth sidecar data next to the case DB,
-    # like the workflow store.
-    return SqliteRefreshTokenStore(Path(settings.sqlite_path).with_name("vetmind_auth.sqlite3"))
-
+    return SqlRefreshTokenStore(connect_from_settings(settings))
 
 class RefreshTokenService:
     def __init__(

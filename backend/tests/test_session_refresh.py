@@ -279,7 +279,7 @@ def test_revoke_all_for_subject() -> None:
 def test_sqlite_store_persists_only_hashes_across_restart(tmp_path: Path) -> None:
     client, _ = _app(tmp_path, storage_backend="sqlite")
     session = _login(client)
-    db = tmp_path / "db" / "vetmind_auth.sqlite3"
+    db = tmp_path / "db" / "vetmind.sqlite3"  # #102: one database file for every store
     with sqlite3.connect(db) as conn:
         rows = conn.execute("SELECT token_hash, subject FROM refresh_tokens").fetchall()
     assert rows and all(session["refresh_token"] not in r[0] for r in rows)

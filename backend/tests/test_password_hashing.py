@@ -179,8 +179,8 @@ def test_deactivated_demo_user_cannot_log_in(tmp_path: Path) -> None:
 
 def test_legacy_plaintext_rows_are_migrated_on_startup(tmp_path: Path) -> None:
     settings = _settings(tmp_path, backend="sqlite")
-    db_path = Path(settings.sqlite_path).with_name("vetmind_workflow.sqlite3")
-    legacy = SqliteWorkflowStore(db_path)
+    # #102: every store shares the one database file.
+    legacy = SqliteWorkflowStore(Path(settings.sqlite_path))
     legacy.save_user(
         ManagedUser(email="legacy@clinic.test", role="vet", clinic_id="clinic-demo-a", password=SECRET_PASSWORD)
     )
@@ -198,7 +198,7 @@ def test_legacy_plaintext_rows_are_migrated_on_startup(tmp_path: Path) -> None:
     assert _login(client, "legacy@clinic.test", SECRET_PASSWORD).status_code == 200
     assert _login(client, "admin@demo.local", "demo1234").status_code == 200
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(Path(settings.sqlite_path)) as conn:
         payloads = [row[0] for row in conn.execute("SELECT payload FROM managed_users")]
     assert payloads
     assert all(SECRET_PASSWORD not in p for p in payloads)

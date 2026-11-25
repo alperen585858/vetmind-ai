@@ -89,20 +89,48 @@ def _score(lesson: RevisionLesson, ctx: LessonContext) -> float | None:
 
 
 class LessonStore:
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path
+    """Lessons in the ``revision_lessons`` table when ``conn`` is given (#102), else a JSON file
+    at ``path``, else memory only (tests). All lessons are also kept in memory for matching."""
+
+    def __init__(self, path: Path | None = None, *, conn: object = None) -> None:
+        self._conn = conn
+        self.path = None if conn is not None else path
         self._lock = threading.Lock()
         self._lessons: dict[str, RevisionLesson] = {}
         self._load()
 
     # ---- persistence -------------------------------------------------
     def _load(self) -> None:
+        if self._conn is not None:
+            rows = self._conn.execute("SELECT payload FROM revision_lessons ORDER BY created_at").fetchall()
+            for r in rows:
+                lesson = RevisionLesson.model_validate_json(r["payload"])
+                self._lessons[lesson.lesson_id] = lesson
+            return
         if self.path is None or not self.path.is_file():
             return
         raw = json.loads(self.path.read_text(encoding="utf-8") or "{}")
         for item in raw.get("lessons", []):
             lesson = RevisionLesson.model_validate(item)
             self._lessons[lesson.lesson_id] = lesson
+
+    def _put(self, lesson: RevisionLesson) -> None:
+        """Persist one lesson (database row, or the whole JSON file)."""
+        if self._conn is None:
+            self._save()
+            return
+        self._conn.execute(
+            "INSERT INTO revision_lessons (lesson_id, created_at, payload) VALUES (?, ?, ?)"
+            " ON CONFLICT(lesson_id) DO UPDATE SET payload=excluded.payload",
+            (lesson.lesson_id, lesson.created_at.isoformat(), lesson.model_dump_json()),
+        )
+        self._conn.commit()
+
+    def import_lesson(self, lesson: RevisionLesson) -> None:
+        """Add an existing lesson as is (old-data migration)."""
+        with self._lock:
+            self._lessons[lesson.lesson_id] = lesson
+            self._put(lesson)
 
     def _save(self) -> None:
         if self.path is None:
@@ -140,7 +168,7 @@ class LessonStore:
         )
         with self._lock:
             self._lessons[lesson.lesson_id] = lesson
-            self._save()
+            self._put(lesson)
         return lesson
 
     def list(self) -> list[RevisionLesson]:
@@ -164,14 +192,18 @@ class LessonStore:
             lesson = lesson.model_copy(update=changes)
             RevisionLesson.model_validate(lesson.model_dump())
             self._lessons[lesson_id] = lesson
-            self._save()
+            self._put(lesson)
             return lesson
 
     def delete(self, lesson_id: str) -> bool:
         with self._lock:
             if self._lessons.pop(lesson_id, None) is None:
                 return False
-            self._save()
+            if self._conn is not None:
+                self._conn.execute("DELETE FROM revision_lessons WHERE lesson_id=?", (lesson_id,))
+                self._conn.commit()
+            else:
+                self._save()
             return True
 
     # ---- matching ------------------------------------------------------
@@ -187,10 +219,16 @@ class LessonStore:
             return
         with self._lock:
             now = _now()
+            changed = []
             for lesson_id in ids:
                 lesson = self._lessons.get(lesson_id)
                 if lesson is not None:
                     self._lessons[lesson_id] = lesson.model_copy(
                         update={"times_applied": lesson.times_applied + 1, "last_applied_at": now}
                     )
-            self._save()
+                    changed.append(self._lessons[lesson_id])
+            if self._conn is None:
+                self._save()
+            else:
+                for lesson in changed:
+                    self._put(lesson)

@@ -87,18 +87,12 @@ class InMemoryCaseRepository:
 
 
 def build_repository(settings: Settings | None = None) -> CaseRepository:
-    """Factory: memory / sqlite / postgres behind the same Protocol."""
+    """Factory: memory (tests) or the SQL database (postgres / sqlite) behind the same Protocol."""
     cfg = settings or load_settings()
     if cfg.storage_backend == "memory":
         return InMemoryCaseRepository()
-    if cfg.storage_backend == "postgres":
-        if not cfg.database_url:
-            raise RuntimeError(
-                "VETMIND_STORAGE=postgres requires VETMIND_DATABASE_URL or DATABASE_URL."
-            )
-        from app.services.postgres_repository import PostgresCaseRepository
+    from app.services.sqlite_repository import SqlCaseRepository
+    from app.storage.sql import connect_from_settings
 
-        return PostgresCaseRepository(cfg.database_url)
-    from app.services.sqlite_repository import SqliteCaseRepository
-
-    return SqliteCaseRepository(cfg.sqlite_path)
+    # Postgres (default) or the single SQLite file: same SQL, schema from migrations (#102).
+    return SqlCaseRepository(connect_from_settings(cfg))

@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Optional, Protocol
+
+from app.storage.sql import Database, SqlConnection, connect_from_settings
 
 
 class PasswordResetError(Exception):
@@ -63,27 +64,14 @@ class InMemoryPasswordResetStore:
         return n
 
 
-class SqlitePasswordResetStore:
-    def __init__(self, db_path: Path | str) -> None:
-        path = Path(db_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
-        self._conn.execute("PRAGMA journal_mode=DELETE;")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS password_resets (
-                token_hash TEXT PRIMARY KEY,
-                subject TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL,
-                used_at REAL
-            );
-            CREATE INDEX IF NOT EXISTS ix_reset_subject ON password_resets(subject);
-            """
-        )
-        self._conn.commit()
+class SqlPasswordResetStore:
+    """Rows in the shared VetMind database (Postgres, or SQLite for local dev); schema from
+    Alembic migrations (#102)."""
+
+    def __init__(self, conn: SqlConnection) -> None:
+        self._conn = conn
+        # One connection shared by FastAPI's threadpool: serialize every use of it (#36).
+        self._lock = threading.RLock()
 
     def save(self, rec: ResetRecord) -> None:
         with self._lock:
@@ -115,11 +103,17 @@ class SqlitePasswordResetStore:
             return cur.rowcount
 
 
+class SqlitePasswordResetStore(SqlPasswordResetStore):
+    """Same store on one SQLite file (tests, local dev, old-data migration)."""
+
+    def __init__(self, db_path: Path | str) -> None:
+        super().__init__(Database.sqlite(db_path).connect())
+
+
 def build_password_reset_store(settings) -> PasswordResetStore:
     if settings.storage_backend == "memory":
         return InMemoryPasswordResetStore()
-    return SqlitePasswordResetStore(Path(settings.sqlite_path).with_name("vetmind_auth.sqlite3"))
-
+    return SqlPasswordResetStore(connect_from_settings(settings))
 
 class PasswordResetService:
     def __init__(
