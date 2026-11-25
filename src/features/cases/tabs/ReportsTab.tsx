@@ -8,6 +8,7 @@ import { EmptyState } from '../../../shared/ui/EmptyState'
 import { CitedText } from '../../../shared/ui/CitedText'
 import { GroundingWarnings } from '../../../shared/ui/GroundingWarnings'
 import type { VetCase } from '../../../shared/types'
+import { ComparisonSection } from '../../patients/ComparisonSection'
 
 export function ReportWorkspace({ c }: { c: VetCase }) {
   const { t } = useLocale()
@@ -32,6 +33,9 @@ export function ReportWorkspace({ c }: { c: VetCase }) {
 
   return (
     <div className="space-y-4">
+      {draft?.comparison && (c.backendCaseId || c.id.startsWith('case-')) && (
+        <ComparisonSection caseId={c.backendCaseId || c.id} comparison={draft.comparison} editable={false} />
+      )}
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

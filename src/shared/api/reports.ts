@@ -52,6 +52,14 @@ export async function getCaseFindings(
   return request<BackendFindings | null>(`/cases/${caseId}/findings`, { signal })
 }
 
+/** Issue #108: radiologist's wording of the "change since the prior study" section. */
+export async function saveReportComparison(caseId: string, text: string): Promise<BackendDraftReport> {
+  return request(`/cases/${caseId}/report/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ editor_id: currentActorId(), comparison: text }),
+  })
+}
+
 /** Bootstrap blank radiologist draft for failed / unsupported cases (no AI draft). */
 export async function initManualReport(caseId: string): Promise<BackendDraftReport> {
   return request(`/cases/${caseId}/report/manual-init`, { method: 'POST' })

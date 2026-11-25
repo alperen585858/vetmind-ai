@@ -34,6 +34,8 @@ export function printSectionsForCase(c: VetCase): PrintSection[] {
       { key: 'technique', label: sectionLabel('klinikOzet'), text: d.technique?.text ?? '' },
       { key: 'findings', label: sectionLabel('bulgular'), text: d.findings?.text ?? '' },
       { key: 'impression', label: sectionLabel('degerlendirme'), text: d.impression?.text ?? '' },
+      // Issue #108: change since the prior study (only when the case has a patient record).
+      { key: 'comparison', label: translate(documentLocale(), 'patients.comparisonTitle'), text: d.comparison?.text ?? '' },
       { key: 'recommendations', label: sectionLabel('oneriler'), text: d.recommendations?.text ?? '' },
     ].filter((s) => s.text.trim().length > 0)
   }

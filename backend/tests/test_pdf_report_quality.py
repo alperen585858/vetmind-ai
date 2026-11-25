@@ -155,3 +155,34 @@ def test_pdf_skips_empty_sections(monkeypatch) -> None:
     blob = "\n".join(seen)
     assert "Öneriler (Recommendations)" not in blob
     assert "Bulgular (Findings)" in blob
+
+
+def test_pdf_includes_comparison_only_when_present(monkeypatch) -> None:
+    """Issue #108: the prior-study comparison prints between impression and recommendations."""
+    from app.schemas.report import ReportComparison
+
+    seen: list[str] = []
+    real_paragraph = __import__("reportlab.platypus", fromlist=["Paragraph"]).Paragraph
+
+    def _capture(text, style, *args, **kwargs):
+        seen.append(str(text))
+        return real_paragraph(text, style, *args, **kwargs)
+
+    monkeypatch.setattr("app.services.pdf_report.Paragraph", _capture)
+    monkeypatch.setattr("app.services.pdf_report._resolve_font", lambda: "Helvetica")
+    case = CaseRecord(
+        case_id="case-pdf-3",
+        patient_name="Pax",
+        species=Species.CANINE,
+        modality=Modality.MR,
+        anatomical_region=AnatomicalRegion.BRAIN,
+    )
+    build_approved_report_pdf(case, _draft())
+    assert not any("Önceki tetkike göre değişim" in s for s in seen)
+
+    seen.clear()
+    comparison = ReportComparison(prior_case_id="case-old", text="Devam eden bulgu [P1].", citation_map={"P1": "case-old"})
+    build_approved_report_pdf(case, _draft(comparison=comparison))
+    titles = [s for s in seen if "(Comparison)" in s or "(Recommendations)" in s or "(Interpretation" in s]
+    assert [t.split(" (")[-1] for t in titles] == ["Interpretation &amp; Impression)", "Comparison)", "Recommendations)"]
+    assert any("Devam eden bulgu [P1]." in s for s in seen)

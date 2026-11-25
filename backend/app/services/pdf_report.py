@@ -149,6 +149,8 @@ _SECTION_LABELS = (
     ("technique", "Teknik / Klinik özet"),
     ("findings", "Bulgular (Findings)"),
     ("impression", "Yorum / İzlenim (Interpretation & Impression)"),
+    # Issue #108: present only when the case has a patient record (``content.comparison``).
+    ("comparison", "Önceki tetkike göre değişim (Comparison)"),
     ("recommendations", "Öneriler (Recommendations)"),
 )
 _DISCLAIMER_TR = (
