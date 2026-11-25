@@ -19,6 +19,8 @@ const FILES = [
   'features/auth/Login.tsx',
   'features/auth/ForgotPassword.tsx',
   'features/auth/ResetPassword.tsx',
+  'features/auth/VerifyEmail.tsx',
+  'features/auth/ResendVerification.tsx',
   'features/admin/AdminUsers.tsx',
   'features/auth/ChangePasswordCard.tsx',
   'features/auth/PasswordStrength.tsx',
