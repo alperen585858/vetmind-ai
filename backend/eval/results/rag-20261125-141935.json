@@ -13,11 +13,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.1389,
-    "hit_rate": 0.625,
-    "gold_recall": 0.303,
+    "precision": 0.1447,
+    "hit_rate": 0.6471,
+    "gold_recall": 0.3143,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 3.4444,
+    "irrelevant_per_case": 3.4211,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -383,16 +383,16 @@
         "case_id": "tl-spine-paresis-dog",
         "retrieved": [
           [
-            "kb-3",
-            0.646
-          ],
-          [
             "breed-pitfall-001",
-            0.641
+            0.663
           ],
           [
-            "kb-12",
-            0.613
+            "kb-3",
+            0.659
+          ],
+          [
+            "kb-8",
+            0.607
           ],
           [
             "kb-16",
@@ -402,6 +402,30 @@
         "relevant_hits": 1,
         "gold_matched": 1,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-8",
+            0.651
+          ],
+          [
+            "kb-2",
+            0.623
+          ],
+          [
+            "suture-synchondrosis-intersphenoidalis-peke-face-persian",
+            0.621
+          ],
+          [
+            "kb-4",
+            0.618
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -467,11 +491,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.2881,
-    "hit_rate": 0.8125,
-    "gold_recall": 0.4848,
+    "precision": 0.3279,
+    "hit_rate": 0.8235,
+    "gold_recall": 0.5429,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 2.3333,
+    "irrelevant_per_case": 2.1579,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -786,24 +810,40 @@
         "retrieved": [
           [
             "kb-3",
-            0.646
+            0.659
           ],
           [
-            "kb-12",
-            0.613
+            "kb-1",
+            0.533
           ],
           [
-            "kb-16",
-            0.606
-          ],
-          [
-            "kb-8",
-            0.577
+            "kb-5",
+            0.525
           ]
         ],
-        "relevant_hits": 1,
-        "gold_matched": 1,
+        "relevant_hits": 2,
+        "gold_matched": 2,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-2",
+            0.623
+          ],
+          [
+            "kb-4",
+            0.618
+          ],
+          [
+            "kb-1",
+            0.567
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -869,11 +909,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.2958,
-    "hit_rate": 0.875,
-    "gold_recall": 0.6061,
+    "precision": 0.2667,
+    "hit_rate": 0.8235,
+    "gold_recall": 0.5429,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 2.7778,
+    "irrelevant_per_case": 2.8947,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -1240,20 +1280,44 @@
           ],
           [
             "breed-dogs-dolichocephalic",
-            0.539
+            0.541
           ],
           [
             "kb-12",
             0.532
           ],
           [
-            "kb-2",
-            0.53
+            "breed-pitfall-003",
+            0.531
           ]
         ],
-        "relevant_hits": 2,
-        "gold_matched": 2,
+        "relevant_hits": 1,
+        "gold_matched": 1,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-13",
+            0.554
+          ],
+          [
+            "breed-pitfall-006",
+            0.554
+          ],
+          [
+            "breed-pitfall-007",
+            0.55
+          ],
+          [
+            "breed-pitfall-003",
+            0.545
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -1319,11 +1383,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.1528,
-    "hit_rate": 0.625,
-    "gold_recall": 0.3333,
+    "precision": 0.1447,
+    "hit_rate": 0.5882,
+    "gold_recall": 0.3143,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 3.3889,
+    "irrelevant_per_case": 3.4211,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -1690,24 +1754,48 @@
         "retrieved": [
           [
             "kb-3",
-            0.712
+            0.699
           ],
           [
             "kb-12",
-            0.676
+            0.691
           ],
           [
             "breed-pitfall-001",
-            0.667
+            0.678
           ],
           [
             "kb-8",
-            0.622
+            0.613
           ]
         ],
         "relevant_hits": 1,
         "gold_matched": 1,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-8",
+            0.659
+          ],
+          [
+            "kb-2",
+            0.609
+          ],
+          [
+            "kb-14",
+            0.605
+          ],
+          [
+            "suture-sutura-coronalis-normal-peke-face-persian-neonatal-synostosis-in-cats",
+            0.599
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -1773,11 +1861,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.4386,
-    "hit_rate": 0.9375,
-    "gold_recall": 0.697,
+    "precision": 0.4333,
+    "hit_rate": 0.9412,
+    "gold_recall": 0.6857,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 1.7778,
+    "irrelevant_per_case": 1.7895,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -2095,10 +2183,6 @@
             0.571
           ],
           [
-            "kb-12",
-            0.532
-          ],
-          [
             "kb-2",
             0.53
           ],
@@ -2110,6 +2194,30 @@
         "relevant_hits": 3,
         "gold_matched": 3,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-2",
+            0.537
+          ],
+          [
+            "kb-3",
+            0.535
+          ],
+          [
+            "kb-5",
+            0.533
+          ],
+          [
+            "kb-4",
+            0.532
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -2167,11 +2275,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.4576,
-    "hit_rate": 1.0,
-    "gold_recall": 0.7576,
+    "precision": 0.4426,
+    "hit_rate": 0.9412,
+    "gold_recall": 0.7143,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 1.7778,
+    "irrelevant_per_case": 1.7895,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -2490,24 +2598,40 @@
         "retrieved": [
           [
             "kb-3",
-            0.574
-          ],
-          [
-            "kb-12",
-            0.533
-          ],
-          [
-            "kb-2",
-            0.532
+            0.567
           ],
           [
             "kb-1",
-            0.531
+            0.535
+          ],
+          [
+            "kb-2",
+            0.528
           ]
         ],
         "relevant_hits": 3,
         "gold_matched": 3,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-3",
+            0.541
+          ],
+          [
+            "kb-2",
+            0.537
+          ],
+          [
+            "kb-5",
+            0.533
+          ]
+        ],
+        "relevant_hits": 0,
+        "gold_matched": 0,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -2569,9 +2693,9 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.4098,
+    "precision": 0.4154,
     "hit_rate": 1.0,
-    "gold_recall": 0.7273,
+    "gold_recall": 0.7429,
     "abstain_rate": 0.0,
     "irrelevant_per_case": 2.0,
     "cases": [
@@ -2896,24 +3020,48 @@
         "retrieved": [
           [
             "kb-3",
-            0.593
-          ],
-          [
-            "kb-11",
-            0.566
+            0.583
           ],
           [
             "kb-1",
-            0.555
+            0.559
           ],
           [
-            "kb-7",
-            0.55
+            "kb-5",
+            0.532
+          ],
+          [
+            "kb-2",
+            0.531
           ]
         ],
-        "relevant_hits": 2,
-        "gold_matched": 2,
+        "relevant_hits": 3,
+        "gold_matched": 3,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-4",
+            0.55
+          ],
+          [
+            "kb-2",
+            0.541
+          ],
+          [
+            "kb-3",
+            0.538
+          ],
+          [
+            "kb-5",
+            0.533
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -2979,11 +3127,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.4167,
+    "precision": 0.4286,
     "hit_rate": 1.0,
-    "gold_recall": 0.7273,
+    "gold_recall": 0.7429,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 1.9444,
+    "irrelevant_per_case": 1.8947,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -3306,24 +3454,44 @@
         "retrieved": [
           [
             "kb-3",
-            0.59
-          ],
-          [
-            "kb-11",
-            0.569
+            0.58
           ],
           [
             "kb-1",
-            0.552
+            0.556
           ],
           [
-            "kb-7",
-            0.544
+            "kb-5",
+            0.533
+          ],
+          [
+            "kb-2",
+            0.527
           ]
         ],
-        "relevant_hits": 2,
-        "gold_matched": 2,
+        "relevant_hits": 3,
+        "gold_matched": 3,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-4",
+            0.553
+          ],
+          [
+            "kb-3",
+            0.54
+          ],
+          [
+            "kb-2",
+            0.529
+          ]
+        ],
+        "relevant_hits": 1,
+        "gold_matched": 1,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -3385,11 +3553,11 @@
       "embedding": "hash",
       "top_k": 4
     },
-    "precision": 0.6786,
+    "precision": 0.7241,
     "hit_rate": 1.0,
-    "gold_recall": 0.5455,
+    "gold_recall": 0.5714,
     "abstain_rate": 1.0,
-    "irrelevant_per_case": 0.5,
+    "irrelevant_per_case": 0.4211,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -3620,16 +3788,28 @@
         "retrieved": [
           [
             "kb-3",
-            0.59
+            0.58
           ],
           [
-            "kb-11",
-            0.569
+            "kb-1",
+            0.556
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-4",
+            0.553
           ]
         ],
         "relevant_hits": 1,
         "gold_matched": 1,
-        "gold_total": 4
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -3661,11 +3841,11 @@
       "embedding": "ollama:bge-m3",
       "top_k": 4
     },
-    "precision": 0.4203,
+    "precision": 0.4384,
     "hit_rate": 1.0,
-    "gold_recall": 0.8182,
+    "gold_recall": 0.8571,
     "abstain_rate": 0.0,
-    "irrelevant_per_case": 2.2222,
+    "irrelevant_per_case": 2.1579,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -3676,7 +3856,7 @@
           ],
           [
             "kb-5",
-            0.817
+            0.816
           ],
           [
             "kb-9",
@@ -3756,11 +3936,11 @@
         "retrieved": [
           [
             "breed-pitfall-001",
-            0.8
+            0.801
           ],
           [
             "breed-pitfall-007",
-            0.794
+            0.795
           ],
           [
             "breed-pitfall-002",
@@ -3828,11 +4008,11 @@
         "retrieved": [
           [
             "kb-7",
-            0.831
+            0.83
           ],
           [
             "kb-2",
-            0.743
+            0.744
           ],
           [
             "kb-5",
@@ -3852,11 +4032,11 @@
         "retrieved": [
           [
             "kb-7",
-            0.813
+            0.812
           ],
           [
             "kb-5",
-            0.745
+            0.744
           ],
           [
             "kb-2",
@@ -3936,7 +4116,7 @@
           ],
           [
             "kb-13",
-            0.775
+            0.776
           ]
         ],
         "relevant_hits": 1,
@@ -4020,24 +4200,48 @@
         "retrieved": [
           [
             "kb-1",
-            0.799
+            0.803
           ],
           [
             "kb-3",
-            0.785
-          ],
-          [
-            "kb-13",
             0.778
           ],
           [
-            "kb-12",
-            0.769
+            "kb-2",
+            0.743
+          ],
+          [
+            "kb-5",
+            0.74
+          ]
+        ],
+        "relevant_hits": 3,
+        "gold_matched": 3,
+        "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-1",
+            0.765
+          ],
+          [
+            "kb-3",
+            0.764
+          ],
+          [
+            "kb-4",
+            0.759
+          ],
+          [
+            "kb-5",
+            0.748
           ]
         ],
         "relevant_hits": 2,
         "gold_matched": 2,
-        "gold_total": 4
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",
@@ -4103,11 +4307,11 @@
       "embedding": "ollama:bge-m3",
       "top_k": 4
     },
-    "precision": 0.8214,
-    "hit_rate": 0.9375,
-    "gold_recall": 0.6364,
+    "precision": 0.8182,
+    "hit_rate": 1.0,
+    "gold_recall": 0.7143,
     "abstain_rate": 1.0,
-    "irrelevant_per_case": 0.2778,
+    "irrelevant_per_case": 0.3158,
     "cases": [
       {
         "case_id": "brain-mri-seizure-cat",
@@ -4118,7 +4322,7 @@
           ],
           [
             "kb-5",
-            0.817
+            0.816
           ]
         ],
         "relevant_hits": 2,
@@ -4174,11 +4378,11 @@
         "retrieved": [
           [
             "breed-pitfall-001",
-            0.8
+            0.801
           ],
           [
             "breed-pitfall-007",
-            0.794
+            0.795
           ],
           [
             "breed-pitfall-002",
@@ -4226,7 +4430,7 @@
         "retrieved": [
           [
             "kb-7",
-            0.831
+            0.83
           ]
         ],
         "relevant_hits": 1,
@@ -4238,7 +4442,7 @@
         "retrieved": [
           [
             "kb-7",
-            0.813
+            0.812
           ]
         ],
         "relevant_hits": 1,
@@ -4343,10 +4547,39 @@
       },
       {
         "case_id": "tl-spine-paresis-dog",
-        "retrieved": [],
-        "relevant_hits": 0,
-        "gold_matched": 0,
+        "retrieved": [
+          [
+            "kb-1",
+            0.803
+          ],
+          [
+            "kb-3",
+            0.778
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
         "gold_total": 4
+      },
+      {
+        "case_id": "tl-fce-cat",
+        "retrieved": [
+          [
+            "kb-1",
+            0.765
+          ],
+          [
+            "kb-3",
+            0.764
+          ],
+          [
+            "kb-4",
+            0.759
+          ]
+        ],
+        "relevant_hits": 2,
+        "gold_matched": 2,
+        "gold_total": 2
       },
       {
         "case_id": "empty-abdomen",

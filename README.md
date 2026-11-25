@@ -728,12 +728,18 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 - **Ölçüm:** `python scripts/rag_eval.py --store chroma` sonuçları bellek içi depoyla birebir aynı (yalnızca depolama değişti).
 - Boyut/embedding ayarı değişirse vektörler ilk açılışta özel kaynaklar dahil yeniden hesaplanır.
 
-**Anlamsal embedding (bge-m3).** `VETMIND_RAG_EMBEDDING=ollama` ile kaynaklar Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`). `npm run backend:dev:ai` bunu otomatik açar. Model yoksa ya da Ollama kapalıysa uygulama hash embedding'e geri döner. Kurulum: `ollama pull bge-m3` (~1.2 GB).
+**Anlamsal embedding (bge-m3, varsayılan, #101).** Kaynaklar ve sorgular Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`); "nöbet" ile "konvülsiyon", "akciğer" ile "pulmoner" yakın düşer. Kurulum: `ollama pull bge-m3` (~1.2 GB). Ollama kapalıysa veya model yoksa uygulama hata vermeden hash embedding'e döner; Admin → **Sistem Durumu** hangi embedding'in çalıştığını ve geri dönüldüyse nedenini gösterir (`/api/v1/health` → `rag_embedding`). `VETMIND_RAG_EMBEDDING=hash` bge-m3'ü kapatır.
 
-| | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız |
-|---|---:|---:|---:|---:|---:|
-| Hash (varsayılan) | 0.72 | 1.00 | 0.57 | 1.00 | 0.42 |
-| bge-m3 | 0.82 | 1.00 | 0.71 | 1.00 | 0.32 |
+Güncel ölçüm (25 Kasım 2026, kaynak kartları ve parçalama sonrası, 19 sentetik vaka; `eval/results/rag-20261125-141935.md`):
+
+| Embedding | İsabetlilik | İsabet | Kapsam | Boş vakada kaynaksız | Vaka başı alakasız | Vaka başı kaynak |
+|---|---:|---:|---:|---:|---:|---:|
+| Hash (yedek) | 0.72 | 1.00 | 0.57 | 1.00 | 0.42 | 1.53 |
+| **bge-m3 (varsayılan)** | **0.82** | 1.00 | **0.71** | 1.00 | **0.32** | 1.74 |
+
+Hazır kaynaklar tek parça olduğu ve kartları elle verildiği için sayılar 11 Kasım ölçümüyle aynı; kartlar ve parçalama klinik yüklemeleri etkiliyor.
+
+**Yeniden sıralama (reranking) denendi, eklenmedi.** bge-m3 + bölge/tür filtresiyle bulunan ilk 12 aday `qwen2.5:7b`'ye verildi; model yalnızca listeden seçip sıraladı (`scripts/rag_rerank_experiment.py`, `eval/results/rerank-20261125-143506.md`). Kapsam 0.71 → 0.89'a çıktı ama isabetlilik 0.82 → 0.65'e düştü, vaka başı alakasız kaynak 0.32 → 0.95'e çıktı ve kaynak olmaması gereken iki vakada da model kaynak seçti (boş vakada kaynaksız 1.00 → 0.00). Rapor başına ~25 sn (medyan 29 sn) ek süre de geldi. İyileşme olmadığı için üretim hattına girmedi.
 
 bge-m3 sıralamada çok daha iyi (ilgili kaynağı olan her vakada 1. sıradaki kaynak doğru), ama yoğun vektörlerde alakasız metin de yüksek puan aldığı için eşikler daha yüksek: bölgeli vakada 0.50, bölgesi "diğer/bilinmiyor" vakada 0.60. Torakolomber vakalar (#49) kendi bölgeleriyle yalnızca omurga kaynaklarını görür (SPINE_TL + SPINE); önceden "diğer" sayıldıkları için göğüs kaynakları geliyor ve bge-m3'te eşiğe takılıyorlardı. Ölçüm seti 19 vaka (2 torakolomber).
 **Klinik kural:** RAG klinik kanıt sayılmaz; draft’ta `rag_note` uyarısı vardır; validator klinik validasyon bayrağını engeller.
