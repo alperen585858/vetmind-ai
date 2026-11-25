@@ -289,3 +289,33 @@ def test_patient_actions_are_audited(client: TestClient, container: AppContainer
     client.put(f"/api/v1/cases/{case['case_id']}/patient", json={"patient_id": pat["patient_id"]})
     kinds = {e["event_type"] for e in container.audit.list_events(limit=200)}
     assert {"patient.create", "patient.link_case"} <= kinds
+
+
+# --- backfill --------------------------------------------------------------------------
+
+from app.patients_backfill import backfill_patients  # noqa: E402
+
+
+def test_backfill_groups_cases_and_skips_ambiguous(client: TestClient, container: AppContainer) -> None:
+    a1 = _case(client, patient_name="Pamuk", species="feline", breed="Van")
+    a2 = _case(client, patient_name="PAMUK ", species="feline", breed=None)
+    b1 = _case(client, patient_name="Karabaş", species="canine", breed="Kangal")
+    b2 = _case(client, patient_name="karabas", species="canine", breed="Golden")
+    already = _patient(client, name="Zeytin", microchip=None)
+    linked = _case(client, patient_name="Zeytin", patient_id=already["patient_id"])
+
+    dry = backfill_patients(container.repo, container.patient_store, dry_run=True)
+    assert (dry.created, dry.linked_cases) == (1, 2)
+    assert container.repo.get_case(a1["case_id"]).patient_id is None  # dry run changes nothing
+
+    report = backfill_patients(container.repo, container.patient_store)
+    assert (report.created, report.linked_cases) == (1, 2)
+    assert [(s, b) for _c, _n, s, b in report.ambiguous] == [("canine", ["golden", "kangal"])]
+    pid = container.repo.get_case(a1["case_id"]).patient_id
+    assert pid and container.repo.get_case(a2["case_id"]).patient_id == pid
+    assert container.patient_store.get(pid).breed == "Van"
+    assert container.repo.get_case(b1["case_id"]).patient_id is None
+    assert container.repo.get_case(b2["case_id"]).patient_id is None
+    assert container.repo.get_case(linked["case_id"]).patient_id == already["patient_id"]
+    # Running again finds nothing new.
+    assert backfill_patients(container.repo, container.patient_store).created == 0
