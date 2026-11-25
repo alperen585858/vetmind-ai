@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bulk-load knowledge passages into the local JSON RAG index.
+"""Bulk-load knowledge passages into the RAG vector store (ChromaDB by default).
 
 Usage (from backend/):
   python scripts/rag_bulk_ingest.py path/to/docs.jsonl
@@ -24,7 +24,10 @@ _BACKEND = Path(__file__).resolve().parents[1]
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-from app.rag.vector_store import JsonVectorStore  # noqa: E402
+from dataclasses import replace  # noqa: E402
+
+from app.rag.ollama_embeddings import build_embedding_backend  # noqa: E402
+from app.rag.stores import build_vector_store  # noqa: E402
 from app.settings import load_settings  # noqa: E402
 
 
@@ -49,22 +52,24 @@ def _load_rows(path: Path) -> list[dict]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bulk ingest RAG documents into VetMind JSON index.")
+    parser = argparse.ArgumentParser(description="Bulk ingest RAG documents into the VetMind vector store (Chroma by default).")
     parser.add_argument("path", type=Path, help="JSONL or JSON file of documents")
     parser.add_argument(
         "--index",
         type=Path,
         default=None,
-        help="Override VETMIND_RAG_INDEX_PATH",
+        help="Use this JSON index file instead of Chroma (VETMIND_RAG_STORE=json)",
     )
     args = parser.parse_args()
     if not args.path.is_file():
         print(f"File not found: {args.path}", file=sys.stderr)
         return 1
     settings = load_settings()
-    index_path = args.index or settings.rag_index_path
-    store = JsonVectorStore(path=index_path)
+    if args.index:
+        settings = replace(settings, rag_store="json", rag_index_path=args.index)
+    store = build_vector_store(settings, build_embedding_backend())
     store.load()
+    index_path = getattr(store, "url", None) or store.path
     rows = _load_rows(args.path)
     added = store.add_documents_bulk(rows, default_approved=False)
     print(f"Added {len(added)} document(s). Index size={len(store)}. path={index_path}")

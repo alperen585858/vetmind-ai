@@ -694,7 +694,7 @@ oranı, hakemce desteklenen cümle, süre, çağrı sayısı; `--repeat` ile ort
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash n-gram + cosine; `JsonVectorStore` → `data/rag_index.json` |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash n-gram (veya bge-m3) + cosine; vektörler ChromaDB'de (`data/chroma`) |
 | lexical | `lexical` | Token overlap |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.  
@@ -719,7 +719,11 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 | Önce | 0.14 | 0.62 | 0.30 | 0.00 | 3.44 |
 | Sonra | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
 
-Boyut/embedding ayarı değişirse `rag_index.json` ilk açılışta özel kaynaklar dahil yeniden hesaplanır.  
+**Vektör deposu: ChromaDB (#103).** Vektörleri Chroma değil bizim kodumuz üretir (hash veya bge-m3); Chroma yalnızca saklar ve arar (`app/rag/chroma_store.py`, kosinüs uzayı). Kaynak kartı (bölge, tür, özet, `tag_source`) ve parça bilgisi (`parent_id`, `chunk_index`, `chunk_count`) her kaydın metadata'sındadır; bölge/tür filtresi aramada Chroma `where` koşulu olarak uygulanır (her etiket için `r_BRAIN`, `s_canine` gibi bir mantıksal alan). Kaynak başına en fazla 2 parça kuralı ve skor eşikleri değişmedi. Varsayılan yerel klasör `backend/data/chroma`; ayrı bir Chroma sunucusu için `VETMIND_CHROMA_URL`. Eski davranış (tek JSON dosyası) `VETMIND_RAG_STORE=json` ile duruyor; testler bellek içi depoyu kullanır.
+
+- **Taşıma:** Chroma boşsa ilk açılışta `data/rag_index.json` (klinik kaynakları dahil) otomatik kopyalanır; dosyaya dokunulmaz. Elle: `python scripts/rag_migrate_to_chroma.py` (`--replace` ile yeniden).
+- **Ölçüm:** `python scripts/rag_eval.py --store chroma` sonuçları bellek içi depoyla birebir aynı (yalnızca depolama değişti).
+- Boyut/embedding ayarı değişirse vektörler ilk açılışta özel kaynaklar dahil yeniden hesaplanır.
 
 **Anlamsal embedding (bge-m3).** `VETMIND_RAG_EMBEDDING=ollama` ile kaynaklar Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`). `npm run backend:dev:ai` bunu otomatik açar. Model yoksa ya da Ollama kapalıysa uygulama hash embedding'e geri döner. Kurulum: `ollama pull bge-m3` (~1.2 GB).
 
@@ -963,7 +967,10 @@ Backend özeti: [backend/README.md](backend/README.md).
 | Değişken | Varsayılan | Anlam |
 |----------|------------|--------|
 | `VETMIND_RAG` | `embedding` | `embedding` \| `lexical` |
-| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` | Vektör indeks |
+| `VETMIND_RAG_STORE` | `chroma` | `chroma` \| `json` (eski tek dosya) |
+| `VETMIND_CHROMA_PATH` | `./data/chroma` | Chroma klasörü |
+| `VETMIND_CHROMA_URL` | — | Ayrı Chroma sunucusu (ör. `http://chroma:8000`); boşsa yerel klasör |
+| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` | Eski JSON indeks: Chroma'ya taşıma kaynağı veya `RAG_STORE=json` |
 | `VETMIND_VISION_ENDPOINT` | — | Remote Vision HTTP |
 | `VETMIND_VISION_MODEL_ID` | `remote-vision-v1` | Remote model id |
 | `VETMIND_VISION_API_KEY` | — | Bearer |

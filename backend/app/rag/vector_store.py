@@ -1,15 +1,26 @@
-"""On-disk vector index for embedding RAG (JSON). Qdrant-shaped swap point later."""
+"""Vector index for embedding RAG.
+
+``VectorStore`` holds the documents and all indexing rules (seed corpus, chunking, source
+cards, re-embedding when the embedding changes). Subclasses only decide where the documents
+live: ``JsonVectorStore`` (in memory, or a JSON file) and ``ChromaVectorStore``
+(app/rag/chroma_store.py, the default on disk). Our code computes every embedding; the store
+only keeps and searches the vectors.
+"""
 
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import asdict, dataclass, field
+from functools import wraps
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from app.rag.breed_morphotypes import load_default_rag_corpus
 from app.rag.chunking import chunk_id, split_passage
 from app.rag.corpus import CorpusDoc
-from app.rag.embeddings import EmbeddingBackend, default_embedding_backend
+from app.rag.embeddings import EmbeddingBackend, cosine, default_embedding_backend
+from app.rag.relevance import RagFilter
 from app.rag.source_cards import SourceCardTagger
 
 
@@ -55,54 +66,64 @@ def _doc_embed_text(d: IndexedDoc) -> str:
     return _embed_text(d.title, d.section, d.passage, d.keywords, d.context)
 
 
+_F = TypeVar("_F", bound=Callable)
+
+
+def _locked(fn: _F) -> _F:
+    """Serialize changes so two uploads at once cannot drop each other's chunks."""
+
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):  # noqa: ANN001, ANN202
+        with self._lock:
+            return fn(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
+
+
 def _signature(backend: EmbeddingBackend) -> str:
     return str(getattr(backend, "signature", f"dim-{backend.dim}"))
 
 
-class JsonVectorStore:
-    """Persists documents + embedding vectors under ``path`` (optional)."""
+class VectorStore:
+    """Documents + vectors with the indexing rules; storage is up to the subclass.
+
+    Subclasses implement ``_read`` (stored docs and embedding signature) and ``save``, and may
+    override ``search`` to filter and rank inside the database.
+    """
 
     def __init__(self, path: Path | None = None, backend: EmbeddingBackend | None = None) -> None:
         self.path = path
         self._backend = backend or default_embedding_backend()
         self._docs: list[IndexedDoc] = []
+        self._lock = threading.RLock()
 
     @property
     def backend(self) -> EmbeddingBackend:
         return self._backend
 
-    def load(self) -> None:
-        if self.path is None or not self.path.is_file():
-            self.reindex_seed(persist=self.path is not None)
-            return
-        raw = json.loads(self.path.read_text(encoding="utf-8"))
-        self._docs = [
-            IndexedDoc(
-                source_id=d["source_id"],
-                title=d["title"],
-                section=d["section"],
-                passage=d["passage"],
-                keywords=list(d.get("keywords") or []),
-                vector=list(d["vector"]),
-                approved=bool(d.get("approved", False)),
-                regions=list(d.get("regions") or []),
-                species=list(d.get("species") or []),
-                summary=str(d.get("summary") or ""),
-                tag_source=str(d.get("tag_source") or ""),
-                parent_id=str(d.get("parent_id") or ""),
-                chunk_index=int(d.get("chunk_index") or 0),
-                chunk_count=int(d.get("chunk_count") or 1),
-                context=str(d.get("context") or ""),
-            )
-            for d in raw.get("documents", [])
-        ]
-        if not self._docs:
-            self.reindex_seed(persist=True)
-            return
+    @property
+    def persistent(self) -> bool:
+        return self.path is not None
 
+    def _read(self) -> tuple[list[IndexedDoc], str] | None:
+        """Stored documents and the embedding signature they were made with (None = nothing stored)."""
+        raise NotImplementedError
+
+    def save(self) -> None:
+        raise NotImplementedError
+
+    def load(self) -> None:
+        with self._lock:
+            stored = self._read()
+            if not stored or not stored[0]:
+                self.reindex_seed(persist=self.persistent)
+                return
+            self._docs, stored_sig = stored
+            self._refresh_after_load(stored_sig)
+
+    def _refresh_after_load(self, stored_sig: str) -> None:
         # Embedding config changed (e.g. 64 -> 1024 dims): re-embed every doc, custom
         # ones included, otherwise cosine() sees length-mismatched vectors and returns 0.
-        stored_sig = raw.get("embedding") or f"dim-{raw.get('dim')}"
         reembedded = False
         if stored_sig != _signature(self._backend) or any(
             len(d.vector) != self._backend.dim for d in self._docs
@@ -113,7 +134,7 @@ class JsonVectorStore:
             reembedded = True
 
         # Add missing seed docs and re-index seed docs whose text changed in code
-        # (e.g. translated titles), so an old index file never serves stale wording.
+        # (e.g. translated titles), so an old index never serves stale wording.
         # Docs added at runtime (custom-*) are not in the corpus and stay untouched.
         existing = {doc.source_id: doc for doc in self._docs}
         stale_seed_docs = []
@@ -140,20 +161,19 @@ class JsonVectorStore:
         if stale_seed_docs or reembedded:
             self.save()
 
-    def save(self) -> None:
-        if self.path is None:
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "version": "1.0.0",
-            "dim": self._backend.dim,
-            "embedding": _signature(self._backend),
-            "method": "hash_embedding_cosine",
-            "count": len(self._docs),
-            "documents": [asdict(d) for d in self._docs],
-            "note": "Local JSON vector store. Not Qdrant. Not clinical evidence.",
-        }
-        self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    def search(
+        self, query_vector: list[float], *, filters: RagFilter | None = None, limit: int = 100
+    ) -> list[tuple[float, IndexedDoc]]:
+        """(cosine, doc) pairs that pass ``filters``, best first, at most ``limit``."""
+        with self._lock:
+            docs = list(self._docs)
+        scored = [
+            (cosine(query_vector, d.vector), d)
+            for d in docs
+            if filters is None or filters.allows(d.regions, d.species)
+        ]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return scored[:limit]
 
     def _prefetch(self, texts: list[str]) -> None:
         """Batch-embed up front when the backend supports it (one HTTP call, then cache hits)."""
@@ -161,6 +181,7 @@ class JsonVectorStore:
         if callable(embed_many) and texts:
             embed_many(texts)
 
+    @_locked
     def reindex_seed(self, *, persist: bool = True) -> int:
         self._docs = []
         corpus = load_default_rag_corpus()
@@ -171,6 +192,7 @@ class JsonVectorStore:
             self.save()
         return len(self._docs)
 
+    @_locked
     def add_corpus_doc(
         self,
         doc: CorpusDoc,
@@ -200,6 +222,7 @@ class JsonVectorStore:
             self.save()
         return indexed
 
+    @_locked
     def add_document(
         self,
         *,
@@ -262,6 +285,7 @@ class JsonVectorStore:
                 groups.setdefault(d.source_key, []).append(d)
         return [sorted(g, key=lambda d: d.chunk_index) for g in groups.values()]
 
+    @_locked
     def set_card(
         self,
         source_id: str,
@@ -286,6 +310,7 @@ class JsonVectorStore:
     def get(self, source_id: str) -> IndexedDoc | None:
         return next((d for d in self._docs if d.source_id == source_id), None)
 
+    @_locked
     def add_documents_bulk(
         self,
         items: list[dict],
@@ -344,3 +369,56 @@ class JsonVectorStore:
 
     def __len__(self) -> int:
         return len(self._docs)
+
+
+class JsonVectorStore(VectorStore):
+    """In memory (``path=None``, used by tests and evaluation) or one JSON file."""
+
+    def _read(self) -> tuple[list[IndexedDoc], str] | None:
+        if self.path is None or not self.path.is_file():
+            return None
+        return read_json_index(self.path)
+
+    def save(self) -> None:
+        if self.path is None:
+            return
+        with self._lock:
+            payload = {
+                "version": "1.0.0",
+                "dim": self._backend.dim,
+                "embedding": _signature(self._backend),
+                "method": "hash_embedding_cosine",
+                "count": len(self._docs),
+                "documents": [asdict(d) for d in self._docs],
+                "note": "Local JSON vector store. Not clinical evidence.",
+            }
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        tmp.replace(self.path)
+
+
+def read_json_index(path: Path) -> tuple[list[IndexedDoc], str]:
+    """Documents and embedding signature from a rag_index.json file (also used for migration)."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    docs = [
+        IndexedDoc(
+            source_id=d["source_id"],
+            title=d["title"],
+            section=d["section"],
+            passage=d["passage"],
+            keywords=list(d.get("keywords") or []),
+            vector=list(d["vector"]),
+            approved=bool(d.get("approved", False)),
+            regions=list(d.get("regions") or []),
+            species=list(d.get("species") or []),
+            summary=str(d.get("summary") or ""),
+            tag_source=str(d.get("tag_source") or ""),
+            parent_id=str(d.get("parent_id") or ""),
+            chunk_index=int(d.get("chunk_index") or 0),
+            chunk_count=int(d.get("chunk_count") or 1),
+            context=str(d.get("context") or ""),
+        )
+        for d in raw.get("documents", [])
+    ]
+    return docs, str(raw.get("embedding") or f"dim-{raw.get('dim')}")
