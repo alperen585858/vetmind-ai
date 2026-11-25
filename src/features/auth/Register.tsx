@@ -1,26 +1,23 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, Clock, UserPlus } from 'lucide-react'
+import { ArrowRight, MailCheck, UserPlus } from 'lucide-react'
 import { LocalizedLink } from '../../shared/shell/LocalizedLink'
-import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
-import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { LanguageSwitcher } from '../../shared/shell/LanguageSwitcher'
 import { Logo } from '../../shared/ui/Logo'
 import { Button } from '../../shared/ui/Button'
 import { PasswordStrength, usePasswordError } from './PasswordStrength'
-import { backendAccountSession, postLoginPath, setBackendTokens } from '../../shared/auth/session'
 import { userErrorMessage } from '../../shared/lib/apiErrors'
 import { BackendUnavailableError, backendRegister } from '../../shared/api'
+import { ResendVerification } from './ResendVerification'
 
-// B2B: only veterinarians can sign up; accounts start inactive until an admin assigns a clinic.
+// B2B: only veterinarians can sign up. They verify their email (issue #41), then an admin
+// assigns a clinic and activates the account; sign-up itself never signs anyone in.
 const SIGNUP_ROLE = 'vet' as const
 
 const fieldClass = 'input mt-1.5 w-full bg-navy-950 text-white ring-navy-700'
 
 export default function Register() {
-  const { signIn, pushToast } = useApp()
-  const { t, locale } = useLocale()
-  const nav = useLocalizedNavigate()
+  const { t } = useLocale()
   const passwordError = usePasswordError()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -38,16 +35,9 @@ export default function Register() {
     if (password !== confirm) return setError(t('auth.passwordsDontMatch'))
     setBusy(true)
     try {
+      // Same answer whether or not the address already has an account (no email-exists leak).
       const res = await backendRegister({ email, password, role: SIGNUP_ROLE, display_name: name.trim() || undefined })
-      if (res.status === 'pending_approval' || !res.session) {
-        setPendingEmail(res.email)
-        return
-      }
-      setBackendTokens(res.session)
-      const session = backendAccountSession(res.email, res.role, name)
-      signIn(session)
-      pushToast({ tone: 'success', title: t('auth.registerSuccessTitle'), body: session.email })
-      nav(postLoginPath(session.role, locale))
+      setPendingEmail(res.email)
     } catch (err) {
       setError(err instanceof BackendUnavailableError ? t('auth.backendUnreachable') : userErrorMessage(err, t) || t('auth.loginFailed'))
     } finally {
@@ -66,12 +56,14 @@ export default function Register() {
 
         {pendingEmail ? (
           <div className="mt-10 rounded-2xl border border-navy-800 bg-navy-900/80 p-6 shadow-xl backdrop-blur" role="status">
-            <div className="mb-1 flex items-center gap-2 text-amber-300">
-              <Clock className="h-5 w-5" />
-              <h1 className="text-lg font-semibold text-white">{t('auth.registerPendingTitle')}</h1>
+            <div className="mb-1 flex items-center gap-2 text-teal-300">
+              <MailCheck className="h-5 w-5" />
+              <h1 className="text-lg font-semibold text-white">{t('auth.registerCheckInboxTitle')}</h1>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-navy-200">{t('auth.registerPendingBody')}</p>
+            <p className="mt-2 text-sm leading-relaxed text-navy-200">{t('auth.registerCheckInboxBody')}</p>
             <p className="mt-3 font-mono text-xs text-navy-400">{pendingEmail}</p>
+            <p className="mt-3 text-xs leading-relaxed text-navy-400">{t('auth.registerCheckInboxHint')}</p>
+            <ResendVerification email={pendingEmail} />
             <LocalizedLink
               to="/giris"
               className="mt-5 inline-flex font-semibold text-teal-300 hover:underline"
