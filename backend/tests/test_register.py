@@ -130,7 +130,7 @@ def test_vet_registration_is_pending_until_admin_activates(tmp_path: Path) -> No
 
     activated = client.patch(
         "/api/v1/admin/users/vet.new@clinic.test",
-        json={"active": True, "clinic_id": "clinic-demo-a"},
+        json={"active": True, "clinic_id": "clinic-demo-a", "email_verified": True},
         headers=admin,
     )
     assert activated.status_code == 200, activated.text
@@ -235,7 +235,11 @@ def test_admin_cannot_activate_pending_vet_without_clinic(tmp_path: Path) -> Non
     client, container = _app(tmp_path)
     _register(client, email="vet.pending@clinic.test", role="vet")
     admin = _admin(client)
-    res = client.patch("/api/v1/admin/users/vet.pending@clinic.test", json={"active": True}, headers=admin)
+    res = client.patch(
+        "/api/v1/admin/users/vet.pending@clinic.test",
+        json={"active": True, "email_verified": True},
+        headers=admin,
+    )
     assert res.status_code == 422
     assert "Assign a clinic" in res.json()["detail"]["message"]
     assert container.workflow_store.get_user("vet.pending@clinic.test").active is False
