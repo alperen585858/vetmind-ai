@@ -165,6 +165,10 @@ class ChromaVectorStore(VectorStore):
     def persistent(self) -> bool:
         return True
 
+    @property
+    def kind(self) -> str:
+        return "chroma"
+
     def _open_collection(self):  # noqa: ANN202
         return self._client.get_or_create_collection(
             self.collection_name, configuration={"hnsw": {"space": "cosine"}}, embedding_function=None

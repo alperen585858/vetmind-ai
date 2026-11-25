@@ -19,7 +19,7 @@ from app.models.registry import ModelRegistry
 from app.models.vlm_vision import build_optional_vlm_vision
 from app.orchestration.orchestrator import AIOrchestrator
 from app.rag.embedding_retriever import EmbeddingRagRetriever
-from app.rag.ollama_embeddings import build_embedding_backend
+from app.rag.ollama_embeddings import build_embedding_backend_with_status
 from app.rag.retriever import LexicalRagRetriever
 from app.rag.source_cards import build_source_card_tagger
 from app.rag.stores import build_vector_store
@@ -107,9 +107,11 @@ class AppContainer:
             self.rag = LexicalRagRetriever()
             self.rag_method = "lexical_token_overlap"
             self.vector_store = None
+            self.rag_embedding = None
         else:
+            embedding_backend, self.rag_embedding = build_embedding_backend_with_status()
             self.vector_store = build_vector_store(
-                self.settings, build_embedding_backend(), in_memory=self.storage_backend == "memory"
+                self.settings, embedding_backend, in_memory=self.storage_backend == "memory"
             )
             self.vector_store.load()
             self.rag = EmbeddingRagRetriever(store=self.vector_store)

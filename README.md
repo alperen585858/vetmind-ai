@@ -131,6 +131,7 @@ docker compose up --build
 - İki servis: `backend` (FastAPI, Python 3.12) ve `web` (nginx: derlenmiş arayüz + `/api` → backend proxy)
 - Veriler (SQLite, karantina, audit, dersler) `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
 - Ayarlar: compose dosyasının yanına `.env` koyup `VETMIND_*` değişkenlerini yazın (bkz. `backend/.env.example`). Port: `VETMIND_WEB_PORT` (varsayılan 8080)
+- Bilgi bankası araması varsayılan olarak **bge-m3** (anlamsal) kullanır: bilgisayarda Ollama çalışıyor ve `ollama pull bge-m3` yapılmışsa backend ona `host.docker.internal` üzerinden bağlanır. Ollama yoksa sistem hata vermeden kelime benzerliğiyle (hash) açılır; Admin → **Sistem Durumu** hangisinin çalıştığını ve uyarıyı gösterir
 - Varsayılanlar demo modudur: auth kapalı, mock LLM. Gerçek LLM için `VETMIND_LLM_PROVIDER` ve ilgili ayarlar (§4.4) `.env`'e eklenir. Ollama bilgisayarda çalışıyorsa `VETMIND_LLM_ENDPOINT=http://host.docker.internal:11434/v1`
 - Opsiyonel Postgres + Redis (geliştirme): `backend/docker-compose.yml`
 
@@ -156,6 +157,8 @@ py -3.12 -m venv .venv
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+**Anlamsal arama (önerilen, ~1.2 GB):** [Ollama](https://ollama.com) kurup bir kez `ollama pull bge-m3` çalıştırın. Backend açılışta bge-m3'e bağlanır; Ollama kapalıysa veya model yoksa uyarı verip hash embedding ile devam eder (`VETMIND_RAG_EMBEDDING=hash` ile kapatılır).
 
 Kurulumdan sonra backend her işletim sisteminde repo kökünden `npm run backend:dev` ile de başlatılabilir
 (`scripts/backend.mjs`, `.venv`'deki Python'u bulur). Kod değiştiği halde backend eski gibi davranıyorsa
@@ -967,6 +970,8 @@ Backend özeti: [backend/README.md](backend/README.md).
 | Değişken | Varsayılan | Anlam |
 |----------|------------|--------|
 | `VETMIND_RAG` | `embedding` | `embedding` \| `lexical` |
+| `VETMIND_RAG_EMBEDDING` | `ollama` | `ollama` (bge-m3, anlamsal; ulaşılamazsa hash) \| `hash` |
+| `VETMIND_RAG_EMBEDDING_MODEL` / `_URL` | `bge-m3` / `http://localhost:11434` | Embedding modeli ve Ollama adresi |
 | `VETMIND_RAG_STORE` | `chroma` | `chroma` \| `json` (eski tek dosya) |
 | `VETMIND_CHROMA_PATH` | `./data/chroma` | Chroma klasörü |
 | `VETMIND_CHROMA_URL` | — | Ayrı Chroma sunucusu (ör. `http://chroma:8000`); boşsa yerel klasör |

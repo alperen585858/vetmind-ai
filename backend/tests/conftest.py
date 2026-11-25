@@ -11,6 +11,13 @@ from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 
 
+@pytest.fixture(autouse=True)
+def _hash_embeddings_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """bge-m3 is the app default (#101); tests stay deterministic and offline with hash
+    embeddings unless a test opts in."""
+    monkeypatch.setenv("VETMIND_RAG_EMBEDDING", "hash")
+
+
 @pytest.fixture
 def container(tmp_path: Path) -> AppContainer:
     # Tests always use in-memory storage for isolation and speed.
