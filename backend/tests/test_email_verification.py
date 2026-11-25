@@ -192,3 +192,174 @@ def test_ttl_setting_is_clamped(monkeypatch: pytest.MonkeyPatch) -> None:
     assert load_settings().email_verify_ttl_seconds == 7 * 24 * 60 * 60
     monkeypatch.delenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS")
     assert load_settings().email_verify_ttl_seconds == 24 * 60 * 60
+
+
+# --- step 3: API ----------------------------------------------------------------
+
+import re  # noqa: E402
+
+from app.security.rate_limit import VERIFY_PER_IP, VERIFY_RESEND_PER_EMAIL  # noqa: E402
+
+
+def _token_from_outbox(container: AppContainer, to: str = NEW_VET) -> str:
+    mail = next(m for m in reversed(container.mailer.outbox) if m.to == to and "/eposta-dogrula" in m.body)
+    match = re.search(r"/eposta-dogrula\?token=([\w-]+)", mail.body)
+    assert match, mail.body
+    return match.group(1)
+
+
+def _verify(client: TestClient, token: str):
+    return client.post("/api/v1/auth/verify-email", json={"token": token})
+
+
+def _activate(client: TestClient, admin: dict[str, str]):
+    return client.patch(
+        f"/api/v1/admin/users/{NEW_VET}", json={"active": True, "clinic_id": "clinic-demo-a"}, headers=admin
+    )
+
+
+def test_register_answer_is_identical_for_new_and_existing_email(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    new = _register(client)
+    again = _register(client)
+    demo = _register(client, email="vet@demo.local")
+    assert new.status_code == again.status_code == demo.status_code == 202
+    assert new.json()["status"] == "verification_sent"
+    # Body differs only by the echoed address the caller typed.
+    assert {k: v for k, v in new.json().items() if k != "email"} == {
+        k: v for k, v in demo.json().items() if k != "email"
+    }
+    assert new.json() == again.json()
+
+
+def test_new_account_gets_verification_mail(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    mail = container.mailer.outbox[-1]
+    assert mail.to == NEW_VET
+    assert "doğrula" in mail.subject.lower() and "verify" in mail.subject.lower()
+    assert "24" in mail.body  # hours
+    assert GOOD_PASSWORD not in mail.body
+
+
+def test_existing_account_gets_account_exists_mail_and_keeps_password(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    res = _register(client, email="vet@demo.local", password="Hijack2026x")
+    assert res.status_code == 202
+    mail = container.mailer.outbox[-1]
+    assert mail.to == "vet@demo.local"
+    assert "zaten" in mail.body and "/sifremi-unuttum" in mail.body
+    assert "/eposta-dogrula" not in mail.body
+    login = client.post("/api/v1/auth/login", json={"email": "vet@demo.local", "password": "demo1234"})
+    assert login.status_code == 200
+
+
+def test_full_flow_register_verify_activate_login(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    admin = _admin(client)
+    assert _activate(client, admin).status_code == 409  # not verified yet
+
+    res = _verify(client, _token_from_outbox(container))
+    assert res.status_code == 200, res.text
+    assert res.json() == {"email": NEW_VET, "status": "verified", "pending_approval": True}
+    assert container.workflow_store.get_user(NEW_VET).email_verified is True
+
+    assert _activate(client, admin).status_code == 200
+    login = client.post("/api/v1/auth/login", json={"email": NEW_VET, "password": GOOD_PASSWORD})
+    assert login.status_code == 200, login.text
+
+
+def test_verify_link_works_only_once(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    token = _token_from_outbox(container)
+    assert _verify(client, token).status_code == 200
+    again = _verify(client, token)
+    assert again.status_code == 400
+    assert again.json()["detail"]["code"] == "verify_link_invalid"
+
+
+def test_verify_link_expires(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    clock = [1_000.0]
+    container.email_verifications._clock = lambda: clock[0]
+    _register(client)
+    token = _token_from_outbox(container)
+    clock[0] += container.settings.email_verify_ttl_seconds + 1
+    assert _verify(client, token).status_code == 400
+    assert container.workflow_store.get_user(NEW_VET).email_verified is False
+
+
+def test_password_reset_token_is_not_a_verification_token(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    reset_raw = container.password_resets.issue(NEW_VET)
+    assert _verify(client, reset_raw).status_code == 400
+
+
+def test_resend_sends_new_link_and_voids_old(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    old = _token_from_outbox(container)
+    res = client.post("/api/v1/auth/verify-email/resend", json={"email": NEW_VET.upper()})
+    assert res.status_code == 202
+    new = _token_from_outbox(container)
+    assert new != old
+    assert _verify(client, old).status_code == 400
+    assert _verify(client, new).status_code == 200
+
+
+def test_resend_answer_is_identical_and_sends_nothing_for_others(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    before = len(container.mailer.outbox)
+    unknown = client.post("/api/v1/auth/verify-email/resend", json={"email": "nobody@clinic.test"})
+    verified = client.post("/api/v1/auth/verify-email/resend", json={"email": "vet@demo.local"})
+    assert unknown.status_code == verified.status_code == 202
+    assert unknown.json() == verified.json()
+    assert len(container.mailer.outbox) == before
+
+
+def test_resend_is_rate_limited_per_email(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    for _ in range(VERIFY_RESEND_PER_EMAIL.attempts):
+        assert client.post("/api/v1/auth/verify-email/resend", json={"email": NEW_VET}).status_code == 202
+    assert client.post("/api/v1/auth/verify-email/resend", json={"email": NEW_VET}).status_code == 429
+
+
+def test_bad_verify_attempts_are_rate_limited(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    for _ in range(VERIFY_PER_IP.attempts):
+        assert _verify(client, "guess-guess-guess").status_code == 400
+    assert _verify(client, "guess-guess-guess").status_code == 429
+
+
+def test_invalid_input_still_fails_fast(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    assert _register(client, email="not-an-email").status_code == 422
+    assert _register(client, password="kisa1").status_code == 422
+    assert len(container.mailer.outbox) == 0
+
+
+def test_protected_mode_without_smtp_makes_no_link(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    # Only the mail decision reads this; a full protected setup is covered elsewhere.
+    container.settings = replace(container.settings, deployment_mode="protected", smtp_host=None)
+    assert _register(client).status_code == 202
+    assert container.workflow_store.get_user(NEW_VET) is not None
+    assert not any("/eposta-dogrula" in m.body for m in container.mailer.outbox)
+    events = [e for e in container.audit.list_events(limit=50) if e["event_type"] == "auth.register"]
+    assert any(e["detail"] == "smtp_required" for e in events)
+
+
+def test_verification_is_audited(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _register(client)
+    _verify(client, _token_from_outbox(container))
+    _verify(client, "bad-token-value")
+    client.post("/api/v1/auth/verify-email/resend", json={"email": NEW_VET})
+    events = container.audit.list_events(limit=100)
+    kinds = {(e["event_type"], e["outcome"], e.get("detail")) for e in events}
+    assert ("auth.verify_email", "success", None) in kinds
+    assert ("auth.verify_email", "denied", "unknown") in kinds
+    assert ("auth.verify_email_resend", "info", "no_unverified_account") in kinds
