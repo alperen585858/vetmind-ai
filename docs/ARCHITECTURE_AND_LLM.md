@@ -257,7 +257,7 @@ Gerçek sağlayıcılar, prompt ve grounding doğrulaması: [LLM_KATMANI.md](LLM
 
 | Backend | Sınıf | Env |
 |---------|--------|-----|
-| Embedding (default) | `EmbeddingRagRetriever` + `JsonVectorStore` | `VETMIND_RAG=embedding` |
+| Embedding (default) | `EmbeddingRagRetriever` + `ChromaVectorStore` (or `JsonVectorStore`) | `VETMIND_RAG=embedding`, `VETMIND_RAG_STORE` |
 | Lexical | `LexicalRagRetriever` | `VETMIND_RAG=lexical` |
 
 - Embedding: `HashEmbeddingBackend` (hashed n-gram; torch yok)  
@@ -360,7 +360,8 @@ Kaynak: `backend/app/settings.py`
 | Env | Default / not |
 |-----|----------------|
 | `VETMIND_RAG` | `embedding` \| `lexical` |
-| `VETMIND_RAG_INDEX_PATH` | JSON vector index yolu |
+| `VETMIND_RAG_STORE` / `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | Vektör deposu (Chroma varsayılan) |
+| `VETMIND_RAG_INDEX_PATH` | Eski JSON indeks (taşıma kaynağı) |
 | `VETMIND_JOB_BACKEND` | `thread` \| `rq` |
 | `VETMIND_REDIS_URL` | RQ için |
 | `VETMIND_STORAGE` | `sqlite` \| `memory` \| `postgres` |

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from app.rag.embeddings import cosine
 from app.rag.relevance import RagFilter
-from app.rag.vector_store import JsonVectorStore
+from app.rag.vector_store import JsonVectorStore, VectorStore
 from app.schemas.rag import RagPassage
 
 
@@ -22,7 +21,7 @@ class EmbeddingRagRetriever:
 
     def __init__(
         self,
-        store: JsonVectorStore | None = None,
+        store: VectorStore | None = None,
         *,
         min_cosine: float | None = None,
         relative_floor: float | None = None,
@@ -47,7 +46,7 @@ class EmbeddingRagRetriever:
         self._relative_floor = relative_floor
 
     @property
-    def store(self) -> JsonVectorStore:
+    def store(self) -> VectorStore:
         return self._store
 
     def retrieve(
@@ -67,11 +66,10 @@ class EmbeddingRagRetriever:
         else:
             floor = self._min_cosine
         qv = self._store.backend.embed(q)
+        # Enough candidates for the floors and the per-source cap; the store applies the filter.
+        candidates = self._store.search(qv, filters=filters, limit=max(100, top_k * 20))
         scored: list[tuple[float, object]] = []
-        for doc in self._store.documents:
-            if filters is not None and not filters.allows(doc.regions, doc.species):
-                continue
-            score = cosine(qv, doc.vector)
+        for score, doc in candidates:
             if score <= floor:
                 continue
             display = min(0.97, max(0.0, (score + 1) / 2))
@@ -106,4 +104,4 @@ class EmbeddingRagRetriever:
         return hits
 
     def reindex(self) -> int:
-        return self._store.reindex_seed(persist=self._store.path is not None)
+        return self._store.reindex_seed(persist=self._store.persistent)

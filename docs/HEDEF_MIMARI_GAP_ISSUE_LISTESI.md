@@ -156,7 +156,7 @@ Severity: **P0** kritik güvenlik/bütünlük · **P1** yüksek · **P2** orta �
 |----|-----|-------|---------------|------|
 | **ISS-RAG-01** | BOUNDARY | Approved Knowledge Base = sentetik seed corpus; klinik onaylı KB değil | `rag/corpus.py` | Diyagramdaki “Approved” karşılanmıyor |
 | **ISS-RAG-02** | BOUNDARY | Gerçek embedding modeli yok (hash n-gram); sentence-transformers yok | `rag/embeddings.py` | Semantik retrieval zayıf |
-| **ISS-RAG-03** | BOUNDARY | Managed vector DB yok (Qdrant/pgvector); JSON indeks | `JsonVectorStore` | Ölçek / kalite sınırlı |
+| **ISS-RAG-03** | KAPANDI (#103) | Vektörler ChromaDB'de; metadata filtresi veritabanında | `ChromaVectorStore` | — |
 | **ISS-RAG-04** | ✅ DONE | used_passage_ids: mock + HTTP wire + stub; chat path legacy uyarı | `rag_grounding.py`, `http_provider.py` | Finding-link soft (ISS-RAG-05) |
 | **ISS-RAG-05** | P2 | Citation ↔ finding bağlama zayıf; skor semantiği dikkat gerektirir | **F13** (kısmen iyileşti) | “Klinik kanıt” sanılabilir |
 | **ISS-RAG-06** | P3 | RAG lisans / kaynak uyumu üretim politikası yok | docs | Legal risk |

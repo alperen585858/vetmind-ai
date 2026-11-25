@@ -22,7 +22,7 @@ from app.rag.embedding_retriever import EmbeddingRagRetriever
 from app.rag.ollama_embeddings import build_embedding_backend
 from app.rag.retriever import LexicalRagRetriever
 from app.rag.source_cards import build_source_card_tagger
-from app.rag.vector_store import JsonVectorStore
+from app.rag.stores import build_vector_store
 from app.routing.capabilities import (
     AVAILABILITY_CONFIGURED,
     INPUT_METADATA_ONLY,
@@ -108,9 +108,9 @@ class AppContainer:
             self.rag_method = "lexical_token_overlap"
             self.vector_store = None
         else:
-            # Tests with memory storage: keep index in-memory (no disk) unless path set explicitly.
-            index_path = None if self.storage_backend == "memory" else self.settings.rag_index_path
-            self.vector_store = JsonVectorStore(path=index_path, backend=build_embedding_backend())
+            self.vector_store = build_vector_store(
+                self.settings, build_embedding_backend(), in_memory=self.storage_backend == "memory"
+            )
             self.vector_store.load()
             self.rag = EmbeddingRagRetriever(store=self.vector_store)
             self.rag_method = (

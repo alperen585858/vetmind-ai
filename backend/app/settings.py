@@ -19,7 +19,13 @@ class Settings:
     database_url: str | None = None
     async_analyze_delay_ms: int = 400
     rag_backend: str = "embedding"  # "lexical" | "embedding"
+    # Legacy JSON index: only read once to migrate into Chroma, or used when rag_store="json".
     rag_index_path: Path | None = None
+    # Where RAG vectors live (#103): "chroma" (default) or "json" (single file, old behaviour).
+    rag_store: str = "chroma"
+    chroma_path: Path | None = None
+    # Chroma server (e.g. http://chroma:8000); empty = local folder at chroma_path.
+    chroma_url: str | None = None
     vision_endpoint: str | None = None
     vision_model_id: str = "remote-vision-v1"
     vision_api_key: str | None = None
@@ -177,6 +183,10 @@ def _default_rag_index_path() -> Path:
     return _backend_root() / "data" / "rag_index.json"
 
 
+def _default_chroma_path() -> Path:
+    return _backend_root() / "data" / "chroma"
+
+
 def _default_audit_log_path() -> Path:
     return _backend_root() / "data" / "audit" / "security.jsonl"
 
@@ -245,6 +255,12 @@ def load_settings() -> Settings:
         rag_backend = "embedding"
     rag_index_raw = os.getenv("VETMIND_RAG_INDEX_PATH")
     rag_index_path = Path(rag_index_raw) if rag_index_raw else _default_rag_index_path()
+    rag_store = os.getenv("VETMIND_RAG_STORE", "chroma").strip().lower()
+    if rag_store not in {"chroma", "json"}:
+        rag_store = "chroma"
+    chroma_raw = os.getenv("VETMIND_CHROMA_PATH")
+    chroma_path = Path(chroma_raw) if chroma_raw else _default_chroma_path()
+    chroma_url = (os.getenv("VETMIND_CHROMA_URL") or "").strip() or None
 
     vision_endpoint = os.getenv("VETMIND_VISION_ENDPOINT") or None
     vision_model_id = os.getenv("VETMIND_VISION_MODEL_ID", "remote-vision-v1").strip() or "remote-vision-v1"
@@ -505,6 +521,9 @@ def load_settings() -> Settings:
         async_analyze_delay_ms=delay_ms,
         rag_backend=rag_backend,
         rag_index_path=rag_index_path,
+        rag_store=rag_store,
+        chroma_path=chroma_path,
+        chroma_url=chroma_url,
         vision_endpoint=vision_endpoint,
         vision_model_id=vision_model_id,
         vision_api_key=vision_api_key,

@@ -9,7 +9,7 @@ from app.auth.deps import require_auth, require_capability
 from app.auth.rbac import CAP_RAG_ADMIN, CAP_RAG_SEARCH
 from app.container import AppContainer
 from app.rag.source_cards import DOC_REGIONS, SourceCardTagger
-from app.rag.vector_store import IndexedDoc, JsonVectorStore
+from app.rag.vector_store import IndexedDoc, VectorStore
 from app.schemas.rag import RagSearchResponse
 
 DocRegion = Literal["BRAIN", "SKULL", "CERVICAL", "SPINE", "SPINE_TL", "THORAX"]
@@ -52,7 +52,7 @@ class RagBulkResponse(BaseModel):
     source_ids: list[str]
     count: int
     note: str = (
-        "Bulk ingest into local JSON vector store. approved=false by default. "
+        "Bulk ingest into the RAG vector store. approved=false by default. "
         "Not clinical evidence."
     )
 
@@ -63,7 +63,7 @@ class RagReindexResponse(BaseModel):
     count: int
     method: str
     index_path: str | None
-    note: str = "Seed corpus re-embedded into local JSON vector store."
+    note: str = "Seed corpus re-embedded into the RAG vector store."
 
 
 class RagDocumentResponse(BaseModel):
@@ -96,7 +96,7 @@ class RagRetagResponse(BaseModel):
     uses_llm: bool
 
 
-def _store(container: AppContainer) -> JsonVectorStore:
+def _store(container: AppContainer) -> VectorStore:
     if container.vector_store is None:
         raise HTTPException(status_code=409, detail="Vector store unavailable (lexical RAG mode).")
     return container.vector_store
@@ -121,8 +121,8 @@ def search_rag(
     )
     if method == "hash_embedding_cosine":
         note = (
-            "Hash-embedding cosine RAG with optional on-disk JSON index. "
-            "Not sentence-transformers / not Qdrant. Not clinical evidence."
+            "Hash-embedding cosine RAG; vectors stored in ChromaDB (or a JSON file). "
+            "Not clinical evidence."
         )
     return RagSearchResponse(query=q, hits=hits, method=method, note=note)
 
@@ -141,8 +141,10 @@ def reindex_rag(
         )
     count = container.rag.reindex()
     path = None
-    if container.vector_store is not None and container.vector_store.path is not None:
-        path = str(container.vector_store.path)
+    store = container.vector_store
+    if store is not None:
+        url = getattr(store, "url", None)
+        path = url or (str(store.path) if store.path is not None else None)
     return RagReindexResponse(count=count, method=container.rag_method, index_path=path)
 
 

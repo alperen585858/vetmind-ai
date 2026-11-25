@@ -18,6 +18,7 @@ services:
       VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-http://localhost:8080}
       VETMIND_LLM_PROVIDER: ${VETMIND_LLM_PROVIDER:-mock}
     volumes:
+      # Everything persistent, including the RAG vectors (ChromaDB folder /app/data/chroma).
       - vetmind_data:/app/data
     restart: unless-stopped
 

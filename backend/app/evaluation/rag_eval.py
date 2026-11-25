@@ -182,9 +182,15 @@ def _backend_for(config: RetrievalConfig):  # noqa: ANN202
     return HashEmbeddingBackend(dim=config.dim, stem_prefix=config.stem_prefix, stopwords=config.stopwords)
 
 
-def build_retriever(config: RetrievalConfig) -> EmbeddingRagRetriever:
-    store = JsonVectorStore(path=None, backend=_backend_for(config))
-    store.reindex_seed(persist=False)
+def build_retriever(config: RetrievalConfig, store_kind: str = "memory") -> EmbeddingRagRetriever:
+    """``store_kind`` "memory" (JSON store, no file) or "chroma" (in-memory Chroma collection)."""
+    if store_kind == "chroma":
+        from app.rag.chroma_store import ChromaVectorStore
+
+        store = ChromaVectorStore(backend=_backend_for(config))
+    else:
+        store = JsonVectorStore(path=None, backend=_backend_for(config))
+    store.reindex_seed(persist=store_kind == "chroma")
     return EmbeddingRagRetriever(
         store=store,
         min_cosine=config.min_cosine,
@@ -193,8 +199,8 @@ def build_retriever(config: RetrievalConfig) -> EmbeddingRagRetriever:
     )
 
 
-def run_config(cases: list[RagEvalCase], config: RetrievalConfig) -> ConfigResult:
-    retriever = build_retriever(config)
+def run_config(cases: list[RagEvalCase], config: RetrievalConfig, store_kind: str = "memory") -> ConfigResult:
+    retriever = build_retriever(config, store_kind)
     result = ConfigResult(config=config)
     for case in cases:
         filters = (

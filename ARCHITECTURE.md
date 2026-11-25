@@ -135,7 +135,7 @@ veteriner/
     ├── requirements-optional.txt   # redis, rq, psycopg
     ├── pytest.ini
     ├── docker-compose.yml          # Postgres 16 + Redis 7
-    ├── data/                       # runtime (gitignore): sqlite, quarantine, rag_index
+    ├── data/                       # runtime (gitignore): sqlite, quarantine, chroma
     ├── scripts/mock_vision_server.py
     ├── app/                        # FastAPI uygulama
     └── tests/                      # pytest
@@ -228,7 +228,7 @@ Saklanan başlıca varlıklar: `CaseRecord`, `AnalysisJob`, `DicomIngestionRecor
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash embedding + cosine; `JsonVectorStore` → `data/rag_index.json` |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash/bge-m3 embedding + cosine; `ChromaVectorStore` → `data/chroma` (`VETMIND_RAG_STORE=json` → `data/rag_index.json`) |
 | lexical | `lexical` | Token overlap; vektör indeks yok |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`. Draft üzerinde `rag_citations` + `rag_note`.
@@ -367,7 +367,9 @@ Kaynak: `backend/app/settings.py` ve `backend/.env.example`.
 | `VETMIND_REDIS_URL` | RQ için gerekli |
 | `VETMIND_RQ_QUEUE` | `vetmind` (worker) |
 | `VETMIND_RAG` | `embedding` \| `lexical` |
-| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` |
+| `VETMIND_RAG_STORE` | `chroma` \| `json` |
+| `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | `./data/chroma` / — |
+| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` (taşıma kaynağı) |
 | `VETMIND_VISION_ENDPOINT` | Remote infer URL |
 | `VETMIND_VISION_MODEL_ID` | `remote-vision-v1` |
 | `VETMIND_VISION_API_KEY` | Opsiyonel Bearer |

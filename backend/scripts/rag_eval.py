@@ -4,6 +4,7 @@
 Run (from backend/):
   python scripts/rag_eval.py            # ablation ladder: baseline -> production config
   python scripts/rag_eval.py --details  # also print per-case retrieved docs
+  python scripts/rag_eval.py --store chroma  # same ladder searched through ChromaDB
 
 Writes eval/results/rag-<timestamp>.md and .json. Synthetic set — not clinical validation.
 """
@@ -67,11 +68,13 @@ def main() -> int:
     parser.add_argument("--details", action="store_true", help="print per-case tables too")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--no-ollama", action="store_true", help="skip the bge-m3 rows")
+    parser.add_argument("--store", choices=["memory", "chroma"], default="memory",
+                        help="vector store to search (results must match; only storage differs)")
     args = parser.parse_args()
 
     cases = load_rag_eval_set(args.set)
     configs = [c for c in CONFIGS if not (args.no_ollama and c.embedding.startswith("ollama"))]
-    results = [run_config(cases, c) for c in configs]
+    results = [run_config(cases, c, args.store) for c in configs]
     md = render_markdown(results, cases)
     print(md if args.details else md.split("\n## ")[0])
 
