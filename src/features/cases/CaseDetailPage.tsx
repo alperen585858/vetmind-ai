@@ -45,6 +45,7 @@ import { SourcesView } from './tabs/RagTab'
 import { ReportWorkspace } from './tabs/ReportsTab'
 import { Documents } from './tabs/DocumentsTab'
 import { CaseHistoryPanel } from './tabs/HistoryTab'
+import { PriorStudiesPanel } from '../patients/PriorStudiesPanel'
 export { AssessmentView }
 
 const TAB_DEFS = [
@@ -504,6 +505,9 @@ export default function CaseDetail() {
           <>
             {summaryModule === 'genel' && (
               <Overview c={c} onOpenAiTab={() => selectTab('bulgular')} />
+            )}
+            {summaryModule === 'genel' && (c.backendCaseId || c.id.startsWith('case-')) && (
+              <PriorStudiesPanel caseId={c.backendCaseId || c.id} canLink={role === 'vet' || role === 'admin'} />
             )}
             <details
               className="group rounded-xl border border-slate-200 bg-white shadow-soft"
