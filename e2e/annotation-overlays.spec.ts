@@ -36,12 +36,16 @@ test.describe('Annotation overlays (P1.6–P1.9)', () => {
       }, { timeout: 45_000 })
       .toMatch(/doğrulanmış kutu|İşaretlemeler gizli/)
 
-    // Prefer grounded overlays when SOP resolved
-    const countText = await page.locator('span', { hasText: /doğrulanmış kutu/i }).first().textContent().catch(() => null)
-    if (countText) {
-      const n = Number(countText.match(/(\d+)/)?.[1] || 0)
-      // Two seeded with SOP + optional ungrounded ignored → expect 2 when SOP known
-      if (seeded.sop) expect(n).toBeGreaterThanOrEqual(2)
+    // Both seeded boxes carry a SOP: once frames hydrate the counter must reach 2 (the
+    // ungrounded one is filtered out). Poll instead of reading once: the counter shows
+    // "0 doğrulanmış kutu" until the SOP is known, which made this test flaky under load.
+    if (seeded.sop) {
+      await expect
+        .poll(async () => {
+          const text = await page.locator('span', { hasText: /doğrulanmış kutu/i }).first().textContent().catch(() => null)
+          return Number(text?.match(/(\d+)/)?.[1] || 0)
+        }, { timeout: 30_000 })
+        .toBeGreaterThanOrEqual(2)
     }
 
     // Toggle off → hidden
