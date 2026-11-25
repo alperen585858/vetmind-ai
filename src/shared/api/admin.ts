@@ -73,6 +73,35 @@ export async function fetchModelReadiness(): Promise<BackendModelReadiness> {
   return request('/models/readiness')
 }
 
+// --- Live AI architecture diagram (admin) ---
+
+/** active = real / always-on step · mock = mock output · fallback = running but not as requested · off = not configured */
+export type ArchitectureStatus = 'active' | 'mock' | 'fallback' | 'off'
+
+export type ArchitectureNode = {
+  id: string
+  label: string
+  status: ArchitectureStatus
+  detail: string
+  info: Record<string, string>
+  /** Router branch name (X-Ray, CT …) for nodes in the branch row. */
+  branch_label?: string
+  /** Analyses of this branch among the most recent cases. */
+  recent_uses?: number
+}
+
+export type ArchitectureResponse = {
+  generated_at: string
+  rows: string[][]
+  side_nodes: string[]
+  nodes: Record<string, ArchitectureNode>
+  summary: { real: number; mock: number; fallback: number; off: number; recent_jobs: number }
+}
+
+export async function fetchArchitecture(): Promise<ArchitectureResponse> {
+  return request('/admin/architecture')
+}
+
 // --- LLM layer: active model, expert feedback, offline evaluation (admin) ---
 
 export interface LlmStatus {

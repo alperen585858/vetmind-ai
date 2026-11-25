@@ -166,7 +166,8 @@
     "aiLessons": "AI Dersleri",
     "menu": "Menü",
     "mainMenuAria": "Ana menü",
-    "skipToContent": "İçeriğe atla"
+    "skipToContent": "İçeriğe atla",
+    "aiArchitecture": "AI Mimarisi"
   },
   "topbar": {
     "openMenu": "Menüyü aç",
@@ -2413,5 +2414,23 @@
     "doneTitle": "AI analizi tamamlandı",
     "failedTitle": "AI analizi başarısız",
     "keepWorking": "Başka sayfalarda çalışmaya devam edebilirsiniz; ilerleme üst çubukta görünür."
+  },
+  "architecture": {
+    "title": "AI Mimarisi",
+    "subtitle": "Canlı akış: hangi bileşen gerçek, hangisi mock, hangisi kapalı. 15 saniyede bir yenilenir.",
+    "refresh": "Yenile",
+    "updated": "Güncellendi",
+    "recentJobs": "son {n} analiz incelendi",
+    "loading": "Mimari yükleniyor…",
+    "loadFail": "Mimari bilgisi alınamadı.",
+    "pickNode": "Ayrıntıları görmek için bir kutuya tıklayın.",
+    "close": "Kapat",
+    "uses": "{n} analiz",
+    "status": {
+      "active": "Gerçek / çalışıyor",
+      "mock": "Mock",
+      "fallback": "Yedeğe düştü",
+      "off": "Kapalı / yapılandırılmamış"
+    }
   }
 }

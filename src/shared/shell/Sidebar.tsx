@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useLocalePath, useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
 import {
   Activity,
+  Network,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -87,6 +88,7 @@ export function Sidebar({
       { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
+      { to: '/ai-mimarisi', label: t('nav.aiArchitecture'), icon: <Network className={ic} /> },
       { to: '/model-performansi', label: t('nav.modelPerformance'), icon: <Gauge className={ic} /> },
       { to: '/ai-dersleri', label: t('nav.aiLessons'), icon: <GraduationCap className={ic} /> },
     ],

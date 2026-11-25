@@ -20,6 +20,7 @@ from app.api.report_links import router as report_links_router
 from app.api.reports import router as reports_router
 from app.api.notifications import router as notifications_router
 from app.api.admin_retention import router as admin_retention_router
+from app.api.architecture import router as architecture_router
 from app.api.llm_feedback import router as llm_feedback_router
 from app.api.feedback import router as feedback_router
 from app.api.messaging import live_router, router as messaging_router
@@ -91,6 +92,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(settings_router)
     app.include_router(llm_feedback_router)
     app.include_router(admin_retention_router)
+    app.include_router(architecture_router)
     app.include_router(feedback_router)
     app.include_router(training_export_router)
     app.include_router(lessons_router)
