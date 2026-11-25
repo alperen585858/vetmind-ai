@@ -308,7 +308,15 @@ export async function createPasswordResetLink(
 
 export async function updateManagedUser(
   email: string,
-  payload: Partial<{ role: string; clinic_id: string; display_name: string; active: boolean; password: string }>,
+  payload: Partial<{
+    role: string
+    clinic_id: string
+    display_name: string
+    active: boolean
+    password: string
+    /** Issue #41: admin can only mark an address verified, never un-verify it. */
+    email_verified: true
+  }>,
 ) {
   return request<import('../types').BackendManagedUser>(`/admin/users/${encodeURIComponent(email)}`, {
     method: 'PATCH',
