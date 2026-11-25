@@ -39,6 +39,9 @@ export interface BackendManagedUser {
   active: boolean
   created_at?: string | null
   last_login_at?: string | null
+  /** Issue #41. Missing on older backends: treat as verified. */
+  email_verified?: boolean
+  email_verified_at?: string | null
 }
 
 export interface BackendClinicStats {

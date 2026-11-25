@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.auth.email_verification import EmailVerificationService, build_email_verification_store
 from app.auth.mailer import build_mailer
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
@@ -428,6 +429,10 @@ class AppContainer:
         self.password_resets = PasswordResetService(
             build_password_reset_store(self.settings),
             ttl_seconds=self.settings.password_reset_ttl_seconds,
+        )
+        self.email_verifications = EmailVerificationService(
+            build_email_verification_store(self.settings),
+            ttl_seconds=self.settings.email_verify_ttl_seconds,
         )
         self.dicom.bind_owner_directory(auth_users=self._auth_users, workflow_store=self.workflow_store)
         self.analysis = self.cases.analysis

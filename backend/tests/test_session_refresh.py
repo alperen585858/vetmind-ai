@@ -103,9 +103,9 @@ def test_register_issues_no_session_until_activated(tmp_path: Path) -> None:
         "/api/v1/auth/register",
         json={"email": "new@clinic.test", "password": "Patiler2026", "role": "vet"},
     )
-    assert res.status_code == 201, res.text
-    assert res.json()["status"] == "pending_approval"
-    assert res.json()["session"] is None
+    assert res.status_code == 202, res.text
+    assert res.json()["status"] == "verification_sent"
+    assert "session" not in res.json() and "access_token" not in res.text
 
 
 # --- refresh ----------------------------------------------------------------

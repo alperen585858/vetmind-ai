@@ -88,7 +88,7 @@ def test_owner_role_cannot_self_register(tmp_path: Path) -> None:
 def test_registered_vet_password_is_hashed(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
     res = _register(client, email="  Ayse@Example.COM ", display_name="Dr. Ayşe Yılmaz")
-    assert res.status_code == 201, res.text
+    assert res.status_code == 202, res.text
     assert res.json()["email"] == "ayse@example.com"
     stored = container.workflow_store.get_user("ayse@example.com")
     assert stored is not None
@@ -105,7 +105,7 @@ def test_client_cannot_pick_a_clinic(tmp_path: Path) -> None:
         json={"email": "a@b.co", "password": GOOD_PASSWORD, "role": "vet", "clinic_id": "clinic-demo-a"},
     )
     assert res.status_code == 422  # unknown field is rejected
-    assert _register(client, email="a@b.co").status_code == 201
+    assert _register(client, email="a@b.co").status_code == 202
     assert container.workflow_store.get_user("a@b.co").clinic_id is None
 
 
@@ -115,10 +115,10 @@ def test_client_cannot_pick_a_clinic(tmp_path: Path) -> None:
 def test_vet_registration_is_pending_until_admin_activates(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
     res = _register(client, email="vet.new@clinic.test", role="vet")
-    assert res.status_code == 201, res.text
+    assert res.status_code == 202, res.text
     body = res.json()
-    assert body["status"] == "pending_approval"
-    assert body["session"] is None
+    assert body["status"] == "verification_sent"
+    assert "session" not in body
 
     stored = container.workflow_store.get_user("vet.new@clinic.test")
     assert stored is not None and stored.active is False and stored.clinic_id is None
@@ -130,7 +130,7 @@ def test_vet_registration_is_pending_until_admin_activates(tmp_path: Path) -> No
 
     activated = client.patch(
         "/api/v1/admin/users/vet.new@clinic.test",
-        json={"active": True, "clinic_id": "clinic-demo-a"},
+        json={"active": True, "clinic_id": "clinic-demo-a", "email_verified": True},
         headers=admin,
     )
     assert activated.status_code == 200, activated.text
@@ -170,19 +170,21 @@ def test_weak_password_is_rejected_with_reason(tmp_path: Path, password: str) ->
     assert container.workflow_store.get_user("ayse@example.com") is None
 
 
-def test_duplicate_email_is_rejected_and_password_unchanged(tmp_path: Path) -> None:
+def test_duplicate_email_gets_same_answer_and_password_unchanged(tmp_path: Path) -> None:
     client, container = _app(tmp_path)
-    assert _register(client).status_code == 201
+    first = _register(client)
+    assert first.status_code == 202
     before = container.workflow_store.get_user("ayse@example.com").password_hash
     dup = _register(client, email="AYSE@example.com", password="Baskasifre99")
-    assert dup.status_code == 409
+    assert dup.status_code == 202  # issue #41: no "email exists" signal
+    assert dup.json() == first.json()
     assert container.workflow_store.get_user("ayse@example.com").password_hash == before
 
 
 def test_demo_account_email_cannot_be_taken_over(tmp_path: Path) -> None:
     client, _ = _app(tmp_path)
     res = _register(client, email="admin@demo.local", password="Hijack2026x")
-    assert res.status_code == 409
+    assert res.status_code == 202
     assert _login(client, "admin@demo.local", "Hijack2026x").status_code == 401
     assert _login(client, "admin@demo.local", "demo1234").status_code == 200
 
@@ -223,8 +225,8 @@ def test_register_is_audited(tmp_path: Path) -> None:
     _register(client)  # duplicate → denied
     events = [e for e in container.audit.list_events(limit=50) if e["event_type"] == "auth.register"]
     outcomes = {(e["outcome"], e["detail"]) for e in events}
-    assert ("success", "pending_approval") in outcomes
-    assert ("denied", "rejected_409") in outcomes
+    assert ("success", "verification_sent") in outcomes
+    assert ("denied", "duplicate_email") in outcomes
     assert all(GOOD_PASSWORD not in str(e) for e in events)
 
 
@@ -235,7 +237,11 @@ def test_admin_cannot_activate_pending_vet_without_clinic(tmp_path: Path) -> Non
     client, container = _app(tmp_path)
     _register(client, email="vet.pending@clinic.test", role="vet")
     admin = _admin(client)
-    res = client.patch("/api/v1/admin/users/vet.pending@clinic.test", json={"active": True}, headers=admin)
+    res = client.patch(
+        "/api/v1/admin/users/vet.pending@clinic.test",
+        json={"active": True, "email_verified": True},
+        headers=admin,
+    )
     assert res.status_code == 422
     assert "Assign a clinic" in res.json()["detail"]["message"]
     assert container.workflow_store.get_user("vet.pending@clinic.test").active is False

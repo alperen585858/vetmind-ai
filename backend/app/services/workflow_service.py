@@ -71,6 +71,14 @@ def _assert_user_state_allowed(user: ManagedUser) -> None:
             status_code=422,
             detail=api_error("role_not_supported", "Pet-owner accounts are no longer supported."),
         )
+    if user.active and not user.email_verified:
+        raise HTTPException(
+            status_code=409,
+            detail=api_error(
+                "email_not_verified",
+                "This user has not verified their email yet. Mark it verified to activate anyway.",
+            ),
+        )
     if user.active and user.role in CLINIC_REQUIRED_ROLES and not (user.clinic_id or "").strip():
         raise HTTPException(
             status_code=422,
@@ -372,16 +380,13 @@ class WorkflowService:
         self.sync_auth_directory()
         return user.to_public()
 
-    def register_user(
-        self,
-        *,
-        email: str,
-        password: str,
-        role: SelfRegisterRole,
-        display_name: str | None = None,
-        owner_clinic_id: str | None = None,
-    ) -> ManagedUser:
-        """Public sign-up for vets. Accounts wait for admin activation (B2B only)."""
+    @staticmethod
+    def validate_registration(*, email: str, password: str, role: str) -> str:
+        """Checks that do not depend on whether the address is registered (issue #41).
+
+        The API runs them before answering; the lookup itself happens after the response.
+        Returns the normalized email.
+        """
         email = email.strip().lower()
         if not _EMAIL_RE.match(email):
             raise HTTPException(
@@ -394,6 +399,19 @@ class WorkflowService:
                 detail=api_error("role_not_self_registerable", "This role cannot be self-registered."),
             )
         _assert_password_allowed(password)
+        return email
+
+    def register_user(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: SelfRegisterRole,
+        display_name: str | None = None,
+        owner_clinic_id: str | None = None,
+    ) -> ManagedUser:
+        """Public sign-up for vets. Accounts wait for admin activation (B2B only)."""
+        email = self.validate_registration(email=email, password=password, role=role)
         name = (display_name or "").strip() or email.split("@")[0]
         user = ManagedUser(
             email=email,
@@ -402,6 +420,7 @@ class WorkflowService:
             clinic_id=None,
             display_name=name[:80],
             active=False,
+            email_verified=False,
             password_hash=hash_password(password),
             created_at=_now(),
         )
@@ -413,6 +432,21 @@ class WorkflowService:
                 )
             self._store.save_user(user)
             self.sync_auth_directory()
+        return user
+
+    def mark_email_verified(self, email: str) -> ManagedUser | None:
+        """Issue #41: the emailed link was opened. Returns None if the user is gone."""
+        email = email.strip().lower()
+        with self._user_write_lock:
+            existing = self._store.get_user(email)
+            if existing is None:
+                return None
+            if existing.email_verified:
+                return existing
+            user = existing.model_copy(
+                update={"email_verified": True, "email_verified_at": _now(), "updated_at": _now()}
+            )
+            self._store.save_user(user)
         return user
 
     def record_login(self, email: str, password: str) -> None:
@@ -486,6 +520,9 @@ class WorkflowService:
             data["token_version"] = existing.token_version + 1
         if "clinic_id" in data:
             data["clinic_id"] = (data["clinic_id"] or "").strip() or None
+        if data.pop("email_verified", None) and not existing.email_verified:
+            data["email_verified"] = True
+            data["email_verified_at"] = _now()
         data["updated_at"] = _now()
         user = existing.model_copy(update=data)
         _assert_user_state_allowed(user)

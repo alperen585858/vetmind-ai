@@ -213,6 +213,10 @@ class ManagedUserPublic(BaseModel):
     # None for rows written before these fields existed.
     created_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
+    # Issue #41. Defaults to True so rows written before this field existed, demo seeds and
+    # admin-created users count as verified; only self-registration stores False.
+    email_verified: bool = True
+    email_verified_at: Optional[datetime] = None
 
 
 class ManagedUser(ManagedUserPublic):
@@ -252,6 +256,8 @@ class ManagedUserUpdate(BaseModel):
     display_name: Optional[str] = None
     active: Optional[bool] = None
     password: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    # Admin can only mark an address verified (e.g. confirmed by phone); never un-verify.
+    email_verified: Optional[Literal[True]] = None
 
 
 class ClinicStaffStats(BaseModel):

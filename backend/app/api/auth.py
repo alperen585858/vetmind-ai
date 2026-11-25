@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth
+from app.auth.email_verification import EmailVerificationError
 from app.auth.mailer import OutgoingMail
 from app.auth.password_reset import PasswordResetError
 from app.auth.passwords import password_policy_detail
@@ -22,6 +23,9 @@ from app.security.rate_limit import (
     PASSWORD_CHANGE_PER_USER,
     REGISTER_PER_IP,
     RESET_PER_IP,
+    VERIFY_PER_IP,
+    VERIFY_RESEND_PER_EMAIL,
+    VERIFY_RESEND_PER_IP,
     Limit,
 )
 
@@ -72,13 +76,35 @@ class RegisterRequest(BaseModel):
 
 
 class RegisterResponse(BaseModel):
+    """Identical for a new and an already registered address (issue #41), so the endpoint
+    does not reveal which emails have accounts. The account is created after the response."""
+
     model_config = ConfigDict(extra="forbid")
 
     email: str
-    role: str
-    # active: signed in (``session`` set). pending_approval: an admin must activate the account.
-    status: Literal["active", "pending_approval"]
-    session: TokenResponse | None = None
+    status: Literal["verification_sent"] = "verification_sent"
+    detail: str
+
+
+class VerifyEmailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=200)
+
+
+class VerifyEmailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str
+    status: Literal["verified"] = "verified"
+    # Self-registered vets still need an admin to activate them before they can sign in.
+    pending_approval: bool
+
+
+class VerifyEmailResendRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=120)
 
 
 class PasswordChangeRequest(BaseModel):
@@ -288,52 +314,212 @@ def logout(payload: RefreshRequest, container: AppContainer = Depends(get_contai
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+_REGISTER_ACCEPTED = (
+    "Check your inbox: we've sent a link to verify your email. "
+    "After that, an administrator activates your account."
+)
+
+
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_202_ACCEPTED)
 def register(
     payload: RegisterRequest,
     request: Request,
+    background: BackgroundTasks,
     container: AppContainer = Depends(get_container),
 ) -> RegisterResponse:
-    """Self-service sign-up for veterinarians; accounts wait for admin activation."""
+    """Self-service sign-up for veterinarians.
+
+    Issue #41: the answer is the same whether or not the address is registered. Checks that
+    do not depend on the address (format, password policy) run first; the lookup, account
+    creation and email run after the response, so its timing does not leak either.
+    """
     email = payload.email.strip().lower()
     limits = [("register_ip", _client_ip(request, container), REGISTER_PER_IP)]
     _enforce_limits(container, request, email, limits)
     _hit(container, limits)
 
-    def _audit(outcome: AuditOutcome, detail: str, clinic_id: str | None = None) -> None:
-        container.audit.record(
-            event_type="auth.register",
-            actor=email,
-            resource="/api/v1/auth/register",
-            outcome=outcome,
-            detail=detail,
-            clinic_id=clinic_id,
-        )
-
     if not container.settings.self_registration_enabled:
-        _audit(AuditOutcome.DENIED, "self_registration_disabled")
+        _audit_register(container, email, AuditOutcome.DENIED, "self_registration_disabled")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=api_error("self_registration_disabled", "Self-registration is disabled."),
         )
     try:
+        email = container.workflow.validate_registration(
+            email=email, password=payload.password, role=payload.role
+        )
+    except HTTPException as exc:
+        _audit_register(container, email, AuditOutcome.DENIED, f"rejected_{exc.status_code}")
+        raise
+    background.add_task(
+        _complete_registration, container, email, payload.password, payload.role, payload.display_name
+    )
+    return RegisterResponse(email=email, detail=_REGISTER_ACCEPTED)
+
+
+def _audit_register(
+    container: AppContainer, email: str, outcome: AuditOutcome, detail: str, clinic_id: str | None = None
+) -> None:
+    container.audit.record(
+        event_type="auth.register",
+        actor=email,
+        resource="/api/v1/auth/register",
+        outcome=outcome,
+        detail=detail,
+        clinic_id=clinic_id,
+    )
+
+
+def _complete_registration(
+    container: AppContainer, email: str, password: str, role: str, display_name: str | None
+) -> None:
+    try:
         user = container.workflow.register_user(
             email=email,
-            password=payload.password,
-            role=payload.role,
-            display_name=payload.display_name,
+            password=password,
+            role=role,  # type: ignore[arg-type]
+            display_name=display_name,
             owner_clinic_id=container.settings.self_registration_owner_clinic_id,
         )
     except HTTPException as exc:
-        _audit(AuditOutcome.DENIED, f"rejected_{exc.status_code}")
-        raise
-    if not user.active:
-        _audit(AuditOutcome.SUCCESS, "pending_approval")
-        return RegisterResponse(email=user.email, role=user.role, status="pending_approval")
-    _audit(AuditOutcome.SUCCESS, "active", clinic_id=user.clinic_id)
-    entry = DemoUserRecord(user.password_hash or "", user.role, user.clinic_id, user.token_version)
-    session = _issue_token(container, email=user.email, entry=entry)
-    return RegisterResponse(email=user.email, role=user.role, status="active", session=session)
+        if exc.status_code != status.HTTP_409_CONFLICT:
+            _audit_register(container, email, AuditOutcome.DENIED, f"rejected_{exc.status_code}")
+            return
+        # Already registered: tell the owner of the address. Password and sessions stay as they are.
+        _send_account_exists(container, email)
+        _audit_register(container, email, AuditOutcome.DENIED, "duplicate_email")
+        return
+    sent = _send_verification_link(container, user.email)
+    _audit_register(container, email, AuditOutcome.SUCCESS, "verification_sent" if sent else "smtp_required")
+
+
+def _mail_unavailable(container: AppContainer) -> bool:
+    """Protected mode without SMTP: a live link could not be delivered safely, so none is made."""
+    return not container.settings.smtp_host and container.settings.deployment_mode == "protected"
+
+
+def _send_verification_link(container: AppContainer, email: str) -> bool:
+    if _mail_unavailable(container):
+        return False
+    raw = container.email_verifications.issue(email)
+    link = f"{container.settings.public_base_url}/eposta-dogrula?token={raw}"
+    hours = max(1, container.email_verifications.ttl_seconds // 3600)
+    container.mailer.send(
+        OutgoingMail(
+            to=email,
+            subject="VetMind e-posta doğrulama / verify your email",
+            body=(
+                "Merhaba,\n\n"
+                f"VetMind hesabınızı tamamlamak için e-posta adresinizi {hours} saat içinde doğrulayın:\n"
+                f"{link}\n\n"
+                "Doğrulamadan sonra bir yönetici hesabınızı etkinleştirecek.\n"
+                "Bu kaydı siz yapmadıysanız bu e-postayı yok sayabilirsiniz.\n\n"
+                f"Open the link above within {hours} hours to verify your VetMind email. "
+                "An administrator activates your account afterwards. "
+                "If you didn't sign up, ignore this email.\n"
+            ),
+        )
+    )
+    return True
+
+
+def _send_account_exists(container: AppContainer, email: str) -> None:
+    base = container.settings.public_base_url
+    container.mailer.send(
+        OutgoingMail(
+            to=email,
+            subject="VetMind: bu e-postayla zaten bir hesabınız var / you already have an account",
+            body=(
+                "Merhaba,\n\n"
+                "Bu e-posta adresiyle yeni bir VetMind kaydı denendi, ama zaten bir hesabınız var. "
+                "Şifreniz değişmedi.\n"
+                f"Giriş yapın: {base}/giris\n"
+                f"Şifrenizi unuttuysanız: {base}/sifremi-unuttum\n\n"
+                "Bu denemeyi siz yapmadıysanız bu e-postayı yok sayabilirsiniz.\n\n"
+                "Someone tried to sign up for VetMind with this address, but you already have an account. "
+                "Your password has not changed. Sign in or reset your password with the links above.\n"
+            ),
+        )
+    )
+
+
+# --- email verification (issue #41) -------------------------------------------
+
+_VERIFY_LINK_INVALID = api_error(
+    "verify_link_invalid",
+    "This verification link is invalid or has expired. Request a new one.",
+)
+_RESEND_ACCEPTED = "If this email has an unverified account, we've sent a new verification link."
+
+
+@router.post("/verify-email", response_model=VerifyEmailResponse)
+def verify_email(
+    payload: VerifyEmailRequest,
+    request: Request,
+    container: AppContainer = Depends(get_container),
+) -> VerifyEmailResponse:
+    """Mark the address verified with the emailed single-use token."""
+    limits = [("verify_ip", _client_ip(request, container), VERIFY_PER_IP)]
+    _enforce_limits(container, request, "anonymous", limits)
+    user = None
+    reason = "user_missing"
+    try:
+        email = container.email_verifications.consume(payload.token)
+        user = container.workflow.mark_email_verified(email)
+    except EmailVerificationError as exc:
+        reason = exc.reason
+    if user is None:
+        _hit(container, limits)
+        container.audit.record(
+            event_type="auth.verify_email",
+            actor="anonymous",
+            resource="/api/v1/auth/verify-email",
+            outcome=AuditOutcome.DENIED,
+            detail=reason,
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_VERIFY_LINK_INVALID)
+    container.audit.record(
+        event_type="auth.verify_email",
+        actor=user.email,
+        resource="/api/v1/auth/verify-email",
+        outcome=AuditOutcome.SUCCESS,
+        clinic_id=user.clinic_id,
+    )
+    return VerifyEmailResponse(email=user.email, pending_approval=not user.active)
+
+
+@router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
+def resend_verification(
+    payload: VerifyEmailResendRequest,
+    request: Request,
+    background: BackgroundTasks,
+    container: AppContainer = Depends(get_container),
+) -> dict[str, str]:
+    """Send a fresh verification link. Unverified vets cannot sign in yet (they wait for an
+    admin), so this takes the email. Same answer and same work for every address."""
+    email = payload.email.strip().lower()
+    limits = [
+        ("verify_resend_email", email, VERIFY_RESEND_PER_EMAIL),
+        ("verify_resend_ip", _client_ip(request, container), VERIFY_RESEND_PER_IP),
+    ]
+    _enforce_limits(container, request, email, limits)
+    _hit(container, limits)
+    background.add_task(_resend_verification_link, container, email)
+    return {"detail": _RESEND_ACCEPTED}
+
+
+def _resend_verification_link(container: AppContainer, email: str) -> None:
+    user = container.workflow_store.get_user(email)
+    detail = "no_unverified_account"
+    if user is not None and not user.email_verified:
+        detail = "link_sent" if _send_verification_link(container, email) else "smtp_required"
+    container.audit.record(
+        event_type="auth.verify_email_resend",
+        actor=email,
+        resource="/api/v1/auth/verify-email/resend",
+        outcome=AuditOutcome.INFO,
+        detail=detail,
+    )
 
 
 @router.get("/me", response_model=MeResponse)

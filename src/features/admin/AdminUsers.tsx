@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Copy, KeyRound, Loader2, ShieldCheck, X } from 'lucide-react'
+import { Copy, KeyRound, Loader2, MailCheck, ShieldCheck, X } from 'lucide-react'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
@@ -14,6 +14,11 @@ const DEFAULT_CLINIC = 'clinic-demo-a'
 
 function needsClinicToActivate(u: BackendManagedUser): boolean {
   return !u.active && CLINIC_REQUIRED_ROLES.has(u.role) && !u.clinic_id
+}
+
+/** Issue #41: self-registered accounts stay unverified until the emailed link is opened. */
+function isUnverified(u: BackendManagedUser): boolean {
+  return u.email_verified === false
 }
 
 export default function AdminUsers() {
@@ -76,6 +81,19 @@ export default function AdminUsers() {
       } else {
         await updateManagedUser(u.email, { active: !u.active })
       }
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.updateFail'))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const onMarkVerified = async (u: BackendManagedUser) => {
+    setUpdating(u.email)
+    setError(null)
+    try {
+      await updateManagedUser(u.email, { email_verified: true })
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : t('admin.updateFail'))
@@ -221,7 +239,11 @@ export default function AdminUsers() {
                         )}
                       </td>
                       <td className="td text-xs">
-                        {needsClinicToActivate(u) ? (
+                        {isUnverified(u) ? (
+                          <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-800">
+                            {t('admin.emailUnverified')}
+                          </span>
+                        ) : needsClinicToActivate(u) ? (
                           <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
                             {t('admin.pendingApproval')}
                           </span>
@@ -232,11 +254,25 @@ export default function AdminUsers() {
                         )}
                       </td>
                       <td className="td">
+                        {isUnverified(u) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="mr-2"
+                            icon={<MailCheck className="h-3.5 w-3.5" />}
+                            disabled={updating === u.email}
+                            title={t('admin.markVerifiedHint')}
+                            onClick={() => void onMarkVerified(u)}
+                          >
+                            {t('admin.markVerified')}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"
                           disabled={
                             updating === u.email ||
+                            (!u.active && isUnverified(u)) ||
                             (needsClinicToActivate(u) && !(activationClinic[u.email] ?? DEFAULT_CLINIC).trim())
                           }
                           onClick={() => void onToggleActive(u)}

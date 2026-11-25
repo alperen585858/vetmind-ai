@@ -10,6 +10,7 @@ const TR_TO_EN: Record<string, string> = {
   kayit: 'register',
   'sifremi-unuttum': 'forgot-password',
   'sifre-sifirla': 'reset-password',
+  'eposta-dogrula': 'verify-email',
   vakalar: 'cases',
   yeni: 'new',
   'dicom-yukle': 'dicom-upload',
@@ -101,6 +102,7 @@ export const PUBLIC_ROUTE_PAIRS: { tr: string; en: string }[] = [
   { tr: '/kayit', en: '/register' },
   { tr: '/sifremi-unuttum', en: '/forgot-password' },
   { tr: '/sifre-sifirla', en: '/reset-password' },
+  { tr: '/eposta-dogrula', en: '/verify-email' },
   { tr: '/rapor-baglanti', en: '/report-link' },
 ]
 

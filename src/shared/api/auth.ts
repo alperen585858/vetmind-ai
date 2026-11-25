@@ -26,12 +26,14 @@ export type BackendTokenResponse = {
   auth_enabled: boolean
 }
 
+/**
+ * Same answer for a new and an already registered address (issue #41): the backend emails
+ * a verification link (or an "you already have an account" note) after responding.
+ */
 export type BackendRegisterResponse = {
   email: string
-  role: string
-  /** active: signed in (``session`` set). pending_approval: an admin must activate the account. */
-  status: 'active' | 'pending_approval'
-  session: BackendTokenResponse | null
+  status: 'verification_sent'
+  detail: string
 }
 
 export async function backendRegister(payload: {
@@ -41,6 +43,22 @@ export async function backendRegister(payload: {
   display_name?: string
 }): Promise<BackendRegisterResponse> {
   return request('/auth/register', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export type BackendVerifyEmailResponse = {
+  email: string
+  status: 'verified'
+  /** Self-registered vets still wait for an admin to activate them. */
+  pending_approval: boolean
+}
+
+export async function backendVerifyEmail(token: string): Promise<BackendVerifyEmailResponse> {
+  return request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) })
+}
+
+/** Always 202 with the same body, whether or not the address has an unverified account. */
+export async function backendResendVerification(email: string): Promise<void> {
+  await request('/auth/verify-email/resend', { method: 'POST', body: JSON.stringify({ email }) })
 }
 
 export async function backendForgotPassword(email: string): Promise<void> {

@@ -92,7 +92,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | PACS / DICOMweb | Yok |
 | OCR | Doküman metin stub |
 | Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + ChromaDB) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
-| OAuth / SSO / e-posta doğrulama | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz) |
+| OAuth / SSO | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz). Kayıtta e-posta doğrulaması var (#41) |
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
@@ -823,7 +823,8 @@ Tüm hesaplar backend'de tutulur: demo seed kullanıcılar, kayıt olanlar ve Ad
 |------|----------|
 | Şifre saklama | stdlib scrypt hash (`backend/app/auth/passwords.py`). Eski düz metin kayıtlar backend açılırken otomatik hash'lenir |
 | Şifre politikası | En az 8 karakter, en az bir harf ve bir rakam (kayıt, admin, sıfırlama, değiştirme) |
-| Kayıt | `POST /api/v1/auth/register`. Yalnızca `vet` kayıt olabilir ve admin onayı bekler (kliniği `VETMIND_SELF_REGISTRATION_OWNER_CLINIC`). Diğer roller kayıtla açılmaz. `VETMIND_SELF_REGISTRATION=0` kapatır |
+| Kayıt | `POST /api/v1/auth/register`. Yalnızca `vet` kayıt olabilir ve admin onayı bekler (kliniği `VETMIND_SELF_REGISTRATION_OWNER_CLINIC`). Diğer roller kayıtla açılmaz. `VETMIND_SELF_REGISTRATION=0` kapatır. E-posta kayıtlı olsa da olmasa da aynı `202` cevabı döner (#41) |
+| E-posta doğrulama (#41) | Kayıttan sonra 24 saat geçerli tek kullanımlık link gider (`VETMIND_EMAIL_VERIFY_TTL_SECONDS`). Kayıtlı adrese link yerine "zaten hesabınız var" e-postası gider, şifre değişmez. `POST /auth/verify-email` doğrular, `POST /auth/verify-email/resend` yeni link yollar (aynı cevap + deneme sınırı). Doğrulanmamış hesap admin tarafından aktifleştirilemez; admin "doğrulanmış işaretle" diyebilir. Eski hesaplar, demo ve admin'in açtığı hesaplar doğrulanmış sayılır |
 | Klinik kuralı | `vet` / `expert` / `clinic_owner` hesapları klinik atanmadan aktif olamaz |
 | Access token | HS256 JWT, varsayılan 15 dk (`VETMIND_JWT_TTL_SECONDS`), `tv` (token_version) claim'i taşır |
 | Refresh token | Opak, 7 gün kayan pencere (`VETMIND_REFRESH_TTL_SECONDS`). Her kullanımda döner. Kullanılmış token 20 sn sonra tekrar gelirse oturum ailesi iptal edilir. DB'de sadece SHA-256 |
@@ -839,7 +840,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
 1. Giriş / kayıt `backendLogin` / `backendRegister` ile yapılır. UI oturumu `src/shared/auth/session.ts` → localStorage (`vetmind.demo.session`)
 2. Token çifti: `vetmind.backend.jwt` + `vetmind.backend.refresh` (protected modda sessionStorage). `backend.ts` `Authorization: Bearer` ekler, 401'de bir kez sessizce yenileyip isteği tekrarlar. Yenileme reddedilirse `vetmind:auth-expired` olayıyla çıkış yapılır
-3. Sayfalar: `/kayit`, `/giris`, `/sifremi-unuttum`, `/sifre-sifirla?token=…` (EN: `/register`, `/login`, `/forgot-password`, `/reset-password`), Ayarlar → Şifre değiştir (sadece auth açıkken)
+3. Sayfalar: `/kayit`, `/giris`, `/sifremi-unuttum`, `/sifre-sifirla?token=…`, `/eposta-dogrula?token=…` (EN: `/register`, `/login`, `/forgot-password`, `/reset-password`, `/verify-email`), Ayarlar → Şifre değiştir (sadece auth açıkken)
 4. Çıkışta backend'deki refresh token iptal edilir ve IndexedDB DICOM önbelleği temizlenir
 
 ### Güvenlik notları (dürüst)
@@ -847,7 +848,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 - Varsayılan auth kapalı; internete açık deploy için **uygun değil**.
 - Demo seed şifresi (`demo1234`) ve varsayılan JWT secret bilinir. Protected mod varsayılan veya 32 karakterden kısa secret ile açılmaz.
 - Deneme sayaçları süreç belleğinde: yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar.
-- Kayıt ucu tekrar eden e-postaya `409` döner (kayıtlı e-postayı belli eder). E-posta doğrulaması yok.
+- Kayıt, şifremi unuttum ve doğrulama linkini tekrar gönderme uçları kayıtlı e-postayı belli etmez (aynı cevap, iş cevaptan sonra yapılır).
 - Quarantine yerel diskte; üretim AV / şifreleme yok.
 - Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.
 - AI çıktıları tanı değildir; UI disclaimer'ları bilinçlidir.
@@ -863,6 +864,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 | `/` | `shared/shell/Landing.tsx` (misafir) / `src/app/Dashboard.tsx` | misafir / tümü | — |
 | `/giris`, `/kayit` | `auth/Login.tsx`, `auth/Register.tsx` | — | `POST /auth/login`, `POST /auth/register` (yalnız veteriner, admin onayıyla) |
 | `/sifremi-unuttum`, `/sifre-sifirla` | `auth/ForgotPassword.tsx`, `auth/ResetPassword.tsx` | — / tümü | `POST /auth/password/forgot`, `/reset` |
+| `/eposta-dogrula` | `auth/VerifyEmail.tsx` | — / tümü | `POST /auth/verify-email`, `/verify-email/resend` |
 | `/ayarlar` | `auth/Settings.tsx` | vet, expert, clinic_owner, admin | ayarlar, şifre değiştir |
 | `/vakalar/yeni` | `cases/NewCase.tsx` | vet | vaka aç → tetkik yükleme (DICOM) → analiz |
 | `/vakalar` | `cases/CaseList.tsx` | vet, expert, clinic_owner | liste; `?durum=onaylandi` onaylı raporlar |
@@ -909,7 +911,9 @@ Modül sınırları ve import kuralları: [docs/modularization.md](docs/modulari
 | GET | `/health` | Canlılık + storage / rag / jobs / auth / vision bayrakları |
 | GET | `/auth/status` | Auth zorunlu mu? |
 | POST | `/auth/login` | Access + refresh token |
-| POST | `/auth/register` | Veteriner kaydı (admin onayı bekler) |
+| POST | `/auth/register` | Veteriner kaydı (doğrulama e-postası + admin onayı) |
+| POST | `/auth/verify-email` | E-postadaki link ile adresi doğrula |
+| POST | `/auth/verify-email/resend` | Yeni doğrulama linki (her adrese aynı cevap) |
 | POST | `/auth/refresh` | Token çiftini yenile (rotation) |
 | POST | `/auth/logout` | Refresh ailesini iptal et |
 | POST | `/auth/password/change` | Şifre değiştir (giriş gerekli) |

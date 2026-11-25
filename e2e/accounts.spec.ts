@@ -38,11 +38,12 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
     expect(registerCalls).toBe(0)
   })
 
-  test('vet sign-up waits for admin approval and cannot sign in yet', async ({ page }) => {
+  test('vet sign-up asks to verify the email and cannot sign in yet', async ({ page }) => {
     const email = uniqueEmail('vet')
     await fillRegister(page, { email, password: 'Patiler2026' })
-    await expect(page.getByRole('heading', { name: 'Hesabınız onay bekliyor' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'E-postanızı kontrol edin' })).toBeVisible()
     await expect(page.getByText(email)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Doğrulama e-postasını yeniden gönder' })).toBeVisible()
 
     await page.goto('/giris')
     await page.getByLabel(/E-posta/i).fill(email)
@@ -52,9 +53,46 @@ test.describe('Accounts: sign-up, sign-in, password recovery', () => {
     await expect(page).toHaveURL(/\/giris$/)
   })
 
-  test('duplicate email is refused', async ({ page }) => {
+  test('duplicate email gets the same answer (issue #41)', async ({ page }) => {
     await fillRegister(page, { email: 'vet@demo.local', password: 'Patiler2026' })
-    await expect(page.getByRole('alert')).toContainText('already exists')
+    await expect(page.getByRole('heading', { name: 'E-postanızı kontrol edin' })).toBeVisible()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('resend after sign-up confirms without revealing the account and then waits', async ({ page }) => {
+    await fillRegister(page, { email: uniqueEmail('resend'), password: 'Patiler2026' })
+    await page.getByRole('button', { name: 'Doğrulama e-postasını yeniden gönder' }).click()
+    await expect(page.getByText('Bu adreste doğrulanmamış bir hesap varsa')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Yeniden göndermek için \d+ sn/ })).toBeDisabled()
+  })
+
+  test('verify page hides the token, rejects an invalid one and offers a new link', async ({ page }) => {
+    await page.goto('/eposta-dogrula?token=this-token-does-not-exist-anywhere-1234')
+    await expect(page).toHaveURL(/\/eposta-dogrula$/)
+    expect(await page.locator('meta[name="referrer"]').getAttribute('content')).toBe('no-referrer')
+    await expect(page.getByText('Bu doğrulama bağlantısı geçersiz')).toBeVisible()
+    await page.getByLabel('E-posta').fill(uniqueEmail('nobody'))
+    await page.getByRole('button', { name: 'Doğrulama e-postasını yeniden gönder' }).click()
+    await expect(page.getByText('Bu adreste doğrulanmamış bir hesap varsa')).toBeVisible()
+  })
+
+  test('admin marks a new vet verified, activates, and the vet signs in', async ({ page }) => {
+    const email = uniqueEmail('verify-admin')
+    await fillRegister(page, { email, password: 'Patiler2026' })
+    await expect(page.getByRole('heading', { name: 'E-postanızı kontrol edin' })).toBeVisible()
+
+    await loginAs(page, 'admin@demo.local')
+    await page.goto('/kullanicilar')
+    const row = page.getByRole('row').filter({ hasText: email })
+    await expect(row.getByText('E-posta doğrulanmadı')).toBeVisible({ timeout: 20_000 })
+    await expect(row.getByRole('button', { name: 'Aktifleştir' })).toBeDisabled()
+    await row.getByRole('button', { name: 'Doğrulanmış işaretle' }).click()
+    await expect(row.getByText('E-posta doğrulanmadı')).toHaveCount(0)
+    await row.getByRole('button', { name: 'Aktifleştir' }).click()
+    await expect(row.getByRole('button', { name: 'Pasifleştir' })).toBeVisible()
+
+    await signOutFromSettings(page)
+    await loginAs(page, email, 'Patiler2026')
   })
 
   test('forgot password gives the same answer for any address', async ({ page }) => {

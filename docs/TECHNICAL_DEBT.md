@@ -66,3 +66,4 @@ Working modules that must not be duplicated:
 | 2026-11-13 | #31: server-side accounts (scrypt), refresh rotation, password reset, rate limits; TD-03 resolved, TD-01 note updated |
 | 2026-11-13 | #29: backend/web Dockerfiles and root docker-compose.yml (TD-35 partly) |
 | 2026-11-16 | #48: circular import via app.imaging.metadata_prep fixed (37 of 207 modules failed when imported first); tests/test_import_cycles.py guards every module |
+| 2026-11-26 | #41: email verification for self-registered vets; register no longer reveals existing emails (uniform 202) |
