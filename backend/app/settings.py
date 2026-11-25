@@ -110,6 +110,8 @@ class Settings:
     self_registration_owner_clinic_id: str | None = "clinic-demo-a"
     # Issue #31 step 4 — password reset links (single use).
     password_reset_ttl_seconds: int = 30 * 60
+    # Issue #41 — email verification links for self-registered accounts (single use).
+    email_verify_ttl_seconds: int = 24 * 60 * 60
     # Single-use approved-report email links (default 72h).
     report_view_token_ttl_seconds: int = 72 * 60 * 60
     # Frontend origin used to build links in emails.
@@ -441,6 +443,10 @@ def load_settings() -> Settings:
         password_reset_ttl = int(os.getenv("VETMIND_PASSWORD_RESET_TTL_SECONDS", str(30 * 60)))
     except ValueError:
         password_reset_ttl = 30 * 60
+    try:
+        email_verify_ttl = int(os.getenv("VETMIND_EMAIL_VERIFY_TTL_SECONDS", str(24 * 60 * 60)))
+    except ValueError:
+        email_verify_ttl = 24 * 60 * 60
     public_base_url = (os.getenv("VETMIND_PUBLIC_BASE_URL") or "http://localhost:5173").strip().rstrip("/")
     smtp_host = (os.getenv("VETMIND_SMTP_HOST") or "").strip() or None
     try:
@@ -601,6 +607,7 @@ def load_settings() -> Settings:
         self_registration_enabled=self_registration_enabled,
         self_registration_owner_clinic_id=self_registration_owner_clinic_id,
         password_reset_ttl_seconds=min(max(300, password_reset_ttl), 24 * 60 * 60),
+        email_verify_ttl_seconds=min(max(300, email_verify_ttl), 7 * 24 * 60 * 60),
         report_view_token_ttl_seconds=min(
             max(3600, int(os.getenv("VETMIND_REPORT_VIEW_TOKEN_TTL_SECONDS", str(72 * 60 * 60)))),
             14 * 24 * 60 * 60,
