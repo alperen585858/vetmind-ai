@@ -66,6 +66,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Alan | Durum |
 |------|--------|
 | **Frontend** | Landing, giriş/kayıt, şifremi unuttum / şifre sıfırlama, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan, mesafe/açı/ROI, röntgende **VHS kalp ölçümü**), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
+| **Hasta kaydı ve önceki tetkikler (#108)** | Kliniğe ait hasta kaydı (mikroçip / klinik no opsiyonel), yeni vakada kayıtlı hasta seçimi ve DICOM `PatientID` / isim ile eşleşme önerisi, vaka sayfasında "Önceki tetkikler", yan yana karşılaştırma (senkron dilim/zoom/W-L, ölçüm farkı), raporda "önceki tetkike göre değişim" bölümü — bkz. [§8.7](#87-önceki-tetkiklerle-karşılaştırma) |
 | **Backend API** | Case / Job / Findings / Report / Review / DICOM / Documents / Auth / RAG / Health |
 | **Quarantine** | Yerel disk `backend/data/quarantine/{ingest_id}/` + SHA256 + `manifest.json`; path sanitization |
 | **DICOM** | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma önerisi + onay; demo fixture: Brain MRI, Cervical MRI, Brain CT, Thorax XR |
@@ -402,11 +403,12 @@ vakayı gönderen veterinere bilgilendirme e-postası gider (`VETMIND_SMTP_HOST`
 
 ### Örnek vakalar
 
-Demo için altı hazır vaka backend'e **gerçek vaka olarak** yüklenebilir (sentetik DICOM; görüntüleyici,
+Demo için yedi hazır vaka backend'e **gerçek vaka olarak** yüklenebilir (sentetik DICOM; görüntüleyici,
 atama, onay ve rapor uçtan uca çalışır):
 
 | Hasta | Görüntü | Durum |
 |-------|---------|-------|
+| Duman (kedi), 4 ay önce | Beyin MR | Onaylandı (önceki tetkik, #108) |
 | Duman (kedi) | Beyin MR | Onaylandı |
 | Zeytin (köpek) | Toraks röntgeni | Onaylandı |
 | Tarçın (köpek) | Servikal MR | Revizyon istendi |
@@ -764,6 +766,15 @@ Küçük bir duman testi; model dersi her seferinde uygulamıyor. Son karar yine
 
 Röntgen (XR) vakalarında radyolog çalışma alanındaki görüntüleyicide **VHS** aracını (kısayol `H`) seçer ve 6 noktaya tıklar: uzun eksen (karina altı → apeks), ona dik kısa eksen, omur cetveli (T4 ve T8'in kranial kenarı = 4 omur). VHS = (uzun + kısa) / ortalama omur boyu. Sonuç köpek (8.5–10.5) ve kedi (6.9–8.1) referans aralıklarıyla karşılaştırılır; kısa eksen dik değilse uyarı verir. **Rapora ekle** sonucu Bulgular bölümünün sonuna yazar (onaylı raporda kapalı). Hesap `src/shared/lib/vhs.ts`; referanslar ırka göre değişir, sonuç tanı değil ölçüm yardımıdır. Aynı araç ileride veri etiketlemek için de kullanılabilir. İlk kullanımda bir **rehber penceresi** VHS'nin ne olduğunu ve 6 noktanın yerini şemayla anlatır (veteriner olmayanlar ve jüri için de); "Anladım, bir daha gösterme" işaretlenirse 30 gün çıkmaz, şeritteki **?** ile her zaman açılır.
 
+### 8.7 Önceki tetkiklerle karşılaştırma
+
+Her vaka kliniğe ait bir **hasta kaydına** (`patient_id`) bağlanabilir (#108). Veteriner yeni vaka sihirbazında kayıtlı hastayı arayıp seçer; seçmezse kayıt otomatik açılır. Aynı isim ve türde hasta varsa öneri çıkar, DICOM yüklenen vakada `PatientID` eşleşmesi de önerilir; **hiçbir şey otomatik bağlanmaz**. Mikroçip ve klinik no klinik içinde eşsizdir; yanlışlıkla iki kez açılan kayıtlar klinik sahibi / admin tarafından birleştirilir.
+
+- **Önceki tetkikler paneli** (vaka sayfası ve radyolog çalışma alanı): aynı hayvanın diğer vakaları; aynı modalite ve bölgedekiler "karşılaştırmaya uygun" etiketiyle üstte.
+- **Yan yana karşılaştırma**: solda bu tetkik, sağda önceki. Dilimler göreli konuma göre eşlenir (iki çalışmanın dilim sayısı farklı olabilir); zoom/pan birlikte, pencere/seviye isteğe bağlı. İki panelde mesafe ölçülürse fark gösterilir. Hesaplar `src/shared/dicom/viewerSync.ts`.
+- **Rapordaki değişim bölümü** (`DraftReport.comparison`): aynı hastanın aynı modalite/bölgedeki en yakın **onaylı** önceki raporuyla bulgu kodları karşılaştırılır: yeni, devam eden, önceki tetkikte olup artık görülmeyen. Cümleler bu tetkikin bulgularına `[F1]`, önceki rapora `[P1]` diye atıf verir; atıflar doğrulanır. Önceki izlenim alıntısı KVKK maskelemesinden geçer. Radyolog metni düzenleyebilir; onaylanınca rapor çıktısına ve PDF'e girer. Hasta kaydı olmayan vakalarda bölüm yoktur (eski davranış). Kod: `backend/app/llm/comparison.py`.
+- **Eski vakalar**: `python scripts/backfill_patients.py --dry-run` vakaları klinik + isim + türe göre gruplayıp hasta kaydı önerir; aynı isim ve türde farklı ırklar varsa (iki ayrı hayvan olabilir) dokunmaz, listeler.
+
 Derin AI dokümantasyonu: [docs/ARCHITECTURE_AND_LLM.md](docs/ARCHITECTURE_AND_LLM.md).
 
 ---
@@ -868,7 +879,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 | `/ayarlar` | `auth/Settings.tsx` | vet, expert, clinic_owner, admin | ayarlar, şifre değiştir |
 | `/vakalar/yeni` | `cases/NewCase.tsx` | vet | vaka aç → tetkik yükleme (DICOM) → analiz |
 | `/vakalar` | `cases/CaseList.tsx` | vet, expert, clinic_owner | liste; `?durum=onaylandi` onaylı raporlar |
-| `/vakalar/:id` | `cases/CaseDetailPage.tsx` | vet, expert, clinic_owner | vaka, bulgular, geçmiş, RAG |
+| `/vakalar/:id` | `cases/CaseDetailPage.tsx` | vet, expert, clinic_owner | vaka, bulgular, geçmiş, RAG, önceki tetkikler (`patients/PriorStudiesPanel.tsx`) |
 | `/vakalar/:id/isleme` | `analysis/Processing.tsx` | vet, expert | job poll |
 | `/vakalar/:id/calisma` | `expert/RadiologistWorkspace.tsx` | expert | review submit (+ hydrate) |
 | `/vakalar/:id/inceleme` | yönlendirme → `/calisma` | expert | eski bağlantı |
@@ -920,7 +931,13 @@ Modül sınırları ve import kuralları: [docs/modularization.md](docs/modulari
 | POST | `/auth/password/forgot` | Sıfırlama linki e-postala |
 | POST | `/auth/password/reset` | Link ile yeni şifre |
 | GET | `/auth/me` | Principal |
-| POST | `/cases` | Sentetik vaka oluştur |
+| POST | `/cases` | Sentetik vaka oluştur (opsiyonel `patient_id`) |
+| GET / POST | `/patients` | Hasta ara (`?q=` ad, mikroçip, klinik no) / oluştur (#108) |
+| GET / PATCH | `/patients/{id}` | Hasta kaydı |
+| GET | `/patients/{id}/studies` | Hastanın tüm tetkikleri |
+| POST | `/patients/{id}/merge` | Çift kaydı birleştir (klinik sahibi / admin) |
+| GET | `/cases/{id}/prior-studies` | Vakanın önceki tetkikleri veya hasta önerileri |
+| PUT | `/cases/{id}/patient` | Vakayı hastaya bağla / bağlantıyı kaldır |
 | GET | `/cases` | Vaka listesi |
 | GET | `/cases/{id}` | Tam vaka kaydı |
 | POST | `/cases/{id}/model-input` | ImagingModelInput üret / yenile |
