@@ -183,8 +183,11 @@ def test_model_never_sees_names(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     case_id = _approved_case(client, patient_name="Karamel", owner_name="Ayşe Yılmaz")
     _use_real_model(container)
     case = container.repo.get_case(case_id)
+    case.referring_clinic = "Pati Dostu Veteriner Kliniği"
     snap = case.report_versions[-1]
-    snap.content.impression.text = "Karamel adlı hastada Ayşe Yılmaz'ın belirttiği şikâyet [F1]."
+    snap.content.impression.text = (
+        "Karamel adlı hastada Ayşe Yılmaz'ın belirttiği şikâyet [F1]. Pati Dostu Veteriner Kliniği tarafından sevk edildi."
+    )
     container.repo.save_case(case)
     sent: list[str] = []
 
@@ -194,7 +197,7 @@ def test_model_never_sees_names(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(osum, "_openai_compatible_chat", fake)
     client.post(_url(case_id))
-    assert sent and "Karamel" not in sent[0] and "Ayşe" not in sent[0]
+    assert sent and "Karamel" not in sent[0] and "Ayşe" not in sent[0] and "Pati Dostu" not in sent[0]
 
 
 def test_roles(tmp_path: Path) -> None:
@@ -248,3 +251,21 @@ def test_pdf_layout(monkeypatch: pytest.MonkeyPatch) -> None:
     assert [t for n, t in seen if n == "OH"] == ["Ne yapıldı?", "Ne görüldü?"]
     assert seen[-1][0] == "ON" and "tanı veya tedavi önerisi değildir" in seen[-1][1]
     assert {"OT", "OM", "OB"} <= styles
+
+
+def test_mock_boilerplate_and_numbered_lists_are_handled() -> None:
+    impression = (
+        "SENTETİK TASLAK RAPOR — demo (mock) rapor şablonuyla üretildi. Klinik olarak doğrulanmamıştır.\n\n"
+        "Değerlendirme: yukarıdaki demo bulgular yalnızca şüpheli maddeler olarak listelenmiştir."
+    )
+    assert osum._items(impression) == []
+    recs = (
+        "1. Kaynak görüntülerin veteriner radyolog tarafından incelenmesi (mevcutsa).\n"
+        "2. Kontrol röntgeni 4 hafta sonra çekilmesi.\n"
+        "3. Listelenen RAG demo pasajlarını inceleyin."
+    )
+    assert osum._items(recs) == ["Kontrol röntgeni 4 hafta sonra çekilmesi."]
+    findings = "- [MOCK-XR-THORAX-OPACITY] Toraks grafisinde kaudal akciğer alanında olası interstisyel opasite."
+    assert osum.simplify(" ".join(osum._items(findings)), "tr") == (
+        "Göğüs röntgeninde arka akciğer alanında olası akciğer dokusunda gölgelenme."
+    )

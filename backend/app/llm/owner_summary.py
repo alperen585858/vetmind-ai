@@ -57,6 +57,13 @@ GLOSSARY: list[tuple[str, str, str]] = [
     (r"hidrosefali|hydrocephalus", "beyindeki sıvı boşluklarının genişlemesi", "enlarged fluid spaces in the brain"),
     (r"meningioma|meningiom", "beyin zarından kaynaklanan bir kitle", "growth arising from the brain's lining"),
     (r"neoplazi|neoplasia|tümör|tumou?r", "anormal doku büyümesi", "abnormal tissue growth"),
+    (r"interstisyel opasite|interstitial opacity", "akciğer dokusunda gölgelenme", "shadowing in the lung tissue"),
+    (r"opasite|opacity|opacities", "gölgelenme (yoğunluk artışı)", "shadowing (increased density)"),
+    # Turkish suffixed forms first ("grafisinde" = "on the X-ray"); plain match would miss them.
+    (r"toraks grafisinde|on (?:the )?thoracic radiographs?", "göğüs röntgeninde", "on the chest X-ray"),
+    (r"toraks grafisi|thoracic radiographs?|chest radiographs?", "göğüs röntgeni", "chest X-ray"),
+    (r"grafisinde|grafide|on (?:the )?radiographs?", "röntgende", "on the X-ray"),
+    (r"grafi|radiographs?", "röntgen", "X-ray"),
     (r"lezyon|lesion", "değişiklik gösteren bölge", "area of change"),
     (r"kitle|mass", "kitle (doku büyümesi)", "mass (tissue growth)"),
     (r"ödem|edema|oedema", "sıvı birikmesi (şişlik)", "swelling (fluid build-up)"),
@@ -141,9 +148,39 @@ def _capitalize_sentences(text: str, language: str) -> str:
     return " ".join(_upper_first(part, language) for part in _SENTENCE.split(text)) if text else text
 
 
+# System text that means nothing to an owner (mock/demo banners, RAG context, review
+# instructions meant for the radiologist). Matched per sentence / list item.
+_BOILERPLATE = re.compile(
+    r"sentetik|synthetic|demo|mock|klinik olarak doğrulanmamış|not clinically validated|"
+    r"radyolog tarafından incelen|reviewed by a (?:veterinary )?radiologist|bulgu bildirilmemesi|"
+    r"absence of (?:a )?finding|\brag\b|benzerlik=|similarity=|\[kb-|pasaj|passage|kanıt değildir|not clinical evidence|"
+    r"nihai klinik rapor|final clinical report",
+    re.IGNORECASE,
+)
+_CODE_TAG = re.compile(r"\[[A-Z][A-Z0-9_-]{2,}\]\s*")
+_ENUM = re.compile(r"^\s*(?:\d+[.)]|[-•*])\s*")
+
+
+def _items(text: str) -> list[str]:
+    """Sentences and list items of a report section, without boilerplate or code tags."""
+    out: list[str] = []
+    for line in (text or "").splitlines():
+        line = _ENUM.sub("", _CODE_TAG.sub("", line)).strip()
+        if not line:
+            continue
+        for part in _SENTENCE.split(line):
+            part = part.strip()
+            # "2." alone (a split list number) or a bare heading like "Bildirilen bulgular:" is not content.
+            if len(re.sub(r"[\W\d_]", "", part)) < 4 or part.endswith(":"):
+                continue
+            if _BOILERPLATE.search(part):
+                continue
+            out.append(part)
+    return out
+
+
 def _first_sentences(text: str, n: int = MAX_SENTENCES) -> str:
-    parts = [p.strip() for p in _SENTENCE.split(text.strip()) if p.strip()]
-    return " ".join(parts[:n])
+    return " ".join(_items(text)[:n])
 
 
 def unsafe_reasons(text: str) -> list[str]:
@@ -173,13 +210,18 @@ def template_summary(case: CaseRecord, language: str) -> str:
     h_done, h_seen, h_mean, h_next = HEADINGS[lang]
     modality = MODALITY_PLAIN[lang].get(case.modality, "görüntüleme" if lang == "tr" else "imaging")
     region = REGION_PLAIN[lang].get(case.anatomical_region, "ilgili bölge" if lang == "tr" else "the area of concern")
-    seen = _first_sentences(simplify(_scrub(case, content.impression.text), lang)) or (
+    findings = case.structured_findings.findings if case.structured_findings else []
+    seen = _first_sentences(_scrub(case, content.impression.text))
+    if not seen:
+        # Impression was only system text (mock reports): describe the findings instead.
+        seen = " ".join(_items(" ".join(f.description for f in findings[:MAX_SENTENCES])))
+    seen = simplify(seen, lang) if seen else (
         "Raporda özetlenecek bir bulgu yok." if lang == "tr" else "The report has no findings to summarise."
     )
-    nxt = _first_sentences(simplify(_scrub(case, content.recommendations.text), lang)) or (
+    steps = [simplify(item, lang) for item in _items(_scrub(case, content.recommendations.text))[:MAX_SENTENCES]]
+    nxt = "\n".join(f"• {item}" for item in steps) if steps else (
         "Veteriner hekiminiz sonraki adımları sizinle konuşacak." if lang == "tr" else "Your veterinarian will discuss the next steps with you."
     )
-    findings = case.structured_findings.findings if case.structured_findings else []
     if lang == "tr":
         done = f"Hayvanınızın {region} bölgesine {modality} yapıldı ve görüntüler bir veteriner radyolog tarafından incelendi."
         mean = (
@@ -227,10 +269,10 @@ def _report_block(case: CaseRecord) -> str:
     lines = [
         f"Species: {case.species.value} · Breed: {case.breed or '—'} · Age: {case.patient_age_years or '—'}",
         f"Modality: {case.modality.value} · Region: {case.anatomical_region.value}",
-        f"Technique: {_scrub(case, _CITATION.sub('', c.technique.text))}",
-        f"Findings: {_scrub(case, _CITATION.sub('', c.findings.text))}",
-        f"Impression: {_scrub(case, _CITATION.sub('', c.impression.text))}",
-        f"Recommendations: {_scrub(case, _CITATION.sub('', c.recommendations.text))}",
+        f"Technique: {' '.join(_items(_scrub(case, _CITATION.sub('', c.technique.text))))}",
+        f"Findings: {' '.join(_items(_scrub(case, _CITATION.sub('', c.findings.text))))}",
+        f"Impression: {' '.join(_items(_scrub(case, _CITATION.sub('', c.impression.text))))}",
+        f"Recommendations: {' '.join(_items(_scrub(case, _CITATION.sub('', c.recommendations.text))))}",
     ]
     return "<report>\n" + "\n".join(lines) + "\n</report>"
 
