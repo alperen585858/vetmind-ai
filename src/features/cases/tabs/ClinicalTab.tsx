@@ -17,7 +17,8 @@ import { CaseProgressTracker } from '../CaseProgressTracker'
 import { localize } from '../../../shared/lib/neuroLocalization'
 import { toastErrorBody } from '../../../shared/lib/apiErrors'
 import { OwnerNameField } from '../../../shared/ui/OwnerNameField'
-import { fmtDate } from '../../../shared/lib/format'
+import { fmtDate, fmtDateTimeLocal } from '../../../shared/lib/format'
+import { USERS } from '../../../shared/demo/users'
 import { cleanClinicalHistory, displayClinic } from '../../../shared/lib/displayClean'
 import {
   appendCaseClinicalNote,
@@ -118,6 +119,15 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
     if (role === 'vet' || role === 'clinic_owner') return t('cases.detail.roleVet')
     return role
   }
+  // Who wrote a note (#68): stored name, else the demo persona for demo accounts, else the
+  // e-mail's local part. Never "anonymous" or a raw e-mail address.
+  const noteAuthor = (n: { author_name?: string | null; author_subject: string; author_role: string }) => {
+    if (n.author_name?.trim()) return n.author_name.trim()
+    const persona = USERS[n.author_role as keyof typeof USERS]
+    if (persona && (n.author_subject.endsWith('@demo.local') || n.author_subject === 'anonymous')) return persona.name
+    return n.author_subject.split('@')[0]
+  }
+
   const statusLabel = (status: string) => {
     if (status === 'OPEN') return t('cases.detail.statusOpen')
     if (status === 'ANSWERED') return t('cases.detail.statusAnswered')
@@ -252,27 +262,36 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
               <Row k={t('cases.detail.rowMedications')} v={c.clinical.medications || '—'} />
             </dl>
             {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
-              <div className="space-y-2 border-t border-slate-100 px-5 py-3">
-                <label className="block text-xs text-slate-600">
-                  {t('cases.detail.addClinicalNote')}
-                  <textarea
-                    className="input mt-1 min-h-[64px] text-sm"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </label>
-                <Button size="sm" disabled={busy || !note.trim()} onClick={() => void addNote()}>
-                  Not kaydet
-                </Button>
+              <div className="space-y-2 border-t border-slate-100 px-5 py-3" data-testid="clinical-notes">
+                <div>
+                  <p className="text-sm font-semibold text-navy-900">{t('cases.detail.clinicalNotesTitle')}</p>
+                  <p className="text-xs text-slate-500">{t('cases.detail.clinicalNotesHint')}</p>
+                </div>
                 {(backendExtras?.clinical_notes_log || []).length > 0 && (
-                  <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-slate-600">
+                  <ul className="max-h-48 space-y-2 overflow-y-auto">
                     {backendExtras!.clinical_notes_log!.map((n) => (
-                      <li key={n.note_id}>
-                        {new Date(n.created_at).toLocaleString('tr-TR')} · {n.author_subject}: {n.body}
+                      <li key={n.note_id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" data-testid="clinical-note">
+                        <p className="whitespace-pre-wrap text-sm text-navy-900">{n.body}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {noteAuthor(n)} · {roleLabel(n.author_role)} · {fmtDateTimeLocal(n.created_at, locale)}
+                        </p>
                       </li>
                     ))}
                   </ul>
                 )}
+                <label className="block text-xs text-slate-600">
+                  {t('cases.detail.addClinicalNote')}
+                  <textarea
+                    className="input mt-1 min-h-[64px] text-sm"
+                    data-testid="clinical-note-input"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder={t('cases.detail.clinicalNotePlaceholder')}
+                  />
+                </label>
+                <Button size="sm" disabled={busy || !note.trim()} onClick={() => void addNote()} data-testid="clinical-note-save">
+                  {t('cases.detail.saveClinicalNote')}
+                </Button>
               </div>
             )}
           </Card>

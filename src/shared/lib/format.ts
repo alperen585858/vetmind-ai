@@ -12,6 +12,15 @@ export function fmtDate(iso?: string, locale: Locale = 'tr') {
   return `${day} ${month} ${y}${clock ? ` · ${clock}` : ''}`
 }
 
+/** ISO timestamp (UTC or with offset) shown in the viewer's local time: "23 Kas 2026 · 15:04". */
+export function fmtDateTimeLocal(iso?: string | null, locale: Locale = 'tr') {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return fmtDate(iso, locale)
+  const p = (x: number) => String(x).padStart(2, '0')
+  return fmtDate(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`, locale)
+}
+
 export function nowStamp() {
   const n = new Date()
   const p = (x: number) => String(x).padStart(2, '0')

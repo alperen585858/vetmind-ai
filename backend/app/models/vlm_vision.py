@@ -23,6 +23,7 @@ import httpx
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
+from app.llm.clinical_notes import history_with_notes
 from app.http_policy import vision_http_policy
 from app.imaging.display_png import (
     dicom_bytes_to_png,
@@ -725,7 +726,7 @@ class OpenAiCompatibleVlmVisionModel:
         batch_index: int = 0,
         batch_total: int = 1,
     ) -> str:
-        history = (case.clinical_history or "").strip()
+        history = history_with_notes(case)  # notes as their own section, no stamps (#68)
         lang = "Turkish" if self._language.startswith("tr") else "English"
         insist_line = (
             "\nPREVIOUS REPLY WAS INVALID because findings=[] was empty. "

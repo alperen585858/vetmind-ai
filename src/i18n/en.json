@@ -873,7 +873,7 @@
       "rowHyperesthesia": "Spinal hyperesthesia",
       "rowHistory": "Clinical history",
       "rowMedications": "Medications",
-      "addClinicalNote": "Add clinical note (previous history is kept)",
+      "addClinicalNote": "New information",
       "requestPlaceholder": "Request text",
       "openRequest": "Send request",
       "replyLabel": "Reply:",
@@ -997,7 +997,7 @@
       "sample": "Sample",
       "chooseFile": "Choose file",
       "loadSample": "Load sample",
-      "toastNoteAdded": "Clinical note added",
+      "toastNoteAdded": "Additional clinical information saved",
       "toastNoteFailed": "Could not add the note",
       "toastDocFailed": "Could not attach the document",
       "patient": "Patient",
@@ -1025,7 +1025,11 @@
       "citationsNone": "No source passages were used in this case's AI draft (or the analysis has not run yet).",
       "citationsLegacy": "Older record: which passages the model used was not stored; all retrieved passages are shown, which does not mean the model used them.",
       "citationRelatedFinding": "Related finding:",
-      "citationScoreHint": "Text similarity {score}; only a search match measure, not a clinical confidence level."
+      "citationScoreHint": "Text similarity {score}; only a search match measure, not a clinical confidence level.",
+      "clinicalNotesTitle": "Additional clinical information",
+      "clinicalNotesHint": "Add clinical information learned after the case was sent; the assigned radiologist is notified. The original history is kept.",
+      "clinicalNotePlaceholder": "E.g. Deep pain lost today; paraplegic at the follow-up exam.",
+      "saveClinicalNote": "Add information"
     },
     "processing": {
       "title": "AI processing",

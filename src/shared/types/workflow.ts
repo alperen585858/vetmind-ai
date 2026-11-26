@@ -27,6 +27,8 @@ export interface BackendClinicalNoteEntry {
   body: string
   author_subject: string
   author_role: string
+  /** Display name at the time of writing (#68); null when only the e-mail was known. */
+  author_name?: string | null
   created_at: string
   kind: 'clinical' | 'internal'
 }

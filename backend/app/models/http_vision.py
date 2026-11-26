@@ -13,6 +13,7 @@ from typing import Any, Optional
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.llm.clinical_notes import history_with_notes
 from app.http_policy import vision_http_policy
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
@@ -125,7 +126,7 @@ class HttpRemoteVisionModel:
             "species": case.species.value,
             "modality": case.modality.value,
             "anatomical_region": case.anatomical_region.value,
-            "clinical_history": case.clinical_history,
+            "clinical_history": history_with_notes(case) or None,  # #68: no note stamps
             "note": "Remote Vision request. Server must not invent clinical certainty.",
         }
         policy = vision_http_policy(self._timeout_s)
