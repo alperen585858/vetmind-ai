@@ -873,7 +873,7 @@
       "rowHyperesthesia": "Spinal hiperestezi",
       "rowHistory": "Klinik geçmiş",
       "rowMedications": "İlaçlar",
-      "addClinicalNote": "Klinik not ekle (önceki öykü korunur)",
+      "addClinicalNote": "Yeni bilgi",
       "requestPlaceholder": "İstek metni",
       "openRequest": "İstek gönder",
       "replyLabel": "Yanıt:",
@@ -997,7 +997,7 @@
       "sample": "Örnek",
       "chooseFile": "Dosya seç",
       "loadSample": "Örnek yükle",
-      "toastNoteAdded": "Klinik not eklendi",
+      "toastNoteAdded": "Ek klinik bilgi kaydedildi",
       "toastNoteFailed": "Not eklenemedi",
       "toastDocFailed": "Belge eklenemedi",
       "patient": "Hasta",
@@ -1025,7 +1025,11 @@
       "citationsNone": "Bu vakada AI taslağında kullanılan kaynak pasajı yok (veya analiz henüz çalışmadı).",
       "citationsLegacy": "Eski kayıt: modelin hangi pasajları kullandığı bilgisi yok; bulunan tüm pasajlar gösteriliyor, modelin kullandığı anlamına gelmez.",
       "citationRelatedFinding": "İlgili bulgu:",
-      "citationScoreHint": "Metin benzerliği {score}; yalnızca aramadaki eşleşme ölçüsüdür, klinik güven düzeyi değildir."
+      "citationScoreHint": "Metin benzerliği {score}; yalnızca aramadaki eşleşme ölçüsüdür, klinik güven düzeyi değildir.",
+      "clinicalNotesTitle": "Klinik öyküye ek bilgi",
+      "clinicalNotesHint": "Vaka gönderildikten sonra öğrendiğiniz klinik bilgiyi ekleyin; atanmış uzmana bildirim gider. Önceki öykü değişmez.",
+      "clinicalNotePlaceholder": "Örn. Derin ağrı bugün kayboldu; kontrol muayenesinde parapleji.",
+      "saveClinicalNote": "Bilgiyi ekle"
     },
     "processing": {
       "title": "AI İşleme",

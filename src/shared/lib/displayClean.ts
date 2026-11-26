@@ -8,9 +8,18 @@ export function displayClinic(name?: string | null): string {
   return isPlaceholderClinic(name) ? '' : name!.trim()
 }
 
+// Older records had clinical notes appended to the history as "[<ISO time> · <user>] <text>"
+// (#68). Notes are their own list now; strip those stamps (up to the next stamp or the end).
+const NOTE_STAMP = /(?:\n\n|^)\[\d{4}-\d{2}-\d{2}T[0-9:.+\-Z]+ · [^\]\n]+\] [\s\S]*?(?=\n\n\[\d{4}-\d{2}-\d{2}T|$(?![\s\S]))/g
+
+export function stripNoteStamps(text?: string | null): string {
+  return (text ?? '').replace(NOTE_STAMP, '').trim()
+}
+
 /** Hide DICOM/pipeline boilerplate that is not clinical history. */
 export function cleanClinicalHistory(text?: string | null): string {
-  if (!text?.trim()) return ''
+  text = stripNoteStamps(text)
+  if (!text.trim()) return ''
   if (
     /Case created from DICOM|No pixel-based|metadata ingest|Pixel data (was not|klinik olarak)|DICOM metadata ingest only/i.test(
       text,

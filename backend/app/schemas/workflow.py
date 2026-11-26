@@ -66,6 +66,8 @@ class ClinicalNoteEntry(BaseModel):
     body: str = Field(min_length=1, max_length=8000)
     author_subject: str = Field(min_length=1, max_length=120)
     author_role: str = Field(min_length=1, max_length=40)
+    # Display name at the time of writing (#68); None when only the e-mail is known.
+    author_name: Optional[str] = Field(default=None, max_length=120)
     created_at: datetime = Field(default_factory=utcnow)
     kind: Literal["clinical", "internal"] = "clinical"
 

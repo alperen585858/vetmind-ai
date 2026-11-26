@@ -63,9 +63,10 @@ def test_case_clinical_note_info_request_and_document_no_duplicate(tmp_path: Pat
         headers=_hdr(vet),
     )
     assert note.status_code == 200
-    assert prior_history in note.json()["clinical_history"]
-    assert "Ek klinik not" in note.json()["clinical_history"]
-    assert len(note.json()["clinical_notes_log"]) == 1
+    # #68: the note is its own entry; the free-text history is left exactly as it was.
+    assert note.json()["clinical_history"] == prior_history
+    assert [n["body"] for n in note.json()["clinical_notes_log"]] == ["Ek klinik not"]
+    assert note.json()["clinical_notes_log"][0]["author_role"] == "vet"
 
     irq = client.post(
         f"/api/v1/cases/{cid}/info-requests",
