@@ -27,6 +27,7 @@ const TR_TO_EN: Record<string, string> = {
   moduller: 'modules',
   'bilgi-tabani': 'knowledge-base',
   sistem: 'system',
+  guvenlik: 'security',
   'ai-mimarisi': 'ai-architecture',
   'model-performansi': 'model-performance',
   ayarlar: 'settings',
@@ -95,6 +96,7 @@ export const APP_ROUTE_PAIRS: { tr: string; en: string }[] = [
   { tr: 'ai-mimarisi', en: 'ai-architecture' },
   { tr: 'model-performansi', en: 'model-performance' },
   { tr: 'ayarlar', en: 'settings' },
+  { tr: 'guvenlik', en: 'security' },
 ]
 
 export const PUBLIC_ROUTE_PAIRS: { tr: string; en: string }[] = [

@@ -82,7 +82,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **Remote Vision** | `HttpRemoteVisionModel` + `scripts/mock_vision_server.py` iskeleti |
 | **Provenance** | `source_kind` ∈ {mock, real, mixed}; UI’da DEMO/MOCK / REAL/MIXED banner’ları |
 | **E2E** | Playwright tam klinik akış + negatif senaryolar; pytest Phase 6 journey suite |
-| **Audit** | Append-only security audit JSONL (auth açık yolculuklarda) |
+| **Audit** | Append-only security audit (veritabanında `audit_events`; JSONL yedek mod). Admin → **Güvenlik / Audit** ekranı: filtre, şüpheli durumlar, CSV (#106) |
 
 ### Bilinçli olarak yok / ertelenmiş
 
@@ -844,6 +844,7 @@ Tüm hesaplar backend'de tutulur: demo seed kullanıcılar, kayıt olanlar ve Ad
 | Şifremi unuttum | `POST /api/v1/auth/password/forgot` → 30 dk geçerli tek kullanımlık link. Hesap olsa da olmasa da aynı cevap. Demo modda e-posta sunucu log'una yazılır, `VETMIND_SMTP_*` ile gerçek e-posta |
 | Sıfırlama | `POST /api/v1/auth/password/reset`. Tüm oturumlar kapanır |
 | Deneme sınırı | login, register, forgot, reset, change için `429` + `Retry-After` (`VETMIND_AUTH_RATE_LIMIT`). Sayaçlar süreç belleğinde |
+| Audit ekranı (#106) | `/guvenlik`: son 24 saat / 7 gün kartları, şüpheli durumlar (15 dk içinde 5+ başarısız giriş, deneme sınırı, kullanılmış refresh token'ın tekrar gelmesi), olay / kişi / sonuç / tarih filtresi (adres çubuğunda paylaşılabilir), satır ayrıntısı, CSV (en fazla 5 000 satır, formül enjeksiyonuna karşı temizlenmiş). Admin her şeyi, klinik sahibi sadece kendi kliniğini görür. Ekran **sadece okur**: hesap kilitlemez, değiştirmez. Ekranı açmak ve CSV indirmek de audit'e yazılır (`admin.audit_view`, `admin.audit_export`). IP / tarayıcı bilgisi tutulmaz |
 
 Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
@@ -892,6 +893,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 | `/ai-dersleri` | `rag-admin/AiLessons.tsx` | expert, admin | `/lessons` |
 | `/moduller`, `/bilgi-tabani` | `rag-admin/Modules.tsx`, `rag-admin/KnowledgeBase.tsx` | admin | `rag/*` |
 | `/kullanicilar`, `/radyologlarim` | `admin/AdminUsers.tsx`, `admin/AdminRadiologists.tsx` | admin | kullanıcı yönetimi |
+| `/guvenlik` | `admin/SecurityAudit.tsx` | admin, clinic_owner (kendi kliniği) | `GET /admin/audit`, `/summary`, `/export.csv` |
 | `/sistem`, `/model-performansi` | `admin/SystemStatus.tsx`, `admin/ModelPerformance.tsx` | admin | `GET /health`, değerlendirme sonuçları |
 
 Rotalar her feature'ın `routes.tsx` dosyasında; `src/App.tsx` bunları bağlar. Rol kapısı: `src/shared/shell/routing.tsx` → `<Gate roles={[...]}>`.
@@ -931,6 +933,9 @@ Modül sınırları ve import kuralları: [docs/modularization.md](docs/modulari
 | POST | `/auth/password/forgot` | Sıfırlama linki e-postala |
 | POST | `/auth/password/reset` | Link ile yeni şifre |
 | GET | `/auth/me` | Principal |
+| GET | `/admin/audit` | Audit kayıtları (`event_type` tam ya da `auth.` gibi ön ek, `actor`, `outcome`, `clinic_id`, `since`, `until`, `limit`, `cursor`) |
+| GET | `/admin/audit/summary` | Özet kartları ve şüpheli durumlar (son 7 gün) |
+| GET | `/admin/audit/export.csv` | Aynı filtrelerle CSV (en fazla 5 000 satır) |
 | POST | `/cases` | Sentetik vaka oluştur (opsiyonel `patient_id`) |
 | GET / POST | `/patients` | Hasta ara (`?q=` ad, mikroçip, klinik no) / oluştur (#108) |
 | GET / PATCH | `/patients/{id}` | Hasta kaydı |

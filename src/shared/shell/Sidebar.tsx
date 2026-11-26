@@ -16,6 +16,7 @@ import {
   LogOut,
   MessageSquare,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Wallet,
@@ -79,12 +80,14 @@ export function Sidebar({
     clinic_owner: [
       { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
+      { to: '/guvenlik', label: t('nav.security'), icon: <ShieldAlert className={ic} /> },
     ],
     admin: [
       { to: '/', label: t('nav.systemSummary'), icon: <LayoutDashboard className={ic} /> },
       { to: '/mesajlar', label: t('nav.messagesSupport'), icon: <MessageSquare className={ic} /> },
       { to: '/radyologlarim', label: t('nav.myRadiologists'), icon: <Wallet className={ic} /> },
       { to: '/kullanicilar', label: t('nav.users'), icon: <ShieldCheck className={ic} /> },
+      { to: '/guvenlik', label: t('nav.security'), icon: <ShieldAlert className={ic} /> },
       { to: '/moduller', label: t('nav.modules'), icon: <Layers className={ic} /> },
       { to: '/bilgi-tabani', label: t('nav.knowledgeBase'), icon: <BookOpen className={ic} /> },
       { to: '/sistem', label: t('nav.systemStatus'), icon: <Activity className={ic} /> },
