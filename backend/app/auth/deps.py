@@ -49,6 +49,8 @@ MFA_SETUP_ALLOWED_PREFIXES = (
     "/api/v1/auth/logout",
     "/api/v1/auth/status",
     "/api/v1/auth/refresh",
+    # Own UI preferences (language, display name): the Settings page loads them first.
+    "/api/v1/settings/me",
 )
 
 

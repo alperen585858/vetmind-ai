@@ -73,3 +73,38 @@ test('demo accounts sign in with the password only and cannot turn 2FA on', asyn
   await expect(page.getByText('Demo hesaplarda iki adımlı doğrulama kullanılamaz')).toBeVisible()
   await expect(page.getByRole('button', { name: 'İki adımlı doğrulamayı aç' })).toHaveCount(0)
 })
+
+test('admin requires 2FA for a role from the users screen; that role is sent to setup', async ({ page, request }) => {
+  const email = `mfa-vet-${Date.now().toString(36)}@e2e.test`
+  const admin = await request.post(`${API}/auth/login`, { data: { email: 'admin@demo.local', password: 'demo1234' } })
+  const adminToken = (await admin.json()).access_token as string
+  const created = await request.post(`${API}/admin/users`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { email, password: PASSWORD, role: 'vet', clinic_id: 'clinic-demo-a' },
+  })
+  expect(created.ok(), await created.text()).toBeTruthy()
+
+  try {
+    await loginProtected(page, 'admin@demo.local')
+    await page.goto('/kullanicilar')
+    const card = page.getByRole('group', { name: 'İki adımlı doğrulama zorunluluğu' })
+    await card.getByLabel('Veteriner Hekim').check()
+    await page.getByRole('button', { name: 'Kaydet' }).click()
+    await expect(page.getByText('2FA zorunluluğu kaydedildi')).toBeVisible()
+    await expect(page.getByText('Bu ekrandan kaydedildi.')).toBeVisible()
+
+    // A vet signing in now can only set 2FA up; the demo admin above was not affected.
+    await signOutFromSettings(page)
+    await page.goto('/giris')
+    await page.getByLabel(/E-posta/i).fill(email)
+    await page.getByLabel(/Şifre/i).fill(PASSWORD)
+    await page.getByRole('button', { name: /Giriş yap/i }).click()
+    await expect(page).toHaveURL(/\/ayarlar\?mfa=kurulum/)
+    await expect(page.getByText('Rolünüz için iki adımlı doğrulama zorunlu')).toBeVisible()
+  } finally {
+    await request.put(`${API}/admin/mfa-policy`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      data: { required_roles: [] },
+    })
+  }
+})

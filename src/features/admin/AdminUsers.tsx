@@ -13,6 +13,7 @@ import {
   updateManagedUser,
 } from '../../shared/api'
 import type { BackendManagedUser } from '../../shared/types'
+import { MfaPolicyCard } from './MfaPolicyCard'
 
 /** Active accounts in these roles must belong to a clinic (the backend enforces it). */
 const CLINIC_REQUIRED_ROLES = new Set(['vet', 'expert', 'clinic_owner'])
@@ -189,35 +190,38 @@ export default function AdminUsers() {
         </div>
       )}
       <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="p-5 xl:col-span-1">
-          <CardHeader title={t('admin.newUser')} icon={<ShieldCheck className="h-5 w-5" />} />
-          <div className="space-y-3">
-            <label className="label">
-              {t('common.email')}
-              <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </label>
-            <label className="label">
-              {t('common.password')}
-              <input className="input mt-1" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </label>
-            <label className="label">
-              {t('admin.role')}
-              <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="vet">vet</option>
-                <option value="expert">expert</option>
-                <option value="clinic_owner">clinic_owner</option>
-                <option value="admin">admin</option>
-              </select>
-            </label>
-            <label className="label">
-              {t('admin.clinicId')}
-              <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
-            </label>
-            <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@') || password.length < 8}>
-              {saving ? t('admin.saving') : t('admin.create')}
-            </Button>
-          </div>
-        </Card>
+        <div className="space-y-6 xl:col-span-1">
+          <Card className="p-5">
+            <CardHeader title={t('admin.newUser')} icon={<ShieldCheck className="h-5 w-5" />} />
+            <div className="space-y-3">
+              <label className="label">
+                {t('common.email')}
+                <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </label>
+              <label className="label">
+                {t('common.password')}
+                <input className="input mt-1" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </label>
+              <label className="label">
+                {t('admin.role')}
+                <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="vet">vet</option>
+                  <option value="expert">expert</option>
+                  <option value="clinic_owner">clinic_owner</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label className="label">
+                {t('admin.clinicId')}
+                <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
+              </label>
+              <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@') || password.length < 8}>
+                {saving ? t('admin.saving') : t('admin.create')}
+              </Button>
+            </div>
+          </Card>
+          <MfaPolicyCard />
+        </div>
         <Card className="xl:col-span-2">
           <CardHeader title={t('admin.directory')} subtitle={t('admin.userCount', { count: users.length })} />
           {loading ? (

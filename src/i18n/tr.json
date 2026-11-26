@@ -2122,7 +2122,19 @@
     "mfaOff": "Kapalı",
     "mfaReset": "2FA'yı sıfırla",
     "mfaResetHint": "Telefonunu kaybeden kullanıcı için: 2FA kapanır, oturumları sonlanır; şifreyle girip yeniden kurar.",
-    "mfaResetConfirm": "{email} için iki adımlı doğrulama kapatılsın ve oturumları sonlansın mı?"
+    "mfaResetConfirm": "{email} için iki adımlı doğrulama kapatılsın ve oturumları sonlansın mı?",
+    "mfaPolicyTitle": "İki adımlı doğrulama zorunluluğu",
+    "mfaPolicyHint": "Seçilen rollerdeki kullanıcılar bir sonraki girişlerinde 2FA kurmak zorunda kalır; kurana kadar sadece Ayarlar açılır.",
+    "mfaPolicyDemoNote": "Demo hesaplar (@demo.local) her zaman muaftır; ekip bu hesaplara yalnızca şifreyle girer.",
+    "mfaPolicyAuthOff": "Demo modda (auth kapalı) giriş yapılmadığı için zorunluluk uygulanmaz; sunucu hesapları açıkken geçerlidir.",
+    "mfaPolicySave": "Kaydet",
+    "mfaPolicySaved": "2FA zorunluluğu kaydedildi",
+    "mfaPolicySaveFailed": "2FA zorunluluğu kaydedilemedi",
+    "mfaPolicySource": {
+      "admin": "Bu ekrandan kaydedildi.",
+      "env": "Şu an sunucu ayarından geliyor (VETMIND_MFA_REQUIRED_ROLES). Kaydedince bu ekrandaki seçim geçerli olur.",
+      "default": "Henüz hiçbir rol için zorunlu değil."
+    }
   },
   "notifications": {
     "title": "Bildirimler",

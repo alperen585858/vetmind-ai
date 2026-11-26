@@ -22,6 +22,7 @@ const FILES = [
   'features/auth/VerifyEmail.tsx',
   'features/auth/ResendVerification.tsx',
   'features/admin/AdminUsers.tsx',
+  'features/admin/MfaPolicyCard.tsx',
   'features/auth/ChangePasswordCard.tsx',
   'features/auth/MfaCard.tsx',
   'features/auth/MfaCodeStep.tsx',
@@ -30,7 +31,7 @@ const FILES = [
 ]
 
 const SOURCES = import.meta.glob(
-  ['../features/auth/*.tsx', '../features/admin/AdminUsers.tsx', '../shared/ui/AuthCard.tsx'],
+  ['../features/auth/*.tsx', '../features/admin/AdminUsers.tsx', '../features/admin/MfaPolicyCard.tsx', '../shared/ui/AuthCard.tsx'],
   {
     query: '?raw',
     import: 'default',

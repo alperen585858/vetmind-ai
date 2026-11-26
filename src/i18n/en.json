@@ -2122,7 +2122,19 @@
     "mfaOff": "Off",
     "mfaReset": "Reset 2FA",
     "mfaResetHint": "For a user who lost their phone: 2FA turns off and their sessions end; they sign in with the password and set it up again.",
-    "mfaResetConfirm": "Turn off two-step verification for {email} and end their sessions?"
+    "mfaResetConfirm": "Turn off two-step verification for {email} and end their sessions?",
+    "mfaPolicyTitle": "Required two-step verification",
+    "mfaPolicyHint": "Users of the selected roles must set up 2FA at their next sign-in; until then only Settings opens.",
+    "mfaPolicyDemoNote": "Demo accounts (@demo.local) are always exempt; the team signs in to them with the password only.",
+    "mfaPolicyAuthOff": "In demo mode (auth off) nobody signs in, so the requirement does not apply; it works when server accounts are on.",
+    "mfaPolicySave": "Save",
+    "mfaPolicySaved": "2FA requirement saved",
+    "mfaPolicySaveFailed": "Could not save the 2FA requirement",
+    "mfaPolicySource": {
+      "admin": "Saved from this screen.",
+      "env": "Currently from the server setting (VETMIND_MFA_REQUIRED_ROLES). Saving makes this screen's choice apply.",
+      "default": "Not required for any role yet."
+    }
   },
   "notifications": {
     "title": "Notifications",

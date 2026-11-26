@@ -313,8 +313,20 @@ export async function resetManagedUserMfa(email: string) {
   })
 }
 
-export async function getMfaPolicy(): Promise<{ required_roles: string[] }> {
+export type MfaPolicy = {
+  required_roles: string[]
+  /** "admin" = saved from this screen; "env" = server setting; "default" = none. */
+  source: 'admin' | 'env' | 'default' | string
+  available_roles: string[]
+}
+
+export async function getMfaPolicy(): Promise<MfaPolicy> {
   return request('/admin/mfa-policy')
+}
+
+/** Issue #107: roles that must use 2FA (demo accounts always exempt). */
+export async function updateMfaPolicy(requiredRoles: string[]): Promise<MfaPolicy> {
+  return request('/admin/mfa-policy', { method: 'PUT', body: JSON.stringify({ required_roles: requiredRoles }) })
 }
 
 export async function updateManagedUser(

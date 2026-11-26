@@ -326,7 +326,12 @@ export default function Settings() {
             </div>
           </Card>
         </div>
-      ) : null}
+      ) : (
+        // Issue #107: a setup-only session (role requires 2FA) must still reach the 2FA card.
+        <div className="grid gap-5 lg:grid-cols-2">
+          <MfaCard />
+        </div>
+      )}
     </>
   )
 }

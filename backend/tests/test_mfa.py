@@ -269,6 +269,8 @@ def test_required_role_gets_a_setup_only_session(tmp_path: Path) -> None:
     limited = _bearer(body["access_token"])
     blocked = client.get("/api/v1/cases", headers=limited)
     assert blocked.status_code == 403 and blocked.json()["detail"]["code"] == "mfa_setup_required"
+    # The Settings page (where 2FA is set up) still loads the user's own preferences.
+    assert client.get("/api/v1/settings/me", headers=limited).status_code == 200
     assert client.get("/api/v1/auth/mfa/status", headers=limited).json()["required_for_role"] is True
     # Refreshing keeps the restriction.
     refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": body["refresh_token"]}).json()
