@@ -841,6 +841,7 @@ Tüm hesaplar backend'de tutulur: demo seed kullanıcılar, kayıt olanlar ve Ad
 | Refresh token | Opak, 7 gün kayan pencere (`VETMIND_REFRESH_TTL_SECONDS`). Her kullanımda döner. Kullanılmış token 20 sn sonra tekrar gelirse oturum ailesi iptal edilir. DB'de sadece SHA-256 |
 | Çıkış | `POST /api/v1/auth/logout` refresh ailesini iptal eder |
 | Şifre değiştirme | `POST /api/v1/auth/password/change` (giriş yapmış kullanıcı). Diğer oturumlar kapanır |
+| İki adımlı giriş (#107) | İsteğe bağlı TOTP (Google / Microsoft Authenticator). Ayarlar → QR ile kurulum, 10 tek kullanımlık yedek kod (scrypt hash'li). Açıkken `/auth/login` token yerine 5 dk geçerli tek kullanımlık bir bilet döner; `/auth/mfa/verify` kod veya yedek kodla girişi tamamlar. Aynı kod iki kez kabul edilmez, yanlış kodlara deneme sınırı uygulanır. Gizli anahtar Fernet ile şifreli saklanır (`VETMIND_MFA_ENCRYPTION_KEY`; yoksa JWT secret'tan HKDF ile türetilir). `VETMIND_MFA_REQUIRED_ROLES=admin,expert` ile roller zorunlu tutulur: kurmayan kullanıcı girişte yalnızca kurulum yapabileceği bir oturum alır. Admin → Kullanıcılar'da 2FA sütunu ve "2FA'yı sıfırla" (telefon kaybı). **Demo hesaplar (`*@demo.local`) hiçbir zaman etkilenmez**: 2FA açamaz, zorunluluk uygulanmaz |
 | Şifremi unuttum | `POST /api/v1/auth/password/forgot` → 30 dk geçerli tek kullanımlık link. Hesap olsa da olmasa da aynı cevap. Demo modda e-posta sunucu log'una yazılır, `VETMIND_SMTP_*` ile gerçek e-posta |
 | Sıfırlama | `POST /api/v1/auth/password/reset`. Tüm oturumlar kapanır |
 | Deneme sınırı | login, register, forgot, reset, change için `429` + `Retry-After` (`VETMIND_AUTH_RATE_LIMIT`). Sayaçlar süreç belleğinde |
@@ -927,6 +928,11 @@ Modül sınırları ve import kuralları: [docs/modularization.md](docs/modulari
 | POST | `/auth/verify-email/resend` | Yeni doğrulama linki (her adrese aynı cevap) |
 | POST | `/auth/refresh` | Token çiftini yenile (rotation) |
 | POST | `/auth/logout` | Refresh ailesini iptal et |
+| POST | `/auth/mfa/verify` | İkinci adım: bilet + kod / yedek kod → token çifti |
+| GET | `/auth/mfa/status` | 2FA durumu (açık mı, kalan yedek kod, rol zorunluluğu, demo hesap mı) |
+| POST | `/auth/mfa/setup` · `/enable` · `/disable` · `/backup-codes` | Kurulum (QR), açma (yedek kodlar bir kez gösterilir), kapatma ve yeni yedek kodlar (şifre + kod) |
+| POST | `/admin/users/{email}/mfa-reset` | Admin: kullanıcının 2FA'sını kapatır, oturumlarını sonlandırır |
+| GET | `/admin/mfa-policy` | 2FA zorunlu roller |
 | POST | `/auth/password/change` | Şifre değiştir (giriş gerekli) |
 | POST | `/auth/password/forgot` | Sıfırlama linki e-postala |
 | POST | `/auth/password/reset` | Link ile yeni şifre |

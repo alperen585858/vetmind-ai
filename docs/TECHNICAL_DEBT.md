@@ -67,4 +67,5 @@ Working modules that must not be duplicated:
 | 2026-11-13 | #29: backend/web Dockerfiles and root docker-compose.yml (TD-35 partly) |
 | 2026-11-16 | #48: circular import via app.imaging.metadata_prep fixed (37 of 207 modules failed when imported first); tests/test_import_cycles.py guards every module |
 | 2026-11-26 | #41: email verification for self-registered vets; register no longer reveals existing emails (uniform 202) |
+| 2026-11-27 | #107: opt-in TOTP two-step sign-in (Fernet-sealed secrets, backup codes, setup-only session for required roles via `VETMIND_MFA_REQUIRED_ROLES`, admin reset); challenge tickets' single-use memory is per process |
 | 2026-11-26 | #108: clinic patient records (`patients` table, Alembic 0003), prior studies, side-by-side viewer sync, report comparison section; `scripts/backfill_patients.py` for existing cases |
