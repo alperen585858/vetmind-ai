@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { loginAsVet } from './helpers/auth'
 
 /**
  * Critical demo UI journeys. Synthetic only — no clinical data.
@@ -33,19 +34,20 @@ test.describe('Responsive shell', () => {
 
 test.describe('Logout cleanup signal', () => {
   test('sign-out returns to public entry', async ({ page }) => {
-    await page.goto('/giris')
-    const email = page.getByLabel(/E-posta|Email/i)
-    if (await email.isVisible()) {
-      await email.fill('vet@demo.local')
-      await page.getByLabel(/Şifre|Password/i).fill('demo1234')
-      await page.getByRole('button', { name: /Giriş|Login|Devam/i }).click()
-      await page.waitForURL((url) => !url.pathname.endsWith('/giris'), { timeout: 20_000 })
-    }
-    // On narrow screens the sidebar (with "Çıkış yap") sits behind the menu button.
+    // loginAs waits for the (lazy-loaded) login form. The old `if (await email.isVisible())`
+    // checked once without waiting, skipped the sign-in while the page was still loading and
+    // then never found the logout button (about 1 run in 3 under load).
+    await loginAsVet(page)
+    // Below the lg breakpoint (1024 px) the sidebar with "Çıkış yap" is an off-canvas drawer
+    // behind the menu button. The hidden logout button still counts as "visible" (it is only
+    // outside the viewport), so decide by viewport width, not by visibility.
     const menu = page.getByRole('button', { name: /Menüyü aç|Open menu/i })
-    if (await menu.isVisible()) await menu.click()
     const logout = page.getByRole('button', { name: /Çıkış|Logout|Oturumu/i }).first()
-    await expect(logout).toBeVisible({ timeout: 10_000 })
+    if ((page.viewportSize()?.width ?? 1280) < 1024) {
+      await expect(menu).toBeVisible({ timeout: 20_000 })
+      await menu.click()
+    }
+    await expect(logout).toBeInViewport({ timeout: 20_000 })
     await logout.click()
     await expect(page).toHaveURL(/giris|\/$/, { timeout: 10_000 })
   })
