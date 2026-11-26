@@ -87,9 +87,9 @@ Offline training lives under repo-root `ml/` (never imported by FastAPI by defau
 | `VETMIND_JWT_SECRET` | HS256 secret |
 | `VETMIND_JOB_BACKEND=thread\|rq` | Varsayılan `thread` |
 | `VETMIND_REDIS_URL` | RQ için Redis URL |
-| `VETMIND_RAG_STORE` | `chroma` (varsayılan) \| `json` |
-| `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | Chroma klasörü (`./data/chroma`) veya sunucu adresi |
-| `VETMIND_RAG_INDEX_PATH` | Eski JSON indeks (Chroma'ya taşıma kaynağı) |
+| `VETMIND_RAG_STORE` | `auto` (varsayılan: PostgreSQL varsa `pgvector`, yoksa `json`) \| `pgvector` \| `json` \| `chroma` (isteğe bağlı: `pip install -r requirements-chroma.txt`) |
+| `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | Yalnızca `RAG_STORE=chroma`: Chroma klasörü (`./data/chroma`) veya sunucu adresi |
+| `VETMIND_RAG_INDEX_PATH` | JSON indeks (`RAG_STORE=json`) ve pgvector / Chroma'ya ilk taşıma kaynağı |
 
 ### Türkçe rapor taslağında anatomi sözlüğü
 

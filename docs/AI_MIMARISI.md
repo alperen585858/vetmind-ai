@@ -76,7 +76,7 @@ flowchart TD
 | Router dalları (MRI, CT, X-Ray, Görüntü + Metin) | `models/mock_vision.py`, `models/local_torch.py`, `models/vlm_vision.py`, `models/http_vision.py` |
 | Yapılandırılmış Bulgular + Kanıt | `models/normalizer.py`, `models/evidence_attach.py` |
 | LLM Gateway | `llm/gateway.py`, `llm/privacy.py`, `llm/lessons.py` |
-| RAG Bilgi Bankası | `rag/retriever.py`, `rag/relevance.py`, `rag/chroma_store.py`, `rag/ollama_embeddings.py` |
+| RAG Bilgi Bankası | `rag/retriever.py`, `rag/relevance.py`, `rag/pgvector_store.py`, `rag/ollama_embeddings.py` |
 | Rapor LLM | `llm/factory.py`, `llm/chat_providers.py`, `llm/verifier.py` |
 | Rapor Doğrulama | `validation/report_validator.py`, `llm/grounding.py` |
 | Veteriner Radyolog İncelemesi | `services/workflow_service.py`, `services/report_versioning.py` |

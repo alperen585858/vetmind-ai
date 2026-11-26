@@ -1,0 +1,7 @@
+# Optional ChromaDB vector store (#103). Since #117 the default is pgvector in the app's
+# PostgreSQL (or the JSON file without PostgreSQL); install this only to run
+# VETMIND_RAG_STORE=chroma or its tests:
+#   pip install -r requirements.txt -r requirements-chroma.txt
+# Note #112: chromadb 1.5.9 has known advisories without a fixed release yet; never expose
+# a Chroma server outside the backend's network.
+chromadb>=1.0,<2

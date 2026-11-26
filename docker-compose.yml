@@ -5,13 +5,16 @@
 #   docker compose down -v           → stop and delete all data
 #   docker compose up -d db          → only PostgreSQL on localhost:5432, for `npm run backend:dev`
 #
-# Data (#102): every record is in PostgreSQL (`db`), RAG vectors in ChromaDB (`chroma`),
-# DICOM files in the vetmind_data volume. No SQLite files.
+# Data (#102, #117): every record and the RAG vectors (pgvector) are in PostgreSQL (`db`),
+# DICOM files in the vetmind_data volume. No SQLite files, no separate vector service.
+# Optional ChromaDB store (#103): docker compose --profile chroma up --build with
+# VETMIND_RAG_STORE=chroma and VETMIND_WITH_CHROMA=1 in .env.
 # Settings: put VETMIND_* overrides in a .env file next to this file (see backend/.env.example).
 # Optional Redis (RQ jobs) for development lives in backend/docker-compose.yml.
 services:
   db:
-    image: postgres:16-alpine
+    # PostgreSQL 16 with the pgvector extension (RAG vectors, #117).
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: vetmind
       POSTGRES_PASSWORD: ${VETMIND_DB_PASSWORD:-vetmind}
@@ -28,22 +31,28 @@ services:
     restart: unless-stopped
 
   chroma:
-    # Same version as the chromadb client in backend/requirements.txt.
+    # Optional (#103): only with --profile chroma. Same version as backend/requirements-chroma.txt.
+    # Never publish its port (#112: known advisories without a fixed release).
+    profiles: ["chroma"]
     image: chromadb/chroma:1.5.9
     volumes:
       - vetmind_chroma:/data
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        # 1 = also install the optional chromadb client (requirements-chroma.txt).
+        WITH_CHROMA: ${VETMIND_WITH_CHROMA:-0}
     depends_on:
       db:
         condition: service_healthy
-      chroma:
-        condition: service_started
     environment:
       VETMIND_STORAGE: ${VETMIND_STORAGE:-postgres}
       VETMIND_DATABASE_URL: ${VETMIND_DATABASE_URL:-postgresql://vetmind:${VETMIND_DB_PASSWORD:-vetmind}@db:5432/vetmind}
+      # auto = pgvector in the db above (#117); chroma only with the chroma profile.
+      VETMIND_RAG_STORE: ${VETMIND_RAG_STORE:-auto}
       VETMIND_CHROMA_URL: ${VETMIND_CHROMA_URL:-http://chroma:8000}
       VETMIND_AUTH_ENABLED: ${VETMIND_AUTH_ENABLED:-0}
       VETMIND_DEPLOYMENT_MODE: ${VETMIND_DEPLOYMENT_MODE:-demo}
