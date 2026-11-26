@@ -316,6 +316,8 @@ export interface VetCase {
   reportViewedAt?: string
   /** True when this row was loaded/synced from FastAPI (SQLite). */
   fromBackend?: boolean
+  /** Status at the time the full backend record (not a list summary) was mapped (#116). */
+  detailLoadedStatus?: CaseStatus
   /** Demo fixture kind used at ingest — for case-detail viewer reload (display only). */
   dicomDemoKind?: DicomDemoKind
   /** Imaging metadata from backend summary/record (never invented). */

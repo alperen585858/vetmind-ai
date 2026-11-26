@@ -431,6 +431,7 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
     })),
     currentReportVersion: r.current_report_version ?? r.draft_report?.version ?? undefined,
     fromBackend: true,
+    detailLoadedStatus: status,
     approvedBy: approvedBy ?? r.draft_report?.reviewed_by ?? undefined,
     approvedAt,
     reportNo,
@@ -513,7 +514,8 @@ export function analysisStatusLabel(status: CaseStatus, t: TranslateFn = default
 export function mergeBackendCases(local: VetCase[], backend: VetCase[]): VetCase[] {
   const hydrated = new Map(
     local
-      .filter((c) => c.fromBackend && (c.backendDraft || c.backendFindings || c.report))
+      // A loaded detail record also survives a list refresh (#116: drafts kept their history).
+      .filter((c) => c.fromBackend && (c.backendDraft || c.backendFindings || c.report || c.detailLoadedStatus))
       .map((c) => [c.id, c]),
   )
   const mergedBackend = backend.map((row) => {

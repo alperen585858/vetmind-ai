@@ -5,6 +5,7 @@ import {
   caseStatusFromLifecycle,
   clinicalModuleFromStudy,
   expertReviewLabel,
+  mergeBackendCases,
   recordToVetCase,
   summaryToVetCase,
 } from './caseMapper'
@@ -199,6 +200,36 @@ describe('attached documents (#70)', () => {
     expect(withDicom.documents.map((d) => d.name)).toEqual(['DICOM 1.2.3', 'kan.pdf'])
     const none = recordToVetCase({ ...base, study: { dicom_available: false } } as unknown as BackendCaseRecord)
     expect(none.documents).toEqual([])
+  })
+})
+
+describe('draft case detail (#116)', () => {
+  const draft = {
+    case_id: 'case-draft',
+    patient_name: 'Pisi',
+    species: 'feline',
+    modality: 'MR',
+    anatomical_region: 'THORACOLUMBAR',
+    status: 'created',
+    clinical_history: 'Arka bacaklarda güçsüzlük',
+    created_at: '2026-11-27T10:00:00Z',
+    updated_at: '2026-11-27T10:00:00Z',
+    study: { dicom_available: false },
+  } as unknown as BackendCaseRecord
+
+  it('marks a full record with the status it was loaded at', () => {
+    const mapped = recordToVetCase(draft)
+    expect(mapped.status).toBe('taslak')
+    expect(mapped.detailLoadedStatus).toBe('taslak')
+    expect(mapped.clinical.history).toBe('Arka bacaklarda güçsüzlük')
+  })
+
+  it('keeps a loaded draft record when the list refreshes with a summary', () => {
+    const loaded = recordToVetCase(draft)
+    const summary = { ...loaded, clinical: { ...loaded.clinical, history: '', complaint: '' }, detailLoadedStatus: undefined }
+    const [merged] = mergeBackendCases([loaded], [summary])
+    expect(merged.clinical.history).toBe('Arka bacaklarda güçsüzlük')
+    expect(merged.detailLoadedStatus).toBe('taslak')
   })
 })
 
