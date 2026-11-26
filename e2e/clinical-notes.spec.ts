@@ -42,3 +42,26 @@ test('vet adds clinical information after sending; history stays clean', async (
   await expect(page.getByText(/\[\d{4}-\d{2}-\d{2}T/)).toHaveCount(0)
   await expect(page.getByText('Arka bacaklarda güçsüzlük').first()).toBeVisible()
 })
+
+// #116: a draft (not yet analysed) case used to show "—" for complaint and history because the
+// detail page never loaded its full record.
+test('draft case detail shows its clinical history', async ({ page, request }) => {
+  const response = await request.post('http://127.0.0.1:8000/api/v1/cases', {
+    data: {
+      patient_name: `Taslak-${Date.now().toString(36)}`,
+      species: 'feline',
+      modality: 'MR',
+      anatomical_region: 'THORACOLUMBAR',
+      clinical_history: 'Yüksekten atladıktan sonra arka bacaklarda güçsüzlük',
+    },
+  })
+  await expect(response).toBeOK()
+  const { case_id } = await response.json()
+
+  await loginAsVet(page)
+  await page.goto('/vakalar')
+  await page.goto(`/vakalar/${case_id}`)
+  await expect(page.getByText('Taslak').first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('Yüksekten atladıktan sonra arka bacaklarda güçsüzlük').first()).toBeVisible({ timeout: 20_000 })
+})
+
