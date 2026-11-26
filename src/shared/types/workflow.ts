@@ -41,6 +41,8 @@ export interface BackendManagedUser {
   last_login_at?: string | null
   /** Issue #41. Missing on older backends: treat as verified. */
   email_verified?: boolean
+  /** Issue #107: two-step sign-in is on. */
+  mfa_enabled?: boolean
   email_verified_at?: string | null
 }
 

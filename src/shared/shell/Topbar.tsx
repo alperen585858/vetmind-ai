@@ -4,7 +4,7 @@ import { Check, ChevronDown, Menu, RefreshCcw } from 'lucide-react'
 import { useApp } from './AppContext'
 import { useLocale } from './LocaleContext'
 import { DEMO_PASSWORD, demoEmailForRole, setBackendTokens } from '../auth/session'
-import { backendLogin } from '../api'
+import { backendLogin, isMfaChallenge } from '../api'
 import { USERS } from '../demo/users'
 import type { Role } from '../types'
 import { LanguageSwitcher } from './LanguageSwitcher'
@@ -47,7 +47,8 @@ export function Topbar({
       try {
         // Rebind JWT before flipping UI role so Layout refresh / APIs never use the prior token.
         const tokenRes = await backendLogin(demoEmailForRole(r), DEMO_PASSWORD)
-        setBackendTokens(tokenRes)
+        // Demo accounts can never turn on 2FA (#107), so a challenge is not expected here.
+        if (!isMfaChallenge(tokenRes)) setBackendTokens(tokenRes)
       } catch {
         /* backend down or auth disabled — UI role still switches; demo headers attribute actors */
       }

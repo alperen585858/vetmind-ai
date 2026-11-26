@@ -7,6 +7,7 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { ChangePasswordCard } from './ChangePasswordCard'
+import { MfaCard } from './MfaCard'
 import { ROLE_BADGE } from '../../shared/shell/Topbar'
 import { isLocale } from '../../i18n/types'
 import {
@@ -301,6 +302,8 @@ export default function Settings() {
           </Card>
 
           <ChangePasswordCard />
+
+          <MfaCard />
 
           <Card className="p-5">
             <CardHeader title={t('settings.account')} icon={<SettingsIcon className="h-5 w-5" />} />

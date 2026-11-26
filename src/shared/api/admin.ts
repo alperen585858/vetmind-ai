@@ -306,6 +306,17 @@ export async function createPasswordResetLink(
   return request(`/admin/users/${encodeURIComponent(email)}/reset-link`, { method: 'POST' })
 }
 
+/** Issue #107: user lost their phone. Turns their 2FA off and ends their sessions. */
+export async function resetManagedUserMfa(email: string) {
+  return request<import('../types').BackendManagedUser>(`/admin/users/${encodeURIComponent(email)}/mfa-reset`, {
+    method: 'POST',
+  })
+}
+
+export async function getMfaPolicy(): Promise<{ required_roles: string[] }> {
+  return request('/admin/mfa-policy')
+}
+
 export async function updateManagedUser(
   email: string,
   payload: Partial<{

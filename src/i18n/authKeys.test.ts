@@ -23,6 +23,8 @@ const FILES = [
   'features/auth/ResendVerification.tsx',
   'features/admin/AdminUsers.tsx',
   'features/auth/ChangePasswordCard.tsx',
+  'features/auth/MfaCard.tsx',
+  'features/auth/MfaCodeStep.tsx',
   'features/auth/PasswordStrength.tsx',
   'shared/ui/AuthCard.tsx',
 ]

@@ -16,7 +16,15 @@ import {
   type DemoSession,
 } from '../../shared/auth/session'
 import { userErrorMessage } from '../../shared/lib/apiErrors'
-import { BackendUnavailableError, backendAuthStatus, backendLogin } from '../../shared/api'
+import {
+  BackendUnavailableError,
+  backendAuthStatus,
+  backendLogin,
+  isMfaChallenge,
+  type BackendMfaChallenge,
+  type BackendTokenResponse,
+} from '../../shared/api'
+import { MfaCodeStep } from './MfaCodeStep'
 import { safeInternalPath } from '../../shared/lib/safePath'
 import type { Role } from '../../shared/types'
 
@@ -31,6 +39,8 @@ export default function Login() {
   const [authEnabled, setAuthEnabled] = useState(false)
   const [deploymentMode, setDeploymentMode] = useState('demo')
   const [statusLoaded, setStatusLoaded] = useState(false)
+  // Issue #107: set after a right password on an account with two-step sign-in.
+  const [challenge, setChallenge] = useState<BackendMfaChallenge | null>(null)
   const [params] = useSearchParams()
   const sessionExpired = params.get('expired') === '1'
   const returnPath = safeInternalPath(params.get('next'))
@@ -56,6 +66,25 @@ export default function Login() {
     }
   }, [])
 
+  const finishSignIn = (tokenRes: BackendTokenResponse) => {
+    setChallenge(null)
+    setBackendTokens(tokenRes)
+    const session: DemoSession = backendAccountSession(tokenRes.email, tokenRes.role)
+    signIn(session)
+    if (tokenRes.mfa_setup_required) {
+      // Role requires 2FA: this session can only set it up (backend enforces it).
+      pushToast({ tone: 'warning', title: t('auth.mfaSetupRequiredTitle'), body: t('auth.mfaSetupRequiredBody') })
+      nav('/ayarlar?mfa=kurulum')
+      return
+    }
+    pushToast({
+      tone: 'success',
+      title: t('auth.loginSuccess'),
+      body: `${session.name} · ${roleLabel(session.role)}`,
+    })
+    nav(returnPath !== '/' ? returnPath : postLoginPath(session.role, locale))
+  }
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -64,16 +93,12 @@ export default function Login() {
       // Every account lives on the backend (seed demo users, sign-ups, admin-created users).
       const status = await backendAuthStatus()
       setProtectedTokenMode(Boolean(status.auth_enabled || status.deployment_mode === 'protected'))
-      const tokenRes = await backendLogin(email, password)
-      setBackendTokens(tokenRes)
-      const session: DemoSession = backendAccountSession(tokenRes.email, tokenRes.role)
-      signIn(session)
-      pushToast({
-        tone: 'success',
-        title: t('auth.loginSuccess'),
-        body: `${session.name} · ${roleLabel(session.role)}`,
-      })
-      nav(returnPath !== '/' ? returnPath : postLoginPath(session.role, locale))
+      const res = await backendLogin(email, password)
+      if (isMfaChallenge(res)) {
+        setChallenge(res)
+        return
+      }
+      finishSignIn(res)
     } catch (err) {
       setError(err instanceof BackendUnavailableError ? t('auth.backendUnreachable') : userErrorMessage(err, t) || t('auth.loginFailed'))
     } finally {
@@ -147,6 +172,16 @@ export default function Login() {
           </div>
 
           <div className="w-full max-w-md shrink-0">
+            {challenge ? (
+              <MfaCodeStep
+                challenge={challenge}
+                onDone={finishSignIn}
+                onCancel={() => {
+                  setChallenge(null)
+                  setPassword('')
+                }}
+              />
+            ) : (
             <form
               onSubmit={onSubmit}
               className="rounded-2xl border border-sky-100 bg-white p-6 shadow-[0_12px_40px_rgba(14,165,233,0.12)] sm:p-7"
@@ -249,6 +284,7 @@ export default function Login() {
                 </LocalizedLink>
               </p>
             </form>
+            )}
 
             <div className="mt-4 rounded-xl border border-sky-100 bg-white/80 p-4 text-xs text-navy-600">
               <p className="font-semibold text-navy-800">{t('auth.demoAccounts')}</p>
