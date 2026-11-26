@@ -31,6 +31,7 @@ from app.api.training_export import router as training_export_router
 from app.api.lessons import router as lessons_router
 from app.api.patients import router as patients_router
 from app.api.admin_audit import router as admin_audit_router
+from app.api.owner_summary import router as owner_summary_router
 from app.container import AppContainer
 from app.http_errors import normalize_detail, validation_detail
 from app.demo_seed import ensure_demo_seed
@@ -100,6 +101,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(lessons_router)
     app.include_router(patients_router)
     app.include_router(admin_audit_router)
+    app.include_router(owner_summary_router)
 
     @app.get("/api/v1/health")
     def health() -> dict[str, Any]:

@@ -213,6 +213,26 @@ class CaseActivityEvent(BaseModel):
     detail: Optional[str] = None
 
 
+class OwnerSummary(BaseModel):
+    """Plain-language note for the pet owner (issue #113), from the approved report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(max_length=6000)
+    language: Literal["tr", "en"] = "tr"
+    source: Literal["template", "llm"] = "template"
+    provider: str = "mock"
+    status: Literal["draft", "approved"] = "draft"
+    # Approved report version the text was written from; a newer approval makes it stale.
+    report_version: int
+    generated_at: datetime = Field(default_factory=utcnow)
+    generated_by: str = "system"
+    edited: bool = False
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CaseRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -299,6 +319,8 @@ class CaseRecord(BaseModel):
     attachment_refs: list[AttachmentRef] = Field(default_factory=list)
     # Created by app.demo_seed (VETMIND_DEMO_SEED / scripts/seed_demo.py); removable as a set.
     demo_seed: bool = False
+    # Issue #113: plain-language summary for the owner (None until the vet makes one).
+    owner_summary: Optional[OwnerSummary] = None
 
 
 class CaseSummary(BaseModel):

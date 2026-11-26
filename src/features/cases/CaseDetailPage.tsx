@@ -46,6 +46,7 @@ import { ReportWorkspace } from './tabs/ReportsTab'
 import { Documents } from './tabs/DocumentsTab'
 import { CaseHistoryPanel } from './tabs/HistoryTab'
 import { PriorStudiesPanel } from '../patients/PriorStudiesPanel'
+import { OwnerSummaryCard } from './OwnerSummaryCard'
 export { AssessmentView }
 
 const TAB_DEFS = [
@@ -508,6 +509,10 @@ export default function CaseDetail() {
             )}
             {summaryModule === 'genel' && (c.backendCaseId || c.id.startsWith('case-')) && (
               <PriorStudiesPanel caseId={c.backendCaseId || c.id} canLink={role === 'vet' || role === 'admin'} />
+            )}
+            {summaryModule === 'genel' && (c.backendCaseId || c.id.startsWith('case-')) && (
+              // Issue #113: plain-language note for the owner (vet writes, radiologist reads).
+              <OwnerSummaryCard caseId={c.backendCaseId || c.id} canWrite={role === 'vet' || role === 'admin'} />
             )}
             <details
               className="group rounded-xl border border-slate-200 bg-white shadow-soft"

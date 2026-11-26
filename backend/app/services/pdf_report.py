@@ -582,3 +582,66 @@ def build_approved_report_pdf(
 
     doc.build(story)
     return buf.getvalue()
+
+
+_OWNER_TITLE = {"tr": "Hayvan Sahibi İçin Bilgilendirme", "en": "Information for the Pet Owner"}
+_OWNER_LABELS = {
+    "tr": ("Hasta", "Tetkik", "Tarih", "Onaylayan veteriner"),
+    "en": ("Patient", "Study", "Date", "Approved by"),
+}
+
+
+def build_owner_summary_pdf(case: CaseRecord, summary: Any, disclaimer: str) -> bytes:
+    """Issue #113: plain-language owner note. Large type, short sections, the disclaimer last.
+
+    The note text names nobody ("your pet"); only this header shows the animal's name,
+    since the owner is the reader.
+    """
+    lang = "en" if getattr(summary, "language", "tr") == "en" else "tr"
+    font = _resolve_font()
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title=f"{_OWNER_TITLE[lang]} — {case.patient_name}",
+    )
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("OT", parent=styles["Heading1"], fontName=font, fontSize=18, leading=22,
+                           textColor=colors.HexColor("#0f172a"), spaceAfter=4)
+    meta = ParagraphStyle("OM", parent=styles["Normal"], fontName=font, fontSize=10.5, leading=14,
+                          textColor=colors.HexColor("#475569"))
+    head = ParagraphStyle("OH", parent=styles["Heading2"], fontName=font, fontSize=13.5, leading=17,
+                          textColor=colors.HexColor("#0f766e"), spaceBefore=10, spaceAfter=3)
+    body = ParagraphStyle("OB", parent=styles["Normal"], fontName=font, fontSize=12, leading=17,
+                          textColor=colors.HexColor("#0f172a"))
+    note = ParagraphStyle("ON", parent=styles["Normal"], fontName=font, fontSize=9.5, leading=13,
+                          textColor=colors.HexColor("#64748b"), spaceBefore=14)
+
+    l_patient, l_study, l_date, l_by = _OWNER_LABELS[lang]
+    approved_at = getattr(summary, "approved_at", None)
+    story: list[Any] = [
+        Paragraph(_esc(_OWNER_TITLE[lang]), title),
+        Paragraph(_esc(f"{l_patient}: {_patient_line(case)}"), meta),
+        Paragraph(_esc(f"{l_study}: {_region_label(case)} · {case.modality.value}"), meta),
+        Paragraph(_esc(f"{l_date}: {_fmt_dt(approved_at)}"), meta),
+    ]
+    if getattr(summary, "approved_by", None):
+        story.append(Paragraph(_esc(f"{l_by}: {summary.approved_by}"), meta))
+    story.append(Spacer(1, 6))
+
+    # The note is "Heading\nparagraph" blocks separated by blank lines.
+    for block in [b.strip() for b in str(summary.text).split("\n\n") if b.strip()]:
+        lines = block.split("\n")
+        # A short first line followed by text is a section heading ("Ne görüldü?").
+        if len(lines) > 1 and len(lines[0].strip()) <= 60:
+            story.append(Paragraph(_esc(lines[0].strip()), head))
+            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines[1:])), body))
+        else:
+            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines)), body))
+    story.append(Paragraph(_esc(disclaimer), note))
+    doc.build(story)
+    return buf.getvalue()

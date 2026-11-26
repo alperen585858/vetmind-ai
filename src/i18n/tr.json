@@ -2645,5 +2645,39 @@
       "patient_unlink_case": "Vaka-hasta bağı kaldırıldı",
       "patient_merge": "Hasta birleştirme"
     }
+  },
+  "ownerSummary": {
+    "title": "Sahip için özet",
+    "subtitle": "Onaylı raporun hayvan sahibinin anlayacağı sade dilde özeti",
+    "loading": "Sahip özeti yükleniyor…",
+    "needsApproval": "Rapor onaylandıktan sonra burada hayvan sahibi için sade dilde bir özet oluşturabilirsiniz.",
+    "none": "Henüz sahip için özet hazırlanmadı.",
+    "language": "Dil",
+    "generate": "Sahip için özet oluştur",
+    "generating": "Hazırlanıyor…",
+    "regenerate": "Yeniden oluştur",
+    "draft": "Taslak",
+    "approved": "Onaylı",
+    "sourceLlm": "Yapay zekâ ile yazıldı",
+    "sourceTemplate": "Şablonla hazırlandı",
+    "edited": "Düzenlendi",
+    "approvedAt": "Onay: {date}",
+    "stale": "Rapor bu özetten sonra güncellendi. Sahibe vermeden önce özeti yeniden oluşturun.",
+    "rejected": "Yapay zekânın metni güvenlik kontrolünden geçemedi ve şablonla değiştirildi:",
+    "warning": {
+      "dose": "Metinde ilaç dozu var; dozları sahiple yüz yüze konuşun.",
+      "certainty": "Metinde kesinlik ifadesi var (\"kesinlikle\" gibi).",
+      "prognosis": "Metinde prognoz/yaşam süresi ifadesi var.",
+      "empty": "Yapay zekâ boş metin döndürdü."
+    },
+    "textLabel": "Sahip için özet metni",
+    "save": "Değişiklikleri kaydet",
+    "approve": "Onayla",
+    "approvedToast": "Sahip özeti onaylandı",
+    "pdf": "PDF indir",
+    "generateFailed": "Özet oluşturulamadı",
+    "saveFailed": "Özet kaydedilemedi",
+    "approveFailed": "Özet onaylanamadı",
+    "pdfFailed": "PDF indirilemedi"
   }
 }

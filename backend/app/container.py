@@ -54,6 +54,7 @@ from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
 from app.services.app_settings_store import build_app_settings_store
+from app.services.owner_summary_service import OwnerSummaryService
 from app.services.patient_service import PatientService
 from app.services.patient_store import build_patient_store
 from app.services.user_settings_store import build_user_settings_store
@@ -384,6 +385,8 @@ class AppContainer:
             audit=self.audit,
         )
         self.cases.bind_patients(self.patients)
+        # Issue #113: plain-language owner note from the approved report.
+        self.owner_summaries = OwnerSummaryService(self.cases, settings=self.settings, audit=self.audit)
         self.dicom.bind_patients(self.patients)
         doc_adapter = build_document_text_adapter(
             ocr_endpoint=self.settings.document_ocr_endpoint,

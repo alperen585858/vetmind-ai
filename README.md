@@ -67,6 +67,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 |------|--------|
 | **Frontend** | Landing, giriş/kayıt, şifremi unuttum / şifre sıfırlama, DICOM sürükle-bırak + tarayıcı viewer (W/L, dilim, zoom/pan, mesafe/açı/ROI, röntgende **VHS kalp ölçümü**), işleme ekranı, vaka listesi/detay, uzman inceleme, onaylı rapor (print → PDF), RAG bilgi tabanı, sistem durumu, rol gate |
 | **Hasta kaydı ve önceki tetkikler (#108)** | Kliniğe ait hasta kaydı (mikroçip / klinik no opsiyonel), yeni vakada kayıtlı hasta seçimi ve DICOM `PatientID` / isim ile eşleşme önerisi, vaka sayfasında "Önceki tetkikler", yan yana karşılaştırma (senkron dilim/zoom/W-L, ölçüm farkı), raporda "önceki tetkike göre değişim" bölümü — bkz. [§8.7](#87-önceki-tetkiklerle-karşılaştırma) |
+| **Sahip için sade dilde özet (#113)** | Onaylı rapordan hayvan sahibinin anlayacağı dilde özet: vaka sayfasında oluştur → düzenle → onayla → PDF. Mock modda tıbbi terim sözlüğüyle deterministik, gerçek modelde LLM. Doz / kesinlik / prognoz ifadeleri engellenir, isimler modele gitmez, "tanı değildir" notu her zaman eklenir; rapor revize olunca özet "güncel değil" olur |
 | **Backend API** | Case / Job / Findings / Report / Review / DICOM / Documents / Auth / RAG / Health |
 | **Quarantine** | Yerel disk `backend/data/quarantine/{ingest_id}/` + SHA256 + `manifest.json`; path sanitization |
 | **DICOM** | Metadata parse (pydicom), Study→Series→Instance, sınıflandırma önerisi + onay; demo fixture: Brain MRI, Cervical MRI, Brain CT, Thorax XR |
@@ -949,6 +950,9 @@ Modül sınırları ve import kuralları: [docs/modularization.md](docs/modulari
 | POST | `/patients/{id}/merge` | Çift kaydı birleştir (klinik sahibi / admin) |
 | GET | `/cases/{id}/prior-studies` | Vakanın önceki tetkikleri veya hasta önerileri |
 | PUT | `/cases/{id}/patient` | Vakayı hastaya bağla / bağlantıyı kaldır |
+| GET / POST / PUT | `/cases/{id}/owner-summary` | Sahip özeti: durum / oluştur (onaylı rapor gerekir) / düzenle (#113) |
+| POST | `/cases/{id}/owner-summary/approve` | Özeti onayla |
+| GET | `/cases/{id}/owner-summary.pdf` | Onaylı özetin PDF'i |
 | GET | `/cases` | Vaka listesi |
 | GET | `/cases/{id}` | Tam vaka kaydı |
 | POST | `/cases/{id}/model-input` | ImagingModelInput üret / yenile |
