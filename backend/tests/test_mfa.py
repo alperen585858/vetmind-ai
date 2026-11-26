@@ -278,7 +278,8 @@ def test_required_role_gets_a_setup_only_session(tmp_path: Path) -> None:
     assert done["session"]["mfa_setup_required"] is False
     assert client.get("/api/v1/cases", headers=_bearer(done["session"]["access_token"])).status_code == 200
     # Admin of the policy endpoint sees the roles.
-    assert client.get("/api/v1/admin/mfa-policy", headers=admin).json() == {"required_roles": ["expert"]}
+    policy = client.get("/api/v1/admin/mfa-policy", headers=admin).json()
+    assert (policy["required_roles"], policy["source"]) == (["expert"], "env")
 
 
 def test_admin_reset_turns_mfa_off_and_ends_sessions(tmp_path: Path) -> None:
@@ -295,3 +296,58 @@ def test_admin_reset_turns_mfa_off_and_ends_sessions(tmp_path: Path) -> None:
     assert any(e["event_type"] == "admin.mfa_reset" for e in container.audit.list_events(limit=500))
     vet = _bearer(_login(client, "vet@demo.local").json()["access_token"])
     assert client.post(f"/api/v1/admin/users/{USER}/mfa-reset", headers=vet).status_code == 403
+
+
+
+# --- policy saved from the admin screen ------------------------------------------------------
+
+
+def test_admin_saves_policy_and_it_overrides_the_server_setting(tmp_path: Path) -> None:
+    client, container = _app(tmp_path, mfa_required_roles=("vet",))
+    admin = _bearer(_login(client, "admin@demo.local").json()["access_token"])
+    start = client.get("/api/v1/admin/mfa-policy", headers=admin).json()
+    assert start == {"required_roles": ["vet"], "source": "env", "available_roles": ["admin", "expert", "vet", "clinic_owner"]}
+
+    res = client.put("/api/v1/admin/mfa-policy", json={"required_roles": ["expert", "admin", "expert"]}, headers=admin)
+    assert res.status_code == 200, res.text
+    assert (res.json()["required_roles"], res.json()["source"]) == (["admin", "expert"], "admin")
+    # An empty list is a real choice too: nobody is forced, even though the env said "vet".
+    cleared = client.put("/api/v1/admin/mfa-policy", json={"required_roles": []}, headers=admin).json()
+    assert (cleared["required_roles"], cleared["source"]) == ([], "admin")
+    events = [e for e in container.audit.list_events(limit=500) if e["event_type"] == "admin.mfa_policy_update"]
+    assert [e["detail"] for e in events] == ["vet -> admin,expert", "admin,expert -> -"]
+
+
+def test_policy_rejects_unknown_roles_and_non_admins(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    admin = _bearer(_login(client, "admin@demo.local").json()["access_token"])
+    bad = client.put("/api/v1/admin/mfa-policy", json={"required_roles": ["owner"]}, headers=admin)
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "mfa_policy_unknown_role"
+    for email in ("vet@demo.local", "expert@demo.local", "clinic-owner@demo.local"):
+        headers = _bearer(_login(client, email).json()["access_token"])
+        assert client.put("/api/v1/admin/mfa-policy", json={"required_roles": []}, headers=headers).status_code == 403
+
+
+def test_saved_policy_applies_at_next_sign_in_and_spares_demo_accounts(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    admin = _bearer(_login(client, "admin@demo.local").json()["access_token"])
+    client.post("/api/v1/admin/users", json={"email": USER, "password": PW, "role": "vet", "clinic_id": "clinic-demo-a"}, headers=admin)
+    assert _login(client, USER, PW).json()["mfa_setup_required"] is False
+    client.put("/api/v1/admin/mfa-policy", json={"required_roles": ["vet", "admin", "expert", "clinic_owner"]}, headers=admin)
+    assert _login(client, USER, PW).json()["mfa_setup_required"] is True
+    for email in ("admin@demo.local", "vet@demo.local", "vet-b@demo.local", "expert@demo.local", "clinic-owner@demo.local"):
+        body = _login(client, email).json()
+        assert body["mfa_setup_required"] is False, email
+        assert client.get("/api/v1/cases", headers=_bearer(body["access_token"])).status_code == 200
+
+
+def test_policy_survives_a_restart_on_sqlite(tmp_path: Path) -> None:
+    """The saved policy lives in the database (Alembic 0005), not in process memory."""
+    from app.services.app_settings_store import SqlAppSettingsStore
+    from app.storage.sql import Database
+
+    db = tmp_path / "settings.sqlite3"
+    SqlAppSettingsStore(Database.sqlite(db).connect()).set("mfa_policy", {"required_roles": ["expert"]}, updated_by="a@b")
+    again = SqlAppSettingsStore(Database.sqlite(db).connect())
+    assert again.get("mfa_policy") == {"required_roles": ["expert"]}
+    assert again.get("missing") is None

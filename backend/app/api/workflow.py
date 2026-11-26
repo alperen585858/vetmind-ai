@@ -7,7 +7,7 @@ veterinarians open cases directly (``POST /api/v1/cases``).
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
@@ -70,8 +70,27 @@ def update_user(
 class MfaPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Roles that must use two-step sign-in (VETMIND_MFA_REQUIRED_ROLES). Demo accounts exempt.
+    # Roles that must use two-step sign-in. Demo accounts (*@demo.local) are always exempt.
     required_roles: list[str]
+    # "admin" = saved from the UI; "env" = VETMIND_MFA_REQUIRED_ROLES; "default" = none.
+    source: str = "default"
+    available_roles: list[str] = Field(default_factory=list)
+
+
+class MfaPolicyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    required_roles: list[str] = Field(default_factory=list, max_length=8)
+
+
+def _policy_out(container: AppContainer) -> MfaPolicy:
+    from app.auth.mfa import POLICY_ROLES
+
+    return MfaPolicy(
+        required_roles=list(container.mfa.required_roles),
+        source=container.mfa.policy_source,
+        available_roles=list(POLICY_ROLES),
+    )
 
 
 @router.get("/admin/mfa-policy", response_model=MfaPolicy)
@@ -79,7 +98,28 @@ def get_mfa_policy(
     principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
     container: AppContainer = Depends(get_container),
 ) -> MfaPolicy:
-    return MfaPolicy(required_roles=list(container.mfa.required_roles))
+    return _policy_out(container)
+
+
+@router.put("/admin/mfa-policy", response_model=MfaPolicy)
+def update_mfa_policy(
+    payload: MfaPolicyUpdate,
+    principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
+    container: AppContainer = Depends(get_container),
+) -> MfaPolicy:
+    """Issue #107: admin chooses which roles must use 2FA (demo accounts stay exempt)."""
+    if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
+        raise HTTPException(status_code=403, detail="Admin only.")
+    before = list(container.mfa.required_roles)
+    after = list(container.mfa.set_required_roles(payload.required_roles, actor=principal.subject))
+    container.audit.record(
+        event_type="admin.mfa_policy_update",
+        actor=principal.subject,
+        resource="/api/v1/admin/mfa-policy",
+        outcome=AuditOutcome.SUCCESS,
+        detail=f"{','.join(before) or '-'} -> {','.join(after) or '-'}",
+    )
+    return _policy_out(container)
 
 
 @router.post("/admin/users/{email}/mfa-reset", response_model=ManagedUserPublic)

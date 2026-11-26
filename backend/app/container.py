@@ -53,6 +53,7 @@ from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
+from app.services.app_settings_store import build_app_settings_store
 from app.services.patient_service import PatientService
 from app.services.patient_store import build_patient_store
 from app.services.user_settings_store import build_user_settings_store
@@ -447,6 +448,7 @@ class AppContainer:
             self.workflow,
             box=MfaSecretBox(dedicated_key=self.settings.mfa_encryption_key, jwt_secret=self.settings.jwt_secret),
             required_roles=self.settings.mfa_required_roles,
+            settings_store=build_app_settings_store(self.settings),
         )
         self.mfa_challenges = MfaChallenges(self.settings.jwt_secret)
         self.password_resets = PasswordResetService(

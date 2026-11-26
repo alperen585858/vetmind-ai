@@ -21,6 +21,9 @@ from app.http_errors import api_error
 from app.schemas.workflow import ManagedUser
 
 BACKUP_CODE_COUNT = 10
+# Roles a 2FA policy may cover (pet owners have no accounts since the B2B switch).
+POLICY_ROLES = ("admin", "expert", "vet", "clinic_owner")
+POLICY_KEY = "mfa_policy"
 _BACKUP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"  # no 0/o/1/l/i look-alikes
 
 
@@ -48,11 +51,21 @@ class MfaStatus:
 
 
 class MfaService:
-    def __init__(self, workflow_store, workflow, *, box: MfaSecretBox, required_roles: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        workflow_store,
+        workflow,
+        *,
+        box: MfaSecretBox,
+        required_roles: tuple[str, ...],
+        settings_store=None,
+    ) -> None:
         self._store = workflow_store
         self._workflow = workflow
         self._box = box
-        self._required = frozenset(required_roles)
+        # VETMIND_MFA_REQUIRED_ROLES: only the starting value until an admin saves a policy.
+        self._env_required = frozenset(required_roles)
+        self._settings = settings_store
         self._lock = threading.RLock()
 
     # --- helpers ------------------------------------------------------------------------
@@ -61,12 +74,38 @@ class MfaService:
     def is_demo(email: str) -> bool:
         return email.strip().lower() in DEMO_USERS
 
+    def _policy(self) -> tuple[frozenset[str], str]:
+        """(roles, source): "admin" when saved from the UI, else "env" / "default"."""
+        stored = self._settings.get(POLICY_KEY) if self._settings is not None else None
+        if stored is not None:
+            roles = frozenset(r for r in stored.get("required_roles", []) if r in POLICY_ROLES)
+            return roles, "admin"
+        return self._env_required, ("env" if self._env_required else "default")
+
     def required_for(self, email: str, role: str) -> bool:
-        return role in self._required and not self.is_demo(email)
+        return role in self._policy()[0] and not self.is_demo(email)
 
     @property
     def required_roles(self) -> tuple[str, ...]:
-        return tuple(sorted(self._required))
+        return tuple(sorted(self._policy()[0]))
+
+    @property
+    def policy_source(self) -> str:
+        return self._policy()[1]
+
+    def set_required_roles(self, roles: list[str], *, actor: str) -> tuple[str, ...]:
+        """Admin saves the policy. Takes effect at each user's next sign-in or token refresh."""
+        unknown = sorted(set(roles) - set(POLICY_ROLES))
+        if unknown:
+            raise HTTPException(
+                status_code=422,
+                detail=api_error("mfa_policy_unknown_role", f"Unknown role(s): {', '.join(unknown)}."),
+            )
+        if self._settings is None:
+            raise HTTPException(status_code=503, detail=api_error("mfa_policy_unavailable", "Policy storage is not configured."))
+        clean = sorted(set(roles))
+        self._settings.set(POLICY_KEY, {"required_roles": clean}, updated_by=actor)
+        return tuple(clean)
 
     def _user(self, email: str) -> ManagedUser:
         user = self._store.get_user(email.strip().lower())
