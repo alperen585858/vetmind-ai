@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("chromadb")
+# Optional since #117 (requirements-chroma.txt). ImportError too: on Windows with Smart App
+# Control the package is installed but its grpc DLL is blocked.
+pytest.importorskip("chromadb", exc_type=ImportError)
 
 from app.rag.chroma_store import ChromaVectorStore, chroma_where  # noqa: E402
 from app.rag.chunking import split_passage  # noqa: E402
@@ -192,7 +194,9 @@ def test_settings_pick_the_store(tmp_path: Path):
     base = dict(storage_backend="sqlite", sqlite_path=tmp_path / "x.sqlite3", quarantine_root=tmp_path / "q",
                 rag_index_path=tmp_path / "rag.json", chroma_path=tmp_path / "chroma")
     backend = HashEmbeddingBackend(dim=16)
-    assert isinstance(build_vector_store(Settings(**base), backend), ChromaVectorStore)
+    # #117: Chroma is opt-in; without PostgreSQL the default ("auto") is the JSON file.
+    assert isinstance(build_vector_store(Settings(**base, rag_store="chroma"), backend), ChromaVectorStore)
+    assert isinstance(build_vector_store(Settings(**base), backend), JsonVectorStore)
     assert isinstance(build_vector_store(Settings(**base, rag_store="json"), backend), JsonVectorStore)
     mem = build_vector_store(Settings(**base), backend, in_memory=True)
     assert isinstance(mem, JsonVectorStore) and mem.path is None

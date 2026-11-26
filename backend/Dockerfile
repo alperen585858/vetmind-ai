@@ -8,8 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt requirements-chroma.txt ./
 RUN pip install -r requirements.txt
+# Optional ChromaDB client (#103); the default RAG store is pgvector in PostgreSQL (#117).
+ARG WITH_CHROMA=0
+RUN if [ "$WITH_CHROMA" = "1" ]; then pip install -r requirements-chroma.txt; fi
 
 COPY app ./app
 # Database schema (#102): the app runs `alembic upgrade head` on startup.

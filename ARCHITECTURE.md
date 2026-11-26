@@ -25,7 +25,7 @@ VetMind AI, **multimodal / multi-model AI destekli veteriner teleradyoloji** pla
 | Backend | Python 3.11+, FastAPI, Pydantic, pydicom |
 | Kalıcılık | PostgreSQL (varsayılan, Alembic) / SQLite (yerel geliştirme) / memory (testler) |
 | Jobs | Thread worker (varsayılan) veya RQ + Redis |
-| RAG | bge-m3 anlamsal embedding (varsayılan; Ollama yoksa hash) + ChromaDB, veya lexical |
+| RAG | bge-m3 anlamsal embedding (varsayılan; Ollama yoksa hash) + pgvector (PostgreSQL), veya lexical |
 | Auth | Opsiyonel JWT (HS256) + API key + RBAC |
 
 **Mimari desen:** Modular monolith. Tüm bağımlılıklar `AppContainer` composition root’unda birleştirilir; HTTP katmanı ince router’lardır.
@@ -118,7 +118,7 @@ veteriner/
     ├── pytest.ini
     ├── docker-compose.yml          # Redis 7 (Postgres kök compose'da)
     ├── migrations/                 # Alembic şema migration'ları
-    ├── data/                       # runtime (gitignore): sqlite, quarantine, chroma
+    ├── data/                       # runtime (gitignore): sqlite, quarantine, rag_index.json
     ├── scripts/mock_vision_server.py
     ├── app/                        # FastAPI uygulama
     └── tests/                      # pytest
@@ -153,7 +153,7 @@ Uygulama girişi: `uvicorn app.main:app --port 8000`.
 | `models/` | `ImagingModel` protokolü, mock Vision registry, VLM, yerel torch, HTTP remote, model input builder, normalizer |
 | `orchestration/` | `AIOrchestrator.run()` |
 | `llm/` | gateway + mock / stub / HTTP / OpenAI-uyumlu (Ollama, Gemini …) / Anthropic sağlayıcıları, hakem, KVKK maskeleme |
-| `rag/` | corpus, lexical retriever, bge-m3 / hash embedding, ChromaDB (JSON eski seçenek), kaynak kartları, chunking |
+| `rag/` | corpus, lexical retriever, bge-m3 / hash embedding, pgvector (JSON ve ChromaDB seçenek), kaynak kartları, chunking |
 | `validation/` | yapısal report validator |
 | `workers/` | `ThreadJobBackend`, `RqJobBackend`, RQ worker entry |
 | `schemas/` | Pydantic: case, dicom, documents, findings, report, jobs, rag, enums, model_input |
@@ -216,7 +216,7 @@ Saklanan başlıca varlıklar: `CaseRecord`, `AnalysisJob`, `DicomIngestionRecor
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash/bge-m3 embedding + cosine; `ChromaVectorStore` → `data/chroma` (`VETMIND_RAG_STORE=json` → `data/rag_index.json`) |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash/bge-m3 embedding + cosine; `PgVectorStore` → PostgreSQL `rag_chunks` (#117); PostgreSQL yoksa `data/rag_index.json`; `VETMIND_RAG_STORE=chroma` isteğe bağlı |
 | lexical | `lexical` | Token overlap; vektör indeks yok |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`. Draft üzerinde `rag_citations` + `rag_note`.
@@ -355,8 +355,8 @@ Kaynak: `backend/app/settings.py` ve `backend/.env.example`.
 | `VETMIND_REDIS_URL` | RQ için gerekli |
 | `VETMIND_RQ_QUEUE` | `vetmind` (worker) |
 | `VETMIND_RAG` | `embedding` \| `lexical` |
-| `VETMIND_RAG_STORE` | `chroma` \| `json` |
-| `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | `./data/chroma` / — |
+| `VETMIND_RAG_STORE` | `auto` (PostgreSQL varsa `pgvector`, yoksa `json`) \| `pgvector` \| `json` \| `chroma` (isteğe bağlı) |
+| `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | Yalnızca `RAG_STORE=chroma`: `./data/chroma` / — |
 | `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` (taşıma kaynağı) |
 | `VETMIND_VISION_ENDPOINT` | Remote infer URL |
 | `VETMIND_VISION_MODEL_ID` | `remote-vision-v1` |
@@ -438,7 +438,7 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 | Capability router + orchestrator | Eğitilmiş GPU Vision |
 | `ImagingModel` / `LLMProvider` protokolleri | Ücretli veterinary LLM |
 | `HttpRemoteVisionModel` HTTP sözleşmesi | Varsayılan mock Vision çıktıları |
-| bge-m3 / hash RAG + ChromaDB | Klinik onaylı bilgi bankası, reranking |
+| bge-m3 / hash RAG + pgvector | Klinik onaylı bilgi bankası, reranking |
 | JWT + API key + RBAC | OAuth/SSO; UI localStorage auth |
 | Thread / opsiyonel RQ | Celery / K8s autoscaled workers |
 | PDF/text extract stub, browser viewer | OCR, klinik PACS viewer |

@@ -76,7 +76,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | **LLM katmanı** | Gerçek model bağlantısı, atıflı Türkçe rapor (`[F1]`/`[S1]`), iki adımlı üretim + onarım, yapılandırılmış ayırıcı tanılar, KVKK maskeleme, prompt-injection temizleme, atıf doğrulama + hakem (GREEN tarzı), uzman revizyonuyla yeniden yazma, uzman geri bildirim veri seti, değerlendirme aracı, Model Performansı sayfası — bkz. [§4.4](#44-gerçek-yapay-zekâ-modeliyle-çalıştırma-llm), [§8.3](#83-llm-katmanı) |
 | **Async analyze** | Thread (varsayılan) veya RQ+Redis; job poll, timeout alanları, cooperative cancel |
 | **Rapor yaşam döngüsü** | Append-only versiyonlama, onayda immutable snapshot, reject / revision-after-approve, `?version=N` |
-| **RAG** | bge-m3 anlamsal embedding (varsayılan, Ollama; yoksa hash'e düşer) veya lexical; vektörler ChromaDB'de; kaynak kartları + bölge/tür filtresi; `rag_citations` UI — bkz. [§8.4](#84-rag) |
+| **RAG** | bge-m3 anlamsal embedding (varsayılan, Ollama; yoksa hash'e düşer) veya lexical; vektörler PostgreSQL'de (pgvector); kaynak kartları + bölge/tür filtresi; `rag_citations` UI — bkz. [§8.4](#84-rag) |
 | **Auth** | Sunucu tarafı hesaplar (scrypt hash'li şifre), kayıt (veteriner, admin onayıyla), 15 dk JWT + dönen refresh token, çıkış, şifre değiştirme / sıfırlama, deneme sınırı (429), RBAC + klinik izolasyonu; auth varsayılan kapalı, protected deployment mode — bkz. [§10](#10-auth-rbac-ve-güvenlik) |
 | **Kalıcılık** | Tek PostgreSQL veritabanı (#102): vakalar, kullanıcılar, bildirimler, mesajlar, token'lar, audit, geri bildirim, dersler; SQLite yalnızca yerel geliştirme, memory testler |
 | **Gerçek görüntü modeli (röntgen)** | Göğüs/toraks röntgeni için hazır eğitilmiş DenseNet121 (TorchXRayVision, insan verisi) + MONAI ön işleme; 9 bulgu kodu — **demo amaçlı, veterinerde doğrulanmadı** — bkz. [§4.5](#45-gerçek-görüntü-modeliyle-çalıştırma-röntgen) |
@@ -93,7 +93,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Ücretli / üretim LLM | Varsayılan `MockLLMProvider` |
 | PACS / DICOMweb | Yok |
 | OCR | Doküman metin stub |
-| Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + ChromaDB) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
+| Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + pgvector) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
 | OAuth / SSO | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz). Kayıtta e-posta doğrulaması var (#41) |
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
@@ -131,7 +131,7 @@ docker compose up --build
 
 - Arayüz: **http://localhost:8080** · demo giriş `vet@demo.local` / `demo1234` (diğer hesaplar §5)
 - İki servis: `backend` (FastAPI, Python 3.12) ve `web` (nginx: derlenmiş arayüz + `/api` → backend proxy)
-- Dört servis: `db` (PostgreSQL 16, bütün kayıtlar), `chroma` (RAG vektörleri), `backend`, `web`. SQLite dosyası oluşmaz; DICOM dosyaları `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
+- Üç servis: `db` (PostgreSQL 16 + pgvector: bütün kayıtlar ve RAG vektörleri), `backend`, `web`. İsteğe bağlı ChromaDB yalnızca `--profile chroma` ile açılır. SQLite dosyası oluşmaz; DICOM dosyaları `vetmind_data` volume'unda kalır. `docker compose down` veriyi korur, `docker compose down -v` hepsini siler
 - Ayarlar: compose dosyasının yanına `.env` koyup `VETMIND_*` değişkenlerini yazın (bkz. `backend/.env.example`). Port: `VETMIND_WEB_PORT` (varsayılan 8080)
 - Bilgi bankası araması varsayılan olarak **bge-m3** (anlamsal) kullanır: bilgisayarda Ollama çalışıyor ve `ollama pull bge-m3` yapılmışsa backend ona `host.docker.internal` üzerinden bağlanır. Ollama yoksa sistem hata vermeden kelime benzerliğiyle (hash) açılır; Admin → **Sistem Durumu** hangisinin çalıştığını ve uyarıyı gösterir
 - Varsayılanlar demo modudur: auth kapalı, mock LLM. Gerçek LLM için `VETMIND_LLM_PROVIDER` ve ilgili ayarlar (§4.4) `.env`'e eklenir. Ollama bilgisayarda çalışıyorsa `VETMIND_LLM_ENDPOINT=http://host.docker.internal:11434/v1`
@@ -503,7 +503,7 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 | `models/` | `ImagingModel` protokolü, mock registry, VLM, yerel torch, HTTP remote, normalizer, pixel authz |
 | `orchestration/` | `AIOrchestrator.run()` |
 | `llm/` | gateway + mock / stub / HTTP / OpenAI-uyumlu (Ollama, Gemini …) / Anthropic sağlayıcıları, hakem, KVKK maskeleme |
-| `rag/` | corpus, lexical, bge-m3 / hash embedding, ChromaDB (JSON eski seçenek), kaynak kartları, chunking |
+| `rag/` | corpus, lexical, bge-m3 / hash embedding, pgvector (JSON ve ChromaDB seçenek), kaynak kartları, chunking |
 | `validation/` | yapısal report validator |
 | `workers/` | Thread / RQ job backend |
 | `security/` | audit logger, retention hooks |
@@ -698,7 +698,7 @@ oranı, hakemce desteklenen cümle, süre, çağrı sayısı; `--repeat` ile ort
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash n-gram (veya bge-m3) + cosine; vektörler ChromaDB'de (`data/chroma`) |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash n-gram (veya bge-m3) + cosine; vektörler PostgreSQL'de (pgvector), PostgreSQL yoksa `data/rag_index.json` |
 | lexical | `lexical` | Token overlap |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.  
@@ -723,10 +723,12 @@ Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.
 | Önce | 0.14 | 0.62 | 0.30 | 0.00 | 3.44 |
 | Sonra | 0.68 | 1.00 | 0.55 | 1.00 | 0.50 |
 
-**Vektör deposu: ChromaDB (#103).** Vektörleri Chroma değil bizim kodumuz üretir (hash veya bge-m3); Chroma yalnızca saklar ve arar (`app/rag/chroma_store.py`, kosinüs uzayı). Kaynak kartı (bölge, tür, özet, `tag_source`) ve parça bilgisi (`parent_id`, `chunk_index`, `chunk_count`) her kaydın metadata'sındadır; bölge/tür filtresi aramada Chroma `where` koşulu olarak uygulanır (her etiket için `r_BRAIN`, `s_canine` gibi bir mantıksal alan). Kaynak başına en fazla 2 parça kuralı ve skor eşikleri değişmedi. Varsayılan yerel klasör `backend/data/chroma`; ayrı bir Chroma sunucusu için `VETMIND_CHROMA_URL`. Eski davranış (tek JSON dosyası) `VETMIND_RAG_STORE=json` ile duruyor; testler bellek içi depoyu kullanır.
+**Vektör deposu: PostgreSQL + pgvector (#117).** Vektörler uygulamanın kendi PostgreSQL veritabanında, `rag_chunks` tablosunda durur (migration `0006`); ayrı bir vektör servisi yoktur. Vektörleri veritabanı değil bizim kodumuz üretir (hash veya bge-m3); veritabanı yalnızca saklar ve arar (`app/rag/pgvector_store.py`). Kaynak kartı (bölge, tür, özet, `tag_source`) ve parça bilgisi aynı satırdadır; bölge/tür filtresi düz SQL `WHERE` ile uygulanır, sıralama pgvector'ün kosinüs mesafesiyle (`<=>`), skor bizim vektörümüzden yeniden hesaplanır. Bir kaynağın parçaları ve kartı tek işlemde (transaction) yazılır; yedek, saklama süresi ve silme kuralları diğer kayıtlarla aynı veritabanında. Embedding boyutu sabit değil (hash 2048, bge-m3 1024; HNSW dizini 2000 boyutla sınırlı), bu yüzden arama tam taramadır; bizim ölçekte (yüzlerce / birkaç bin parça) milisaniyeler sürer. Kaynak başına en fazla 2 parça kuralı ve skor eşikleri değişmedi.
 
-- **Taşıma:** Chroma boşsa ilk açılışta `data/rag_index.json` (klinik kaynakları dahil) otomatik kopyalanır; dosyaya dokunulmaz. Elle: `python scripts/rag_migrate_to_chroma.py` (`--replace` ile yeniden).
-- **Ölçüm:** `python scripts/rag_eval.py --store chroma` sonuçları bellek içi depoyla birebir aynı (yalnızca depolama değişti).
+- **Seçim:** `VETMIND_RAG_STORE=auto` (varsayılan) PostgreSQL varsa pgvector, yoksa (SQLite ile yerel geliştirme) tek JSON dosyası (`data/rag_index.json`). Testler bellek içi depoyu kullanır.
+- **ChromaDB (#103) isteğe bağlı:** `pip install -r requirements-chroma.txt` ve `VETMIND_RAG_STORE=chroma` (Docker: `--profile chroma`, `.env`'de `VETMIND_WITH_CHROMA=1`). chromadb ana bağımlılıklarda değil; bilinen açıkları için bkz. #112.
+- **Taşıma:** Tablo boşsa ilk açılışta `data/rag_index.json` (klinik kaynakları dahil) otomatik kopyalanır; dosyaya dokunulmaz. Chroma'daki içerik için: `python scripts/rag_migrate_to_pgvector.py --from-chroma data/chroma` veya `--from-chroma-url ...` (`--replace` ile yeniden).
+- **Ölçüm:** `VETMIND_RAG_EVAL_DATABASE_URL=... python scripts/rag_eval.py --store pgvector` sonuçları bellek içi depoyla birebir aynı (bge-m3 dahil; yalnızca depolama değişti). Değerlendirme tabloyu her ayarda sildiği için ayrı, geçici bir veritabanı ister.
 - Boyut/embedding ayarı değişirse vektörler ilk açılışta özel kaynaklar dahil yeniden hesaplanır.
 
 **Anlamsal embedding (bge-m3, varsayılan, #101).** Kaynaklar ve sorgular Ollama'daki çok dilli `bge-m3` modeliyle vektörleşir (`app/rag/ollama_embeddings.py`); "nöbet" ile "konvülsiyon", "akciğer" ile "pulmoner" yakın düşer. Kurulum: `ollama pull bge-m3` (~1.2 GB). Ollama kapalıysa veya model yoksa uygulama hata vermeden hash embedding'e döner; Admin → **Sistem Durumu** hangi embedding'in çalıştığını ve geri dönüldüyse nedenini gösterir (`/api/v1/health` → `rag_embedding`). `VETMIND_RAG_EMBEDDING=hash` bge-m3'ü kapatır.
@@ -1012,10 +1014,10 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_RAG` | `embedding` | `embedding` \| `lexical` |
 | `VETMIND_RAG_EMBEDDING` | `ollama` | `ollama` (bge-m3, anlamsal; ulaşılamazsa hash) \| `hash` |
 | `VETMIND_RAG_EMBEDDING_MODEL` / `_URL` | `bge-m3` / `http://localhost:11434` | Embedding modeli ve Ollama adresi |
-| `VETMIND_RAG_STORE` | `chroma` | `chroma` \| `json` (eski tek dosya) |
-| `VETMIND_CHROMA_PATH` | `./data/chroma` | Chroma klasörü |
-| `VETMIND_CHROMA_URL` | — | Ayrı Chroma sunucusu (ör. `http://chroma:8000`); boşsa yerel klasör |
-| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` | Eski JSON indeks: Chroma'ya taşıma kaynağı veya `RAG_STORE=json` |
+| `VETMIND_RAG_STORE` | `auto` | `auto` (PostgreSQL varsa `pgvector`, yoksa `json`) \| `pgvector` \| `json` \| `chroma` (isteğe bağlı, `requirements-chroma.txt`) |
+| `VETMIND_CHROMA_PATH` | `./data/chroma` | Yalnızca `RAG_STORE=chroma`: Chroma klasörü |
+| `VETMIND_CHROMA_URL` | — | Yalnızca `RAG_STORE=chroma`: ayrı Chroma sunucusu (ör. `http://chroma:8000`) |
+| `VETMIND_RAG_INDEX_PATH` | `./data/rag_index.json` | JSON indeks: `RAG_STORE=json` deposu veya pgvector / Chroma'ya ilk taşıma kaynağı |
 | `VETMIND_VISION_ENDPOINT` | — | Remote Vision HTTP |
 | `VETMIND_VISION_MODEL_ID` | `remote-vision-v1` | Remote model id |
 | `VETMIND_VISION_API_KEY` | — | Bearer |
@@ -1281,7 +1283,7 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 **Olası sonraki adımlar (platform):**
 
 1. Gerçek şirket Vision / GPU serving (HTTP adapter üzerinde)  
-2. ~~Anlamsal embedding + vektör veritabanı~~ → bge-m3 + ChromaDB (#101, #103)  
+2. ~~Anlamsal embedding + vektör veritabanı~~ → bge-m3 + pgvector (#101, #117; ChromaDB isteğe bağlı, #103)  
 3. OAuth / SSO IdP  
 4. Object storage quarantine + malware scan  
 5. K8s / managed queue  
