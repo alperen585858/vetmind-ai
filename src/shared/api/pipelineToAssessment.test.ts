@@ -88,10 +88,52 @@ describe('pipelineToAssessment', () => {
       ]),
       minimalReport(),
     )
+    // Technique notes stay in structured findings; the attention list shows only lesion claims.
+    expect(ai.findings).toHaveLength(1)
+    expect(ai.findings[0].severity).toBe('Orta')
+    expect(ai.findings[0].text).toContain('(possible)')
+    expect(ai.findings[0].text).toContain('[VENTRICLE-DILATION]')
+  })
+
+  it('says there is no focal claim when every finding is technical', () => {
+    const ai = pipelineToAssessment(
+      minimalFindings([
+        { finding_code: 'IMAGE-QUALITY', finding_status: 'uncertain' },
+        { finding_code: 'BRAIN-STRUCTURE', finding_status: 'uncertain' },
+      ]),
+      minimalReport(),
+    )
+    expect(ai.findings).toHaveLength(1)
     expect(ai.findings[0].severity).toBe('Düşük')
-    expect(ai.findings[0].text).toContain('(suspected)')
-    expect(ai.findings[0].text).toContain('[IMAGE-QUALITY]')
-    expect(ai.findings[1].severity).toBe('Orta')
-    expect(ai.findings[1].text).toContain('(possible)')
+    expect(ai.findings[0].text).toMatch(/Odak anormallik iddiası yok/)
+  })
+
+  it('builds validation from verifier verdicts and categorized warnings', () => {
+    const findings = minimalFindings([{ finding_code: 'VENTRICLE-DILATION' }])
+    findings.warnings = [
+      'Eksik bilgi: ırk, yaş girilmemiş. Irka özgü varyantlar…',
+      'Sınırlama: Yüksek alanlı (9.4 T) muhtemelen preklinik tarayıcı.',
+      'Kapsam: tespit edilen hedef karelerin tamamı görsel olarak gönderildi (görsel=1).',
+      'VLM çıktısı eğitilmemiş genel modelden gelir; klinik doğrulama yoktur.',
+    ]
+    const report = minimalReport()
+    report.verification = {
+      verifier_model: 'judge',
+      verdicts: [
+        { section: 'findings', sentence: 'Ventrikül genişlemesi olası.', citations: ['F1'], label: 'supported' },
+        {
+          section: 'impression',
+          sentence: 'Hidrosefali kesindir.',
+          citations: ['F1'],
+          label: 'unsupported',
+          error_type: 'overstated_certainty',
+        },
+      ],
+    }
+    const v = pipelineToAssessment(findings, report).validation
+    expect(v.map((x) => x.kind)).toEqual(['ok', 'unsupported', 'missing', 'note', 'note'])
+    expect(v[2].text).toBe('ırk, yaş girilmemiş')
+    expect(v[1].detail).toContain('overstated certainty')
+    expect(v.some((x) => x.text === 'Pipeline notu')).toBe(false)
   })
 })

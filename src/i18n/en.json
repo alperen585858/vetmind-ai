@@ -1025,7 +1025,27 @@
       "citationsNone": "No source passages were used in this case's AI draft (or the analysis has not run yet).",
       "citationsLegacy": "Older record: which passages the model used was not stored; all retrieved passages are shown, which does not mean the model used them.",
       "citationRelatedFinding": "Related finding:",
-      "citationScoreHint": "Text similarity {score}; only a search match measure, not a clinical confidence level."
+      "citationScoreHint": "Text similarity {score}; only a search match measure, not a clinical confidence level.",
+      "valNote": "Limitation / pipeline note",
+      "noteCount": "{n} notes",
+      "none": "None given",
+      "noDifferentialsNoActionable": "No differential list: the automated analysis returned only technique/anatomy notes and no focal abnormality claim. This does not mean the study is normal.",
+      "systematicReview": "Systematic review",
+      "systematicReviewSub": "Applies only to the analyzed slices; it does not mean the study is normal.",
+      "review": {
+        "no_abnormality_seen": "No abnormality seen",
+        "abnormality_suspected": "Abnormality suspected",
+        "not_in_view": "Not in view",
+        "not_assessable": "Not assessable"
+      },
+      "limitedSampling": "Limited sampling",
+      "noActionableFindings": "No focal abnormality claim; technique and anatomy notes are in the structured findings above.",
+      "verifierTitle": {
+        "ok": "Claim supported by evidence",
+        "partial": "Partially supported",
+        "unsupported": "Not supported by evidence",
+        "contradicted": "Contradicted by evidence"
+      }
     },
     "processing": {
       "title": "AI processing",

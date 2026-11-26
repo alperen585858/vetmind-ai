@@ -30,7 +30,8 @@ export interface BackendDifferential {
 }
 
 export interface ValidationItem {
-  kind: 'ok' | 'missing' | 'unsupported'
+  /** ok/unsupported come from the claim verifier; missing = input the clinic can add; note = pipeline limitation. */
+  kind: 'ok' | 'missing' | 'unsupported' | 'note'
   text: string
   detail: string
   citations?: number[]
@@ -129,9 +130,26 @@ export interface BackendAnalysisCoverage {
   include_localizers: boolean
   analysis_scope: 'full' | 'partial' | 'none'
   analysis_complete: boolean
+  /** MR/CT with too few slices: "full" only means every uploaded frame was seen. */
+  limited_sampling?: boolean
+  limited_sampling_reason?: string | null
   note?: string
   series?: BackendSeriesCoverage[]
   skipped_files?: { path: string; reason: string }[]
+}
+
+export type SystematicReviewStatus =
+  | 'no_abnormality_seen'
+  | 'abnormality_suspected'
+  | 'not_in_view'
+  | 'not_assessable'
+
+export interface BackendSystematicReviewItem {
+  region: string
+  status: SystematicReviewStatus
+  note?: string
+  source_image_index?: number | null
+  evidence_locus?: string | null
 }
 
 export interface BackendFindings {
@@ -149,6 +167,8 @@ export interface BackendFindings {
   contributing_source_kinds?: string[]
   processing_metadata?: Record<string, string>
   analysis_coverage?: BackendAnalysisCoverage | null
+  /** Region checklist incl. negatives scoped to the analyzed slices (VLM adapters). */
+  systematic_review?: BackendSystematicReviewItem[]
   potential_conflicts?: {
     conflict_id: string
     finding_ids: string[]

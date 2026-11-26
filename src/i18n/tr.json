@@ -1025,7 +1025,27 @@
       "citationsNone": "Bu vakada AI taslağında kullanılan kaynak pasajı yok (veya analiz henüz çalışmadı).",
       "citationsLegacy": "Eski kayıt: modelin hangi pasajları kullandığı bilgisi yok; bulunan tüm pasajlar gösteriliyor, modelin kullandığı anlamına gelmez.",
       "citationRelatedFinding": "İlgili bulgu:",
-      "citationScoreHint": "Metin benzerliği {score}; yalnızca aramadaki eşleşme ölçüsüdür, klinik güven düzeyi değildir."
+      "citationScoreHint": "Metin benzerliği {score}; yalnızca aramadaki eşleşme ölçüsüdür, klinik güven düzeyi değildir.",
+      "valNote": "Sınırlama / pipeline notu",
+      "noteCount": "{n} not",
+      "none": "Belirtilmedi",
+      "noDifferentialsNoActionable": "Ayırıcı tanı üretilmedi: otomatik analiz yalnızca teknik/anatomik not döndürdü, odak anormallik iddiası yok. Bu, çalışmanın normal olduğu anlamına gelmez.",
+      "systematicReview": "Sistematik inceleme",
+      "systematicReviewSub": "Yalnızca analiz edilen kesitler için geçerlidir; çalışmanın normal olduğu anlamına gelmez.",
+      "review": {
+        "no_abnormality_seen": "Anormallik izlenmedi",
+        "abnormality_suspected": "Anormallik şüphesi",
+        "not_in_view": "Kesitte yok",
+        "not_assessable": "Değerlendirilemedi"
+      },
+      "limitedSampling": "Sınırlı örneklem",
+      "noActionableFindings": "Odak anormallik iddiası yok; teknik ve anatomik notlar yukarıdaki yapılandırılmış bulgularda.",
+      "verifierTitle": {
+        "ok": "İfade kanıtla destekleniyor",
+        "partial": "Kısmen destekleniyor",
+        "unsupported": "Kanıtla desteklenmiyor",
+        "contradicted": "Kanıtla çelişiyor"
+      }
     },
     "processing": {
       "title": "AI İşleme",

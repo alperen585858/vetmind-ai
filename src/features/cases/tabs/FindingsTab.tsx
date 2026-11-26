@@ -7,6 +7,8 @@ import {
   ChevronDown,
   ClipboardList,
   FileText,
+  Info,
+  ListChecks,
   Loader2,
   Stethoscope,
   XCircle,
@@ -19,7 +21,15 @@ import { EmptyState } from '../../../shared/ui/EmptyState'
 import { fmtDate } from '../../../shared/lib/format'
 import { displayFindingCode, displayFindingDescription } from '../../../shared/lib/displayClean'
 import { CitedText } from '../../../shared/ui/CitedText'
-import type { ValidationItem, VetCase } from '../../../shared/types'
+import { isTechnicalFindingCode } from '../../../shared/api/reports'
+import type { SystematicReviewStatus, ValidationItem, VetCase } from '../../../shared/types'
+
+const REVIEW_STYLE: Record<SystematicReviewStatus, string> = {
+  abnormality_suspected: 'bg-rose-100 text-rose-800',
+  no_abnormality_seen: 'bg-emerald-50 text-emerald-800',
+  not_assessable: 'bg-amber-50 text-amber-800',
+  not_in_view: 'bg-slate-100 text-slate-500',
+}
 
 const LIKELIHOOD_STYLE = {
   high: 'bg-teal-100 text-teal-800',
@@ -34,6 +44,7 @@ function ValidationBox({ v }: { v: ValidationItem }) {
     ok: { cls: 'border-emerald-200 bg-emerald-50 text-emerald-900', icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />, label: t('cases.detail.valOk') },
     missing: { cls: 'border-amber-200 bg-amber-50 text-amber-900', icon: <AlertTriangle className="h-4 w-4 text-amber-600" />, label: t('cases.detail.valMissing') },
     unsupported: { cls: 'border-rose-200 bg-rose-50 text-rose-900', icon: <XCircle className="h-4 w-4 text-rose-600" />, label: t('cases.detail.valUnsupported') },
+    note: { cls: 'border-slate-200 bg-slate-50 text-slate-800', icon: <Info className="h-4 w-4 text-slate-500" />, label: t('cases.detail.valNote') },
   }[v.kind]
   return (
     <div className={`rounded-lg border ${meta.cls}`}>
@@ -114,6 +125,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   const skipped = cov?.frames_skipped ?? Number(meta?.frames_skipped || 0)
                   const undec = cov?.dicom_files_undecodable ?? Number(meta?.dicom_files_undecodable || 0)
                   const complete = cov?.analysis_complete ?? meta?.analysis_complete === 'true'
+                  const limited = cov?.limited_sampling ?? meta?.limited_sampling === 'true'
                   const metadataOnly =
                     detected > 0 && visual <= 0
                       ? true
@@ -122,8 +134,20 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                     <>
                       <p className="mt-1">
                         Kapsam: <span className="font-mono font-semibold">{scope}</span>
-                        {complete ? ' (hedef kareler görsel tamam)' : ' (tam görsel analiz değil)'}
+                        {complete
+                          ? limited
+                            ? ' (yüklenen kareler görsel tamam; çalışma hacmi değil)'
+                            : ' (hedef kareler görsel tamam)'
+                          : ' (tam görsel analiz değil)'}
+                        {limited && (
+                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">
+                            {t('cases.detail.limitedSampling')}
+                          </span>
+                        )}
                       </p>
+                      {limited && cov?.limited_sampling_reason && (
+                        <p className="mt-1 text-amber-800">{cov.limited_sampling_reason}</p>
+                      )}
                       <p className="mt-1">
                         DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} ·
                         decode {decoded} · görsel analiz {visual} · atlanan {skipped}
@@ -149,6 +173,32 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                     </>
                   )
                 })()}
+              </div>
+            )}
+            {(c.backendFindings.systematic_review?.length ?? 0) > 0 && (
+              <div className="mt-3 rounded-lg border border-slate-200 p-3">
+                <p className="flex items-center gap-2 font-semibold text-navy-900">
+                  <ListChecks className="h-4 w-4" /> {t('cases.detail.systematicReview')}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">{t('cases.detail.systematicReviewSub')}</p>
+                <ul className="mt-2 divide-y divide-slate-100 text-xs">
+                  {c.backendFindings.systematic_review!.map((it, i) => (
+                    <li key={`${it.region}-${i}`} className="flex flex-wrap items-start gap-2 py-1.5">
+                      <span className="min-w-[10rem] flex-1 font-medium text-navy-800">{it.region}</span>
+                      <span className={`rounded-full px-2 py-0.5 font-semibold ${REVIEW_STYLE[it.status] ?? ''}`}>
+                        {t(`cases.detail.review.${it.status}`)}
+                      </span>
+                      {(it.note || it.evidence_locus) && (
+                        <span className="basis-full text-slate-600">
+                          {it.note}
+                          {it.evidence_locus ? (
+                            <span className="ml-1 font-mono text-[11px] text-violet-800">({it.evidence_locus})</span>
+                          ) : null}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
@@ -199,7 +249,12 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
           <Card>
             <CardHeader title={t('cases.detail.differentials')} subtitle={t('cases.detail.differentialsSub')} icon={<Stethoscope className="h-5 w-5" />} />
             {!ai.differentials.length && (
-              <p className="px-5 py-4 text-sm text-slate-500">{t('cases.detail.noDifferentials')}</p>
+              <p className="px-5 py-4 text-sm text-slate-500">
+                {(c.backendFindings?.findings.length ?? 0) > 0 &&
+                c.backendFindings!.findings.every((f) => isTechnicalFindingCode(f.finding_code))
+                  ? t('cases.detail.noDifferentialsNoActionable')
+                  : t('cases.detail.noDifferentials')}
+              </p>
             )}
             <div className="divide-y divide-slate-100">
               {ai.differentials.map((d, i) => (
@@ -239,13 +294,13 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                     <div>
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{t('cases.detail.supporting')}</p>
                       <ul className="space-y-1 text-sm text-navy-800">
-                        {d.pro.length ? d.pro.map((x, j) => <li key={j} className="flex gap-2"><span className="text-emerald-500">+</span>{x}</li>) : <li className="text-slate-400">—</li>}
+                        {d.pro.length ? d.pro.map((x, j) => <li key={j} className="flex gap-2"><span className="text-emerald-500">+</span>{x}</li>) : <li className="italic text-slate-400">{t('cases.detail.none')}</li>}
                       </ul>
                     </div>
                     <div>
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-700">{t('cases.detail.against')}</p>
                       <ul className="space-y-1 text-sm text-navy-800">
-                        {d.con.length ? d.con.map((x, j) => <li key={j} className="flex gap-2"><span className="text-rose-500">−</span>{x}</li>) : <li className="text-slate-400">—</li>}
+                        {d.con.length ? d.con.map((x, j) => <li key={j} className="flex gap-2"><span className="text-rose-500">−</span>{x}</li>) : <li className="italic text-slate-400">{t('cases.detail.none')}</li>}
                       </ul>
                     </div>
                   </div>
@@ -276,6 +331,7 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">{t('cases.detail.validatedCount', { n: validation.filter((v) => v.kind === 'ok').length })}</span>
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">{t('cases.detail.missingCount', { n: validation.filter((v) => v.kind === 'missing').length })}</span>
                   <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{t('cases.detail.unsupportedCount', { n: validation.filter((v) => v.kind === 'unsupported').length })}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">{t('cases.detail.noteCount', { n: validation.filter((v) => v.kind === 'note').length })}</span>
                 </div>
                 <div className="space-y-2.5 p-5">
                   {validation.map((v, i) => (

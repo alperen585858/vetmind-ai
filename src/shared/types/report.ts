@@ -46,6 +46,8 @@ export interface BackendDraftReport {
   /** Issue #108: change since the prior study (null = case has no patient record). */
   comparison?: import('./patient').BackendReportComparison | null
   differentials?: BackendDifferential[]
+  /** Claim-by-claim judge pass over cited sentences (null when the verifier did not run). */
+  verification?: BackendReportVerification | null
   /** Model text per section at generation time; unchanged by expert edits. */
   ai_sections?: Record<string, string>
   rag_note?: string
@@ -92,4 +94,20 @@ export interface BackendReportVersionSummary {
 
 export interface BackendReportVersionSnapshot extends BackendReportVersionSummary {
   content: BackendDraftReport
+}
+
+export type VerdictLabel = 'supported' | 'partially_supported' | 'unsupported' | 'contradicted'
+
+export interface BackendSentenceVerdict {
+  section: string
+  sentence: string
+  citations: string[]
+  label: VerdictLabel
+  error_type?: string
+  note?: string
+}
+
+export interface BackendReportVerification {
+  verifier_model: string
+  verdicts: BackendSentenceVerdict[]
 }
