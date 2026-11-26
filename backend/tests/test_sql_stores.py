@@ -205,3 +205,14 @@ def test_audit_query_filters_and_pages(db: Database) -> None:
     assert [e["event_id"] for e in page2] == ["aud-003", "aud-002"] and cur2
     page3, cur3 = log.query(AuditQuery(limit=2, cursor=cur2))
     assert [e["event_id"] for e in page3] == ["aud-001"] and cur3 is None
+
+
+def test_app_settings_store(db: Database) -> None:
+    """Issue #107: admin-saved settings (2FA role policy) on SQLite and Postgres."""
+    from app.services.app_settings_store import SqlAppSettingsStore
+
+    store = SqlAppSettingsStore(db.connect())
+    assert store.get("mfa_policy") is None
+    store.set("mfa_policy", {"required_roles": ["expert"]}, updated_by="admin@demo.local")
+    store.set("mfa_policy", {"required_roles": ["admin", "expert"]}, updated_by="admin@demo.local")
+    assert SqlAppSettingsStore(db.connect()).get("mfa_policy") == {"required_roles": ["admin", "expert"]}

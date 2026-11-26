@@ -7,6 +7,7 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { ChangePasswordCard } from './ChangePasswordCard'
+import { MfaCard } from './MfaCard'
 import { ROLE_BADGE } from '../../shared/shell/Topbar'
 import { isLocale } from '../../i18n/types'
 import {
@@ -302,6 +303,8 @@ export default function Settings() {
 
           <ChangePasswordCard />
 
+          <MfaCard />
+
           <Card className="p-5">
             <CardHeader title={t('settings.account')} icon={<SettingsIcon className="h-5 w-5" />} />
             <p className="mt-2 text-sm text-slate-600">{t('settings.accountHint')}</p>
@@ -323,7 +326,12 @@ export default function Settings() {
             </div>
           </Card>
         </div>
-      ) : null}
+      ) : (
+        // Issue #107: a setup-only session (role requires 2FA) must still reach the 2FA card.
+        <div className="grid gap-5 lg:grid-cols-2">
+          <MfaCard />
+        </div>
+      )}
     </>
   )
 }

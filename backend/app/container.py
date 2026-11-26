@@ -2,6 +2,9 @@ from pathlib import Path
 
 from app.auth.email_verification import EmailVerificationService, build_email_verification_store
 from app.auth.mailer import build_mailer
+from app.auth.mfa import MfaService
+from app.auth.mfa_challenge import MfaChallenges
+from app.auth.mfa_crypto import MfaSecretBox
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
 from app.services.report_view_tokens import ReportViewTokenService, build_report_view_token_store
@@ -50,6 +53,7 @@ from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.notification_store import build_notification_store
+from app.services.app_settings_store import build_app_settings_store
 from app.services.patient_service import PatientService
 from app.services.patient_store import build_patient_store
 from app.services.user_settings_store import build_user_settings_store
@@ -438,6 +442,15 @@ class AppContainer:
             ttl_seconds=self.settings.refresh_ttl_seconds,
             directory=self._auth_users,
         )
+        # Issue #107: TOTP two-step sign-in (opt-in; demo accounts exempt).
+        self.mfa = MfaService(
+            self.workflow_store,
+            self.workflow,
+            box=MfaSecretBox(dedicated_key=self.settings.mfa_encryption_key, jwt_secret=self.settings.jwt_secret),
+            required_roles=self.settings.mfa_required_roles,
+            settings_store=build_app_settings_store(self.settings),
+        )
+        self.mfa_challenges = MfaChallenges(self.settings.jwt_secret)
         self.password_resets = PasswordResetService(
             build_password_reset_store(self.settings),
             ttl_seconds=self.settings.password_reset_ttl_seconds,

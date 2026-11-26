@@ -9,6 +9,7 @@ from app.api.deps import get_container
 from app.auth.principal import AuthPrincipal
 from app.auth.security import decode_token, resolve_jwt_identity, verify_api_key
 from app.container import AppContainer
+from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
 
 _bearer = HTTPBearer(auto_error=False)
@@ -39,6 +40,18 @@ def _demo_session_principal(request: Request, container: AppContainer) -> AuthPr
     entry = (container.auth.users or {}).get(subject)
     clinic_id = getattr(entry, "clinic_id", None) if entry is not None else None
     return AuthPrincipal(subject=subject, role=role, via="disabled", clinic_id=clinic_id)
+
+
+# Issue #107: what a "set up 2FA first" session may call.
+MFA_SETUP_ALLOWED_PREFIXES = (
+    "/api/v1/auth/mfa/",
+    "/api/v1/auth/me",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/status",
+    "/api/v1/auth/refresh",
+    # Own UI preferences (language, display name): the Settings page loads them first.
+    "/api/v1/settings/me",
+)
 
 
 def require_auth(
@@ -95,6 +108,14 @@ def require_auth(
             detail="Invalid or expired credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+    if payload.get("mfa_setup") and not request.url.path.startswith(MFA_SETUP_ALLOWED_PREFIXES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=api_error(
+                "mfa_setup_required",
+                "Your role requires two-step sign-in. Set it up in Settings to continue.",
+            ),
+        )
     return AuthPrincipal(
         subject=subject,
         role=role,

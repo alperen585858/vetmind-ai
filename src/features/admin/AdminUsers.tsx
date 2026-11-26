@@ -5,8 +5,15 @@ import { Card, CardHeader } from '../../shared/ui/Card'
 import { Button } from '../../shared/ui/Button'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { useLocale } from '../../shared/shell/LocaleContext'
-import { createManagedUser, createPasswordResetLink, listManagedUsers, updateManagedUser } from '../../shared/api'
+import {
+  createManagedUser,
+  createPasswordResetLink,
+  listManagedUsers,
+  resetManagedUserMfa,
+  updateManagedUser,
+} from '../../shared/api'
 import type { BackendManagedUser } from '../../shared/types'
+import { MfaPolicyCard } from './MfaPolicyCard'
 
 /** Active accounts in these roles must belong to a clinic (the backend enforces it). */
 const CLINIC_REQUIRED_ROLES = new Set(['vet', 'expert', 'clinic_owner'])
@@ -102,6 +109,20 @@ export default function AdminUsers() {
     }
   }
 
+  const onResetMfa = async (u: BackendManagedUser) => {
+    if (!window.confirm(t('admin.mfaResetConfirm', { email: u.email }))) return
+    setUpdating(u.email)
+    setError(null)
+    try {
+      await resetManagedUserMfa(u.email)
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('admin.updateFail'))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
   const onResetLink = async (u: BackendManagedUser) => {
     setUpdating(u.email)
     setError(null)
@@ -169,35 +190,38 @@ export default function AdminUsers() {
         </div>
       )}
       <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="p-5 xl:col-span-1">
-          <CardHeader title={t('admin.newUser')} icon={<ShieldCheck className="h-5 w-5" />} />
-          <div className="space-y-3">
-            <label className="label">
-              {t('common.email')}
-              <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </label>
-            <label className="label">
-              {t('common.password')}
-              <input className="input mt-1" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </label>
-            <label className="label">
-              {t('admin.role')}
-              <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="vet">vet</option>
-                <option value="expert">expert</option>
-                <option value="clinic_owner">clinic_owner</option>
-                <option value="admin">admin</option>
-              </select>
-            </label>
-            <label className="label">
-              {t('admin.clinicId')}
-              <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
-            </label>
-            <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@') || password.length < 8}>
-              {saving ? t('admin.saving') : t('admin.create')}
-            </Button>
-          </div>
-        </Card>
+        <div className="space-y-6 xl:col-span-1">
+          <Card className="p-5">
+            <CardHeader title={t('admin.newUser')} icon={<ShieldCheck className="h-5 w-5" />} />
+            <div className="space-y-3">
+              <label className="label">
+                {t('common.email')}
+                <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </label>
+              <label className="label">
+                {t('common.password')}
+                <input className="input mt-1" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </label>
+              <label className="label">
+                {t('admin.role')}
+                <select className="input mt-1" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="vet">vet</option>
+                  <option value="expert">expert</option>
+                  <option value="clinic_owner">clinic_owner</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label className="label">
+                {t('admin.clinicId')}
+                <input className="input mt-1" value={clinic} onChange={(e) => setClinic(e.target.value)} disabled={role === 'admin'} />
+              </label>
+              <Button onClick={() => void onCreate()} disabled={saving || !email.includes('@') || password.length < 8}>
+                {saving ? t('admin.saving') : t('admin.create')}
+              </Button>
+            </div>
+          </Card>
+          <MfaPolicyCard />
+        </div>
         <Card className="xl:col-span-2">
           <CardHeader title={t('admin.directory')} subtitle={t('admin.userCount', { count: users.length })} />
           {loading ? (
@@ -215,6 +239,7 @@ export default function AdminUsers() {
                     <th className="th">{t('admin.role')}</th>
                     <th className="th">{t('admin.clinicId')}</th>
                     <th className="th">{t('common.status')}</th>
+                    <th className="th">{t('admin.mfaColumn')}</th>
                     <th className="th" />
                   </tr>
                 </thead>
@@ -253,7 +278,26 @@ export default function AdminUsers() {
                           t('admin.inactiveStaff')
                         )}
                       </td>
+                      <td className="td text-xs">
+                        {u.mfa_enabled ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-800">{t('admin.mfaOn')}</span>
+                        ) : (
+                          <span className="text-slate-500">{t('admin.mfaOff')}</span>
+                        )}
+                      </td>
                       <td className="td">
+                        {u.mfa_enabled && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="mr-2"
+                            disabled={updating === u.email}
+                            title={t('admin.mfaResetHint')}
+                            onClick={() => void onResetMfa(u)}
+                          >
+                            {t('admin.mfaReset')}
+                          </Button>
+                        )}
                         {isUnverified(u) && (
                           <Button
                             size="sm"

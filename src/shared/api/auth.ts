@@ -1,19 +1,61 @@
 import { getBackendRefreshToken } from '../auth/session'
 import { API_BASE, request } from './client'
 
-/** Optional backend JWT login (used when VETMIND_AUTH_ENABLED=1). */
-export async function backendLogin(email: string, password: string): Promise<{
-  access_token: string
-  refresh_token: string
+/** Issue #107: password was right, the account has 2FA on, so a code step follows. */
+export type BackendMfaChallenge = {
+  mfa_required: true
+  mfa_token: string
   expires_in: number
-  role: string
   email: string
-  auth_enabled: boolean
-}> {
+}
+
+export type BackendLoginResult = BackendTokenResponse | BackendMfaChallenge
+
+export function isMfaChallenge(res: BackendLoginResult): res is BackendMfaChallenge {
+  return (res as BackendMfaChallenge).mfa_required === true
+}
+
+/** Backend login. Returns tokens, or a 2FA challenge for accounts with two-step sign-in. */
+export async function backendLogin(email: string, password: string): Promise<BackendLoginResult> {
   return request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
+}
+
+/** Second sign-in step: authenticator code or a backup code (xxxxx-xxxxx). */
+export async function backendMfaVerify(mfaToken: string, code: string): Promise<BackendTokenResponse> {
+  return request('/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ mfa_token: mfaToken, code }) })
+}
+
+export type BackendMfaStatus = {
+  enabled: boolean
+  backup_codes_left: number
+  required_for_role: boolean
+  demo_account: boolean
+  setup_pending: boolean
+  required_roles: string[]
+}
+
+export async function getMfaStatus(): Promise<BackendMfaStatus> {
+  return request('/auth/mfa/status')
+}
+
+export async function startMfaSetup(): Promise<{ secret: string; otpauth_uri: string }> {
+  return request('/auth/mfa/setup', { method: 'POST' })
+}
+
+/** Confirms setup. Returns backup codes (shown once) and a fresh token pair for this session. */
+export async function enableMfa(code: string): Promise<{ backup_codes: string[]; session: BackendTokenResponse }> {
+  return request('/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) })
+}
+
+export async function disableMfa(password: string, code: string): Promise<BackendTokenResponse> {
+  return request('/auth/mfa/disable', { method: 'POST', body: JSON.stringify({ password, code }) })
+}
+
+export async function regenerateMfaBackupCodes(password: string, code: string): Promise<{ backup_codes: string[] }> {
+  return request('/auth/mfa/backup-codes', { method: 'POST', body: JSON.stringify({ password, code }) })
 }
 
 export type BackendTokenResponse = {
@@ -24,6 +66,8 @@ export type BackendTokenResponse = {
   email: string
   clinic_id?: string | null
   auth_enabled: boolean
+  /** Issue #107: role requires 2FA and it is not set up; only setup is allowed. */
+  mfa_setup_required?: boolean
 }
 
 /**
