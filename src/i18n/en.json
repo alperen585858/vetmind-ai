@@ -2645,5 +2645,39 @@
       "patient_unlink_case": "Case unlinked from patient",
       "patient_merge": "Patients merged"
     }
+  },
+  "ownerSummary": {
+    "title": "Owner summary",
+    "subtitle": "A plain-language summary of the approved report for the pet owner",
+    "loading": "Loading owner summary…",
+    "needsApproval": "Once the report is approved, you can create a plain-language summary for the pet owner here.",
+    "none": "No owner summary yet.",
+    "language": "Language",
+    "generate": "Create owner summary",
+    "generating": "Writing…",
+    "regenerate": "Create again",
+    "draft": "Draft",
+    "approved": "Approved",
+    "sourceLlm": "Written by AI",
+    "sourceTemplate": "Made from a template",
+    "edited": "Edited",
+    "approvedAt": "Approved: {date}",
+    "stale": "The report changed after this summary was written. Create it again before giving it to the owner.",
+    "rejected": "The AI text failed the safety check and was replaced by the template:",
+    "warning": {
+      "dose": "The text contains a drug dose; discuss doses with the owner in person.",
+      "certainty": "The text contains a certainty claim (\"definitely\" etc.).",
+      "prognosis": "The text contains a prognosis / life-expectancy statement.",
+      "empty": "The AI returned an empty text."
+    },
+    "textLabel": "Owner summary text",
+    "save": "Save changes",
+    "approve": "Approve",
+    "approvedToast": "Owner summary approved",
+    "pdf": "Download PDF",
+    "generateFailed": "Could not create the summary",
+    "saveFailed": "Could not save the summary",
+    "approveFailed": "Could not approve the summary",
+    "pdfFailed": "Could not download the PDF"
   }
 }
