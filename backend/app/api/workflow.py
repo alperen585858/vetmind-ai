@@ -67,6 +67,44 @@ def update_user(
     return service.update_user(email, payload, principal=principal)
 
 
+class MfaPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Roles that must use two-step sign-in (VETMIND_MFA_REQUIRED_ROLES). Demo accounts exempt.
+    required_roles: list[str]
+
+
+@router.get("/admin/mfa-policy", response_model=MfaPolicy)
+def get_mfa_policy(
+    principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
+    container: AppContainer = Depends(get_container),
+) -> MfaPolicy:
+    return MfaPolicy(required_roles=list(container.mfa.required_roles))
+
+
+@router.post("/admin/users/{email}/mfa-reset", response_model=ManagedUserPublic)
+def reset_user_mfa(
+    email: str,
+    principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
+    container: AppContainer = Depends(get_container),
+) -> ManagedUserPublic:
+    """Issue #107: the user lost their phone. Turns their 2FA off and ends their sessions;
+    they set it up again after signing in with the password."""
+    if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
+        raise HTTPException(status_code=403, detail="Admin only.")
+    target = email.strip().lower()
+    user = container.mfa.admin_reset(target)
+    container.refresh_tokens.revoke_all_for(target)
+    container.audit.record(
+        event_type="admin.mfa_reset",
+        actor=principal.subject,
+        resource=f"/api/v1/admin/users/{target}/mfa-reset",
+        outcome=AuditOutcome.SUCCESS,
+        detail=f"for={target}",
+    )
+    return user.to_public()
+
+
 class PasswordResetLink(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

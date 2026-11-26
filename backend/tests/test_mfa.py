@@ -176,3 +176,122 @@ def test_demo_accounts_cannot_turn_mfa_on(tmp_path: Path, email: str) -> None:
     res = client.post("/api/v1/auth/mfa/setup", headers=headers)
     assert res.status_code == 403 and res.json()["detail"]["code"] == "mfa_demo_account"
     assert client.get("/api/v1/auth/mfa/status", headers=headers).json()["demo_account"] is True
+
+
+# --- sign-in --------------------------------------------------------------------------------
+
+
+def _start(client: TestClient, email: str = USER, password: str = PW) -> str:
+    res = _login(client, email, password)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["mfa_required"] is True and "access_token" not in body
+    return body["mfa_token"]
+
+
+def _verify(client: TestClient, ticket: str, code: str):
+    return client.post("/api/v1/auth/mfa/verify", json={"mfa_token": ticket, "code": code})
+
+
+def test_sign_in_needs_the_code_when_enabled(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    secret, _codes, _h = _enable(client, _make_user(client))
+    ticket = _start(client)
+    # The ticket alone opens nothing.
+    assert client.get("/api/v1/auth/me", headers=_bearer(ticket)).status_code == 401
+    assert _verify(client, ticket, "000000").status_code == 401
+    res = _verify(client, ticket, _code(secret, 1))
+    assert res.status_code == 200, res.text
+    assert client.get("/api/v1/auth/me", headers=_bearer(res.json()["access_token"])).status_code == 200
+    # Ticket is single use and the code cannot be replayed.
+    assert _verify(client, ticket, _code(secret, 1)).status_code == 401
+    assert _verify(client, _start(client), _code(secret, 1)).status_code == 401
+
+
+def test_backup_code_works_once(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _secret, codes, _h = _enable(client, _make_user(client))
+    assert _verify(client, _start(client), codes[0].upper().replace("-", " ")).status_code == 200
+    assert _verify(client, _start(client), codes[0]).status_code == 401
+    assert len(container.workflow_store.get_user(USER).mfa_backup_hashes) == 9
+    kinds = [e["event_type"] for e in container.audit.list_events(limit=500)]
+    assert "auth.mfa_backup_used" in kinds and "auth.mfa_failed" in kinds
+
+
+def test_wrong_codes_are_rate_limited(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path)
+    secret, _codes, _h = _enable(client, _make_user(client))
+    ticket = _start(client)
+    for _ in range(5):
+        assert _verify(client, ticket, "999999").status_code == 401
+    assert _verify(client, ticket, _code(secret, 1)).status_code == 429
+
+
+def test_expired_or_forged_ticket(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    secret, _codes, _h = _enable(client, _make_user(client))
+    ticket = _start(client)
+    forged = ticket[:-3] + ("AAA" if not ticket.endswith("AAA") else "BBB")
+    assert _verify(client, forged, _code(secret, 1)).status_code == 401
+    container.mfa_challenges._clock = lambda: 10**12  # noqa: SLF001 — far future
+    assert _verify(client, ticket, _code(secret, 1)).status_code == 401
+
+
+def test_password_change_voids_a_pending_ticket(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    secret, _codes, _h = _enable(client, _make_user(client))
+    ticket = _start(client)
+    container.workflow.set_password(USER, "YeniSifre2027")
+    assert _verify(client, ticket, _code(secret, 1)).status_code == 401
+
+
+def test_demo_accounts_still_sign_in_in_one_step(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path, mfa_required_roles=("admin", "expert", "vet", "clinic_owner"))
+    for email in ("admin@demo.local", "vet@demo.local", "vet-b@demo.local", "expert@demo.local", "clinic-owner@demo.local"):
+        body = _login(client, email).json()
+        assert body["access_token"] and body["mfa_setup_required"] is False, email
+        assert client.get("/api/v1/cases", headers=_bearer(body["access_token"])).status_code == 200
+
+
+# --- required roles and admin reset ------------------------------------------------------
+
+
+def test_required_role_gets_a_setup_only_session(tmp_path: Path) -> None:
+    client, _ = _app(tmp_path, mfa_required_roles=("expert",))
+    admin = _bearer(_login(client, "admin@demo.local").json()["access_token"])
+    client.post(
+        "/api/v1/admin/users",
+        json={"email": USER, "password": PW, "role": "expert", "clinic_id": "clinic-demo-a"},
+        headers=admin,
+    )
+    body = _login(client, USER, PW).json()
+    assert body["mfa_setup_required"] is True
+    limited = _bearer(body["access_token"])
+    blocked = client.get("/api/v1/cases", headers=limited)
+    assert blocked.status_code == 403 and blocked.json()["detail"]["code"] == "mfa_setup_required"
+    assert client.get("/api/v1/auth/mfa/status", headers=limited).json()["required_for_role"] is True
+    # Refreshing keeps the restriction.
+    refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": body["refresh_token"]}).json()
+    assert refreshed["mfa_setup_required"] is True
+    secret = client.post("/api/v1/auth/mfa/setup", headers=limited).json()["secret"]
+    done = client.post("/api/v1/auth/mfa/enable", json={"code": _code(secret)}, headers=limited).json()
+    assert done["session"]["mfa_setup_required"] is False
+    assert client.get("/api/v1/cases", headers=_bearer(done["session"]["access_token"])).status_code == 200
+    # Admin of the policy endpoint sees the roles.
+    assert client.get("/api/v1/admin/mfa-policy", headers=admin).json() == {"required_roles": ["expert"]}
+
+
+def test_admin_reset_turns_mfa_off_and_ends_sessions(tmp_path: Path) -> None:
+    client, container = _app(tmp_path)
+    _secret, _codes, user_headers = _enable(client, _make_user(client, role="vet"))
+    admin = _bearer(_login(client, "admin@demo.local").json()["access_token"])
+    listed = {u["email"]: u for u in client.get("/api/v1/admin/users", headers=admin).json()}
+    assert listed[USER]["mfa_enabled"] is True
+    res = client.post(f"/api/v1/admin/users/{USER}/mfa-reset", headers=admin)
+    assert res.status_code == 200 and res.json()["mfa_enabled"] is False
+    assert client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
+    body = _login(client, USER, PW).json()
+    assert "access_token" in body  # one step again
+    assert any(e["event_type"] == "admin.mfa_reset" for e in container.audit.list_events(limit=500))
+    vet = _bearer(_login(client, "vet@demo.local").json()["access_token"])
+    assert client.post(f"/api/v1/admin/users/{USER}/mfa-reset", headers=vet).status_code == 403

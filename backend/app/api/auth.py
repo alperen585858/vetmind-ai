@@ -8,6 +8,7 @@ from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth
 from app.auth.email_verification import EmailVerificationError
 from app.auth.mailer import OutgoingMail
+from app.auth.mfa_challenge import MfaChallengeError
 from app.auth.password_reset import PasswordResetError
 from app.auth.passwords import password_policy_detail
 from app.auth.refresh_tokens import RefreshTokenError
@@ -57,7 +58,28 @@ class TokenResponse(BaseModel):
     auth_enabled: bool
     deployment_mode: str = "demo"
     tenant_isolation: bool = False
+    # Issue #107: the role requires 2FA and it is not set up; this session may only set it up.
+    mfa_setup_required: bool = False
     note: str = "Demo JWT. Not a production IdP."
+
+
+class MfaChallengeResponse(BaseModel):
+    """Password was right; the account has 2FA on, so a code is needed (POST /auth/mfa/verify)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mfa_required: bool = True
+    mfa_token: str
+    expires_in: int
+    email: str
+
+
+class MfaVerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mfa_token: str = Field(min_length=10, max_length=600)
+    # 6-digit authenticator code or a backup code (xxxxx-xxxxx).
+    code: str = Field(min_length=6, max_length=20)
 
 
 class RefreshRequest(BaseModel):
@@ -200,12 +222,12 @@ def auth_status(container: AppContainer = Depends(get_container)) -> dict[str, o
     }
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse | MfaChallengeResponse)
 def login(
     payload: LoginRequest,
     request: Request,
     container: AppContainer = Depends(get_container),
-) -> TokenResponse:
+) -> TokenResponse | MfaChallengeResponse:
     users = container.auth.users or DEMO_USERS
     email = payload.email.strip().lower()
     limits = [
@@ -236,7 +258,22 @@ def login(
     )
     container.rate_limiter.reset("login_email", email)
     container.workflow.record_login(email, payload.password)
-    return _issue_token(container, email=email, entry=container.auth.users.get(email, entry))
+    entry = container.auth.users.get(email, entry)
+    if container.mfa.is_enabled(email):
+        # Issue #107: no tokens yet; the code step finishes the sign-in.
+        container.audit.record(
+            event_type="auth.mfa_challenge",
+            actor=email,
+            resource="/api/v1/auth/login",
+            outcome=AuditOutcome.INFO,
+            detail="code_requested",
+        )
+        return MfaChallengeResponse(
+            mfa_token=container.mfa_challenges.issue(email, entry.token_version),
+            expires_in=container.mfa_challenges.ttl_seconds,
+            email=email,
+        )
+    return _issue_token(container, email=email, entry=entry)
 
 
 def _issue_token(
@@ -247,6 +284,7 @@ def _issue_token(
     refresh_token: str | None = None,
 ) -> TokenResponse:
     """Mint an access JWT. Starts a new refresh family unless ``refresh_token`` is given."""
+    setup_only = container.mfa.required_for(email, entry.role) and not container.mfa.is_enabled(email)
     token = create_access_token(
         subject=email,
         role=entry.role,
@@ -254,6 +292,7 @@ def _issue_token(
         ttl_seconds=container.auth.jwt_ttl_seconds,
         clinic_id=entry.clinic_id,
         token_version=entry.token_version,
+        mfa_setup_only=setup_only,
     )
     if refresh_token is None:
         refresh_token = container.refresh_tokens.issue(email, token_version=entry.token_version)
@@ -268,6 +307,7 @@ def _issue_token(
         auth_enabled=container.auth.enabled,
         deployment_mode=container.auth.deployment_mode,
         tenant_isolation=container.auth.tenant_isolation,
+        mfa_setup_required=setup_only,
     )
 
 
@@ -842,3 +882,50 @@ def mfa_backup_codes(
     )
     _mfa_audit(container, email, "auth.mfa_backup_regenerated", AuditOutcome.SUCCESS)
     return MfaBackupCodesResponse(backup_codes=codes)
+
+
+_MFA_SIGN_IN_FAILED = api_error("mfa_invalid_code", "The code is not valid. Try the current one.")
+_MFA_TICKET_INVALID = api_error("mfa_ticket_invalid", "The sign-in step expired. Enter your password again.")
+
+
+@router.post("/mfa/verify", response_model=TokenResponse)
+def mfa_verify(
+    payload: MfaVerifyRequest,
+    request: Request,
+    container: AppContainer = Depends(get_container),
+) -> TokenResponse:
+    """Second sign-in step: the ticket from /login plus an authenticator or backup code."""
+    try:
+        ticket = container.mfa_challenges.peek(payload.mfa_token)
+    except MfaChallengeError as exc:
+        _mfa_audit(container, "anonymous", "auth.mfa_challenge", AuditOutcome.DENIED, f"ticket_{exc.reason}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_MFA_TICKET_INVALID) from exc
+    email = str(ticket["sub"])
+    limits = _mfa_code_limits(request, container, email)
+    _enforce_limits(container, request, email, limits)
+    entry = container.auth.users.get(email) if container.auth.users else None
+    if entry is None or int(ticket.get("tv", -1)) != entry.token_version:
+        # Password changed (or account disabled) after the first step.
+        _mfa_audit(container, email, "auth.mfa_challenge", AuditOutcome.DENIED, "ticket_revoked")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_MFA_TICKET_INVALID)
+    method = container.mfa.verify_sign_in(email, payload.code)
+    if method is None:
+        _hit(container, limits)
+        _mfa_audit(container, email, "auth.mfa_failed", AuditOutcome.DENIED, "invalid_code")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_MFA_SIGN_IN_FAILED)
+    try:
+        container.mfa_challenges.consume(payload.mfa_token)
+    except MfaChallengeError as exc:  # raced with another request using the same ticket
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_MFA_TICKET_INVALID) from exc
+    container.rate_limiter.reset("mfa_code_user", email)
+    event = "auth.mfa_backup_used" if method == "backup" else "auth.mfa_challenge"
+    _mfa_audit(container, email, event, AuditOutcome.SUCCESS, method)
+    container.audit.record(
+        event_type="auth.login",
+        actor=email,
+        resource="/api/v1/auth/mfa/verify",
+        outcome=AuditOutcome.SUCCESS,
+        detail="mfa",
+        clinic_id=entry.clinic_id,
+    )
+    return _issue_token(container, email=email, entry=entry)

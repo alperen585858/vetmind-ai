@@ -99,6 +99,7 @@ def create_access_token(
     ttl_seconds: int,
     clinic_id: str | None = None,
     token_version: int = 0,
+    mfa_setup_only: bool = False,
 ) -> str:
     if role in JWT_FORBIDDEN_ROLES or role not in JWT_ISSUABLE_ROLES:
         raise ValueError(f"Role '{role}' cannot be issued in a VetMind JWT.")
@@ -115,6 +116,9 @@ def create_access_token(
     }
     if clinic_id:
         payload_obj["clinic_id"] = clinic_id
+    if mfa_setup_only:
+        # Issue #107: role requires 2FA but it is not set up yet; only setup routes allowed.
+        payload_obj["mfa_setup"] = 1
     payload = _b64url(json.dumps(payload_obj, separators=(",", ":")).encode())
     signing_input = f"{header}.{payload}".encode()
     sig = hmac.new(secret.encode(), signing_input, hashlib.sha256).digest()
