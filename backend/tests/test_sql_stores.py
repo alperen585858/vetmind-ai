@@ -161,3 +161,47 @@ def test_audit_timestamps_sort(db: Database) -> None:
     stamps = [e["timestamp"] for e in audit.list_events(limit=2)]
     assert stamps == sorted(stamps) and len(stamps) == 2
     assert datetime.fromisoformat(stamps[-1]) <= datetime.now(timezone.utc)
+
+
+def audit_sample_events() -> list:
+    """Five events used by the audit query tests (SQL here, memory/file in test_audit_query)."""
+    from app.security.audit import AuditEvent
+
+    rows = [
+        ("aud-001", "2026-11-20T10:00:00+00:00", "auth.login", "vet@demo.local", "success", "clinic-demo-a"),
+        ("aud-002", "2026-11-20T10:01:00+00:00", "auth.login", "vet@demo.local", "denied", None),
+        ("aud-003", "2026-11-21T09:00:00+00:00", "report_link.view", "anonymous", "success", "clinic-demo-a"),
+        ("aud-004", "2026-11-22T08:00:00+00:00", "auth.rate_limited", "x_y@demo.local", "denied", None),
+        ("aud-005", "2026-11-22T08:00:00+00:00", "dicom.upload", "vet-b@demo.local", "success", "clinic-demo-b"),
+    ]
+    return [
+        AuditEvent(event_id=eid, event_type=et, actor=actor, resource="/r", outcome=outcome, timestamp=ts, clinic_id=clinic)
+        for eid, ts, et, actor, outcome, clinic in rows
+    ]
+
+
+def test_audit_query_filters_and_pages(db: Database) -> None:
+    """Issue #106: same filters and cursor paging on SQLite and Postgres."""
+    from app.security.audit import AuditQuery
+
+    log = AuditLogger(conn=db.connect())
+    for event in audit_sample_events():
+        log.insert(event)
+    ids = lambda q: [e["event_id"] for e in log.query(q)[0]]  # noqa: E731
+
+    assert ids(AuditQuery()) == ["aud-005", "aud-004", "aud-003", "aud-002", "aud-001"]
+    assert ids(AuditQuery(event_type="auth.")) == ["aud-004", "aud-002", "aud-001"]
+    assert ids(AuditQuery(event_type="report_link.")) == ["aud-003"]
+    assert ids(AuditQuery(event_type="auth.login", outcome="denied")) == ["aud-002"]
+    assert ids(AuditQuery(actor="VET@")) == ["aud-002", "aud-001"]
+    assert ids(AuditQuery(actor="x_y")) == ["aud-004"]  # "_" is literal, not a wildcard
+    assert ids(AuditQuery(actor="xy")) == []
+    assert ids(AuditQuery(clinic_id="clinic-demo-a")) == ["aud-003", "aud-001"]
+    assert ids(AuditQuery(since="2026-11-21T00:00:00+00:00", until="2026-11-22T08:00:00+00:00")) == ["aud-003"]
+
+    page1, cur = log.query(AuditQuery(limit=2))
+    assert [e["event_id"] for e in page1] == ["aud-005", "aud-004"] and cur
+    page2, cur2 = log.query(AuditQuery(limit=2, cursor=cur))
+    assert [e["event_id"] for e in page2] == ["aud-003", "aud-002"] and cur2
+    page3, cur3 = log.query(AuditQuery(limit=2, cursor=cur2))
+    assert [e["event_id"] for e in page3] == ["aud-001"] and cur3 is None

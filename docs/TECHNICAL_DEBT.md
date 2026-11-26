@@ -69,3 +69,4 @@ Working modules that must not be duplicated:
 | 2026-11-26 | #41: email verification for self-registered vets; register no longer reveals existing emails (uniform 202) |
 | 2026-11-27 | #107: opt-in TOTP two-step sign-in (Fernet-sealed secrets, backup codes, setup-only session for required roles via `VETMIND_MFA_REQUIRED_ROLES`, admin reset); challenge tickets' single-use memory is per process |
 | 2026-11-26 | #108: clinic patient records (`patients` table, Alembic 0003), prior studies, side-by-side viewer sync, report comparison section; `scripts/backfill_patients.py` for existing cases |
+| 2026-11-27 | #106: admin security / audit screen (filtered, paged query on memory/JSONL/SQL; Alembic 0004 indexes; suspicious-event rules; CSV export) |
