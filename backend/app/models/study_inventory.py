@@ -15,6 +15,7 @@ from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
 from app.imaging.display_png import is_localizer_label
+from app.imaging.mr_sequence import MrSequenceInfo, mr_sequence_from_dataset
 from app.schemas.analysis_coverage import AnalysisCoverage, SeriesCoverage, SkippedFile
 from app.schemas.case import CaseRecord
 from app.storage.quarantine import QuarantineStore
@@ -33,6 +34,9 @@ class InventoryFrame:
     frames_in_file: int
     is_localizer: bool
     is_raster: bool = False
+    modality: str | None = None
+    # Header-derived MR sequence (SeriesDescription → ProtocolName → SequenceName → TR/TE).
+    mr_sequence: MrSequenceInfo | None = None
 
 
 @dataclass
@@ -69,7 +73,8 @@ class StudyInventory:
             series_cov.append(
                 SeriesCoverage(
                     series_instance_uid=None if uid.startswith("file:") else uid,
-                    series_description=frames[0].series_description,
+                    series_description=frames[0].series_description
+                    or (frames[0].mr_sequence.display_name if frames[0].mr_sequence else None),
                     is_localizer=all(f.is_localizer for f in frames),
                     frames_detected=len(frames),
                 )
@@ -131,7 +136,11 @@ def _dicom_meta_from_bytes(data: bytes) -> dict[str, Any]:
         except (TypeError, ValueError):
             return None
 
+    modality = str(getattr(ds, "Modality", "") or "").strip().upper() or None
+    mr_seq = mr_sequence_from_dataset(ds) if modality in {"MR", "MRI"} else None
     return {
+        "modality": modality,
+        "mr_sequence": mr_seq,
         "series_uid": str(getattr(ds, "SeriesInstanceUID", "") or "") or None,
         "series_description": str(getattr(ds, "SeriesDescription", "") or "") or None,
         "series_number": _int("SeriesNumber"),
@@ -197,13 +206,13 @@ def build_study_inventory(case: CaseRecord, quarantine: QuarantineStore) -> Stud
         filename = filename or name or Path(rel).name
         # Prefer caller-supplied hierarchy; fill gaps from DICOM headers so
         # quarantine-only walks still group series correctly.
-        if series_uid is None or sop is None or instance_number is None or series_description is None:
-            meta = _dicom_meta_from_bytes(data)
-            series_uid = series_uid or meta.get("series_uid")
-            sop = sop or meta.get("sop")
-            instance_number = instance_number if instance_number is not None else meta.get("instance_number")
-            series_description = series_description or meta.get("series_description")
-            series_number = series_number if series_number is not None else meta.get("series_number")
+        # Always read the header: sequence tags (ProtocolName, TR/TE) are not in the study tree.
+        meta = _dicom_meta_from_bytes(data)
+        series_uid = series_uid or meta.get("series_uid")
+        sop = sop or meta.get("sop")
+        instance_number = instance_number if instance_number is not None else meta.get("instance_number")
+        series_description = series_description or meta.get("series_description")
+        series_number = series_number if series_number is not None else meta.get("series_number")
         counted = _frame_count_from_bytes(filename, data)
         if counted is None:
             inv.skipped.append(
@@ -214,7 +223,10 @@ def build_study_inventory(case: CaseRecord, quarantine: QuarantineStore) -> Stud
         n_frames, is_dicom = counted
         if is_dicom:
             inv.dicom_files.add(rel)
-        is_loc = is_localizer_label(series_description, filename)
+        mr_seq = meta.get("mr_sequence")
+        is_loc = is_localizer_label(
+            series_description or (mr_seq.display_name if mr_seq else None), filename
+        )
         for fi in range(n_frames):
             inv.frames.append(
                 InventoryFrame(
@@ -229,6 +241,8 @@ def build_study_inventory(case: CaseRecord, quarantine: QuarantineStore) -> Stud
                     frames_in_file=n_frames,
                     is_localizer=is_loc,
                     is_raster=not is_dicom,
+                    modality=meta.get("modality"),
+                    mr_sequence=mr_seq,
                 )
             )
 

@@ -16,8 +16,12 @@ def batch_cache_key(
     case_id: str,
     chat_model_id: str,
     frame_keys: Sequence[str],
+    prompt_fingerprint: str = "",
 ) -> str:
-    raw = "|".join([case_id, chat_model_id, *sorted(frame_keys)])
+    parts = [case_id, chat_model_id, *sorted(frame_keys)]
+    if prompt_fingerprint:
+        parts.append(prompt_fingerprint)
+    raw = "|".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

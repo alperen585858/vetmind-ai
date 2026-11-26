@@ -20,6 +20,7 @@ from app.llm.json_schema import strict_llm_schema
 from app.llm.prompts import CitationAliases
 from app.models.vlm_grounding import sanitize_report_prose
 from app.schemas.enums import ModelExecutionStatus, ReportStatus
+from app.llm.differential_gate import filter_differentials, is_actionable
 from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
 
 SECTION_KEYS = ("technique", "findings", "impression", "recommendations")
@@ -320,7 +321,19 @@ def build_draft_report(
     # Passages the draft actually cites ([S#] in any section), in first-cited order.
     # rag_citations keeps every retrieved passage so S# numbering stays reconstructible
     # (feedback export); the UI shows only used_passage_ids.
-    differentials = [] if no_findings else [
+    # Second hard rule: differentials must rest on an actionable (non-technique,
+    # non-descriptive) finding; limitation-type "diagnoses" are dropped.
+    actionable_aliases = {
+        alias
+        for alias, fid in aliases.findings.items()
+        if any(f.finding_id == fid and is_actionable(f) for f in gen.findings)
+    }
+    kept_wire = (
+        []
+        if no_findings or not actionable_aliases
+        else filter_differentials(list(wire.differentials), actionable_aliases=actionable_aliases)
+    )
+    differentials = [
         DifferentialDiagnosis(
             name=d.name,
             likelihood=d.likelihood,
@@ -329,7 +342,7 @@ def build_draft_report(
             citations=d.citations,
             finding_ids=[aliases.findings[a] for a in d.citations if a in aliases.findings],
         )
-        for d in wire.differentials
+        for d in kept_wire
     ]
     diff_markers = " ".join(f"[{a}]" for d in differentials for a in d.citations)
     all_text = "\n".join(getattr(wire, k) for k in SECTION_KEYS) + "\n" + diff_markers

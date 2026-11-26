@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from app.imaging.mr_sequence import MrSequenceInfo, label_from_name
 from app.schemas.findings import BoundingBoxEvidence, EvidenceReference
 
 _MR_SEQ_TOKENS = (
@@ -87,26 +88,64 @@ class SentFrame:
     native_height: int | None = None
     quarantine_rel: str | None = None
     series_number: int | None = None
+    # Header-derived sequence (ProtocolName / SequenceName / TR-TE when SeriesDescription is empty).
+    mr_sequence: MrSequenceInfo | None = None
+
+    @property
+    def series_label(self) -> str | None:
+        """SeriesDescription, else ProtocolName/SequenceName from the header."""
+        desc = (self.series_description or "").strip()
+        if desc:
+            return desc
+        return self.mr_sequence.display_name if self.mr_sequence else None
 
 
 def mr_sequence_known(series_description: str | None) -> bool:
     text = (series_description or "").upper()
     if not text.strip():
         return False
-    return any(tok in text for tok in _MR_SEQ_TOKENS)
+    if any(tok in text for tok in _MR_SEQ_TOKENS):
+        return True
+    return label_from_name(text)[0] is not None
+
+
+def frame_sequence_known(frame: "SentFrame | None") -> bool:
+    """True when SeriesDescription or header tags identify the MR weighting (≥ medium confidence)."""
+    if frame is None:
+        return False
+    if frame.mr_sequence is not None and frame.mr_sequence.known:
+        return True
+    return mr_sequence_known(frame.series_description)
+
+
+def _sequence_catalog_bits(fr: "SentFrame") -> str:
+    seq = fr.mr_sequence
+    if seq is None:
+        return ""
+    bits = []
+    if seq.label:
+        bits.append(
+            f"sequence={seq.display_label} (from={seq.source}, confidence={seq.confidence})"
+        )
+    if seq.acquisition_summary:
+        bits.append(f"acq=[{seq.acquisition_summary}]")
+    if seq.note:
+        bits.append(f"note={seq.note!r}")
+    return (" | " + " | ".join(bits)) if bits else ""
 
 
 def format_image_catalog(frames: Sequence[SentFrame]) -> str:
     """Human/VLM-readable list of what was attached (IMG-1 …)."""
     lines = [f"IMAGE CATALOG ({len(frames)} frame(s) attached; cite source_image_index):"]
     for fr in frames:
-        seq = (fr.series_description or "").strip() or "(series description unknown)"
-        seq_flag = "sequence_known=yes" if mr_sequence_known(fr.series_description) else "sequence_known=no"
+        seq = (fr.series_label or "").strip() or "(series description unknown)"
+        seq_flag = "sequence_known=yes" if frame_sequence_known(fr) else "sequence_known=no"
         sn = f"#{fr.series_number}" if fr.series_number is not None else "—"
         lines.append(
             f"IMG-{fr.index}: series_number={sn} series={seq!r} | series_uid={fr.series_instance_uid or '—'} | "
             f"sop={fr.sop_instance_uid or '—'} | instance_number={fr.instance_number if fr.instance_number is not None else '—'} | "
             f"frame_index={fr.frame_index} | localizer={'yes' if fr.is_localizer else 'no'} | {seq_flag}"
+            f"{_sequence_catalog_bits(fr)}"
         )
     return "\n".join(lines)
 
@@ -121,10 +160,12 @@ def catalog_metadata(frames: Sequence[SentFrame]) -> dict[str, str]:
                 "sop": fr.sop_instance_uid,
                 "instance_number": fr.instance_number,
                 "frame_index": fr.frame_index,
-                "series_description": fr.series_description,
+                "series_description": fr.series_label,
                 "series_number": fr.series_number,
                 "localizer": fr.is_localizer,
-                "sequence_known": mr_sequence_known(fr.series_description),
+                "sequence_known": frame_sequence_known(fr),
+                "mr_sequence": fr.mr_sequence.display_label if fr.mr_sequence else None,
+                "mr_sequence_source": fr.mr_sequence.source if fr.mr_sequence else None,
                 "w": fr.width,
                 "h": fr.height,
             }
@@ -137,7 +178,7 @@ def catalog_metadata(frames: Sequence[SentFrame]) -> dict[str, str]:
         )[:2000],
         "localizer_frames_sent": str(sum(1 for fr in frames if fr.is_localizer)),
         "non_localizer_frames_sent": str(sum(1 for fr in frames if not fr.is_localizer)),
-        "sequence_known_frames": str(sum(1 for fr in frames if mr_sequence_known(fr.series_description))),
+        "sequence_known_frames": str(sum(1 for fr in frames if frame_sequence_known(fr))),
     }
 
 
@@ -317,12 +358,17 @@ def evidence_for_frame(
     ]
     if frame.series_number is not None:
         desc_bits.append(f"seri_no=#{frame.series_number}")
-    desc_bits.extend(
-        [
-            f"seri={frame.series_description or '—'}",
-            f"SOP={frame.sop_instance_uid or '—'}",
-        ]
-    )
+    desc_bits.append(f"seri={frame.series_label or '—'}")
+    seq = frame.mr_sequence
+    if seq is not None and seq.label:
+        src_tr = {
+            "series_description": "seri adı",
+            "protocol_name": "protokol adı",
+            "sequence_name": "sekans adı",
+            "tr_te": "TR/TE tahmini",
+        }.get(seq.source, seq.source)
+        desc_bits.append(f"sekans={seq.display_label} ({src_tr})")
+    desc_bits.append(f"SOP={frame.sop_instance_uid or '—'}")
     if frame.instance_number is not None:
         desc_bits.append(f"instance=#{frame.instance_number}")
     desc_bits.append(f"frame_index={frame.frame_index}")
@@ -339,9 +385,9 @@ def evidence_for_frame(
         description="; ".join(desc_bits),
         evidence_type="overlay",
         series_hint=(
-            f"#{frame.series_number} {frame.series_description}".strip()
+            f"#{frame.series_number} {frame.series_label or ''}".strip()
             if frame.series_number is not None
-            else frame.series_description
+            else frame.series_label
         ),
         series_instance_uid=frame.series_instance_uid,
         sop_instance_uid=frame.sop_instance_uid,
@@ -397,7 +443,7 @@ def harden_finding_fields(
             )
 
     if modality.upper() in {"MR", "MRI"} and _SIGNAL_WORDS.search(desc):
-        if frame is None or not mr_sequence_known(frame.series_description):
+        if not frame_sequence_known(frame):
             out["finding_status"] = "uncertain"
             out["finding_code"] = code if code and code != "VLM-FINDING" else "SIGNAL-UNSPECIFIED"
             out["uncertainty_note"] = (
@@ -415,7 +461,7 @@ def harden_finding_fields(
         modality.upper() in {"MR", "MRI"}
         and _LESION_CODES.search(code)
         and not is_technique_finding_code(code)
-        and (frame is None or not mr_sequence_known(frame.series_description))
+        and (not frame_sequence_known(frame))
     ):
         out["finding_status"] = "uncertain"
         note = str(out.get("uncertainty_note") or "").strip()

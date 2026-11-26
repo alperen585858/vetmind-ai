@@ -56,6 +56,10 @@ class AnalysisCoverage(BaseModel):
     include_localizers: bool = False
     analysis_scope: Literal["full", "partial", "none"] = "none"
     analysis_complete: bool = False
+    # Cross-sectional study (MR/CT) with too few slices to represent the volume.
+    # "full" then only means "every uploaded frame was looked at", not "the study was reviewed".
+    limited_sampling: bool = False
+    limited_sampling_reason: Optional[str] = None
     note: str = (
         "Three counters: frames_detected (inventory/metadata), frames_decoded "
         "(PNG decode success), frames_visually_analyzed (sent to vision model). "
@@ -122,7 +126,11 @@ class AnalysisCoverage(BaseModel):
         lines = [
             f"Kapsam: {scope_tr}"
             + (
-                " (hedef kareler görsel tamam)"
+                (
+                    " (yüklenen kareler görsel tamam; çalışma hacmi değil)"
+                    if self.limited_sampling
+                    else " (hedef kareler görsel tamam)"
+                )
                 if self.analysis_complete
                 else " (tam görsel analiz değil)"
             ),
@@ -135,6 +143,11 @@ class AnalysisCoverage(BaseModel):
                 f"atlanan {self.frames_skipped}"
             ),
         ]
+        if self.limited_sampling:
+            lines.append(
+                "SINIRLI ÖRNEKLEM: "
+                + (self.limited_sampling_reason or "kesitsel çalışmanın yalnızca birkaç kesiti analiz edildi.")
+            )
         if self.is_metadata_only:
             lines.append(
                 "Uyarı: yalnızca metadata/envanter; görsel analiz yapılmadı."
@@ -168,6 +181,7 @@ class AnalysisCoverage(BaseModel):
             "vlm_max_images_cap": str(self.per_batch_image_cap),
             "vlm_max_total_frames": str(self.total_frame_budget),
             "metadata_only": "true" if self.is_metadata_only else "false",
+            "limited_sampling": "true" if self.limited_sampling else "false",
             "analysis_coverage_json": self.model_dump_json()[:12000],
             "series_coverage_json": json.dumps(
                 [s.model_dump() for s in self.series], ensure_ascii=False

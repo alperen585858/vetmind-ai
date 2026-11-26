@@ -189,6 +189,30 @@ class StudyInfo(BaseModel):
     classification_rationale: list[str] = Field(default_factory=list)
 
 
+SystematicReviewStatus = Literal[
+    "no_abnormality_seen",  # structure visible in the analyzed slice(s), nothing abnormal seen there
+    "abnormality_suspected",
+    "not_in_view",  # structure not contained in any analyzed slice
+    "not_assessable",  # visible but quality / sequence does not allow judgement
+]
+
+
+class SystematicReviewItem(BaseModel):
+    """One checklist region the imaging model was asked to look at.
+
+    ``no_abnormality_seen`` is scoped to the analyzed slices only — it is never a
+    statement that the study or the animal is normal.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    region: str
+    status: SystematicReviewStatus
+    note: str = ""
+    source_image_index: Optional[int] = None
+    evidence_locus: Optional[str] = None
+
+
 class StructuredFindings(BaseModel):
     """Normalized imaging-model output. Missing findings ≠ disease exclusion."""
 
@@ -216,3 +240,5 @@ class StructuredFindings(BaseModel):
     processing_metadata: dict[str, str] = Field(default_factory=dict)
     # Honest visual-analysis coverage (inventory vs pixels actually sent to a VLM).
     analysis_coverage: Optional[AnalysisCoverage] = None
+    # Region-by-region checklist incl. scoped negatives (VLM adapters only; empty otherwise).
+    systematic_review: list[SystematicReviewItem] = Field(default_factory=list)

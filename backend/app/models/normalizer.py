@@ -412,4 +412,5 @@ def normalize_outputs(
         potential_conflicts=conflicts,
         processing_metadata=merged_meta,
         analysis_coverage=coverage,
+        systematic_review=[item for out in outputs for item in (out.systematic_review or [])][:24],
     )
