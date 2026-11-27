@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bone, Brain, ChevronRight, Clock, EyeOff, Layers, Loader2, PawPrint, RefreshCw, ScanLine, Search, X } from 'lucide-react'
+import { Bone, Brain, ChevronDown, ChevronRight, Clock, EyeOff, Layers, Loader2, PawPrint, RefreshCw, ScanLine, Search, X } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
@@ -23,35 +23,27 @@ type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
 
-/** Plain stat cards, no pictures: urgent is red, due-soon is orange, the others light tints. */
-const TAB_STYLE: Record<QueueView, { card: string; active: string; label: string; value: string; hint: string }> = {
+/** Light pastel stat cards with a soft wave, one tint per queue tab. */
+const TAB_STYLE: Record<QueueView, { card: string; active: string; wave: string }> = {
   all: {
-    card: 'bg-teal-50 ring-teal-100',
-    active: 'ring-2 ring-teal-500 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
-    label: 'text-slate-700',
-    value: 'text-[#102a43]',
-    hint: 'text-slate-500',
+    card: 'from-teal-50/90 via-white to-white ring-teal-100',
+    active: 'ring-2 ring-teal-400 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
+    wave: '#5eead4',
   },
   urgent: {
-    card: 'bg-rose-600 ring-rose-700',
-    active: 'ring-2 ring-rose-300 ring-offset-2 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.6)]',
-    label: 'text-white/90',
-    value: 'text-white',
-    hint: 'text-white/80',
+    card: 'from-rose-50 via-white to-white ring-rose-100',
+    active: 'ring-2 ring-rose-400 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.5)]',
+    wave: '#fda4af',
   },
   sla: {
-    card: 'bg-orange-500 ring-orange-600',
-    active: 'ring-2 ring-orange-300 ring-offset-2 shadow-[0_14px_34px_-14px_rgba(234,88,12,0.6)]',
-    label: 'text-white/90',
-    value: 'text-white',
-    hint: 'text-white/85',
+    card: 'from-amber-50 via-amber-50/40 to-white ring-amber-100',
+    active: 'ring-2 ring-amber-400 shadow-[0_14px_34px_-14px_rgba(217,119,6,0.5)]',
+    wave: '#fcd34d',
   },
   mine: {
-    card: 'bg-sky-50 ring-sky-100',
-    active: 'ring-2 ring-sky-500 shadow-[0_14px_34px_-14px_rgba(2,132,199,0.5)]',
-    label: 'text-slate-700',
-    value: 'text-[#102a43]',
-    hint: 'text-slate-500',
+    card: 'from-sky-50 via-white to-white ring-sky-100',
+    active: 'ring-2 ring-sky-400 shadow-[0_14px_34px_-14px_rgba(2,132,199,0.5)]',
+    wave: '#7dd3fc',
   },
 }
 
@@ -62,6 +54,15 @@ function waitPillClass(c: VetCase) {
   if (tone === 'overdue' || tone === 'critical') return 'bg-rose-50 text-rose-700 ring-rose-200'
   if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'bg-amber-50 text-amber-800 ring-amber-200'
   return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+}
+
+function CardWave({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 w-full" aria-hidden>
+      <path d="M0 26 C40 10 70 34 110 22 C145 12 170 18 200 8 V40 H0 Z" fill={color} opacity="0.18" />
+      <path d="M0 32 C45 20 80 38 120 28 C155 20 178 26 200 18 V40 H0 Z" fill={color} opacity="0.22" />
+    </svg>
+  )
 }
 
 function ModalityDonut({ counts, total, label }: { counts: { key: string; name: string; value: number }[]; total: number; label: string }) {
@@ -101,6 +102,35 @@ function ModalityDonut({ counts, total, label }: { counts: { key: string; name: 
         {label}
       </text>
     </svg>
+  )
+}
+
+/** Side panel whose body slides open downward when the title is clicked. Closed by default. */
+function CollapsiblePanel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left font-display text-base font-semibold text-[#102a43] transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+        >
+          {title}
+          <ChevronDown className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+      </h2>
+      <div
+        id={id}
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
+        <div className={`overflow-hidden ${open ? '' : 'invisible'}`}>
+          <div className="px-5 pb-5">{children}</div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -262,7 +292,6 @@ export default function ReviewQueue() {
             ? t('review.emptyApiText', { error })
             : t('review.emptyExpandFilters')
 
-  const panel = 'rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200'
 
   return (
     <>
@@ -301,14 +330,15 @@ export default function ReviewQueue() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setView(tab.id)}
-                    className={`group relative flex min-h-[112px] items-start overflow-hidden rounded-3xl px-4 pb-4 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
+                    className={`group relative flex min-h-[128px] items-start justify-between gap-2 overflow-hidden rounded-3xl bg-gradient-to-br px-4 pb-5 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
                       active ? st.active : ''
                     }`}
                   >
+                    <CardWave color={st.wave} />
                     <span className="relative min-w-0">
-                      <span className={`block text-sm font-semibold leading-snug ${st.label}`}>{tab.label}</span>
-                      <span className={`mt-1 block font-display text-4xl font-bold leading-none tabular-nums ${st.value}`}>{countFor(tab.id)}</span>
-                      <span className={`mt-2.5 block text-xs font-medium leading-snug ${st.hint}`}>{tab.hint}</span>
+                      <span className="block text-sm font-semibold leading-snug text-slate-700">{tab.label}</span>
+                      <span className="mt-1 block font-display text-4xl font-bold leading-none tabular-nums text-[#102a43]">{countFor(tab.id)}</span>
+                      <span className="mt-2.5 block text-xs font-medium leading-snug text-slate-500">{tab.hint}</span>
                     </span>
                   </button>
                 )
@@ -489,9 +519,8 @@ export default function ReviewQueue() {
           </div>
 
           <aside className="space-y-4">
-            <section className={panel} aria-labelledby="wl-modality-title">
-              <h2 id="wl-modality-title" className="font-display text-base font-semibold text-[#102a43]">{t('review.modalityBreakdown')}</h2>
-              <div className="mt-4 flex items-center gap-5">
+            <CollapsiblePanel id="wl-modality-panel" title={t('review.modalityBreakdown')}>
+              <div className="flex items-center gap-5">
                 <ModalityDonut counts={modalityCounts} total={baseDisplay.length} label={t('review.casesUnit')} />
                 <ul className="min-w-0 flex-1 space-y-3 text-sm">
                   {modalityCounts.map((m) => (
@@ -505,11 +534,10 @@ export default function ReviewQueue() {
                   ))}
                 </ul>
               </div>
-            </section>
+            </CollapsiblePanel>
 
-            <section className={panel} aria-labelledby="wl-region-title">
-              <h2 id="wl-region-title" className="font-display text-base font-semibold text-[#102a43]">{t('review.regionBreakdown')}</h2>
-              <ul className="mt-4 space-y-4">
+            <CollapsiblePanel id="wl-region-panel" title={t('review.regionBreakdown')}>
+              <ul className="space-y-4">
                 {regionCounts.length === 0 ? (
                   <li className="text-sm text-slate-500">{t('dashboard.queueEmptyTitle')}</li>
                 ) : (
@@ -535,7 +563,7 @@ export default function ReviewQueue() {
                   })
                 )}
               </ul>
-            </section>
+            </CollapsiblePanel>
           </aside>
         </div>
       </div>
