@@ -5,7 +5,8 @@ import { PriorityBadge, StatusBadge } from './StatusBadge'
 import { fmtDate } from '../lib/format'
 import { useLocale } from '../shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
-import { studyLabel } from '../lib/displayClean'
+import { modalityLabel, studyLabel } from '../lib/displayClean'
+import { HoloOrgan } from './HoloOrgan'
 import { reviewerDisplay } from '../lib/reviewer'
 import { SpeciesIcon3D } from './SpeciesIcon3D'
 
@@ -24,12 +25,12 @@ export function SpeciesIcon({ species }: { species: string }) {
   )
 }
 
-function regionLabel(c: VetCase, t: TranslateFn): string {
+function studyText(c: VetCase, t: TranslateFn): string {
   if (c.anatomicalRegion) return studyLabel(t, null, c.anatomicalRegion)
   return c.clinical.complaint || t('common.dash')
 }
 
-/** Case list table, same look as the radiologist worklist (ExpertWorklistTable). */
+/** Case list table, same light look as the radiologist worklist (ReviewQueue). */
 export function CaseTable({
   cases,
   showPriority = false,
@@ -39,56 +40,56 @@ export function CaseTable({
 }) {
   const nav = useLocalizedNavigate()
   const { t, locale } = useLocale()
-  const head = 'px-5 py-3 font-medium'
-  const cell = 'px-5 py-3.5 align-middle'
+  const head = 'px-4 py-3.5 font-medium'
+  const cell = 'px-4 py-3 align-middle'
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="bg-[color:var(--vm-sidebar,#102a43)] text-xs text-slate-200">
-            <th scope="col" className={head}>{t('cases.patient')}</th>
+          <tr className="bg-slate-50 text-xs font-medium text-slate-500">
+            <th scope="col" className={`${head} pl-5`}>{t('cases.patient')}</th>
             <th scope="col" className={head}>{t('dashboard.expertColStudy')}</th>
-            <th scope="col" className={head}>{t('cases.expert')}</th>
+            <th scope="col" className={head}>{t('review.colRegion')}</th>
+            <th scope="col" className={`${head} hidden lg:table-cell`}>{t('cases.expert')}</th>
             <th scope="col" className={head}>{t('common.status')}</th>
-            <th scope="col" className={head}>{t('common.date')}</th>
-            <th scope="col" className={`${head} text-right`}>
+            <th scope="col" className={`${head} hidden md:table-cell`}>{t('common.date')}</th>
+            <th scope="col" className={head}>
               <span className="sr-only">{t('common.actions')}</span>
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200/70">
-          {cases.map((c, idx) => {
+        <tbody>
+          {cases.map((c) => {
             const open = () => nav(caseOpenPath(c))
             const urgent = showPriority && (c.priority === 'STAT' || c.priority === 'Acil')
             const breed = c.patient.breed && !['—', '-'].includes(c.patient.breed.trim()) ? c.patient.breed : ''
-            const rowBg = urgent
-              ? 'bg-rose-50 hover:bg-rose-100/70'
-              : idx % 2
-                ? 'bg-slate-50/70 hover:bg-teal-50/70'
-                : 'bg-white hover:bg-teal-50/70'
+            const reviewer = c.assignedReviewerId ? reviewerDisplay(c, t) : ''
             return (
               <tr
                 key={c.id}
                 tabIndex={0}
                 aria-label={`${c.patient.name} — ${c.no}`}
-                onClick={open}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('button, a, input')) return
+                  open()
+                }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter' && e.key !== ' ') return
                   if ((e.target as HTMLElement).closest('button, a, input')) return
                   e.preventDefault()
                   open()
                 }}
-                className={`cursor-pointer border-l-4 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${
-                  urgent ? 'border-l-rose-500' : 'border-l-transparent hover:border-l-teal-500'
-                } ${rowBg}`}
+                className={`cursor-pointer border-t border-slate-100 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${
+                  urgent ? 'bg-rose-50/70 hover:bg-rose-50' : 'hover:bg-teal-50/60'
+                }`}
               >
-                <td className={cell}>
+                <td className={`${cell} pl-5`}>
                   <div className="flex items-center gap-3">
                     <span
                       aria-hidden
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-sky-50 to-slate-100 ring-1 ring-slate-200/80"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-sky-50 to-slate-100 ring-1 ring-slate-200"
                     >
-                      <SpeciesIcon3D species={c.patient.species} size={42} />
+                      <SpeciesIcon3D species={c.patient.species} size={36} />
                     </span>
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2">
@@ -105,27 +106,42 @@ export function CaseTable({
                   </div>
                 </td>
                 <td className={cell}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="rounded-md bg-[color:var(--vm-sidebar,#102a43)] px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">
-                      {c.modality || t('common.dash')}
-                    </span>
-                    <span className="font-medium text-slate-800">{regionLabel(c, t)}</span>
+                  <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-bold tracking-wide text-sky-800 ring-1 ring-sky-200">
+                    {(c.modality || '').toUpperCase() === 'CT' ? modalityLabel(t, 'CT') : c.modality || t('common.dash')}
                   </span>
                 </td>
-                <td className={`${cell} text-slate-700`}>{reviewerDisplay(c, t)}</td>
+                <td className={cell}>
+                  <span className="inline-flex items-center gap-2 whitespace-nowrap font-medium text-slate-800">
+                    <HoloOrgan region={c.anatomicalRegion} size={32} />
+                    {studyText(c, t)}
+                  </span>
+                </td>
+                <td className={`${cell} hidden lg:table-cell`}>
+                  {reviewer ? (
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap text-slate-700">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-50 text-[11px] font-bold text-teal-700 ring-1 ring-teal-100">
+                        {initials(reviewer)}
+                      </span>
+                      {reviewer}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">{reviewerDisplay(c, t)}</span>
+                  )}
+                </td>
                 <td className={cell}>
                   <StatusBadge status={c.status} />
                 </td>
-                <td className={`${cell} whitespace-nowrap text-slate-600`}>{fmtDate(c.createdAt, locale)}</td>
-                <td className={cell} onClick={(e) => e.stopPropagation()}>
+                <td className={`${cell} hidden whitespace-nowrap text-slate-500 md:table-cell`}>{fmtDate(c.createdAt, locale)}</td>
+                <td className={`${cell} pr-5`}>
                   <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={open}
-                      className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
+                      aria-label={t('cases.open')}
+                      title={t('cases.open')}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-teal-600 text-white shadow-[0_4px_12px_-4px_rgba(13,148,136,0.7)] transition hover:bg-teal-700"
                     >
-                      {t('cases.open')}
-                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                      <ChevronRight className="h-4 w-4" aria-hidden />
                     </button>
                   </div>
                 </td>
@@ -136,4 +152,13 @@ export function CaseTable({
       </table>
     </div>
   )
+}
+
+function initials(name: string) {
+  const parts = name
+    .replace(/^(Prof\.|Doç\.|Dr\.|Uzm\.)\s*/gi, '')
+    .replace(/^(Dr\.)\s*/i, '')
+    .split(/\s+/)
+    .filter(Boolean)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toLocaleUpperCase('tr') || '?'
 }

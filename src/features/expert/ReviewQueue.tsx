@@ -5,7 +5,8 @@ import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { isUrgentCase, sortWorklist, waitLabel } from './ExpertWorklistTable'
-import { HoloOrgan } from './HoloOrgan'
+import { HoloOrgan } from '../../shared/ui/HoloOrgan'
+import { CardWave } from '../../shared/ui/CardWave'
 import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
 import { PriorityBadge } from '../../shared/ui/StatusBadge'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
@@ -54,15 +55,6 @@ function waitPillClass(c: VetCase) {
   if (tone === 'overdue' || tone === 'critical') return 'bg-rose-50 text-rose-700 ring-rose-200'
   if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'bg-amber-50 text-amber-800 ring-amber-200'
   return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-}
-
-function CardWave({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 w-full" aria-hidden>
-      <path d="M0 26 C40 10 70 34 110 22 C145 12 170 18 200 8 V40 H0 Z" fill={color} opacity="0.18" />
-      <path d="M0 32 C45 20 80 38 120 28 C155 20 178 26 200 18 V40 H0 Z" fill={color} opacity="0.22" />
-    </svg>
-  )
 }
 
 function ModalityDonut({ counts, total, label }: { counts: { key: string; name: string; value: number }[]; total: number; label: string }) {

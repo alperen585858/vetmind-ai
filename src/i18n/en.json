@@ -1170,7 +1170,12 @@
       "report_delivered": "Report delivered to the clinic",
       "ai_regenerated": "AI draft regenerated",
       "vet_report_email_sent": "Report e-mail sent"
-    }
+    },
+    "cardAllHint": "All your cases",
+    "cardInProgressHint": "Waiting for a report",
+    "cardApprovedHint": "PDF report ready",
+    "cardFailedHint": "Needs to be resent",
+    "cardFailedNone": "No failed cases"
   },
   "sections": {
     "klinikOzet": "Technical / Clinical summary",
