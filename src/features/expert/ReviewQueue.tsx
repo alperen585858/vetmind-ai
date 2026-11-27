@@ -6,7 +6,6 @@ import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { isUrgentCase, sortWorklist, waitLabel } from './ExpertWorklistTable'
 import { HoloOrgan } from './HoloOrgan'
-import { Clock3D, Siren3D, Stack3D, Users3D } from './StatIcons3D'
 import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
 import { PriorityBadge } from '../../shared/ui/StatusBadge'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
@@ -24,27 +23,35 @@ type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
 
-/** Light pastel stat cards with a 3D icon and a soft wave, one tint per queue tab. */
-const TAB_STYLE: Record<QueueView, { card: string; active: string; wave: string }> = {
+/** Plain stat cards, no pictures: urgent is red, due-soon is orange, the others light tints. */
+const TAB_STYLE: Record<QueueView, { card: string; active: string; label: string; value: string; hint: string }> = {
   all: {
-    card: 'from-teal-50/90 via-white to-white ring-teal-100',
-    active: 'ring-2 ring-teal-400 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
-    wave: '#5eead4',
+    card: 'bg-teal-50 ring-teal-100',
+    active: 'ring-2 ring-teal-500 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
+    label: 'text-slate-700',
+    value: 'text-[#102a43]',
+    hint: 'text-slate-500',
   },
   urgent: {
-    card: 'from-rose-50 via-white to-white ring-rose-100',
-    active: 'ring-2 ring-rose-400 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.5)]',
-    wave: '#fda4af',
+    card: 'bg-rose-600 ring-rose-700',
+    active: 'ring-2 ring-rose-300 ring-offset-2 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.6)]',
+    label: 'text-white/90',
+    value: 'text-white',
+    hint: 'text-white/80',
   },
   sla: {
-    card: 'from-amber-50 via-amber-50/40 to-white ring-amber-100',
-    active: 'ring-2 ring-amber-400 shadow-[0_14px_34px_-14px_rgba(217,119,6,0.5)]',
-    wave: '#fcd34d',
+    card: 'bg-orange-500 ring-orange-600',
+    active: 'ring-2 ring-orange-300 ring-offset-2 shadow-[0_14px_34px_-14px_rgba(234,88,12,0.6)]',
+    label: 'text-white/90',
+    value: 'text-white',
+    hint: 'text-white/85',
   },
   mine: {
-    card: 'from-sky-50 via-white to-white ring-sky-100',
-    active: 'ring-2 ring-sky-400 shadow-[0_14px_34px_-14px_rgba(2,132,199,0.5)]',
-    wave: '#7dd3fc',
+    card: 'bg-sky-50 ring-sky-100',
+    active: 'ring-2 ring-sky-500 shadow-[0_14px_34px_-14px_rgba(2,132,199,0.5)]',
+    label: 'text-slate-700',
+    value: 'text-[#102a43]',
+    hint: 'text-slate-500',
   },
 }
 
@@ -55,15 +62,6 @@ function waitPillClass(c: VetCase) {
   if (tone === 'overdue' || tone === 'critical') return 'bg-rose-50 text-rose-700 ring-rose-200'
   if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'bg-amber-50 text-amber-800 ring-amber-200'
   return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-}
-
-function CardWave({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 w-full" aria-hidden>
-      <path d="M0 26 C40 10 70 34 110 22 C145 12 170 18 200 8 V40 H0 Z" fill={color} opacity="0.18" />
-      <path d="M0 32 C45 20 80 38 120 28 C155 20 178 26 200 18 V40 H0 Z" fill={color} opacity="0.22" />
-    </svg>
-  )
 }
 
 function ModalityDonut({ counts, total, label }: { counts: { key: string; name: string; value: number }[]; total: number; label: string }) {
@@ -210,16 +208,15 @@ export default function ReviewQueue() {
   }
 
   const urgentCount = countFor('urgent')
-  const tabs: { id: QueueView; label: string; hint: string; icon: ReactNode }[] = [
-    { id: 'all', label: t('review.totalCases'), hint: t('review.cardAllHint'), icon: <Stack3D size={76} /> },
+  const tabs: { id: QueueView; label: string; hint: string }[] = [
+    { id: 'all', label: t('review.totalCases'), hint: t('review.cardAllHint') },
     {
       id: 'urgent',
       label: t('review.urgentFilter'),
       hint: urgentCount ? t('review.cardUrgentHint') : t('review.cardUrgentNone'),
-      icon: <Siren3D size={76} />,
     },
-    { id: 'sla', label: t('review.slaFilter'), hint: t('review.cardSlaHint'), icon: <Clock3D size={76} /> },
-    { id: 'mine', label: t('review.assignedToMe'), hint: t('review.cardMineHint'), icon: <Users3D size={76} /> },
+    { id: 'sla', label: t('review.slaFilter'), hint: t('review.cardSlaHint') },
+    { id: 'mine', label: t('review.assignedToMe'), hint: t('review.cardMineHint') },
   ]
 
   const modalityIcons: Record<string, ReactNode> = {
@@ -304,18 +301,14 @@ export default function ReviewQueue() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setView(tab.id)}
-                    className={`group relative flex min-h-[128px] items-start justify-between gap-2 overflow-hidden rounded-3xl bg-gradient-to-br px-4 pb-5 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
+                    className={`group relative flex min-h-[112px] items-start overflow-hidden rounded-3xl px-4 pb-4 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
                       active ? st.active : ''
                     }`}
                   >
-                    <CardWave color={st.wave} />
-                    <span className="relative min-w-0 pr-14 2xl:pr-20">
-                      <span className="block text-sm font-semibold leading-snug text-slate-700">{tab.label}</span>
-                      <span className="mt-1 block font-display text-4xl font-bold leading-none tabular-nums text-[#102a43]">{countFor(tab.id)}</span>
-                      <span className="mt-2.5 block text-xs font-medium leading-snug text-slate-500">{tab.hint}</span>
-                    </span>
-                    <span className="absolute right-2 top-1/2 w-14 -translate-y-1/2 sm:right-3 2xl:w-[76px] [&>svg]:h-auto [&>svg]:w-full drop-shadow-[0_8px_10px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105">
-                      {tab.icon}
+                    <span className="relative min-w-0">
+                      <span className={`block text-sm font-semibold leading-snug ${st.label}`}>{tab.label}</span>
+                      <span className={`mt-1 block font-display text-4xl font-bold leading-none tabular-nums ${st.value}`}>{countFor(tab.id)}</span>
+                      <span className={`mt-2.5 block text-xs font-medium leading-snug ${st.hint}`}>{tab.hint}</span>
                     </span>
                   </button>
                 )
