@@ -28,6 +28,7 @@ from app.llm.interfaces import (
     LLMUnavailableError,
 )
 from app.llm.grounding import uncited_claims
+from app.llm.differential_gate import actionable_findings
 from app.llm.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
@@ -215,7 +216,10 @@ class _ChatProviderBase:
             or not gen.findings
             or gen.execution_status in {ModelExecutionStatus.FAILED, ModelExecutionStatus.UNSUPPORTED}
         )
-        if not no_findings:
+        if not no_findings and not actionable_findings(gen.findings):
+            # Only technique / descriptive-anatomy notes: nothing to rank, skip the call.
+            steps.append("differentials_skipped_no_actionable_findings")
+        elif not no_findings:
             try:
                 diff_payload, diff_raw = self._complete(
                     build_differentials_system_prompt(lang),

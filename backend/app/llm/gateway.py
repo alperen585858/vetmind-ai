@@ -11,6 +11,8 @@ from app.llm.interfaces import (
 from app.llm.lessons import LessonContext, LessonStore
 from app.llm.neuro_exam import neuro_exam_text
 from app.llm.privacy import redact_personal_data
+from app.imaging.analysis_limitations import LIMITATION_PREFIX, MISSING_PREFIX
+from app.imaging.systematic_checklist import STATUS_LABEL_TR as REVIEW_STATUS_LABEL_TR
 from app.models.ontology import is_technique_code
 from app.rag.relevance import RagFilter, build_retrieval_query
 from app.rag.retriever import RagRetriever
@@ -188,6 +190,23 @@ def build_generation_input(
             for c in (findings.potential_conflicts or [])
             if (c.reason or "").strip()
         ][:6],
+        acquisition_notes=[
+            ln.strip()
+            for ln in (findings.processing_metadata or {}).get("mr_sequence_summary", "").splitlines()
+            if ln.strip()
+        ][:8],
+        limitations=[
+            w.strip()
+            for w in findings.warnings
+            if w.strip().startswith((MISSING_PREFIX, LIMITATION_PREFIX))
+        ][:12],
+        systematic_review=[
+            f"{it.region}: {REVIEW_STATUS_LABEL_TR.get(it.status, it.status)}"
+            + (f" — {it.note}" if it.note else "")
+            + (f" ({it.evidence_locus})" if it.evidence_locus else "")
+            for it in (findings.systematic_review or [])
+        ][:24],
+        limited_sampling=bool(cov.limited_sampling) if cov is not None else False,
         rag_passages=list(rag_passages or []),
         rag_is_clinical_validation=False,
         language=lang,

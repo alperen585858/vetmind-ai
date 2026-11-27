@@ -2,7 +2,7 @@ import { currentActorId } from '../auth/session'
 import { canonicalizeCaseId } from '../lib/caseId'
 import { splitRecommendations } from '../lib/recommendations'
 import type { AIAssessment, DifferentialLikelihood, ReportSections } from '../types'
-import type { BackendCaseRecord, BackendDraftReport, BackendFindings } from '../types'
+import type { BackendCaseRecord, BackendDraftReport, BackendFindings, ValidationItem, VerdictLabel } from '../types'
 import { fetchWithAuth, request, throwIfNotOk } from './client'
 
 export type PublicReportView = {
@@ -151,7 +151,7 @@ export function draftToSections(report: BackendDraftReport): ReportSections {
 }
 
 function isDisclaimerWarning(text: string): boolean {
-  return /SENTETİK|klinik doğrulan|tıbbi görüntü yorumu|demo çıktı|radyolog incelemesi zorunlu|sentetiktir|pikselleri analiz etmez/i.test(
+  return /SENTETİK|klinik doğrulan|klinik doğrulama yok|eğitilmemiş genel model|tıbbi görüntü yorumu|demo çıktı|radyolog incelemesi zorunlu|sentetiktir|pikselleri analiz etmez/i.test(
     text,
   )
 }
@@ -183,6 +183,58 @@ export function assessmentSeverityForFinding(
   return 'Düşük'
 }
 
+const MISSING_PREFIX = 'Eksik bilgi:'
+const LIMITATION_PREFIX = 'Sınırlama:'
+
+function firstSentence(text: string, max = 110): string {
+  const t = text.trim()
+  const cut = t.search(/[.;](\s|$)/)
+  const s = cut > 0 ? t.slice(0, cut) : t
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
+}
+
+/** Pipeline warning → validation box. Prefixed warnings carry their own category. */
+export function warningToValidation(w: string): ValidationItem {
+  const text = w.trim()
+  if (text.startsWith(MISSING_PREFIX)) {
+    const body = text.slice(MISSING_PREFIX.length).trim()
+    return { kind: 'missing', text: firstSentence(body), detail: body }
+  }
+  if (text.startsWith(LIMITATION_PREFIX)) {
+    const body = text.slice(LIMITATION_PREFIX.length).trim()
+    return { kind: 'note', text: firstSentence(body), detail: body }
+  }
+  return { kind: 'note', text: firstSentence(text), detail: text }
+}
+
+const VERDICT_KIND: Record<VerdictLabel, ValidationItem['kind']> = {
+  supported: 'ok',
+  partially_supported: 'unsupported',
+  unsupported: 'unsupported',
+  contradicted: 'unsupported',
+}
+
+const VERDICT_TR: Record<VerdictLabel, string> = {
+  supported: 'Kanıtla destekleniyor',
+  partially_supported: 'Kısmen destekleniyor',
+  unsupported: 'Kanıtla desteklenmiyor',
+  contradicted: 'Kanıtla çelişiyor',
+}
+
+/** Claim verifier verdicts → validation boxes (the only source of ok/unsupported). */
+export function verdictsToValidation(report: BackendDraftReport): ValidationItem[] {
+  return (report.verification?.verdicts ?? []).map((v) => {
+    const refs = v.citations?.length ? ` [${v.citations.join(', ')}]` : ''
+    const note = v.note?.trim() ? ` ${v.note.trim()}` : ''
+    const err = v.error_type && v.error_type !== 'none' ? ` (${v.error_type.replace(/_/g, ' ')})` : ''
+    return {
+      kind: VERDICT_KIND[v.label] ?? 'unsupported',
+      text: firstSentence(v.sentence, 120),
+      detail: `${VERDICT_TR[v.label] ?? v.label}${err}.${note}${refs}`,
+    }
+  })
+}
+
 export function pipelineToAssessment(findings: BackendFindings, report: BackendDraftReport): AIAssessment {
   const mapped = findings.findings.map((f) => {
     const code = normalizeFindingCode(f.finding_code)
@@ -192,6 +244,10 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       severity: assessmentSeverityForFinding(code, f.finding_status),
     }
   })
+  const warnings = findings.warnings.filter((w) => !isDisclaimerWarning(w))
+  // Missing inputs and analysis limitations are clinically actionable → validation;
+  // remaining pipeline notes stay under the folded technical details (#75).
+  const isCategorized = (w: string) => w.trim().startsWith(MISSING_PREFIX) || w.trim().startsWith(LIMITATION_PREFIX)
   return {
     summary: report.impression.text,
     findings: mapped.length
@@ -207,8 +263,8 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       aliases: d.citations,
     })),
     recommendedTests: splitRecommendations(report.recommendations.text),
-    validation: [],
-    technicalNotes: findings.warnings.filter((w) => !isDisclaimerWarning(w)),
+    validation: [...verdictsToValidation(report), ...warnings.filter(isCategorized).map(warningToValidation)],
+    technicalNotes: warnings.filter((w) => !isCategorized(w)),
     model: `${findings.source_model_id} + ${report.generation.model_id}`,
     generatedAt: report.generation.generated_at,
   }

@@ -101,4 +101,33 @@ describe('pipelineToAssessment', () => {
     expect(ai.validation).toEqual([])
     expect(ai.technicalNotes).toEqual(f.warnings)
   })
+
+  it('validation carries verifier verdicts plus missing inputs and limitations; other notes stay technical', () => {
+    const findings = minimalFindings([{ finding_code: 'VENTRICLE-DILATION' }])
+    findings.warnings = [
+      'Eksik bilgi: ırk, yaş girilmemiş. Irka özgü varyantlar…',
+      'Sınırlama: Yüksek alanlı (9.4 T) muhtemelen preklinik tarayıcı.',
+      'Kapsam: tespit edilen hedef karelerin tamamı görsel olarak gönderildi (görsel=1).',
+      'VLM çıktısı eğitilmemiş genel modelden gelir; klinik doğrulama yoktur.',
+    ]
+    const report = minimalReport()
+    report.verification = {
+      verifier_model: 'judge',
+      verdicts: [
+        { section: 'findings', sentence: 'Ventrikül genişlemesi olası.', citations: ['F1'], label: 'supported' },
+        {
+          section: 'impression',
+          sentence: 'Hidrosefali kesindir.',
+          citations: ['F1'],
+          label: 'unsupported',
+          error_type: 'overstated_certainty',
+        },
+      ],
+    }
+    const ai = pipelineToAssessment(findings, report)
+    expect(ai.validation.map((x) => x.kind)).toEqual(['ok', 'unsupported', 'missing', 'note'])
+    expect(ai.validation[2].text).toBe('ırk, yaş girilmemiş')
+    expect(ai.validation[1].detail).toContain('overstated certainty')
+    expect(ai.technicalNotes).toEqual([findings.warnings[2]])
+  })
 })

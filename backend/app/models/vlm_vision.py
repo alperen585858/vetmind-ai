@@ -11,6 +11,7 @@ optional bbox) so a radiologist can verify the claim on the same pixels.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 import time
@@ -23,7 +24,6 @@ import httpx
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
-from app.llm.clinical_notes import history_with_notes
 from app.http_policy import vision_http_policy
 from app.imaging.display_png import (
     dicom_bytes_to_png,
@@ -40,6 +40,18 @@ from app.models.study_inventory import InventoryFrame, build_study_inventory
 from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
 from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
+from app.imaging.systematic_checklist import (
+    checklist_prompt,
+    merge_systematic_review,
+    parse_systematic_review,
+)
+from app.imaging.analysis_limitations import (
+    MISSING_PREFIX,
+    context_gaps,
+    sampling_limitation,
+    sequence_limitations,
+    sequence_summary_lines,
+)
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
@@ -120,6 +132,9 @@ def _dedupe_findings(findings: list[Finding]) -> list[Finding]:
         )
     return [by_key[k] for k in order]
 
+# Bump when the prompt or the expected JSON shape changes: part of the batch cache key.
+VLM_PROMPT_VERSION = "vlm-v2-systematic"
+
 _SYSTEM_PROMPT = """Sen veteriner teleradyoloji için yardımcı bir görüntü analiz asistanısın.
 Klinik tanı koymazsın; uzman radyolog incelemesi zorunludur. Genel amaçlı bir VLM'sin —
 veteriner radyolojide klinik olarak doğrulanmış değilsin.
@@ -140,21 +155,51 @@ Yalnızca JSON döndür. Şema:
       "source_image_index": 1,
       "bbox_norm": [0.0, 0.0, 1.0, 1.0]
     }
+  ],
+  "systematic_review": [
+    {
+      "region": "kontrol listesindeki bölge adı (aynen)",
+      "status": "no_abnormality_seen" | "abnormality_suspected" | "not_in_view" | "not_assessable",
+      "note": "kısa Türkçe gerekçe",
+      "source_image_index": 1
+    }
   ]
 }
 
 ZORUNLU kurallar:
 1) Her bulguda source_image_index ZORUNLU (IMAGE CATALOG'daki IMG-n numarası).
-2) İlk madde teknik/görüntü kalitesi (IMAGE-QUALITY). Teknik sınırları patoloji sanma.
+2) İlk madde teknik/görüntü kalitesi (IMAGE-QUALITY): somut sınırları yaz (matris/çözünürlük,
+   kesit kalınlığı, gürültü, hareket/duyarlılık artefaktı, pencere). Tek kesitte "artefakt yok"
+   gibi kesin hüküm verme; "belirgin artefakt izlenmedi" de. Teknik sınırları patoloji sanma.
 3) Yalnızca o IMG'de görünen anatomiyi yaz. Desteklenmeyen lezyon/kitle/kanama/ödem/tanı UYDURMA.
 4) Emin değilsen finding_status=uncertain ve uncertainty_note yaz; uydurma iddia yazma.
-5) MR: IMAGE CATALOG'da sequence_known=no ise hiper/hipointensiteyi patoloji gibi yorumlama —
-   yalnızca görünür yapıyı tarif et veya belirsiz sinyal notu düş.
+5) MR sekansı: IMAGE CATALOG'daki sequence= (from=, confidence=) ve acq=[TR/TE] alanlarını kullan.
+   - sequence_known=no ise hiper/hipointensiteyi patoloji gibi yorumlama.
+   - sequence_known=yes ise sinyali gri/beyaz cevher ve BOS'a göre GÖRECELİ tarif edebilirsin,
+     hangi sekansa dayandığını yaz; note alanında çelişki/preklinik uyarısı varsa bunu belirt.
 6) bbox_norm isteğe bağlı; odak bölge varsa 0–1 normalize [x_min,y_min,x_max,y_max] ver.
-7) "Normal" / "patoloji yok" deme. Kesin tanı yazma. Uydurma DICOM UID yazma.
-8) İngilizce sistem etiketleri / execution_status / pipeline jargonunu description'a yazma.
-9) Görüntü yetersizse teknik maddede söyle; boş findings[] yasak, uydurma lezyon da yasak.
-10) Tarafı yalnızca görüntüde doğrulanabiliyorsa belirt; aksi hâlde laterality=UNKNOWN yaz."""
+   Tüm kareyi kaplayan bbox odak kanıtı değildir; patoloji için verme.
+7) findings[] içinde "normal" / "patoloji yok" deme, kesin tanı yazma, uydurma DICOM UID yazma.
+   Negatif gözlemler YALNIZCA systematic_review içinde ve yalnızca incelenen kesitle sınırlı olarak yazılır.
+8) systematic_review: kullanıcı mesajındaki kontrol listesindeki HER bölge için tam bir madde döndür.
+   - Bölge hiçbir IMG'de yoksa: not_in_view (source_image_index boş bırakılabilir).
+   - Görünüyor ama kalite/sekans hüküm vermeye yetmiyorsa: not_assessable.
+   - Görünüyor ve o kesitte anormallik izlenmiyorsa: no_abnormality_seen + source_image_index ZORUNLU.
+   - abnormality_suspected verdiysen aynı şeyi findings[] içinde de bir bulgu olarak yaz.
+9) Tür/ırk/yaş bağlamını kullan: ırka özgü normal varyantları (ör. brakisefal ırklarda geniş
+   lateral ventriküller, Cavalier'da kaudal fossa küçüklüğü) patoloji gibi sunma; varyant olabileceğini yaz.
+10) İngilizce sistem etiketleri / execution_status / pipeline jargonunu description'a yazma.
+11) Görüntü yetersizse teknik maddede söyle; boş findings[] yasak, uydurma lezyon da yasak.
+12) Tarafı yalnızca görüntüde doğrulanabiliyorsa belirt; aksi hâlde laterality=UNKNOWN yaz."""
+
+
+def _review_locus(frame: SentFrame) -> str:
+    bits = [f"IMG-{frame.index}"]
+    if frame.series_label:
+        bits.append(frame.series_label)
+    if frame.instance_number is not None:
+        bits.append(f"instance #{frame.instance_number}")
+    return ", ".join(bits)
 
 
 @dataclass(frozen=True)
@@ -350,6 +395,22 @@ class OpenAiCompatibleVlmVisionModel:
 
         _emit_progress(batch_i=0, analyzed_n=0)
 
+        # Context that changes the answer (prompt text, species/breed/age/history) invalidates cache.
+        from app.llm.gateway import compose_history
+
+        history_text = compose_history(case)
+        prompt_fp = "|".join(
+            [
+                VLM_PROMPT_VERSION,
+                hashlib.sha256(_SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:16],
+                case.species.value,
+                case.breed or "",
+                str(case.patient_age_years),
+                history_text,
+            ]
+        )
+        review_batches: list = []
+
         for batch_i, batch_frames in enumerate(plan.batches):
             decode_attempted += len(batch_frames)
             sent = self._decode_inventory_batch(batch_frames)
@@ -370,6 +431,7 @@ class OpenAiCompatibleVlmVisionModel:
                 case_id=case.case_id,
                 chat_model_id=self._chat_model_id,
                 frame_keys=frame_keys,
+                prompt_fingerprint=prompt_fp,
             )
             cached = self._batch_cache.get(cache_key)
             try:
@@ -414,6 +476,9 @@ class OpenAiCompatibleVlmVisionModel:
             all_findings.extend(mapped.findings)
             all_warnings.extend(mapped.warnings)
             all_sent.extend(sent)
+            review_batches.append(
+                parse_systematic_review(parsed, sent=sent, locus_for=_review_locus)
+            )
             for fr in sent:
                 analyzed_keys.add(
                     (
@@ -469,6 +534,15 @@ class OpenAiCompatibleVlmVisionModel:
             }
         ).finalize()
 
+        sampling_note = sampling_limitation(case.modality, coverage.frames_visually_analyzed)
+        if sampling_note:
+            coverage = coverage.model_copy(
+                update={"limited_sampling": True, "limited_sampling_reason": sampling_note}
+            )
+            all_warnings.append(f"{MISSING_PREFIX} {sampling_note}")
+        all_warnings.extend(sequence_limitations(all_sent, case.modality))
+        all_warnings.extend(context_gaps(case, history_text=history_text))
+
         if coverage.is_metadata_only:
             all_warnings.append(
                 "Kapsam: yalnızca metadata/envanter; görsel analiz yapılmadı "
@@ -482,7 +556,7 @@ class OpenAiCompatibleVlmVisionModel:
                 f"decode={coverage.frames_decoded}, bütçe={coverage.total_frame_budget}). "
                 "Tam analiz iddiası yoktur."
             )
-        elif coverage.analysis_scope == "full":
+        elif coverage.analysis_scope == "full" and not coverage.limited_sampling:
             all_warnings.append(
                 f"Kapsam: tespit edilen hedef karelerin tamamı görsel olarak gönderildi "
                 f"(görsel={coverage.frames_visually_analyzed}, decode={coverage.frames_decoded})."
@@ -528,6 +602,9 @@ class OpenAiCompatibleVlmVisionModel:
             **catalog_metadata(all_sent[:48]),
             **coverage.to_metadata(),
         }
+        seq_lines = sequence_summary_lines(all_sent)
+        if seq_lines:
+            meta["mr_sequence_summary"] = "\n".join(seq_lines)[:2000]
         if synthesized_empty:
             meta["empty_findings_synthesized"] = "true"
         if cache_hits:
@@ -538,6 +615,9 @@ class OpenAiCompatibleVlmVisionModel:
         elif coverage.analysis_scope == "partial":
             status = ModelExecutionStatus.PARTIAL
         elif not merged_findings:
+            status = ModelExecutionStatus.PARTIAL
+        elif coverage.limited_sampling:
+            # Every uploaded frame was seen, but a 1–2 slice MR/CT is not a reviewed study.
             status = ModelExecutionStatus.PARTIAL
 
         return StructuredFindings(
@@ -563,6 +643,9 @@ class OpenAiCompatibleVlmVisionModel:
             contributing_source_kinds=[SourceKind.REAL],
             processing_metadata=meta,
             analysis_coverage=coverage,
+            systematic_review=merge_systematic_review(
+                review_batches, region=case.anatomical_region
+            ),
         )
 
     def _decode_inventory_batch(self, frames: list[InventoryFrame]) -> list[SentFrame]:
@@ -596,6 +679,7 @@ class OpenAiCompatibleVlmVisionModel:
                         height=size[1] if size else None,
                         quarantine_rel=inv.quarantine_rel,
                         series_number=inv.series_number,
+                        mr_sequence=inv.mr_sequence,
                     )
                 )
                 continue
@@ -620,6 +704,7 @@ class OpenAiCompatibleVlmVisionModel:
                     native_height=result.native_height,
                     quarantine_rel=inv.quarantine_rel,
                     series_number=inv.series_number,
+                    mr_sequence=inv.mr_sequence,
                 )
             )
         return sent
@@ -726,7 +811,14 @@ class OpenAiCompatibleVlmVisionModel:
         batch_index: int = 0,
         batch_total: int = 1,
     ) -> str:
-        history = history_with_notes(case)  # notes as their own section, no stamps (#68)
+        # Same composition + PII redaction as the report LLM (structured history, neuro exam).
+        from app.llm.gateway import compose_history
+        from app.llm.privacy import redact_personal_data
+
+        history = redact_personal_data(
+            compose_history(case),
+            known=[(case.patient_name, "[HASTA]"), (case.referring_clinic, "[KLİNİK]")],
+        ).text.strip()[:2000]
         lang = "Turkish" if self._language.startswith("tr") else "English"
         insist_line = (
             "\nPREVIOUS REPLY WAS INVALID because findings=[] was empty. "
@@ -747,17 +839,22 @@ class OpenAiCompatibleVlmVisionModel:
             "This batch is only part of the study unless batch_total=1. "
             "Do not claim you reviewed frames that are not in THIS IMAGE CATALOG.\n"
         )
+        age = f"{case.patient_age_years:g} years" if case.patient_age_years is not None else "(unknown)"
         return (
             f"Species: {case.species.value}\n"
+            f"Breed: {(case.breed or '').strip() or '(unknown)'}\n"
+            f"Age: {age}\n"
             f"Modality: {case.modality.value}\n"
             f"Anatomical region: {case.anatomical_region.value}\n"
             f"Clinical history: {history or '(none)'}\n"
             f"{inventory_line}"
             f"{format_image_catalog(sent)}\n"
+            f"{checklist_prompt(case.anatomical_region)}\n"
             f"Write finding descriptions in {lang}.\n"
             "Every finding MUST set source_image_index to an IMG-n above.\n"
             "1) IMAGE-QUALITY on a real IMG\n"
             "2) Visible anatomy / only pixel-supported changes\n"
+            "3) systematic_review: one item per checklist region\n"
             "No unsupported lesions. No pathology from unknown MR sequence signal."
             f"{insist_line}"
         )

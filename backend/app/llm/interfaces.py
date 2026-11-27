@@ -121,6 +121,13 @@ class LLMGenerationInput(BaseModel):
     dicom_files_total: Optional[int] = None
     # Short conflict reasons from fusion; never auto-resolved — hedge both sides.
     conflict_notes: list[str] = Field(default_factory=list, max_length=8)
+    # Header-derived acquisition per series (sequence weighting, TR/TE, field strength).
+    acquisition_notes: list[str] = Field(default_factory=list, max_length=8)
+    # Missing inputs / technical limits ("Eksik bilgi:" / "Sınırlama:"); never differentials.
+    limitations: list[str] = Field(default_factory=list, max_length=12)
+    # Region checklist lines incl. scoped negatives ("region: status — note (locus)").
+    systematic_review: list[str] = Field(default_factory=list, max_length=24)
+    limited_sampling: bool = False
     rag_passages: list[RagPassage] = Field(default_factory=list)
     rag_is_clinical_validation: bool = False
     # Expert revision lessons from similar past cases (app/llm/lessons.py): guidance only.

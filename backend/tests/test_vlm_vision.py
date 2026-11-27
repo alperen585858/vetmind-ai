@@ -186,7 +186,10 @@ def test_vlm_maps_response_and_reads_dicom(tmp_path: Path, monkeypatch: pytest.M
     out = adapter.analyze(case)
     assert out.source_kind == SourceKind.REAL
     assert out.source_model_id == "vlm-vision-v1"
-    assert out.execution_status == ModelExecutionStatus.SUCCESS
+    # One MR slice: every uploaded frame was seen, but the study volume was not → partial.
+    assert out.execution_status == ModelExecutionStatus.PARTIAL
+    assert out.analysis_coverage is not None and out.analysis_coverage.limited_sampling
+    assert any(w.startswith("Eksik bilgi:") and "kesit" in w for w in out.warnings)
     assert len(out.findings) == 1
     # The test DICOM has no T1/T2 series description: the sequence-blind MR rule
     # (vlm_grounding, 4eb4d96) demotes the model's "suspected" lesion to uncertain.

@@ -13,15 +13,15 @@ import {
   YAxis,
 } from 'recharts'
 import { useMemo, useState } from 'react'
+import { AlertTriangle, ArrowRight, Clock, Search } from 'lucide-react'
 import { useApp } from '../../../shared/shell/AppContext'
 import { useLocale } from '../../../shared/shell/LocaleContext'
 import type { TranslateFn } from '../../../i18n'
 import { studyLabel } from '../../../shared/lib/displayClean'
 import { Card } from '../../../shared/ui/Card'
 import { ExpertNodeAccent, ExpertWaveAccent } from '../../../shared/ui/ExpertBrandMark'
-import { ExpertWorklistTable } from '../ExpertWorklistTable'
+import { ExpertWorklistTable, isUrgentCase } from '../ExpertWorklistTable'
 import { Button } from '../../../shared/ui/Button'
-import { StatusBadge } from '../../../shared/ui/StatusBadge'
 import { isSlaAttention } from '../../../shared/lib/reviewSla'
 
 import { buildTrend } from '../../../shared/lib/trend'
@@ -41,6 +41,7 @@ function ExpertMetric({
   hint,
   active,
   emphasize,
+  danger,
   onClick,
   ariaLabel,
   delayMs = 0,
@@ -50,24 +51,37 @@ function ExpertMetric({
   hint?: string
   active?: boolean
   emphasize?: boolean
+  /** Solid red card (urgent queue). */
+  danger?: boolean
   onClick?: () => void
   ariaLabel: string
   delayMs?: number
 }) {
   const base =
     'vm-expert-card vm-fade-up px-4 py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600'
-  const activeCls = active
-    ? 'border-teal-400 bg-accent-soft ring-1 ring-teal-200/60'
+  const activeCls = danger
+    ? `!border-rose-700 !bg-rose-600 text-white hover:!bg-rose-700 ${active ? 'ring-4 ring-rose-300' : ''}`
+    : active
+      ? 'border-teal-400 bg-accent-soft ring-1 ring-teal-200/60'
+      : emphasize && value > 0
+        ? 'border-[color:var(--vm-danger)]/35 bg-white'
+        : ''
+  const valueCls = danger
+    ? 'text-white'
     : emphasize && value > 0
-      ? 'border-[color:var(--vm-danger)]/35 bg-white'
-      : ''
-  const valueCls = emphasize && value > 0 ? 'text-[color:var(--vm-danger)]' : 'text-[color:var(--vm-text,#172b4d)]'
+      ? 'text-[color:var(--vm-danger)]'
+      : 'text-[color:var(--vm-text,#172b4d)]'
+  const labelCls = danger ? 'text-rose-50' : 'text-slate-500'
+  const hintCls = danger ? 'text-rose-100' : 'text-slate-400'
   const style = { animationDelay: `${delayMs}ms` } as const
   const body = (
     <>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</p>
+      <p className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${labelCls}`}>
+        {danger ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> : null}
+        {label}
+      </p>
       <p className={`mt-1 font-display text-3xl font-semibold tabular-nums tracking-tight ${valueCls}`}>{value}</p>
-      {hint ? <p className="mt-1 text-[11px] text-slate-400">{hint}</p> : null}
+      {hint ? <p className={`mt-1 text-[11px] ${hintCls}`}>{hint}</p> : null}
     </>
   )
   if (!onClick)
@@ -98,10 +112,7 @@ export function ExpertDashboard() {
   const [q, setQ] = useState('')
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde' || c.status === 'manuel_inceleme')
   const approvedCount = cases.filter((c) => c.status === 'onaylandi').length
-  const recent = cases
-    .filter((c) => c.status === 'onaylandi' || c.status === 'revizyon' || c.status === 'reddedildi')
-    .slice(0, 6)
-  const urgentN = queue.filter((c) => c.priority === 'STAT' || c.priority === 'Acil').length
+  const urgentN = queue.filter(isUrgentCase).length
   const slaTight = useMemo(() => queue.filter((c) => isSlaAttention(c.reviewDueAt)), [queue])
   const trend = useMemo(() => buildTrend(cases, t), [cases, t])
   const modalityDist = useMemo(() => {
@@ -118,7 +129,7 @@ export function ExpertDashboard() {
   const filteredQueue = useMemo(() => {
     let list = queue
     if (filter === 'sla') list = list.filter((c) => isSlaAttention(c.reviewDueAt))
-    if (filter === 'urgent') list = list.filter((c) => c.priority === 'STAT' || c.priority === 'Acil')
+    if (filter === 'urgent') list = list.filter(isUrgentCase)
     const needle = q.trim().toLowerCase()
     if (!needle) return list
     return list.filter((c) => {
@@ -127,7 +138,7 @@ export function ExpertDashboard() {
     })
   }, [filter, q, queue, t])
 
-  const worklistHref = filter === 'sla' ? '/kuyruk?sla=az' : '/kuyruk'
+  const worklistHref = filter === 'sla' ? '/kuyruk?sla=az' : filter === 'urgent' ? '/kuyruk?acil=1' : '/kuyruk'
   const name = user?.name ?? ''
 
   return (
@@ -182,7 +193,8 @@ export function ExpertDashboard() {
         <ExpertMetric
           label={t('dashboard.expertStatUrgentQueue')}
           value={urgentN}
-          hint={t('dashboard.expertMetricPriorityReports')}
+          hint={urgentN > 0 ? t('dashboard.expertMetricPriorityReports') : t('dashboard.expertUrgentHintNone')}
+          danger
           active={filter === 'urgent'}
           onClick={() => setFilter('urgent')}
           ariaLabel={t('dashboard.expertMetricUrgentAria', { count: urgentN })}
@@ -282,57 +294,79 @@ export function ExpertDashboard() {
         </Card>
       </div>
 
-      <Card className="vm-fade-up overflow-hidden border-slate-200/70 shadow-soft" style={{ animationDelay: '260ms' }}>
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <section
+        className="vm-fade-up overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        style={{ animationDelay: '260ms' }}
+        aria-labelledby="expert-queue-title"
+      >
+        <div className="flex flex-col gap-1 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="font-display text-base font-semibold text-[color:var(--vm-text,#172b4d)]">
+            <h2 id="expert-queue-title" className="flex items-center gap-2 font-display text-lg font-semibold text-slate-900">
               {t('dashboard.expertPendingReports')}
+              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">{queue.length}</span>
             </h2>
-            <p className="text-xs text-slate-500">{t('dashboard.expertPendingSubtitle')}</p>
+            <p className="mt-0.5 text-sm text-slate-500">{t('dashboard.expertPendingSubtitle')}</p>
           </div>
-          <LocalizedLink to={worklistHref} className="text-sm font-semibold text-teal-700 transition hover:text-teal-800">
+          <LocalizedLink
+            to={worklistHref}
+            className="inline-flex items-center gap-1 self-start rounded-lg px-2 py-1 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 hover:text-teal-800"
+          >
             {t('dashboard.expertFullWorklist')}
+            <ArrowRight className="h-4 w-4" aria-hidden />
           </LocalizedLink>
         </div>
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('dashboard.expertFilterAria')}>
+        <div className="mt-4 flex flex-col gap-3 border-b border-slate-200 px-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label={t('dashboard.expertFilterAria')}>
             {(
               [
-                ['all', t('dashboard.expertFilterAll'), queue.length],
-                ['sla', t('dashboard.expertFilterSla'), slaTight.length],
-                ['urgent', t('dashboard.expertFilterUrgent'), urgentN],
+                ['all', t('dashboard.expertFilterAll'), queue.length, null],
+                ['urgent', t('dashboard.expertFilterUrgent'), urgentN, <AlertTriangle key="i" className="h-4 w-4" aria-hidden />],
+                ['sla', t('dashboard.expertFilterSla'), slaTight.length, <Clock key="i" className="h-4 w-4" aria-hidden />],
               ] as const
-            ).map(([id, label, count]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setFilter(id)}
-                aria-pressed={filter === id}
-                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                  filter === id
-                    ? 'bg-[color:var(--vm-sidebar,#102a43)] text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {label}
-                <span className={`ml-1 tabular-nums ${filter === id ? 'text-white/65' : 'text-slate-400'}`}>{count}</span>
-              </button>
-            ))}
+            ).map(([id, label, count, icon]) => {
+              const active = filter === id
+              const urgentTab = id === 'urgent' && count > 0
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setFilter(id)}
+                  className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm font-semibold transition ${
+                    active ? 'border-teal-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+                  } ${urgentTab && !active ? 'text-rose-700' : ''}`}
+                >
+                  {icon}
+                  {label}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${
+                      urgentTab ? 'bg-rose-600 text-white' : active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-          <label className="sr-only" htmlFor="expert-dash-q">
-            {t('common.search')}
+          <label className="relative mb-3 block w-full sm:max-w-xs" htmlFor="expert-dash-q">
+            <span className="sr-only">{t('common.search')}</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+            <input
+              id="expert-dash-q"
+              type="search"
+              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t('dashboard.expertSearchPlaceholder')}
+            />
           </label>
-          <input
-            id="expert-dash-q"
-            className="input max-w-xs py-2 text-sm"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t('dashboard.expertSearchPlaceholder')}
-          />
         </div>
         <ExpertWorklistTable
           compact
           items={filteredQueue}
+          order={filter === 'sla' ? 'urgent' : 'newest'}
           emptyTitle={filter === 'all' ? t('dashboard.queueEmptyTitle') : t('dashboard.expertSlaEmptyFilter')}
           emptyText={filter === 'all' ? t('dashboard.queueEmptyText') : t('dashboard.expertSlaEmptyFilterText')}
           emptyAction={
@@ -343,28 +377,8 @@ export function ExpertDashboard() {
             ) : undefined
           }
         />
-      </Card>
+      </section>
 
-      {recent.length > 0 ? (
-        <div className="vm-fade-up rounded-vm border border-slate-200/70 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-sm" style={{ animationDelay: '300ms' }}>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-            {t('dashboard.expertActivityStrip')}
-          </p>
-          <ul className="flex flex-wrap gap-x-5 gap-y-2">
-            {recent.map((c) => (
-              <li key={c.id}>
-                <LocalizedLink
-                  to={`/vakalar/${c.id}/calisma`}
-                  className="inline-flex items-center gap-2 text-sm text-[color:var(--vm-text,#172b4d)] transition hover:text-teal-700"
-                >
-                  <span className="font-medium">{c.patient.name}</span>
-                  <StatusBadge status={c.status} />
-                </LocalizedLink>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   )
 }

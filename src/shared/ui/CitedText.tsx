@@ -13,10 +13,7 @@ function focusSource(sourceId: string) {
   window.setTimeout(() => el.classList.remove('ring-2', 'ring-teal-400', 'bg-teal-50/60'), 1600)
 }
 
-function findingTooltip(
-  findingId: string,
-  findings: BackendFinding[] | undefined,
-): string {
+function findingTooltip(findingId: string, findings: BackendFinding[] | undefined): string {
   const f = findings?.find((x) => x.finding_id === findingId)
   if (!f) return `Görüntüleme bulgusu: ${findingId}`
   const loc = f.anatomical_location ? `${f.anatomical_location}: ` : ''
@@ -50,19 +47,34 @@ export function CitedText({
         part.type === 'text' ? (
           <span key={i}>{part.value}</span>
         ) : (
-          <span key={i} className="mx-0.5 inline-flex gap-0.5 align-baseline">
-            {part.aliases.map((alias) => {
+          <span key={i} className="mx-0.5 inline-flex gap-1 align-baseline">
+            {part.aliases.flatMap((alias, idx) => {
+              // Hidden separator so copied / PDF-extracted text reads "F2, S2", not "F2S2".
+              const sep =
+                idx > 0
+                  ? [
+                      <span key={`${alias}-sep`} className="sr-only">
+                        ,{' '}
+                      </span>,
+                    ]
+                  : []
               const ref = citationMap[alias]
               if (!ref) {
-                return (
-                  <span key={alias} title="Geçersiz atıf — modele verilen listede yok" className="rounded bg-rose-100 px-1 text-[11px] font-semibold text-rose-700 line-through">
+                return [
+                  ...sep,
+                  <span
+                    key={alias}
+                    title="Geçersiz atıf — modele verilen listede yok"
+                    className="rounded bg-rose-100 px-1 text-[11px] font-semibold text-rose-700 line-through"
+                  >
                     {alias}
-                  </span>
-                )
+                  </span>,
+                ]
               }
               if (alias.startsWith('S')) {
                 const src = byId.get(ref)
-                return (
+                return [
+                  ...sep,
                   <button
                     key={alias}
                     type="button"
@@ -71,18 +83,15 @@ export function CitedText({
                     className="rounded bg-teal-100 px-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-200"
                   >
                     {alias}
-                  </button>
-                )
+                  </button>,
+                ]
               }
-              return (
-                <span
-                  key={alias}
-                  title={findingTooltip(ref, findings)}
-                  className="rounded bg-violet-100 px-1 text-[11px] font-semibold text-violet-800"
-                >
+              return [
+                ...sep,
+                <span key={alias} title={findingTooltip(ref, findings)} className="rounded bg-violet-100 px-1 text-[11px] font-semibold text-violet-800">
                   {alias}
-                </span>
-              )
+                </span>,
+              ]
             })}
           </span>
         ),
