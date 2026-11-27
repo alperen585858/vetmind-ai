@@ -92,26 +92,6 @@ export async function fetchDemoDicomFiles(kind: DicomDemoKind, count = 12): Prom
   return out
 }
 
-/** Pick a demo fixture kind for case-detail viewing from stored hints (never invents clinical pixels). */
-export function resolveDemoKindForCase(input: {
-  dicomDemoKind?: DicomDemoKind
-  statusNote?: string
-  documents?: { name: string; type: string; rawText?: string }[]
-}): DicomDemoKind {
-  if (input.dicomDemoKind) return input.dicomDemoKind
-  const hay = [
-    input.statusNote ?? '',
-    ...(input.documents ?? []).flatMap((d) => [d.name, d.type, d.rawText ?? '']),
-  ]
-    .join(' ')
-    .toUpperCase()
-  if (/CERVICAL|SERV[Iİ]KAL|C-SPINE|CSPINE/.test(hay)) return 'cervical_mri'
-  if (/THORACOLUMBAR|TORAKOLOMBER|LOMBER|LUMBAR|TLSPINE/.test(hay)) return 'thoracolumbar_mri'
-  if (/\bCT\b|B[İI]LG[İI]SAYARLI|\bBT\b/.test(hay)) return 'brain_ct'
-  if (/\bXR\b|\bDX\b|THORAX|TORAKS|R[ÖO]NTGEN/.test(hay)) return 'thorax_xr'
-  return 'brain_mri'
-}
-
 /** PDF / JPG / PNG / text → quarantine + text extract (multimodal stub path). */
 export async function uploadDocuments(input: {
   files: File[]

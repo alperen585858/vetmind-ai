@@ -32,8 +32,34 @@ it('renders the clinical overview for an old messages link even with unread mess
   expect(html).toContain('id="case-panel-genel"')
   expect(html).toContain('Klinik Özet')
   expect(html).toContain('Görüntüleme')
-  expect(html).toContain('İşlem geçmişi')
   expect(html).not.toContain('3 okunmamış mesaj')
   expect(html).not.toContain('>Mesajlar<')
   expect(html).not.toContain('>DICOM görüntüle<')
+})
+
+it('shows one tab row with Report, Documents and History; no hidden module box (#73)', () => {
+  const html = renderToStaticMarkup(createElement(StaticRouter, {
+    location: '/vakalar/case-navigation?tab=gecmis',
+    children: createElement(CaseDetail),
+  }))
+  const tabs = [...html.matchAll(/role="tab"[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*([^<]+)</g)].map((m) => m[1].trim())
+  expect(tabs).toEqual(['Klinik Özet', 'Görüntüleme', 'AI Bulguları', 'Rapor', 'Kaynaklar', 'Belgeler', 'Geçmiş'])
+  expect(html).toContain('id="case-panel-gecmis"')
+  expect(html).not.toContain('Diğer vaka modülleri')
+  expect(html).not.toContain('Klinik Özete dön')
+  // #69: the progress box is gone from the overview; the timeline lives on History.
+  expect(html).not.toContain('Vaka ilerleme')
+})
+
+it('the overview shows translated modality/region and no status rows (#71)', () => {
+  const html = renderToStaticMarkup(createElement(StaticRouter, {
+    location: '/vakalar/case-navigation',
+    children: createElement(CaseDetail),
+  }))
+  expect(html).toContain('MR · Beyin')
+  expect(html).not.toContain('MR · BRAIN')
+  expect(html).not.toContain('Study UID')
+  expect(html).not.toContain('Sınıflandırma')
+  expect(html).not.toContain('DICOM görüntüleyiciye git')
+  expect(html).not.toContain('Durum Zaman Çizelgesi')
 })

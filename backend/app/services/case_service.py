@@ -442,7 +442,24 @@ class CaseService:
         subject = principal.subject
         return sum(1 for m in case.messages if subject not in m.read_by and m.author_id != subject)
 
-    def _to_summary(self, c: CaseRecord, *, principal: AuthPrincipal | None = None) -> CaseSummary:
+    def _reviewer_name(self, subject: str | None, cache: dict[str, str | None] | None = None) -> str | None:
+        """Display name of the assigned expert (#77); cached per listing call."""
+        if not subject:
+            return None
+        if cache is not None and subject in cache:
+            return cache[subject]
+        name = self._note_author_name(subject)
+        if cache is not None:
+            cache[subject] = name
+        return name
+
+    def _to_summary(
+        self,
+        c: CaseRecord,
+        *,
+        principal: AuthPrincipal | None = None,
+        name_cache: dict[str, str | None] | None = None,
+    ) -> CaseSummary:
         return CaseSummary(
             case_id=c.case_id,
             patient_name=c.patient_name,
@@ -454,6 +471,7 @@ class CaseService:
             status=c.status,
             priority=getattr(c, "priority", None) or "normal",
             assigned_reviewer_id=c.assigned_reviewer_id,
+            assigned_reviewer_name=self._reviewer_name(c.assigned_reviewer_id, name_cache),
             awaiting_review_since=getattr(c, "awaiting_review_since", None),
             review_due_at=getattr(c, "review_due_at", None),
             scenario=c.scenario,
@@ -494,6 +512,7 @@ class CaseService:
 
     def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
         summaries: list[CaseSummary] = []
+        names: dict[str, str | None] = {}
         for c in self._repo.list_cases():
             if principal is not None and not can_access_owned(
                 principal, c, isolation=self._tenant_isolation
@@ -509,7 +528,7 @@ class CaseService:
                 continue
             if principal is not None and principal.subject.strip().lower() in c.hidden_for:
                 continue
-            summaries.append(self._to_summary(c, principal=principal))
+            summaries.append(self._to_summary(c, principal=principal, name_cache=names))
         return summaries
 
     def list_worklist(

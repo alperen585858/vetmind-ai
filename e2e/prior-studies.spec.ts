@@ -61,8 +61,7 @@ test('prior study is listed, compared side by side and summarised in the report'
   await compare.getByRole('button', { name: 'Kapat' }).click()
   await expect(compare).toHaveCount(0)
 
-  await page.getByText('Diğer vaka modülleri').click()
-  await page.getByRole('button', { name: 'Rapor', exact: true }).click()
+  await page.getByRole('tab', { name: 'Rapor', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Önceki tetkike göre değişim' })).toBeVisible()
   await expect(page.getByText(/önceki tetkik ile karşılaştırıldı \[P1\]/)).toBeVisible()
 })

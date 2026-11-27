@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import {
-  AlertCircle,
   AlertTriangle,
   Brain,
   CheckCircle2,
   ChevronDown,
-  ClipboardList,
   FileText,
   Info,
   ListChecks,
   Loader2,
+  Settings2,
   Stethoscope,
   XCircle,
 } from 'lucide-react'
@@ -20,8 +19,8 @@ import { Citations } from '../../../shared/ui/CitationChip'
 import { EmptyState } from '../../../shared/ui/EmptyState'
 import { fmtDate } from '../../../shared/lib/format'
 import { displayFindingCode, displayFindingDescription } from '../../../shared/lib/displayClean'
+import { assessmentSeverityForFinding, isTechnicalFindingCode, normalizeFindingCode } from '../../../shared/api'
 import { CitedText } from '../../../shared/ui/CitedText'
-import { isTechnicalFindingCode } from '../../../shared/api/reports'
 import type { SystematicReviewStatus, ValidationItem, VetCase } from '../../../shared/types'
 
 const REVIEW_STYLE: Record<SystematicReviewStatus, string> = {
@@ -29,6 +28,14 @@ const REVIEW_STYLE: Record<SystematicReviewStatus, string> = {
   no_abnormality_seen: 'bg-emerald-50 text-emerald-800',
   not_assessable: 'bg-amber-50 text-amber-800',
   not_in_view: 'bg-slate-100 text-slate-500',
+}
+
+const FINDING_STATUSES = new Set(['suspected', 'possible', 'uncertain', 'not_assessed'])
+
+/** #75: "suspected" -> "şüpheli" / "suspected" by locale; unknown values pass through. */
+export function findingStatusLabel(t: (k: string) => string, status?: string | null): string {
+  if (!status) return ''
+  return FINDING_STATUSES.has(status) ? t(`cases.detail.findingStatus.${status}`) : status
 }
 
 const LIKELIHOOD_STYLE = {
@@ -65,7 +72,7 @@ function ValidationBox({ v }: { v: ValidationItem }) {
   )
 }
 
-export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: boolean }) {
+export function AssessmentView({ c }: { c: VetCase }) {
   const { t, locale } = useLocale()
   const ai = c.ai
   if (!ai) {
@@ -79,6 +86,9 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
       </Card>
     )
   }
+  const notes = ai.technicalNotes ?? []
+  const hasCoverage = Boolean(c.backendFindings?.analysis_coverage || c.backendFindings?.processing_metadata?.frames_detected)
+  const hasConflicts = (c.backendFindings?.potential_conflicts?.length ?? 0) > 0
   return (
     <div className="space-y-5">
       {c.backendFindings && (
@@ -90,93 +100,37 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
             ) : (
               <ul className="space-y-2">
                 {c.backendFindings.findings.map((f) => (
-                  <li key={f.finding_id} className="rounded-lg border border-slate-200 p-3">
-                    <p className="font-medium text-teal-800">{displayFindingCode(f.finding_code)}</p>
-                    <p className="mt-1">{displayFindingDescription(f.description)}</p>
+                  <li key={f.finding_id} className="rounded-lg border border-slate-200 p-3" data-testid="finding-card">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <SeverityBadge severity={assessmentSeverityForFinding(normalizeFindingCode(f.finding_code), f.finding_status)} />
+                      <p className="min-w-0 flex-1 font-medium text-navy-900">{displayFindingDescription(f.description)}</p>
+                    </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      {[displayFindingDescription(f.anatomical_location), f.finding_status].filter(Boolean).join(' · ')}
+                      {[displayFindingDescription(f.anatomical_location), findingStatusLabel(t, f.finding_status)].filter(Boolean).join(' · ')}
                     </p>
                     {(f.evidence_references?.length ?? 0) > 0 && (
-                      <p className="mt-1 font-mono text-[11px] text-violet-800">
-                        Kanıt: {f.evidence_references!.map((e) => e.description).filter(Boolean).join(' · ')}
+                      <p className="mt-1 text-[11px] text-violet-800">
+                        {t('cases.detail.evidenceLabel')} {f.evidence_references!.map((e) => e.description).filter(Boolean).join(' · ')}
                       </p>
                     )}
                     {f.uncertainty_note ? (
-                      <p className="mt-1 text-[11px] text-amber-800">Belirsizlik: {f.uncertainty_note}</p>
+                      <p className="mt-1 text-[11px] text-amber-800">{t('cases.detail.uncertaintyLabel')} {f.uncertainty_note}</p>
                     ) : null}
+                    <p className="mt-1 font-mono text-[10px] text-slate-400" title={t('cases.detail.findingCodeHint')}>
+                      {displayFindingCode(f.finding_code)}
+                    </p>
                   </li>
                 ))}
               </ul>
             )}
-            {(c.backendFindings.analysis_coverage || c.backendFindings.processing_metadata?.frames_detected) && (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                <p className="font-semibold text-navy-900">Analiz kapsamı</p>
-                {(() => {
-                  const cov = c.backendFindings!.analysis_coverage
-                  const meta = c.backendFindings!.processing_metadata
-                  const scope = cov?.analysis_scope ?? meta?.analysis_scope ?? '—'
-                  const detected = cov?.frames_detected ?? Number(meta?.frames_detected || 0)
-                  const decoded =
-                    cov?.frames_decoded ?? Number(meta?.frames_decoded || 0)
-                  const visual = cov?.frames_visually_analyzed ?? Number(meta?.frames_visually_analyzed || meta?.images_sent || 0)
-                  const files = cov?.dicom_files_total ?? Number(meta?.dicom_files_total || meta?.study_dicom_instances || 0)
-                  const series = cov?.series_total ?? Number(meta?.series_total || 0)
-                  const seriesOk = cov?.series_analyzed ?? Number(meta?.series_analyzed || 0)
-                  const skipped = cov?.frames_skipped ?? Number(meta?.frames_skipped || 0)
-                  const undec = cov?.dicom_files_undecodable ?? Number(meta?.dicom_files_undecodable || 0)
-                  const complete = cov?.analysis_complete ?? meta?.analysis_complete === 'true'
-                  const limited = cov?.limited_sampling ?? meta?.limited_sampling === 'true'
-                  const metadataOnly =
-                    detected > 0 && visual <= 0
-                      ? true
-                      : meta?.metadata_only === 'true'
-                  return (
-                    <>
-                      <p className="mt-1">
-                        Kapsam: <span className="font-mono font-semibold">{scope}</span>
-                        {complete
-                          ? limited
-                            ? ' (yüklenen kareler görsel tamam; çalışma hacmi değil)'
-                            : ' (hedef kareler görsel tamam)'
-                          : ' (tam görsel analiz değil)'}
-                        {limited && (
-                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">
-                            {t('cases.detail.limitedSampling')}
-                          </span>
-                        )}
-                      </p>
-                      {limited && cov?.limited_sampling_reason && (
-                        <p className="mt-1 text-amber-800">{cov.limited_sampling_reason}</p>
-                      )}
-                      <p className="mt-1">
-                        DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} ·
-                        decode {decoded} · görsel analiz {visual} · atlanan {skipped}
-                        {undec ? ` · çözülemeyen dosya ${undec}` : ''}
-                      </p>
-                      {metadataOnly && (
-                        <p className="mt-1 text-amber-800">
-                          Yalnızca metadata/envanter — görsel analiz yapılmadı.
-                        </p>
-                      )}
-                      {(cov?.series?.length || 0) > 0 && (
-                        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-[11px]">
-                          {cov!.series!.map((s, i) => (
-                            <li key={s.series_instance_uid || i}>
-                              {(s.series_description || s.series_instance_uid || 'seri').slice(0, 48)}
-                              {s.is_localizer ? ' [loc]' : ''}: tespit {s.frames_detected}
-                              {' · '}decode {s.frames_decoded ?? 0}
-                              {' · '}görsel {s.frames_visually_analyzed}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
+            {c.backendFindings.analysis_coverage?.limited_sampling && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 font-semibold">{t('cases.detail.limitedSampling')}</span>
+                {c.backendFindings.analysis_coverage.limited_sampling_reason}
+              </p>
             )}
             {(c.backendFindings.systematic_review?.length ?? 0) > 0 && (
-              <div className="mt-3 rounded-lg border border-slate-200 p-3">
+              <div className="rounded-lg border border-slate-200 p-3" data-testid="systematic-review">
                 <p className="flex items-center gap-2 font-semibold text-navy-900">
                   <ListChecks className="h-4 w-4" /> {t('cases.detail.systematicReview')}
                 </p>
@@ -201,53 +155,30 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
                 </ul>
               </div>
             )}
-            {(c.backendFindings.potential_conflicts?.length ?? 0) > 0 && (
-              <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
-                <p className="font-semibold">{t('cases.detail.potentialConflicts')}</p>
-                <ul className="mt-2 space-y-2">
-                  {c.backendFindings.potential_conflicts!.map((pc) => (
-                    <li key={pc.conflict_id} className="text-xs">
-                      <span className="font-mono font-semibold">{pc.conflict_id}</span>
-                      {(pc.reason_codes?.length ?? 0) > 0 && (
-                        <span className="ml-2 text-rose-800">[{pc.reason_codes!.join(', ')}]</span>
-                      )}
-                      {pc.group_key ? (
-                        <span className="ml-2 font-mono text-rose-700/80">group={pc.group_key}</span>
-                      ) : null}
-                      <p className="mt-0.5 text-rose-900/90">{pc.reason}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         </Card>
       )}
-      <div className={`grid gap-5 ${compact ? '' : 'xl:grid-cols-3'}`}>
-        <div className={`space-y-5 ${compact ? '' : 'xl:col-span-2'}`}>
+      {!c.backendFindings && ai.findings.length > 0 && (
+        <Card>
+          <CardHeader title={t('cases.detail.structuredFindings')} icon={<Brain className="h-5 w-5" />} />
+          <ul className="space-y-2 p-5">
+            {ai.findings.map((f, i) => (
+              <li key={i} className="flex items-start gap-2 rounded-lg border border-slate-200 p-3" data-testid="finding-card">
+                <SeverityBadge severity={f.severity} />
+                <p className="flex-1 text-sm text-navy-800">{f.text} <Citations ids={f.citations} /></p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="space-y-5 xl:col-span-2">
           <Card>
-            <CardHeader title={t('cases.detail.caseSummary')} subtitle={`${ai.model} · ${fmtDate(ai.generatedAt, locale)}`} icon={<Brain className="h-5 w-5" />} />
-            <CitedText
-              text={ai.summary}
-              citationMap={c.backendDraft?.citation_map}
-              sources={c.backendDraft?.rag_citations}
-              findings={c.backendFindings?.findings}
-              className="p-5 text-[15px] leading-relaxed text-navy-800"
+            <CardHeader
+              title={t('cases.detail.differentials')}
+              subtitle={`${t('cases.detail.differentialsSub')} · ${ai.model} · ${fmtDate(ai.generatedAt, locale)}`}
+              icon={<Stethoscope className="h-5 w-5" />}
             />
-          </Card>
-          <Card>
-            <CardHeader title={t('cases.detail.findingsOfNote')} icon={<AlertCircle className="h-5 w-5" />} />
-            <ul className="divide-y divide-slate-100">
-              {ai.findings.map((f, i) => (
-                <li key={i} className="flex items-start gap-3 px-5 py-3">
-                  <SeverityBadge severity={f.severity} />
-                  <p className="flex-1 text-sm text-navy-800">{f.text} <Citations ids={f.citations} /></p>
-                </li>
-              ))}
-            </ul>
-          </Card>
-          <Card>
-            <CardHeader title={t('cases.detail.differentials')} subtitle={t('cases.detail.differentialsSub')} icon={<Stethoscope className="h-5 w-5" />} />
             {!ai.differentials.length && (
               <p className="px-5 py-4 text-sm text-slate-500">
                 {(c.backendFindings?.findings.length ?? 0) > 0 &&
@@ -308,12 +239,6 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
               ))}
             </div>
           </Card>
-          <Card>
-            <CardHeader title={t('cases.detail.recommendedTests')} icon={<ClipboardList className="h-5 w-5" />} />
-            <ol className="list-decimal space-y-1.5 py-4 pl-10 pr-5 text-sm text-navy-800">
-              {ai.recommendedTests.map((t, i) => <li key={i}>{t}</li>)}
-            </ol>
-          </Card>
         </div>
         <div className="space-y-5">
           {(() => {
@@ -343,6 +268,106 @@ export function AssessmentView({ c, compact = false }: { c: VetCase; compact?: b
           })()}
         </div>
       </div>
+      {(notes.length > 0 || hasCoverage || hasConflicts) && (
+        // #75: technical output (pipeline notes, coverage, conflicts) is kept but folded away.
+        <details className="group rounded-xl border border-slate-200 bg-white" data-testid="ai-technical-details">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm font-semibold text-navy-900 marker:hidden">
+            <Settings2 className="h-4 w-4 text-slate-500" />
+            {t('cases.detail.technicalDetails')}
+            <ChevronDown className="ml-auto h-4 w-4 text-slate-500 transition group-open:rotate-180" />
+          </summary>
+          <div className="space-y-3 border-t border-slate-100 p-5 text-sm text-navy-800">
+            {notes.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-navy-900">{t('cases.detail.pipelineNotes')}</p>
+                <ul className="mt-1 space-y-1 font-mono text-[11px] text-slate-600">
+                  {notes.map((n, i) => (
+                    <li key={i} className="break-words">{n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(c.backendFindings!.analysis_coverage || c.backendFindings!.processing_metadata?.frames_detected) && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <p className="font-semibold text-navy-900">{t('cases.detail.analysisCoverage')}</p>
+                {(() => {
+                  const cov = c.backendFindings!.analysis_coverage
+                  const meta = c.backendFindings!.processing_metadata
+                  const scope = cov?.analysis_scope ?? meta?.analysis_scope ?? '—'
+                  const detected = cov?.frames_detected ?? Number(meta?.frames_detected || 0)
+                  const decoded =
+                    cov?.frames_decoded ?? Number(meta?.frames_decoded || 0)
+                  const visual = cov?.frames_visually_analyzed ?? Number(meta?.frames_visually_analyzed || meta?.images_sent || 0)
+                  const files = cov?.dicom_files_total ?? Number(meta?.dicom_files_total || meta?.study_dicom_instances || 0)
+                  const series = cov?.series_total ?? Number(meta?.series_total || 0)
+                  const seriesOk = cov?.series_analyzed ?? Number(meta?.series_analyzed || 0)
+                  const skipped = cov?.frames_skipped ?? Number(meta?.frames_skipped || 0)
+                  const undec = cov?.dicom_files_undecodable ?? Number(meta?.dicom_files_undecodable || 0)
+                  const complete = cov?.analysis_complete ?? meta?.analysis_complete === 'true'
+                  const limited = cov?.limited_sampling ?? meta?.limited_sampling === 'true'
+                  const metadataOnly =
+                    detected > 0 && visual <= 0
+                      ? true
+                      : meta?.metadata_only === 'true'
+                  return (
+                    <>
+                      <p className="mt-1">
+                        Kapsam: <span className="font-mono font-semibold">{scope}</span>
+                        {complete
+                          ? limited
+                            ? ' (yüklenen kareler görsel tamam; çalışma hacmi değil)'
+                            : ' (hedef kareler görsel tamam)'
+                          : ' (tam görsel analiz değil)'}
+                      </p>
+                      <p className="mt-1">
+                        DICOM dosya {files} · seri {seriesOk}/{series} · tespit {detected} ·
+                        decode {decoded} · görsel analiz {visual} · atlanan {skipped}
+                        {undec ? ` · çözülemeyen dosya ${undec}` : ''}
+                      </p>
+                      {metadataOnly && (
+                        <p className="mt-1 text-amber-800">
+                          Yalnızca metadata/envanter — görsel analiz yapılmadı.
+                        </p>
+                      )}
+                      {(cov?.series?.length || 0) > 0 && (
+                        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-[11px]">
+                          {cov!.series!.map((s, i) => (
+                            <li key={s.series_instance_uid || i}>
+                              {(s.series_description || s.series_instance_uid || 'seri').slice(0, 48)}
+                              {s.is_localizer ? ' [loc]' : ''}: tespit {s.frames_detected}
+                              {' · '}decode {s.frames_decoded ?? 0}
+                              {' · '}görsel {s.frames_visually_analyzed}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+            {(c.backendFindings!.potential_conflicts?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
+                <p className="font-semibold">{t('cases.detail.potentialConflicts')}</p>
+                <ul className="mt-2 space-y-2">
+                  {c.backendFindings!.potential_conflicts!.map((pc) => (
+                    <li key={pc.conflict_id} className="text-xs">
+                      <span className="font-mono font-semibold">{pc.conflict_id}</span>
+                      {(pc.reason_codes?.length ?? 0) > 0 && (
+                        <span className="ml-2 text-rose-800">[{pc.reason_codes!.join(', ')}]</span>
+                      )}
+                      {pc.group_key ? (
+                        <span className="ml-2 font-mono text-rose-700/80">group={pc.group_key}</span>
+                      ) : null}
+                      <p className="mt-0.5 text-rose-900/90">{pc.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   )
 }

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
-import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
 import {
   Brain,
   ClipboardList,
-  History,
   Image as ImageIcon,
   Info,
   Stethoscope,
@@ -13,13 +11,13 @@ import { useApp } from '../../../shared/shell/AppContext'
 import { useLocale } from '../../../shared/shell/LocaleContext'
 import { Card, CardHeader } from '../../../shared/ui/Card'
 import { Button } from '../../../shared/ui/Button'
-import { CaseProgressTracker } from '../CaseProgressTracker'
 import { localize } from '../../../shared/lib/neuroLocalization'
 import { toastErrorBody } from '../../../shared/lib/apiErrors'
 import { OwnerNameField } from '../../../shared/ui/OwnerNameField'
-import { fmtDate, fmtDateTimeLocal } from '../../../shared/lib/format'
+import { fmtDateTimeLocal } from '../../../shared/lib/format'
 import { USERS } from '../../../shared/demo/users'
-import { cleanClinicalHistory, displayClinic } from '../../../shared/lib/displayClean'
+import { cleanClinicalHistory, displayClinic, studyLabel } from '../../../shared/lib/displayClean'
+import { reviewerDisplay } from '../../../shared/lib/reviewer'
 import {
   appendCaseClinicalNote,
   closeCaseInfoRequest,
@@ -30,7 +28,6 @@ import {
   updateCaseOwner,
 } from '../../../shared/api'
 import type { BackendCaseRecord } from '../../../shared/types'
-import { analysisStatusLabel, expertReviewLabel } from '../../../shared/lib/caseMapper'
 import { NOT_EVALUATED, cranialNervesText, isEvaluated, isNeuroExamEmpty } from '../../../shared/lib/neuroExam'
 import type { VetCase } from '../../../shared/types'
 
@@ -43,7 +40,7 @@ function Row({ k, v }: { k: string; v: ReactNode }) {
   )
 }
 
-export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => void }) {
+export function Overview({ c }: { c: VetCase }) {
   const { role, pushToast, hydrateBackendCase } = useApp()
   const { t, locale } = useLocale()
   const isVet = role === 'vet' || role === 'clinic_owner'
@@ -163,8 +160,8 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
 
 
   return (
-    <div className="grid gap-6 xl:grid-cols-3">
-      <div className="space-y-6 xl:col-span-2">
+    <div>
+      <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader title={t('cases.detail.patient')} icon={<ClipboardList className="h-5 w-5" />} />
@@ -189,7 +186,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
                 />
               ) : null}
               <Row k={t('cases.detail.rowClinicVet')} v={[displayClinic(c.clinic), c.vetName].filter(Boolean).join(' · ') || '—'} />
-              <Row k={t('cases.detail.rowPriorityAssign')} v={`${c.priority}${c.assignedReviewerId ? ` · ${c.assignedReviewerId}` : ''}`} />
+              <Row k={t('cases.detail.rowPriorityAssign')} v={`${c.priority}${c.assignedReviewerId ? ` · ${reviewerDisplay(c, t)}` : ''}`} />
             </dl>
             {isVet && c.fromBackend && caseKey.startsWith('case-') && (
               <div className="space-y-3 border-t border-slate-100 px-5 py-4">
@@ -260,6 +257,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
               <Row k={t('cases.detail.rowCourse')} v={c.clinical.course} />
               <Row k={t('cases.detail.rowHistory')} v={cleanClinicalHistory(c.clinical.history) || '—'} />
               <Row k={t('cases.detail.rowMedications')} v={c.clinical.medications || '—'} />
+              {c.handoffNotes ? <Row k={t('cases.detail.rowHandoffNotes')} v={c.handoffNotes} /> : null}
             </dl>
             {(isVet || isExpert) && c.fromBackend && caseKey.startsWith('case-') && (
               <div className="space-y-2 border-t border-slate-100 px-5 py-3" data-testid="clinical-notes">
@@ -386,23 +384,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
         <Card>
           <CardHeader title={t('cases.detail.imagingClassification')} icon={<ImageIcon className="h-5 w-5" />} />
           <dl className="divide-y divide-slate-50 px-5 py-2">
-            <Row k={t('cases.detail.rowModalityRegion')} v={`${c.modality ?? '—'} · ${c.anatomicalRegion ?? '—'}`} />
-            <Row
-              k={t('cases.detail.rowClassification')}
-              v={
-                c.classificationConfirmed
-                  ? t('cases.detail.classificationConfirmed')
-                  : t('cases.detail.classificationPending')
-              }
-            />
-            <Row
-              k="Study UID"
-              v={
-                <span className="break-all font-mono text-xs" title={c.studyInstanceUid}>
-                  {c.studyInstanceUid ?? '—'}
-                </span>
-              }
-            />
+            <Row k={t('cases.detail.rowModalityRegion')} v={studyLabel(t, c.modality, c.anatomicalRegion) || '—'} />
             <Row
               k={t('cases.detail.rowSeriesImages')}
               v={
@@ -411,33 +393,7 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
                   : '—'
               }
             />
-            <Row k={t('cases.detail.rowAnalysis')} v={analysisStatusLabel(c.status, t)} />
-            <Row k={t('cases.detail.rowExpertReview')} v={expertReviewLabel(c.status, t)} />
-            <Row
-              k={t('cases.detail.rowReport')}
-              v={
-                c.status === 'onaylandi' ? (
-                  <LocalizedLink className="font-medium text-teal-700 hover:underline" to={`/raporlar/${c.id}`}>
-                    {t('cases.detail.openApprovedReport')}
-                  </LocalizedLink>
-                ) : c.backendDraft || c.aiDraft ? (
-                  <button type="button" className="font-medium text-teal-700 hover:underline" onClick={onOpenAiTab}>
-                    AI taslak — AI sekmesi
-                  </button>
-                ) : (
-                  t('cases.detail.notYet')
-                )
-              }
-            />
           </dl>
-          <div className="border-t border-slate-100 px-5 py-3">
-            <LocalizedLink
-              to={`/vakalar/${c.id}?tab=goruntu`}
-              className="text-sm font-medium text-teal-700 hover:underline"
-            >
-              {t('cases.detail.goToViewer')}
-            </LocalizedLink>
-          </div>
         </Card>
         <Card>
           <CardHeader title={t('cases.detail.neuroExam')} icon={<Brain className="h-5 w-5" />} action={loc && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">{t('cases.detail.likelyLocalization')} {loc.region}</span>} />
@@ -459,27 +415,6 @@ export function Overview({ c, onOpenAiTab }: { c: VetCase; onOpenAiTab: () => vo
             </div>
           )}
         </Card>
-      </div>
-      <div className="space-y-6">
-      <CaseProgressTracker status={c.status} handoffNotes={c.handoffNotes} />
-      <Card>
-        <CardHeader title={t('cases.detail.statusTimeline')} />
-        <ol className="relative px-5 py-4">
-          {c.timeline.map((timelineItem, i) => {
-            const last = i === c.timeline.length - 1
-            return (
-              <li key={i} className="relative flex gap-3 pb-5 last:pb-0">
-                {!last && <span className="absolute left-[7px] top-4 h-full w-px bg-slate-200" />}
-                <span className={`relative mt-1 h-[15px] w-[15px] shrink-0 rounded-full border-2 ${last ? 'border-teal-500 bg-teal-100' : 'border-slate-300 bg-white'}`} />
-                <div>
-                  <p className="text-sm font-medium text-navy-900">{timelineItem.label}</p>
-                  <p className="text-xs text-slate-500">{fmtDate(timelineItem.date, locale)}{timelineItem.by ? ` · ${timelineItem.by}` : ''}</p>
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      </Card>
       </div>
     </div>
   )

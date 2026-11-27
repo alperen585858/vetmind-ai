@@ -236,24 +236,23 @@ export function verdictsToValidation(report: BackendDraftReport): ValidationItem
 }
 
 export function pipelineToAssessment(findings: BackendFindings, report: BackendDraftReport): AIAssessment {
-  const mapped = findings.findings
-    // Technique / descriptive anatomy are not "findings to pay attention to"; they stay in structured findings.
-    .filter((f) => !isTechnicalFindingCode(f.finding_code))
-    .map((f) => {
-      const code = normalizeFindingCode(f.finding_code)
-      return {
-        text: `[${code}] (${f.finding_status}) ${f.description}`,
-        severity: assessmentSeverityForFinding(code, f.finding_status),
-      }
-    })
-  const noFindings = findings.findings.length === 0
+  const mapped = findings.findings.map((f) => {
+    const code = normalizeFindingCode(f.finding_code)
+    // #75: plain description; status and severity are shown as labels, internal codes not in the text.
+    return {
+      text: f.description,
+      severity: assessmentSeverityForFinding(code, f.finding_status),
+    }
+  })
+  const warnings = findings.warnings.filter((w) => !isDisclaimerWarning(w))
+  // Missing inputs and analysis limitations are clinically actionable → validation;
+  // remaining pipeline notes stay under the folded technical details (#75).
+  const isCategorized = (w: string) => w.trim().startsWith(MISSING_PREFIX) || w.trim().startsWith(LIMITATION_PREFIX)
   return {
     summary: report.impression.text,
     findings: mapped.length
       ? mapped
-      : noFindings
-        ? [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }]
-        : [{ text: 'Odak anormallik iddiası yok; teknik ve anatomik notlar yapılandırılmış bulgularda. Bu, çalışmanın normal olduğu anlamına gelmez.', severity: 'Düşük' }],
+      : [{ text: 'Görüntüleme bağdaştırıcısı bulgu döndürmedi. Bu, hastalığın yokluğu anlamına gelmez.', severity: 'Orta' }],
     differentials: (report.differentials ?? []).map((d) => ({
       name: d.name,
       probability: 0,
@@ -264,10 +263,8 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       aliases: d.citations,
     })),
     recommendedTests: splitRecommendations(report.recommendations.text),
-    validation: [
-      ...verdictsToValidation(report),
-      ...findings.warnings.filter((w) => !isDisclaimerWarning(w)).map(warningToValidation),
-    ],
+    validation: [...verdictsToValidation(report), ...warnings.filter(isCategorized).map(warningToValidation)],
+    technicalNotes: warnings.filter((w) => !isCategorized(w)),
     model: `${findings.source_model_id} + ${report.generation.model_id}`,
     generatedAt: report.generation.generated_at,
   }

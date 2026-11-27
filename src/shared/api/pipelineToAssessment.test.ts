@@ -72,7 +72,7 @@ describe('assessmentSeverityForFinding', () => {
 })
 
 describe('pipelineToAssessment', () => {
-  it('embeds status in text and demotes technical suspected findings', () => {
+  it('keeps internal codes and raw status out of the text; demotes technical findings', () => {
     const ai = pipelineToAssessment(
       minimalFindings([
         {
@@ -88,27 +88,21 @@ describe('pipelineToAssessment', () => {
       ]),
       minimalReport(),
     )
-    // Technique notes stay in structured findings; the attention list shows only lesion claims.
-    expect(ai.findings).toHaveLength(1)
-    expect(ai.findings[0].severity).toBe('Orta')
-    expect(ai.findings[0].text).toContain('(possible)')
-    expect(ai.findings[0].text).toContain('[VENTRICLE-DILATION]')
-  })
-
-  it('says there is no focal claim when every finding is technical', () => {
-    const ai = pipelineToAssessment(
-      minimalFindings([
-        { finding_code: 'IMAGE-QUALITY', finding_status: 'uncertain' },
-        { finding_code: 'BRAIN-STRUCTURE', finding_status: 'uncertain' },
-      ]),
-      minimalReport(),
-    )
-    expect(ai.findings).toHaveLength(1)
     expect(ai.findings[0].severity).toBe('Düşük')
-    expect(ai.findings[0].text).toMatch(/Odak anormallik iddiası yok/)
+    expect(ai.findings[0].text).toBe('net izlenmektedir')
+    expect(ai.findings[1].severity).toBe('Orta')
+    expect(ai.findings[1].text).toBe('genişleme')
   })
 
-  it('builds validation from verifier verdicts and categorized warnings', () => {
+  it('puts pipeline notes under technical notes, not in validation (#75)', () => {
+    const f = minimalFindings([{}])
+    f.warnings = ['ImagingModelInput v1.0.0 metadata_only=True; pixel_analysis_authorized=False']
+    const ai = pipelineToAssessment(f, minimalReport())
+    expect(ai.validation).toEqual([])
+    expect(ai.technicalNotes).toEqual(f.warnings)
+  })
+
+  it('validation carries verifier verdicts plus missing inputs and limitations; other notes stay technical', () => {
     const findings = minimalFindings([{ finding_code: 'VENTRICLE-DILATION' }])
     findings.warnings = [
       'Eksik bilgi: ırk, yaş girilmemiş. Irka özgü varyantlar…',
@@ -130,10 +124,10 @@ describe('pipelineToAssessment', () => {
         },
       ],
     }
-    const v = pipelineToAssessment(findings, report).validation
-    expect(v.map((x) => x.kind)).toEqual(['ok', 'unsupported', 'missing', 'note', 'note'])
-    expect(v[2].text).toBe('ırk, yaş girilmemiş')
-    expect(v[1].detail).toContain('overstated certainty')
-    expect(v.some((x) => x.text === 'Pipeline notu')).toBe(false)
+    const ai = pipelineToAssessment(findings, report)
+    expect(ai.validation.map((x) => x.kind)).toEqual(['ok', 'unsupported', 'missing', 'note'])
+    expect(ai.validation[2].text).toBe('ırk, yaş girilmemiş')
+    expect(ai.validation[1].detail).toContain('overstated certainty')
+    expect(ai.technicalNotes).toEqual([findings.warnings[2]])
   })
 })
