@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   AlertTriangle,
-  Clock,
   FilePlus2,
-  FileText,
   FolderOpen,
-  Inbox,
   RefreshCw,
   Search,
   X,
@@ -17,6 +14,7 @@ import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { CaseTable } from '../../shared/ui/CaseTable'
+import { CardWave } from '../../shared/ui/CardWave'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
 import type { CaseStatus, VetCase } from '../../shared/types'
@@ -26,12 +24,28 @@ import { reviewerDisplay } from '../../shared/lib/reviewer'
 type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
 
-/** Same flat colours as the radiologist worklist cards (ReviewQueue). */
-const CARD_COLORS = {
-  teal: { active: 'border-teal-700 bg-teal-600 shadow-md', idle: 'border-teal-200 bg-teal-50 hover:border-teal-400', icon: 'bg-teal-600 text-white', label: 'text-teal-800', value: 'text-teal-900' },
-  amber: { active: 'border-amber-600 bg-amber-500 shadow-md', idle: 'border-amber-200 bg-amber-50 hover:border-amber-400', icon: 'bg-amber-500 text-white', label: 'text-amber-800', value: 'text-amber-900' },
-  emerald: { active: 'border-emerald-700 bg-emerald-600 shadow-md', idle: 'border-emerald-200 bg-emerald-50 hover:border-emerald-400', icon: 'bg-emerald-600 text-white', label: 'text-emerald-800', value: 'text-emerald-900' },
-  rose: { active: 'border-rose-700 bg-rose-600 shadow-md', idle: 'border-rose-200 bg-rose-50 hover:border-rose-400', icon: 'bg-rose-600 text-white', label: 'text-rose-800', value: 'text-rose-900' },
+/** Light pastel cards with a soft wave, same as the radiologist worklist (ReviewQueue). */
+const CARD_STYLE = {
+  teal: {
+    card: 'from-teal-50/90 via-white to-white ring-teal-100',
+    active: 'ring-2 ring-teal-400 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
+    wave: '#5eead4',
+  },
+  amber: {
+    card: 'from-amber-50 via-amber-50/40 to-white ring-amber-100',
+    active: 'ring-2 ring-amber-400 shadow-[0_14px_34px_-14px_rgba(217,119,6,0.5)]',
+    wave: '#fcd34d',
+  },
+  emerald: {
+    card: 'from-emerald-50 via-white to-white ring-emerald-100',
+    active: 'ring-2 ring-emerald-400 shadow-[0_14px_34px_-14px_rgba(5,150,105,0.5)]',
+    wave: '#6ee7b7',
+  },
+  rose: {
+    card: 'from-rose-50 via-white to-white ring-rose-100',
+    active: 'ring-2 ring-rose-400 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.5)]',
+    wave: '#fda4af',
+  },
 } as const
 
 type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER
@@ -166,44 +180,48 @@ export default function CaseList() {
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
   const hasFilters = Boolean(q.trim() || status || species || modality || expert || urgentOnly)
   const selectClass =
-    'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20'
+    'rounded-xl bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-teal-500/50'
 
-  const cards: { id: StatusFilter; label: string; n: number; icon: ReactNode; tone: keyof typeof CARD_COLORS }[] = [
-    { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0), icon: <Inbox className="h-5 w-5" aria-hidden />, tone: 'teal' },
-    { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress, icon: <Clock className="h-5 w-5" aria-hidden />, tone: 'amber' },
-    { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved, icon: <FileText className="h-5 w-5" aria-hidden />, tone: 'emerald' },
-    { id: 'failed', label: t(STATUS_META.analiz_basarisiz.labelKey), n: counts.failed, icon: <AlertTriangle className="h-5 w-5" aria-hidden />, tone: 'rose' },
+  const cards: { id: StatusFilter; label: string; n: number; hint: string; tone: keyof typeof CARD_STYLE }[] = [
+    { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0), hint: t('cases.cardAllHint'), tone: 'teal' },
+    { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress, hint: t('cases.cardInProgressHint'), tone: 'amber' },
+    { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved, hint: t('cases.cardApprovedHint'), tone: 'emerald' },
+    {
+      id: 'failed',
+      label: t(STATUS_META.analiz_basarisiz.labelKey),
+      n: counts.failed,
+      hint: counts.failed ? t('cases.cardFailedHint') : t('cases.cardFailedNone'),
+      tone: 'rose',
+    },
   ]
 
   return (
     <>
       <div className="vm-fade-up space-y-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm">
-              <FolderOpen className="h-6 w-6" aria-hidden />
-            </span>
-            <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-[color:var(--vm-sidebar,#102a43)] sm:text-3xl">
-                {t('nav.cases')}
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-600">{t('cases.subtitle')}</p>
-            </div>
+          <div>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-[#102a43] sm:text-4xl">{t('nav.cases')}</h1>
+            <p className="mt-1.5 text-sm text-slate-500">{t('cases.subtitle')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
+            <button
+              type="button"
               onClick={() => void onSync()}
               disabled={backendSyncing}
-              icon={<RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} aria-hidden />}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50"
             >
+              <RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} aria-hidden />
               {t('common.refresh')}
-            </Button>
+            </button>
             {role === 'vet' && (
-              <Button size="sm" icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
+              <button
+                type="button"
+                onClick={() => nav('/vakalar/yeni')}
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-3.5 py-2 text-sm font-semibold text-white shadow-[0_6px_16px_-6px_rgba(13,148,136,0.7)] transition hover:bg-teal-700"
+              >
+                <FilePlus2 className="h-4 w-4" aria-hidden />
                 {t('nav.newCase')}
-              </Button>
+              </button>
             )}
           </div>
         </header>
@@ -226,7 +244,7 @@ export default function CaseList() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label={t('cases.viewTabs')}>
           {cards.map((card) => {
             const active = status === card.id
-            const c = CARD_COLORS[card.tone]
+            const st = CARD_STYLE[card.tone]
             return (
               <button
                 key={card.id || 'all'}
@@ -234,39 +252,35 @@ export default function CaseList() {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setStatus(active && card.id ? '' : card.id)}
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${
-                  active ? c.active : c.idle
+                className={`relative flex min-h-[128px] items-start overflow-hidden rounded-3xl bg-gradient-to-br px-4 pb-5 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
+                  active ? st.active : ''
                 }`}
               >
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-white/20 text-white' : c.icon}`}>
-                  {card.icon}
-                </span>
-                <span className="min-w-0">
-                  <span className={`block text-xs font-semibold ${active ? 'text-white/85' : c.label}`}>{card.label}</span>
-                  <span className={`block font-display text-2xl font-bold tabular-nums leading-tight ${active ? 'text-white' : c.value}`}>
-                    {card.n}
-                  </span>
+                <CardWave color={st.wave} />
+                <span className="relative min-w-0">
+                  <span className="block text-sm font-semibold leading-snug text-slate-700">{card.label}</span>
+                  <span className="mt-1 block font-display text-4xl font-bold leading-none tabular-nums text-[#102a43]">{card.n}</span>
+                  <span className="mt-2.5 block text-xs font-medium leading-snug text-slate-500">{card.hint}</span>
                 </span>
               </button>
             )
           })}
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-teal-100 bg-teal-50/60 px-4 py-3 xl:flex-row xl:items-center">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <label className="relative block min-w-0 flex-1">
               <span className="sr-only">{t('cases.searchCasesAria')}</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
               <input
                 type="search"
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+                className="w-full rounded-xl bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm outline-none ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/50"
                 placeholder={t('cases.listSearchPlaceholder')}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
             </label>
             <div className="flex flex-wrap items-center gap-2">
-              <div role="radiogroup" aria-label={t('review.filterModalityLabel')} className="inline-flex rounded-lg border border-teal-200 bg-white p-0.5">
+              <div role="radiogroup" aria-label={t('review.filterModalityLabel')} className="inline-flex gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
                 {MODALITIES.map((m) => {
                   const active = modality === m
                   return (
@@ -276,8 +290,10 @@ export default function CaseList() {
                       role="radio"
                       aria-checked={active}
                       onClick={() => setModality(m)}
-                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                        active ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
+                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                        active
+                          ? 'bg-teal-600 text-white shadow-[0_4px_12px_-4px_rgba(13,148,136,0.7)]'
+                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                       }`}
                     >
                       {m ? t(`review.modality${m}`) : t('review.allModalities')}
@@ -332,8 +348,9 @@ export default function CaseList() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 px-5 py-3 text-xs text-slate-500">
-            <span>{t('cases.subtitle')}</span>
+
+        <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="flex items-center justify-end px-5 py-2.5 text-xs text-slate-500">
             <span className="tabular-nums">{t('cases.showingCount', { shown: filtered.length, total: cases.length })}</span>
           </div>
 

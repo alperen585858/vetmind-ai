@@ -1170,7 +1170,12 @@
       "report_delivered": "Rapor kliniğe iletildi",
       "ai_regenerated": "AI taslağı yeniden oluşturuldu",
       "vet_report_email_sent": "Rapor e-postası gönderildi"
-    }
+    },
+    "cardAllHint": "Tüm vakalarınız",
+    "cardInProgressHint": "Rapor bekleniyor",
+    "cardApprovedHint": "PDF raporu hazır",
+    "cardFailedHint": "Tekrar gönderilmeli",
+    "cardFailedNone": "Sorunlu vaka yok"
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",
