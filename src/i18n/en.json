@@ -873,7 +873,7 @@
       "rowHyperesthesia": "Spinal hyperesthesia",
       "rowHistory": "Clinical history",
       "rowMedications": "Medications",
-      "addClinicalNote": "Add clinical note (previous history is kept)",
+      "addClinicalNote": "New information",
       "requestPlaceholder": "Request text",
       "openRequest": "Send request",
       "replyLabel": "Reply:",
@@ -997,7 +997,7 @@
       "sample": "Sample",
       "chooseFile": "Choose file",
       "loadSample": "Load sample",
-      "toastNoteAdded": "Clinical note added",
+      "toastNoteAdded": "Additional clinical information saved",
       "toastNoteFailed": "Could not add the note",
       "toastDocFailed": "Could not attach the document",
       "patient": "Patient",
@@ -1045,7 +1045,11 @@
         "partial": "Partially supported",
         "unsupported": "Not supported by evidence",
         "contradicted": "Contradicted by evidence"
-      }
+      },
+      "clinicalNotesTitle": "Additional clinical information",
+      "clinicalNotesHint": "Add clinical information learned after the case was sent; the assigned radiologist is notified. The original history is kept.",
+      "clinicalNotePlaceholder": "E.g. Deep pain lost today; paraplegic at the follow-up exam.",
+      "saveClinicalNote": "Add information"
     },
     "processing": {
       "title": "AI processing",

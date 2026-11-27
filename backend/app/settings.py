@@ -19,10 +19,11 @@ class Settings:
     database_url: str | None = None
     async_analyze_delay_ms: int = 400
     rag_backend: str = "embedding"  # "lexical" | "embedding"
-    # Legacy JSON index: only read once to migrate into Chroma, or used when rag_store="json".
+    # Legacy JSON index: read once to migrate into pgvector / Chroma, or used when rag_store="json".
     rag_index_path: Path | None = None
-    # Where RAG vectors live (#103): "chroma" (default) or "json" (single file, old behaviour).
-    rag_store: str = "chroma"
+    # Where RAG vectors live (#117): "auto" (default) = "pgvector" when records are in PostgreSQL,
+    # else "json". "chroma" (#103) is optional and needs requirements-chroma.txt.
+    rag_store: str = "auto"
     chroma_path: Path | None = None
     # Chroma server (e.g. http://chroma:8000); empty = local folder at chroma_path.
     chroma_url: str | None = None
@@ -272,9 +273,9 @@ def load_settings() -> Settings:
         rag_backend = "embedding"
     rag_index_raw = os.getenv("VETMIND_RAG_INDEX_PATH")
     rag_index_path = Path(rag_index_raw) if rag_index_raw else _default_rag_index_path()
-    rag_store = os.getenv("VETMIND_RAG_STORE", "chroma").strip().lower()
-    if rag_store not in {"chroma", "json"}:
-        rag_store = "chroma"
+    rag_store = os.getenv("VETMIND_RAG_STORE", "auto").strip().lower()
+    if rag_store not in {"auto", "pgvector", "chroma", "json"}:
+        rag_store = "auto"
     chroma_raw = os.getenv("VETMIND_CHROMA_PATH")
     chroma_path = Path(chroma_raw) if chroma_raw else _default_chroma_path()
     chroma_url = (os.getenv("VETMIND_CHROMA_URL") or "").strip() or None

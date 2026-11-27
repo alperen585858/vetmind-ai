@@ -259,6 +259,31 @@ class CaseCollaborationService(HostBound):
         self._emit_audit("case.ai_chat.clear", principal=principal, resource=case_id)
         return []
 
+    def _note_author_name(self, subject: str | None) -> str | None:
+        """Name to show next to a note: the user's own display name (Settings), else the
+        directory name; None when only the e-mail prefix is known (the UI falls back)."""
+        if not subject or subject == "anonymous":
+            return None
+        fallback = subject.split("@")[0]
+        candidates: list[object] = []
+        store = getattr(self, "_user_settings", None)
+        lookup = getattr(store, "get_stored", None) if store is not None else None
+        if lookup is not None:
+            try:
+                candidates.append(getattr(lookup(subject), "display_name", None))
+            except Exception:  # noqa: BLE001 — display only, never blocks the note
+                pass
+        directory = getattr(self, "_workflow_store", None)
+        if directory is not None and hasattr(directory, "get_user"):
+            try:
+                candidates.append(getattr(directory.get_user(subject), "display_name", None))
+            except Exception:  # noqa: BLE001 — display only
+                pass
+        for name in candidates:
+            if isinstance(name, str) and name.strip() and name.strip() != fallback:
+                return name.strip()[:120]
+        return None
+
     def append_clinical_note(
         self, case_id: str, payload: CaseNoteCreate, *, principal: AuthPrincipal
     ) -> CaseRecord:
@@ -269,13 +294,13 @@ class CaseCollaborationService(HostBound):
             body=payload.body.strip(),
             author_subject=principal.subject,
             author_role=principal.role,
+            author_name=self._note_author_name(principal.subject),
             kind="clinical",
         )
+        # Notes stay a separate list (#68): the free-text history is not touched, so the
+        # complaint / history fields never show a raw "[<time> · <subject>]" stamp. Models
+        # read the notes as their own section (app.llm.clinical_notes).
         case.clinical_notes_log = [*case.clinical_notes_log, entry]
-        # Append to free-text history without losing prior content.
-        prior = (case.clinical_history or "").rstrip()
-        stamp = f"[{entry.created_at.isoformat()} · {principal.subject}] {entry.body}"
-        case.clinical_history = f"{prior}\n\n{stamp}".strip() if prior else stamp
         append_activity(case, kind="clinical_note", actor_subject=principal.subject, detail=entry.note_id)
         case.updated_at = _now()
         saved = self._repo.save_case(case)
@@ -305,6 +330,7 @@ class CaseCollaborationService(HostBound):
             body=payload.body.strip(),
             author_subject=principal.subject,
             author_role=principal.role,
+            author_name=self._note_author_name(principal.subject),
             kind="internal",
         )
         case.internal_notes = [*case.internal_notes, entry]

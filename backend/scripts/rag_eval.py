@@ -5,6 +5,7 @@ Run (from backend/):
   python scripts/rag_eval.py            # ablation ladder: baseline -> production config
   python scripts/rag_eval.py --details  # also print per-case retrieved docs
   python scripts/rag_eval.py --store chroma  # same ladder searched through ChromaDB
+  VETMIND_RAG_EVAL_DATABASE_URL=postgresql://... python scripts/rag_eval.py --store pgvector
 
 Writes eval/results/rag-<timestamp>.md and .json. Synthetic set — not clinical validation.
 """
@@ -68,7 +69,7 @@ def main() -> int:
     parser.add_argument("--details", action="store_true", help="print per-case tables too")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--no-ollama", action="store_true", help="skip the bge-m3 rows")
-    parser.add_argument("--store", choices=["memory", "chroma"], default="memory",
+    parser.add_argument("--store", choices=["memory", "chroma", "pgvector"], default="memory",
                         help="vector store to search (results must match; only storage differs)")
     args = parser.parse_args()
 

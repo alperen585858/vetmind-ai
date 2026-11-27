@@ -21,12 +21,14 @@ from app.schemas.enums import (
     AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species,
 )
 from app.schemas.findings import StructuredFindings
+from app.llm.clinical_notes import clinical_notes_text, history_with_notes, strip_note_stamps
 from app.schemas.report import DraftReport, ReportAnatomyTerminology
 
 
 def build_rag_query(case: CaseRecord, findings: StructuredFindings) -> str:
     """Turkish content query (region/modality words, history, finding text; no enum codes)."""
-    history = case.clinical_history or ""
+    # Clean history + notes added after sending (#68); no legacy "[time · user]" stamps.
+    history = history_with_notes(case)
     structured = case.clinical_history_structured
     if structured is not None and structured.complaint and structured.complaint.strip() not in history:
         history = f"{structured.complaint.strip()}. {history}".strip()
@@ -75,8 +77,12 @@ _STRUCTURED_HISTORY_LABELS = (
 
 
 def compose_history(case: CaseRecord) -> str:
-    """Free-text + structured history (handoff notes excluded), unredacted."""
-    parts = [case.clinical_history.strip()] if case.clinical_history and case.clinical_history.strip() else []
+    """Free-text + structured history (handoff notes excluded), unredacted.
+
+    Clinical notes added after the case was sent come last as their own section (#68).
+    """
+    history = strip_note_stamps(case.clinical_history)
+    parts = [history] if history else []
     structured = case.clinical_history_structured
     if structured is not None:
         for attr, label in _STRUCTURED_HISTORY_LABELS:
@@ -87,6 +93,9 @@ def compose_history(case: CaseRecord) -> str:
         neuro = neuro_exam_text(structured.neuro_exam)
         if neuro:
             parts.append(neuro)
+    notes = clinical_notes_text(case)
+    if notes:
+        parts.append(notes)
     return "\n".join(parts)
 
 

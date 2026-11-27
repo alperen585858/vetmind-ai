@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import base64
+import time
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -60,6 +62,20 @@ def test_secret_box_round_trip_and_key_mismatch() -> None:
 
 # --- API helpers -------------------------------------------------------------------------
 
+
+
+@pytest.fixture(autouse=True)
+def _frozen_totp_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Freeze the TOTP clock in the middle of a 30-second step for every test.
+
+    Codes belong to 30-second steps. When a test crossed a step boundary between enabling 2FA
+    and its next request, the code it meant as a replay of the enable step became a fresh,
+    valid one, so the test failed now and then. Only the TOTP module's clock is frozen; tests
+    that pass ``now=`` explicitly are unaffected.
+    """
+    step = totp.STEP_SECONDS
+    frozen = (time.time() // step) * step + step / 2
+    monkeypatch.setattr(totp, "time", SimpleNamespace(time=lambda: frozen))
 
 def _app(tmp_path: Path, **overrides) -> tuple[TestClient, AppContainer]:
     settings = replace(

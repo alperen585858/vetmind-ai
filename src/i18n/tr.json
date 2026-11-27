@@ -873,7 +873,7 @@
       "rowHyperesthesia": "Spinal hiperestezi",
       "rowHistory": "Klinik geçmiş",
       "rowMedications": "İlaçlar",
-      "addClinicalNote": "Klinik not ekle (önceki öykü korunur)",
+      "addClinicalNote": "Yeni bilgi",
       "requestPlaceholder": "İstek metni",
       "openRequest": "İstek gönder",
       "replyLabel": "Yanıt:",
@@ -997,7 +997,7 @@
       "sample": "Örnek",
       "chooseFile": "Dosya seç",
       "loadSample": "Örnek yükle",
-      "toastNoteAdded": "Klinik not eklendi",
+      "toastNoteAdded": "Ek klinik bilgi kaydedildi",
       "toastNoteFailed": "Not eklenemedi",
       "toastDocFailed": "Belge eklenemedi",
       "patient": "Hasta",
@@ -1045,7 +1045,11 @@
         "partial": "Kısmen destekleniyor",
         "unsupported": "Kanıtla desteklenmiyor",
         "contradicted": "Kanıtla çelişiyor"
-      }
+      },
+      "clinicalNotesTitle": "Klinik öyküye ek bilgi",
+      "clinicalNotesHint": "Vaka gönderildikten sonra öğrendiğiniz klinik bilgiyi ekleyin; atanmış uzmana bildirim gider. Önceki öykü değişmez.",
+      "clinicalNotePlaceholder": "Örn. Derin ağrı bugün kayboldu; kontrol muayenesinde parapleji.",
+      "saveClinicalNote": "Bilgiyi ekle"
     },
     "processing": {
       "title": "AI İşleme",

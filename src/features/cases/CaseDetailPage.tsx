@@ -158,7 +158,10 @@ export default function CaseDetail() {
     }
     // A list/worklist summary also has modality but no findings: only skip the fetch when the
     // detail data is already here (otherwise the AI tab stayed on "AI çalışıyor…" forever).
-    if (c?.fromBackend && (c.ai || c.backendFindings || c.status === 'taslak')) {
+    // A full record loaded at the current status counts too (#116): drafts used to be skipped
+    // outright to avoid refetching a record without AI output, so their history never loaded.
+    // A status change (e.g. analysis finished) still fetches again.
+    if (c?.fromBackend && (c.ai || c.backendFindings || c.detailLoadedStatus === c.status)) {
       setLoading(false)
       setLoadError(null)
       return

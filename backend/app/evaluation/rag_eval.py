@@ -183,14 +183,27 @@ def _backend_for(config: RetrievalConfig):  # noqa: ANN202
 
 
 def build_retriever(config: RetrievalConfig, store_kind: str = "memory") -> EmbeddingRagRetriever:
-    """``store_kind`` "memory" (JSON store, no file) or "chroma" (in-memory Chroma collection)."""
+    """``store_kind`` "memory" (JSON store, no file), "chroma" (in-memory Chroma collection) or
+    "pgvector" (a throwaway PostgreSQL database named by VETMIND_RAG_EVAL_DATABASE_URL)."""
     if store_kind == "chroma":
         from app.rag.chroma_store import ChromaVectorStore
 
         store = ChromaVectorStore(backend=_backend_for(config))
+    elif store_kind == "pgvector":
+        import os
+
+        from app.rag.pgvector_store import PgVectorStore
+
+        url = os.getenv("VETMIND_RAG_EVAL_DATABASE_URL")
+        if not url:
+            # Never the app database: every config wipes the table.
+            raise RuntimeError("--store pgvector needs VETMIND_RAG_EVAL_DATABASE_URL (a throwaway database).")
+        store = PgVectorStore(url, _backend_for(config))
+        store._conn.execute("DELETE FROM rag_chunks")  # noqa: SLF001 — fresh table per config
+        store._conn.commit()  # noqa: SLF001
     else:
         store = JsonVectorStore(path=None, backend=_backend_for(config))
-    store.reindex_seed(persist=store_kind == "chroma")
+    store.reindex_seed(persist=store_kind in {"chroma", "pgvector"})
     return EmbeddingRagRetriever(
         store=store,
         min_cosine=config.min_cosine,

@@ -277,7 +277,7 @@ def _stage_rows(stage: str, container: Any, s: Any, usage: dict[str, Any], llm_i
         emb = container.rag_embedding.as_dict() if getattr(container, "rag_embedding", None) else None
         store = container.vector_store.kind if getattr(container, "vector_store", None) is not None else None
         rag_code = ("backend/app/rag/retriever.py", "backend/app/rag/relevance.py",
-                    "backend/app/rag/chroma_store.py", "backend/app/rag/ollama_embeddings.py")
+                    "backend/app/rag/pgvector_store.py", "backend/app/rag/ollama_embeddings.py")
         if getattr(container, "rag", None) is None:
             rag = _node("rag", "RAG Bilgi Bankası", OFF, "Kapalı", code=rag_code)
         else:

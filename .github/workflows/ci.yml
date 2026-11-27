@@ -74,7 +74,8 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install backend dependencies
-        run: pip install -r requirements.txt
+        # + the optional ChromaDB client, so the Chroma store tests (#103) keep running
+        run: pip install -r requirements.txt -r requirements-chroma.txt
       - name: Full pytest (CPU; vision extras optional/skip)
         run: python -m pytest -q --tb=line
       - name: Evaluation package tests (repo-root evaluation/)
@@ -91,7 +92,8 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector for the RAG store tests (#117)
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: vetmind
           POSTGRES_PASSWORD: vetmind
@@ -115,7 +117,7 @@ jobs:
       - name: Schema from an empty database (alembic upgrade head)
         run: alembic -x url=$VETMIND_TEST_DATABASE_URL upgrade head
       - name: Store and API tests on PostgreSQL
-        run: python -m pytest -q --tb=short -m postgres tests/test_sql_stores.py tests/test_postgres_app.py
+        run: python -m pytest -q --tb=short -m postgres tests/test_sql_stores.py tests/test_postgres_app.py tests/test_rag_pgvector.py
 
   ml-spine:
     name: ML spine segmentation (CPU smoke, synthetic data)
