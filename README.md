@@ -865,6 +865,8 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
 - Varsayılan auth kapalı; internete açık deploy için **uygun değil**.
 - Demo seed şifresi (`demo1234`) ve varsayılan JWT secret bilinir. Protected mod varsayılan veya 32 karakterden kısa secret ile açılmaz.
+- `*@demo.local` demo hesapları yalnızca demo modda vardır; protected modda giriş yapamaz (aynı veritabanında demo moddan kalmış olsalar bile). Testler için `VETMIND_DEMO_ACCOUNTS=1` ile bilinçli olarak açılabilir.
+- `docker compose` web (8080) ve PostgreSQL (5432) portlarını yalnızca `127.0.0.1`'de açar: demo modda giriş yoktur ve rol seçici herkesi admin yapar. Başka makinelerden erişim için protected overlay'i kullanın (`VETMIND_WEB_BIND`).
 - Deneme sayaçları süreç belleğinde: yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar.
 - Kayıt, şifremi unuttum ve doğrulama linkini tekrar gönderme uçları kayıtlı e-postayı belli etmez (aynı cevap, iş cevaptan sonra yapılır).
 - Quarantine yerel diskte; üretim AV / şifreleme yok.
@@ -1051,6 +1053,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_DEPLOYMENT_MODE` | `demo` | `demo` \| `protected` |
 | `VETMIND_TENANT_ISOLATION` | off | Klinik izolasyonu |
 | `VETMIND_ALLOW_INSECURE_DEMO` | off | Protected’da demo secret’a izin (yalnızca bilinçli) |
+| `VETMIND_DEMO_ACCOUNTS` | demo: on, protected: off | `*@demo.local` hesapları (`demo1234`) giriş yapabilir mi; protected'da yalnızca test için |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 

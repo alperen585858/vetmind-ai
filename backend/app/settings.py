@@ -139,6 +139,9 @@ class Settings:
     deployment_mode: str = "demo"  # demo | protected
     tenant_isolation: bool = False
     allow_insecure_demo: bool = False
+    # Built-in *@demo.local seed accounts (shared password). None = only in demo mode.
+    # Protected mode keeps them off unless set explicitly (tests / local readiness runs).
+    demo_accounts: bool | None = None
     malware_scan_required: bool = False
     dicom_identity_scrub: bool = False
     encryption_at_rest: str = "none"
@@ -480,6 +483,7 @@ def load_settings() -> Settings:
     else:
         tenant_isolation = _env_bool("VETMIND_TENANT_ISOLATION", False)
     allow_insecure_demo = _env_bool("VETMIND_ALLOW_INSECURE_DEMO", False)
+    demo_accounts = _env_bool("VETMIND_DEMO_ACCOUNTS", default=(deployment_mode == "demo"))
     malware_scan_required = _env_bool(
         "VETMIND_MALWARE_SCAN_REQUIRED",
         default=(deployment_mode == "protected"),
@@ -638,6 +642,7 @@ def load_settings() -> Settings:
         deployment_mode=deployment_mode,
         tenant_isolation=tenant_isolation,
         allow_insecure_demo=allow_insecure_demo,
+        demo_accounts=demo_accounts,
         malware_scan_required=malware_scan_required,
         dicom_identity_scrub=dicom_identity_scrub,
         encryption_at_rest=encryption_at_rest,
@@ -662,6 +667,13 @@ def load_settings() -> Settings:
 
 
 MIN_PROTECTED_JWT_SECRET_LENGTH = 32
+
+
+def demo_accounts_enabled(settings: Settings) -> bool:
+    """Whether the shared-password ``*@demo.local`` seed accounts may sign in."""
+    if settings.demo_accounts is None:
+        return settings.deployment_mode == "demo"
+    return bool(settings.demo_accounts)
 
 
 def validate_security_settings(settings: Settings) -> None:

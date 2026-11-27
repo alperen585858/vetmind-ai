@@ -13,6 +13,10 @@
 # Demo-only APIs (fixture DICOM, demo card payments) return 403 in this mode.
 
 services:
+  web:
+    # Reachable from other machines (put TLS in front). docker-compose.yml binds 127.0.0.1.
+    ports: !override
+      - "${VETMIND_WEB_BIND:-0.0.0.0}:${VETMIND_WEB_PORT:-8080}:80"
   backend:
     environment:
       VETMIND_DEPLOYMENT_MODE: protected

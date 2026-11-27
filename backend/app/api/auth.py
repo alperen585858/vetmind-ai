@@ -228,7 +228,8 @@ def login(
     request: Request,
     container: AppContainer = Depends(get_container),
 ) -> TokenResponse | MfaChallengeResponse:
-    users = container.auth.users or DEMO_USERS
+    # An empty directory (protected mode, no accounts yet) must not fall back to the demo seed.
+    users = container.auth.users if container.auth.users is not None else DEMO_USERS
     email = payload.email.strip().lower()
     limits = [
         ("login_email", email, LOGIN_PER_EMAIL),

@@ -105,13 +105,19 @@ class WorkflowService:
         payments: PaymentPort | None = None,
         pets: object | None = None,
         submissions: object | None = None,
+        demo_accounts: bool = True,
     ) -> None:
+        # False (protected mode by default): the shared-password *@demo.local seed accounts
+        # are never seeded, never put in the login directory and never recreated.
+        self._demo_accounts = demo_accounts
         self._store = store
         self._cases = cases
         self._dicom = dicom
         self._notifications = notifications
         self._tenant_isolation = tenant_isolation
-        self._auth_users = auth_users if auth_users is not None else dict(DEMO_USERS)
+        self._auth_users = (
+            auth_users if auth_users is not None else (dict(DEMO_USERS) if demo_accounts else {})
+        )
         self._payments = payments
         self._user_write_lock = threading.Lock()
         self._wire_contexts(pets=pets, submissions=submissions)
@@ -134,7 +140,7 @@ class WorkflowService:
         self._payments = payments
 
     def _seed_managed_from_demo(self) -> None:
-        if self._store.list_users():
+        if not self._demo_accounts or self._store.list_users():
             return
         for email, rec in DEMO_USERS.items():
             self._store.save_user(
@@ -180,13 +186,16 @@ class WorkflowService:
             stored_emails.add(email)
             if not u.active or u.role not in ASSIGNABLE_ROLES:
                 continue
+            if not self._demo_accounts and email in DEMO_USERS:
+                # Seed row left by an earlier demo-mode run on the same database.
+                continue
             pwd_hash = self._directory_hash(u)
             if not pwd_hash:
                 continue
             directory[email] = DemoUserRecord(pwd_hash, u.role, u.clinic_id, u.token_version)
         # Seed users that were never stored. A stored (e.g. deactivated) seed user is
         # not re-added, so deactivating a demo account really blocks its login.
-        for email, rec in DEMO_USERS.items():
+        for email, rec in DEMO_USERS.items() if self._demo_accounts else ():
             if email not in stored_emails:
                 directory[email] = DemoUserRecord(
                     demo_password_hash(email) or "", rec.role, rec.clinic_id
@@ -361,6 +370,11 @@ class WorkflowService:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         email = payload.email.strip().lower()
+        if not self._demo_accounts and email in DEMO_USERS:
+            raise HTTPException(
+                status_code=422,
+                detail=api_error("demo_email_reserved", "Demo account addresses are disabled in this deployment."),
+            )
         _assert_password_allowed(payload.password)
         # An existing (or seed) email is overwritten via the managed store. Bump the
         # token version past the old record so its sessions cannot come back.
@@ -473,7 +487,7 @@ class WorkflowService:
         _assert_password_allowed(new_password)
         with self._user_write_lock:
             existing = self._store.get_user(email)
-            if existing is None and email in DEMO_USERS:
+            if existing is None and self._demo_accounts and email in DEMO_USERS:
                 rec = DEMO_USERS[email]
                 existing = ManagedUser(
                     email=email,
@@ -500,6 +514,8 @@ class WorkflowService:
         if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Admin only.")
         existing = self._store.get_user(email.lower())
+        if not self._demo_accounts and email.lower() in DEMO_USERS:
+            raise HTTPException(status_code=404, detail="User not found.")
         if existing is None and email.lower() in DEMO_USERS:
             rec = DEMO_USERS[email.lower()]
             existing = ManagedUser(

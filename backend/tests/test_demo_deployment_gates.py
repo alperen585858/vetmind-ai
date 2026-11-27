@@ -58,6 +58,8 @@ def test_demo_dicom_forbidden_in_protected(tmp_path: Path) -> None:
         malware_scan_required=True,
         dicom_identity_scrub=True,
         self_registration_enabled=False,
+        # Signs in with a seed vet; protected mode only has them when asked for explicitly.
+        demo_accounts=True,
     )
     res = client.post(
         "/api/v1/dicom/demo/brain_mri",

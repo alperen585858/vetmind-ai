@@ -49,6 +49,8 @@ const env = {
         VETMIND_SELF_REGISTRATION_OWNER_CLINIC: 'clinic-e2e',
         // Protected mode refuses to start without a malware scanner; the fake one is for tests only.
         VETMIND_MALWARE_SCANNER: 'fake_clean',
+        // Protected mode has no *@demo.local accounts unless asked for; the specs sign in with them.
+        VETMIND_DEMO_ACCOUNTS: '1',
       }
     : {
         // Demo mode acts as the role picked in the UI (X-VetMind-Demo-Role, issue #104),
