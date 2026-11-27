@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { Cat, ChevronRight, Clock, Dog, Loader2, PawPrint } from 'lucide-react'
+import { ChevronRight, Clock, Loader2 } from 'lucide-react'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { studyLabel } from '../../shared/lib/displayClean'
@@ -15,6 +15,7 @@ import type { TranslateFn } from '../../i18n'
 import type { Priority, VetCase } from '../../shared/types'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { PriorityBadge, StatusBadge } from '../../shared/ui/StatusBadge'
+import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
 
 /** `newest`: urgent first, then the most recent case on top. `urgent`: least time left on top. */
 export type WorklistOrder = 'newest' | 'urgent'
@@ -60,12 +61,6 @@ function waitClass(c: VetCase) {
   if (tone === 'overdue' || tone === 'critical') return 'bg-rose-100 text-rose-800 ring-rose-200'
   if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'bg-amber-100 text-amber-800 ring-amber-200'
   return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-}
-
-const SPECIES_AVATAR: Record<string, { icon: typeof Dog; cls: string }> = {
-  Köpek: { icon: Dog, cls: 'bg-teal-100 text-teal-700' },
-  Kedi: { icon: Cat, cls: 'bg-amber-100 text-amber-700' },
-  Diğer: { icon: PawPrint, cls: 'bg-sky-100 text-sky-700' },
 }
 
 export function ExpertWorklistTable({
@@ -137,8 +132,6 @@ export function ExpertWorklistTable({
             const urgent = isUrgentCase(c)
             const openCase = () => nav(`/vakalar/${c.id}/calisma`)
             const breed = c.patient.breed && !['—', '-'].includes(c.patient.breed.trim()) ? c.patient.breed : ''
-            const avatar = SPECIES_AVATAR[c.patient.species] ?? SPECIES_AVATAR.Diğer
-            const AvatarIcon = avatar.icon
             const rowBg = urgent
               ? 'bg-rose-50 hover:bg-rose-100/70'
               : idx % 2
@@ -167,9 +160,9 @@ export function ExpertWorklistTable({
                   <div className="flex items-center gap-3">
                     <span
                       aria-hidden
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${avatar.cls}`}
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-sky-50 to-slate-100 ring-1 ring-slate-200/80"
                     >
-                      <AvatarIcon className="h-5 w-5" />
+                      <SpeciesIcon3D species={c.patient.species} size={42} />
                     </span>
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2">
