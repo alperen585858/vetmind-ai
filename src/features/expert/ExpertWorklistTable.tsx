@@ -31,7 +31,7 @@ function studyLine(c: VetCase, t: TranslateFn) {
   return c.clinical.complaint || t('common.dash')
 }
 
-function waitLabel(c: VetCase, t: TranslateFn) {
+export function waitLabel(c: VetCase, t: TranslateFn) {
   if (c.reviewDueAt) return formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))
   return t('dashboard.queueSlaShort', { hours: String(slaHoursForPriority(c.priority)) })
 }

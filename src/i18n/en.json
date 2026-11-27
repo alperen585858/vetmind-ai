@@ -1359,7 +1359,14 @@
     "modalityXR": "X-ray",
     "clearFilters": "Clear filters",
     "emptyMineTitle": "No cases assigned to you",
-    "emptyMineText": "Cases assigned to you will show up here."
+    "emptyMineText": "Cases assigned to you will show up here.",
+    "totalCases": "Total cases",
+    "colSpeciesBreed": "Species / Breed",
+    "colRegion": "Region",
+    "colCaseNo": "Case no",
+    "modalityBreakdown": "Modality breakdown",
+    "regionBreakdown": "Anatomical region breakdown",
+    "casesUnit": "Cases"
   },
   "analysis": {
     "pending": "Pending",

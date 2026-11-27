@@ -1359,7 +1359,14 @@
     "modalityXR": "Röntgen",
     "clearFilters": "Filtreleri temizle",
     "emptyMineTitle": "Size atanmış vaka yok",
-    "emptyMineText": "Size bir vaka atandığında burada görünecek."
+    "emptyMineText": "Size bir vaka atandığında burada görünecek.",
+    "totalCases": "Toplam vaka",
+    "colSpeciesBreed": "Tür / Irk",
+    "colRegion": "Bölge",
+    "colCaseNo": "Vaka no",
+    "modalityBreakdown": "İnceleme dağılımı",
+    "regionBreakdown": "Anatomik bölge dağılımı",
+    "casesUnit": "Vaka"
   },
   "analysis": {
     "pending": "Bekliyor",
