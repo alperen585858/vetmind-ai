@@ -168,7 +168,8 @@
     "mainMenuAria": "Ana menü",
     "skipToContent": "İçeriğe atla",
     "aiArchitecture": "AI Mimarisi",
-    "security": "Güvenlik / Audit"
+    "security": "Güvenlik / Audit",
+    "helpSupport": "Yardım ve destek"
   },
   "topbar": {
     "openMenu": "Menüyü aç",
@@ -717,7 +718,21 @@
     "quickAwaitingReport": "Rapor Bekleyen Vakalar",
     "hintAwaitingReport": "{count} vaka raporu bekliyor",
     "clinicStatAwaitingReportHint": "Raporu henüz onaylanmamış",
-    "expertUrgentHintNone": "Bekleyen acil vaka yok"
+    "expertUrgentHintNone": "Bekleyen acil vaka yok",
+    "heroInReview": "{count} vakanız uzman incelemesinde;",
+    "heroTodo": "{count} iş sizi bekliyor.",
+    "heroAllClear": "sizi bekleyen bir iş yok.",
+    "todoTitle": "Sizi bekleyenler",
+    "todoSubtitle": "Yanıt, okuma veya tamamlama bekleyen vakalar",
+    "todoEmpty": "Şu an sizi bekleyen bir iş yok.",
+    "todoFailed": "Analiz başarısız — tekrar başlatın",
+    "todoMessages": "Uzmandan {count} yeni mesaj",
+    "todoReport": "Rapor hazır — okuyun, sahibine iletin",
+    "todoDraft": "Taslak — tamamlayıp uzmana gönderin",
+    "todoMore": "+{count} vaka daha",
+    "recentLast24h": "Son 24 saatte eklenen {count} vaka",
+    "recentEmpty": "Son 24 saatte yeni vaka yok",
+    "recentEmptyHint": "Tüm vakalar için soldaki Vakalar menüsünü kullanın."
   },
   "cases": {
     "title": "Vakalar",

@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
   AlertCircle,
   AlertTriangle,
-  CheckCircle2,
+  Clock,
   FilePlus2,
   FileText,
   FolderOpen,
+  Inbox,
   RefreshCw,
   Search,
-  Users,
+  X,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
@@ -18,9 +19,20 @@ import { Button } from '../../shared/ui/Button'
 import { CaseTable } from '../../shared/ui/CaseTable'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
-import type { BackendModality, CaseStatus, VetCase } from '../../shared/types'
+import type { CaseStatus, VetCase } from '../../shared/types'
 import { AWAITING_REPORT_FILTER, isAwaitingReport } from './lib/caseStatusMap'
 import { reviewerDisplay } from '../../shared/lib/reviewer'
+
+type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
+const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
+
+/** Same flat colours as the radiologist worklist cards (ReviewQueue). */
+const CARD_COLORS = {
+  teal: { active: 'border-teal-700 bg-teal-600 shadow-md', idle: 'border-teal-200 bg-teal-50 hover:border-teal-400', icon: 'bg-teal-600 text-white', label: 'text-teal-800', value: 'text-teal-900' },
+  amber: { active: 'border-amber-600 bg-amber-500 shadow-md', idle: 'border-amber-200 bg-amber-50 hover:border-amber-400', icon: 'bg-amber-500 text-white', label: 'text-amber-800', value: 'text-amber-900' },
+  emerald: { active: 'border-emerald-700 bg-emerald-600 shadow-md', idle: 'border-emerald-200 bg-emerald-50 hover:border-emerald-400', icon: 'bg-emerald-600 text-white', label: 'text-emerald-800', value: 'text-emerald-900' },
+  rose: { active: 'border-rose-700 bg-rose-600 shadow-md', idle: 'border-rose-200 bg-rose-50 hover:border-rose-400', icon: 'bg-rose-600 text-white', label: 'text-rose-800', value: 'text-rose-900' },
+} as const
 
 type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER
 
@@ -41,6 +53,11 @@ function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
   )
 }
 
+/** Urgent (STAT / Acil) and not finished: what the dashboard's Acil / STAT card counts. */
+export function isOpenUrgent(c: VetCase): boolean {
+  return (c.priority === 'STAT' || c.priority === 'Acil') && !['onaylandi', 'reddedildi', 'iptal'].includes(c.status)
+}
+
 function expertKey(c: VetCase): string {
   return c.assignedReviewerId?.trim() || ''
 }
@@ -57,8 +74,10 @@ export default function CaseList() {
     return ''
   })
   const [species, setSpecies] = useState('')
-  const [modality, setModality] = useState<BackendModality | ''>('')
+  const [modality, setModality] = useState<ModalityFilter>('')
   const [expert, setExpert] = useState('')
+  // Dashboard "Acil / STAT" card links here with ?acil=1 (same rule as its count).
+  const [urgentOnly, setUrgentOnly] = useState(() => searchParams.get('acil') === '1')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [initialLoad, setInitialLoad] = useState(true)
 
@@ -111,12 +130,13 @@ export default function CaseList() {
         (!species || c.patient.species === species) &&
         (!modality || c.modality === modality) &&
         (!expert || expertKey(c) === expert) &&
+        (!urgentOnly || isOpenUrgent(c)) &&
         (!s ||
           [c.no, c.patient.name, c.patient.breed, c.modality, c.anatomicalRegion, c.assignedReviewerId ? reviewerDisplay(c, t) : '']
             .filter(Boolean)
             .some((f) => String(f).toLocaleLowerCase(intlLocale).includes(s))),
     )
-  }, [cases, q, status, species, modality, expert, intlLocale, t])
+  }, [cases, q, status, species, modality, expert, urgentOnly, intlLocale, t])
 
   const onSync = async () => {
     const r = await refreshBackendCases()
@@ -140,167 +160,56 @@ export default function CaseList() {
     setSpecies('')
     setModality('')
     setExpert('')
+    setUrgentOnly(false)
   }
 
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
-  const hasFilters = Boolean(q.trim() || status || species || modality || expert)
-  const filterClass =
-    'rounded-xl border-0 bg-white/90 px-3 py-2.5 text-xs font-medium text-navy-900 outline-none ring-1 ring-white/50 focus:ring-2 focus:ring-white'
+  const hasFilters = Boolean(q.trim() || status || species || modality || expert || urgentOnly)
+  const selectClass =
+    'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20'
+
+  const cards: { id: StatusFilter; label: string; n: number; icon: ReactNode; tone: keyof typeof CARD_COLORS }[] = [
+    { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0), icon: <Inbox className="h-5 w-5" aria-hidden />, tone: 'teal' },
+    { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress, icon: <Clock className="h-5 w-5" aria-hidden />, tone: 'amber' },
+    { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved, icon: <FileText className="h-5 w-5" aria-hidden />, tone: 'emerald' },
+    { id: 'failed', label: t(STATUS_META.analiz_basarisiz.labelKey), n: counts.failed, icon: <AlertTriangle className="h-5 w-5" aria-hidden />, tone: 'rose' },
+  ]
 
   return (
     <>
-      <div className="vm-fade-up relative -mx-1 space-y-4">
-        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.35),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(20,184,166,0.18),transparent_45%)]"
-          />
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-300/90">
-                {t('cases.showingCount', { shown: filtered.length, total: cases.length })}
-              </p>
-              <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+      <div className="vm-fade-up space-y-5">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm">
+              <FolderOpen className="h-6 w-6" aria-hidden />
+            </span>
+            <div>
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-[color:var(--vm-sidebar,#102a43)] sm:text-3xl">
                 {t('nav.cases')}
               </h1>
-              <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-300">{t('cases.subtitle')}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatus('')}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    !status ? 'bg-teal-400 text-navy-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
-                >
-                  {t('common.all')} {counts.total}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus(status === 'uzman_incelemesinde' ? '' : 'uzman_incelemesinde')}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    status === 'uzman_incelemesinde' ? 'bg-amber-400 text-amber-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
-                >
-                  <Users className="h-3.5 w-3.5" aria-hidden />
-                  {t(STATUS_META.uzman_incelemesinde.labelKey)} {counts.review}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus(status === 'onaylandi' ? '' : 'onaylandi')}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    status === 'onaylandi' ? 'bg-emerald-400 text-emerald-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                  {t(STATUS_META.onaylandi.labelKey)} {counts.approved}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus(status === 'failed' ? '' : 'failed')}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    status === 'failed' ? 'bg-rose-400 text-rose-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                  {t(STATUS_META.analiz_basarisiz.labelKey)} {counts.failed}
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void onSync()}
-                disabled={backendSyncing}
-                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15 disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} aria-hidden />
-                {t('common.refresh')}
-              </button>
-              {role === 'vet' && (
-                <>
-                  <Button icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
-                    {t('nav.newCase')}
-                  </Button>
-                </>
-              )}
+              <p className="mt-0.5 text-sm text-slate-600">{t('cases.subtitle')}</p>
             </div>
           </div>
-
-          <div className="relative mt-5 flex flex-col gap-2 lg:flex-row lg:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">{t('cases.searchCasesAria')}</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-teal-200/70" aria-hidden />
-              <input
-                className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/20 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-300/50"
-                placeholder={t('cases.listSearchPlaceholder')}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <select
-                aria-label={t('common.status')}
-                className={filterClass}
-                value={status}
-                onChange={(e) => setStatus(e.target.value as StatusFilter)}
-              >
-                <option value="">{t('cases.filterAllStatuses')}</option>
-                <option value={AWAITING_REPORT_FILTER}>{t('cases.filterAwaitingReport')}</option>
-                {STATUS_ORDER.map((s) => (
-                  <option key={s} value={s}>
-                    {t(STATUS_META[s].labelKey)}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label={t('cases.species')}
-                className={filterClass}
-                value={species}
-                onChange={(e) => setSpecies(e.target.value)}
-              >
-                <option value="">{t('cases.filterAllSpecies')}</option>
-                <option value="Köpek">{t('species.dog')}</option>
-                <option value="Kedi">{t('species.cat')}</option>
-              </select>
-              <select
-                aria-label={t('cases.modality')}
-                className={filterClass}
-                value={modality}
-                onChange={(e) => setModality(e.target.value as BackendModality | '')}
-              >
-                <option value="">{t('common.all')}</option>
-                <option value="MR">MR</option>
-                <option value="CT">CT</option>
-                <option value="XR">XR</option>
-              </select>
-              <select
-                aria-label={t('cases.expert')}
-                className={filterClass}
-                value={expert}
-                onChange={(e) => setExpert(e.target.value)}
-              >
-                <option value="">{t('cases.filterAllExperts')}</option>
-                {experts.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
-              {hasFilters ? (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-teal-100 ring-1 ring-white/20 transition hover:bg-white/20"
-                >
-                  {t('common.clear')}
-                </button>
-              ) : null}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void onSync()}
+              disabled={backendSyncing}
+              icon={<RefreshCw className={`h-4 w-4 ${backendSyncing ? 'animate-spin' : ''}`} aria-hidden />}
+            >
+              {t('common.refresh')}
+            </Button>
+            {role === 'vet' && (
+              <Button size="sm" icon={<FilePlus2 className="h-4 w-4" />} onClick={() => nav('/vakalar/yeni')}>
+                {t('nav.newCase')}
+              </Button>
+            )}
           </div>
-        </section>
+        </header>
 
         {syncError && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>
@@ -314,38 +223,120 @@ export default function CaseList() {
         )}
 
         {/* #81: approved reports are a view of the case list, not a separate page. */}
-        <div className="flex flex-wrap gap-1 rounded-2xl bg-white p-1 ring-1 ring-slate-200/70" role="tablist" aria-label={t('cases.viewTabs')}>
-          {(
-            [
-              { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0) },
-              { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress },
-              { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved },
-            ] as { id: StatusFilter; label: string; n: number }[]
-          ).map((v) => (
-            <button
-              key={v.id || 'all'}
-              type="button"
-              role="tab"
-              aria-selected={status === v.id}
-              onClick={() => setStatus(v.id)}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                status === v.id
-                  ? v.id === 'onaylandi'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-navy-900 text-white shadow-sm'
-                  : v.id === 'onaylandi'
-                    ? 'text-emerald-800 hover:bg-emerald-50'
-                    : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {v.id === 'onaylandi' && <FileText className="h-4 w-4" aria-hidden />}
-              {v.label}
-              <span className={`rounded-full px-1.5 text-xs ${status === v.id ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{v.n}</span>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label={t('cases.viewTabs')}>
+          {cards.map((card) => {
+            const active = status === card.id
+            const c = CARD_COLORS[card.tone]
+            return (
+              <button
+                key={card.id || 'all'}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setStatus(active && card.id ? '' : card.id)}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${
+                  active ? c.active : c.idle
+                }`}
+              >
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-white/20 text-white' : c.icon}`}>
+                  {card.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-xs font-semibold ${active ? 'text-white/85' : c.label}`}>{card.label}</span>
+                  <span className={`block font-display text-2xl font-bold tabular-nums leading-tight ${active ? 'text-white' : c.value}`}>
+                    {card.n}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
         </div>
 
-        <div className="relative overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-teal-100 bg-teal-50/60 px-4 py-3 xl:flex-row xl:items-center">
+            <label className="relative block min-w-0 flex-1">
+              <span className="sr-only">{t('cases.searchCasesAria')}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+              <input
+                type="search"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+                placeholder={t('cases.listSearchPlaceholder')}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <div role="radiogroup" aria-label={t('review.filterModalityLabel')} className="inline-flex rounded-lg border border-teal-200 bg-white p-0.5">
+                {MODALITIES.map((m) => {
+                  const active = modality === m
+                  return (
+                    <button
+                      key={m || 'all'}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setModality(m)}
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                        active ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
+                      }`}
+                    >
+                      {m ? t(`review.modality${m}`) : t('review.allModalities')}
+                    </button>
+                  )
+                })}
+              </div>
+              {urgentOnly ? (
+                <button
+                  type="button"
+                  onClick={() => setUrgentOnly(false)}
+                  aria-label={`${t('dashboard.metricUrgentStat')} — ${t('common.clear')}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                >
+                  <AlertTriangle className="h-4 w-4" aria-hidden />
+                  {t('dashboard.metricUrgentStat')}
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
+              <select aria-label={t('common.status')} className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+                <option value="">{t('cases.filterAllStatuses')}</option>
+                <option value={AWAITING_REPORT_FILTER}>{t('cases.filterAwaitingReport')}</option>
+                {STATUS_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {t(STATUS_META[s].labelKey)}
+                  </option>
+                ))}
+              </select>
+              <select aria-label={t('cases.species')} className={selectClass} value={species} onChange={(e) => setSpecies(e.target.value)}>
+                <option value="">{t('cases.filterAllSpecies')}</option>
+                <option value="Köpek">{t('species.dog')}</option>
+                <option value="Kedi">{t('species.cat')}</option>
+              </select>
+              <select aria-label={t('cases.expert')} className={selectClass} value={expert} onChange={(e) => setExpert(e.target.value)}>
+                <option value="">{t('cases.filterAllExperts')}</option>
+                {experts.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </select>
+              {hasFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                  {t('common.clear')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 px-5 py-3 text-xs text-slate-500">
+            <span>{t('cases.subtitle')}</span>
+            <span className="tabular-nums">{t('cases.showingCount', { shown: filtered.length, total: cases.length })}</span>
+          </div>
+
           {showSkeleton ? (
             <TableSkeleton loadingLabel={t('cases.loadingCasesAria')} />
           ) : filtered.length ? (
@@ -380,7 +371,7 @@ export default function CaseList() {
               }
             />
           )}
-        </div>
+        </section>
       </div>
 
     </>

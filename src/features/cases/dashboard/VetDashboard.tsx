@@ -1,88 +1,78 @@
 import { LocalizedLink } from '../../../shared/shell/LocalizedLink'
 import { useLocalizedNavigate } from '../../../shared/hooks/useLocalizedNavigate'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
+  AlertTriangle,
   CheckCircle2,
+  ChevronRight,
+  MessageSquare,
+  PencilLine,
   ClipboardCheck,
   FilePlus2,
   FileText,
   FolderOpen,
-  HelpCircle,
   Hourglass,
-  MoreHorizontal,
   Timer,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../../shared/shell/AppContext'
 import { useLocale } from '../../../shared/shell/LocaleContext'
-import type { TranslateFn } from '../../../i18n'
-import { studyLabel } from '../../../shared/lib/displayClean'
 import { Card, CardHeader } from '../../../shared/ui/Card'
-import { SpeciesIcon } from '../../../shared/ui/CaseTable'
-import { StatusBadge } from '../../../shared/ui/StatusBadge'
+import { CaseTable } from '../../../shared/ui/CaseTable'
 import { EmptyState } from '../../../shared/ui/EmptyState'
 import { getClinicDashboard } from '../../../shared/api'
 import { AnalysisTasksBanner } from '../../analysis/AnalysisTaskWidgets'
 import { AWAITING_REPORT_FILTER, isAwaitingReport } from '../lib/caseStatusMap'
-import { fmtDate } from '../../../shared/lib/format'
-import type { ClinicDashboardStats } from '../../../shared/types'
-
 import { buildTrend } from '../../../shared/lib/trend'
+import type { ClinicDashboardStats, VetCase } from '../../../shared/types'
 
-const PIE_COLORS = ['#0b807a', '#3e6895', '#94a3b8']
 
-function weekdayKey(d: Date) {
-  const js = d.getDay()
-  return `dashboard.weekday${js === 0 ? 6 : js - 1}`
+const TODO_META: Record<TodoKind, { key: string; icon: JSX.Element; tone: string }> = {
+  failed: { key: 'dashboard.todoFailed', icon: <AlertTriangle className="h-4 w-4" aria-hidden />, tone: 'bg-rose-100 text-rose-700' },
+  messages: { key: 'dashboard.todoMessages', icon: <MessageSquare className="h-4 w-4" aria-hidden />, tone: 'bg-sky-100 text-sky-700' },
+  report: { key: 'dashboard.todoReport', icon: <FileText className="h-4 w-4" aria-hidden />, tone: 'bg-emerald-100 text-emerald-700' },
+  draft: { key: 'dashboard.todoDraft', icon: <PencilLine className="h-4 w-4" aria-hidden />, tone: 'bg-amber-100 text-amber-700' },
 }
 
-function formatClinicDate(t: TranslateFn, d = new Date()) {
-  const m = d.getMonth() + 1
-  return `${d.getDate()} ${t(`format.month${m}`)} ${d.getFullYear()}, ${t(weekdayKey(d))}`
+
+/** "27.11.2026 Cuma" for the top-left corner of the welcome card. */
+function formatClinicDate(intlLocale: string, d = new Date()) {
+  const date = d.toLocaleDateString(intlLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const weekday = d.toLocaleDateString(intlLocale, { weekday: 'long' })
+  return `${date} ${weekday}`
+}
+
+type TodoKind = 'failed' | 'messages' | 'report' | 'draft'
+
+/** What the vet has to do next, most pressing first (from the synced case list). */
+export function buildVetTodos(cases: VetCase[]): { kind: TodoKind; c: VetCase }[] {
+  const out: { kind: TodoKind; c: VetCase }[] = []
+  for (const c of cases) {
+    if (c.status === 'analiz_basarisiz') out.push({ kind: 'failed', c })
+    else if ((c.unreadMessages ?? 0) > 0) out.push({ kind: 'messages', c })
+    else if (c.status === 'onaylandi' && !c.reportDeliveredAt) out.push({ kind: 'report', c })
+    else if (c.status === 'taslak') out.push({ kind: 'draft', c })
+  }
+  const rank: Record<TodoKind, number> = { failed: 0, messages: 1, report: 2, draft: 3 }
+  return out.sort((a, b) => rank[a.kind] - rank[b.kind] || Date.parse(b.c.createdAt) - Date.parse(a.c.createdAt))
 }
 
 export function VetDashboard() {
   const { cases, user, refreshBackendCases } = useApp()
-  const { t, locale } = useLocale()
+  const { t, intlLocale } = useLocale()
   const nav = useLocalizedNavigate()
-  const [q, setQ] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [stats, setStats] = useState<ClinicDashboardStats | null>(null)
 
   useEffect(() => {
     void refreshBackendCases()
   }, [refreshBackendCases])
 
-  // Debounce clinic dashboard search so typing does not spam the API (local filter still uses `q`).
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      void getClinicDashboard({ q: q || undefined })
-        .then(setStats)
-        .catch(() => setStats(null))
-    }, q ? 350 : 0)
-    return () => window.clearTimeout(handle)
-  }, [q])
+    void getClinicDashboard({})
+      .then(setStats)
+      .catch(() => setStats(null))
+  }, [])
 
-  const filtered = useMemo(() => {
-    const ql = q.trim().toLowerCase()
-    return cases.filter((c) => {
-      if (statusFilter && c.status !== statusFilter) return false
-      if (!ql) return true
-      const hay = `${c.patient.name} ${c.no} ${c.id} ${c.clinic} ${c.patient.species} ${c.patient.breed}`.toLowerCase()
-      return hay.includes(ql)
-    })
-  }, [cases, q, statusFilter])
 
   const open = stats?.active_cases ?? cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status)).length
   const review = stats?.awaiting_review ?? cases.filter((c) => c.status === 'uzman_incelemesinde').length
@@ -94,32 +84,22 @@ export function VetDashboard() {
   const awaitingReport = cases.filter((c) => isAwaitingReport(c.status)).length
   const approved = stats?.completed_reports ?? cases.filter((c) => c.status === 'onaylandi').length
 
+  const todos = useMemo(() => buildVetTodos(cases), [cases])
   const trend = useMemo(() => buildTrend(cases, t), [cases, t])
 
-  const speciesData = useMemo(() => {
-    const active = cases.filter((c) => !['onaylandi', 'reddedildi'].includes(c.status))
-    let dog = 0
-    let cat = 0
-    let other = 0
-    for (const c of active) {
-      if (c.patient.species === 'Köpek') dog += 1
-      else if (c.patient.species === 'Kedi') cat += 1
-      else other += 1
-    }
-    const total = active.length || 1
-    return [
-      { name: t('dashboard.speciesDog'), value: dog, pct: Math.round((dog / total) * 100) },
-      { name: t('dashboard.speciesCat'), value: cat, pct: Math.round((cat / total) * 100) },
-      { name: t('dashboard.speciesOther'), value: other, pct: Math.round((other / total) * 100) },
-    ].filter((x) => x.value > 0 || active.length === 0)
-  }, [cases, t])
 
-  const recent = filtered.slice(0, 5)
+  // Cases added in the last 24 hours, newest first; the full list is one click away (sidebar).
+  const recent = useMemo(() => {
+    const since = Date.now() - 24 * 3_600_000
+    return cases
+      .filter((c) => Date.parse(c.createdAt) >= since)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  }, [cases])
 
   const metricCards = [
     { label: t('dashboard.metricActiveCases'), value: open, icon: <FolderOpen className="h-4 w-4" />, tone: 'bg-sky-50 text-sky-700', to: '/vakalar' },
     { label: t('dashboard.metricAwaitingReview'), value: review, icon: <Hourglass className="h-4 w-4" />, tone: 'bg-amber-50 text-amber-700', to: '/vakalar' },
-    { label: t('dashboard.metricUrgentStat'), value: urgent, icon: <Timer className="h-4 w-4" />, tone: 'bg-violet-50 text-violet-700', to: '/vakalar' },
+    { label: t('dashboard.metricUrgentStat'), value: urgent, icon: <Timer className="h-4 w-4" />, tone: 'bg-white/20 text-white', to: '/vakalar?acil=1', urgent: true },
     { label: t('dashboard.metricCompletedReports'), value: approved, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'bg-emerald-50 text-emerald-700', to: '/vakalar?durum=onaylandi' },
   ]
 
@@ -139,7 +119,7 @@ export function VetDashboard() {
     <div className="space-y-4">
       <AnalysisTasksBanner />
       {/* Welcome + primary actions */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,17rem)]">
+      <div>
         <div className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)]">
           <div
             aria-hidden
@@ -159,37 +139,22 @@ export function VetDashboard() {
           </div>
           <div className="relative flex min-h-[168px] items-center p-5 sm:p-6">
             <div className="max-w-[58%] min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-300/90">
-                {user?.org || t('nav.dashboard')}
-              </p>
+              <p className="text-xs font-semibold tabular-nums tracking-wide text-teal-300/90">{formatClinicDate(intlLocale)}</p>
               <p className="mt-1 font-display text-xl font-bold tracking-tight sm:text-2xl">
                 {t('dashboard.welcomeNamed', { name: user?.name ?? '' })}
               </p>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">
-                {t('dashboard.todayAtClinic', { date: formatClinicDate(t) })}{' '}
-                <span className="font-semibold text-white">{t('dashboard.reviewCount', { count: review })}</span>
-{' '}
-                {t('dashboard.awaitingSuffix')}
+                {t('dashboard.heroInReview', { count: review })}{' '}
+                {todos.length ? (
+                  <span className="font-semibold text-white">{t('dashboard.heroTodo', { count: todos.length })}</span>
+                ) : (
+                  t('dashboard.heroAllClear')
+                )}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2.5">
-          <button
-            type="button"
-            onClick={() => nav('/vakalar/yeni')}
-            className="flex flex-1 items-center gap-3 rounded-2xl bg-teal-700 px-4 py-3.5 text-left text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-              <FilePlus2 className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold text-navy-900">{t('dashboard.newCase')}</span>
-              <span className="block text-xs text-slate-500">{t('dashboard.newCaseHint')}</span>
-            </span>
-          </button>
-        </div>
       </div>
 
       {/* Metrics */}
@@ -199,12 +164,14 @@ export function VetDashboard() {
             key={m.label}
             to={m.to}
             aria-label={t('dashboard.metricGoToPage', { label: m.label, value: m.value })}
-            className="flex items-center gap-3 rounded-vm border border-slate-200/80 bg-surface-elevated px-4 py-3.5 shadow-soft transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+            className={`flex items-center gap-3 rounded-vm border px-4 py-3.5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${
+              'urgent' in m ? 'border-rose-700 bg-rose-600 hover:bg-rose-700' : 'border-slate-200/80 bg-surface-elevated hover:border-teal-200'
+            }`}
           >
             <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>{m.icon}</div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-slate-500">{m.label}</p>
-              <p className="font-display text-2xl font-semibold tabular-nums tracking-tight text-navy-900">{m.value}</p>
+              <p className={`text-xs font-medium ${'urgent' in m ? 'text-white/85' : 'text-slate-500'}`}>{m.label}</p>
+              <p className={`font-display text-2xl font-semibold tabular-nums tracking-tight ${'urgent' in m ? 'text-white' : 'text-navy-900'}`}>{m.value}</p>
             </div>
           </LocalizedLink>
         ))}
@@ -213,6 +180,42 @@ export function VetDashboard() {
       {/* Charts + quick access */}
       <div className="grid gap-3 lg:grid-cols-3">
         <Card className="lg:col-span-1">
+          <CardHeader title={t('dashboard.todoTitle')} subtitle={t('dashboard.todoSubtitle')} />
+          {todos.length === 0 ? (
+            <p className="flex items-center gap-2 px-4 pb-5 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4" aria-hidden /> {t('dashboard.todoEmpty')}
+            </p>
+          ) : (
+            <ul className="space-y-1.5 px-3 pb-3">
+              {todos.slice(0, 5).map(({ kind, c }) => {
+                const meta = TODO_META[kind]
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => nav(kind === 'report' ? `/raporlar/${c.id}` : `/vakalar/${c.id}`)}
+                      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-teal-300 hover:bg-teal-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${meta.tone}`}>{meta.icon}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">{c.patient.name}</span>
+                        <span className="block truncate text-xs text-slate-500">
+                          {t(meta.key, { count: c.unreadMessages ?? 0 })}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    </button>
+                  </li>
+                )
+              })}
+              {todos.length > 5 ? (
+                <li className="px-1 pt-1 text-xs text-slate-500">{t('dashboard.todoMore', { count: todos.length - 5 })}</li>
+              ) : null}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
           <CardHeader title={t('dashboard.caseDistribution')} subtitle={t('dashboard.last7Days')} />
           <div className="h-48 px-2 pb-3 pr-3">
             <ResponsiveContainer width="100%" height="100%">
@@ -229,51 +232,6 @@ export function VetDashboard() {
                 <Line type="monotone" dataKey="inceleme" name={t('dashboard.trendInReview')} stroke="#d97706" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader title={t('dashboard.speciesDistribution')} subtitle={t('dashboard.activeCasesSubtitle')} />
-          <div className="flex items-center gap-3 px-4 pb-4">
-            <div className="relative h-36 w-36 shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={speciesData.length ? speciesData : [{ name: '—', value: 1, pct: 0 }]}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={38}
-                    outerRadius={58}
-                    paddingAngle={2}
-                    strokeWidth={0}
-                  >
-                    {(speciesData.length ? speciesData : [{ name: '—' }]).map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-display text-lg font-semibold text-navy-900">{open}</span>
-                <span className="text-[10px] text-slate-500">{t('dashboard.centerActive')}</span>
-              </div>
-            </div>
-            <ul className="min-w-0 flex-1 space-y-2 text-xs">
-              {(speciesData.length ? speciesData : [{ name: t('dashboard.noData'), value: 0, pct: 0 }]).map((s, i) => (
-                <li key={s.name} className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 text-slate-600">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                    />
-                    {s.name}
-                  </span>
-                  <span className="font-medium tabular-nums text-navy-900">
-                    {s.value} · %{s.pct}
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
         </Card>
 
@@ -297,149 +255,30 @@ export function VetDashboard() {
       </div>
 
       {/* Cases + sidebar widgets */}
-      <div className="grid gap-3 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+      <div>
+        <Card>
           <CardHeader
             title={t('dashboard.recentActiveCases')}
-            subtitle={t('dashboard.recordsCount', { count: filtered.length })}
+            subtitle={t('dashboard.recentLast24h', { count: recent.length })}
             action={
               <LocalizedLink to="/vakalar" className="text-sm font-medium text-teal-700 hover:underline">
                 {t('dashboard.viewAll')}
               </LocalizedLink>
             }
           />
-          <div className="grid gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-[1fr_minmax(9rem,12rem)] sm:items-end">
-            <label className="block text-xs font-medium text-slate-600" htmlFor="vet-dash-q">
-              {t('common.search')}
-              <input
-                id="vet-dash-q"
-                className="input mt-1 !min-h-9 !py-1.5"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={t('cases.listSearchPlaceholder')}
-              />
-            </label>
-            <label className="block text-xs font-medium text-slate-600" htmlFor="vet-dash-status">
-              {t('common.status')}
-              <select
-                id="vet-dash-status"
-                className="input mt-1 !min-h-9 !py-1.5"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">{t('common.all')}</option>
-                <option value="taslak">{t('status.taslak')}</option>
-                <option value="ai_analizi">{t('status.ai_analizi')}</option>
-                <option value="uzman_incelemesinde">{t('status.uzman_incelemesinde')}</option>
-                <option value="onaylandi">{t('status.onaylandi')}</option>
-                <option value="revizyon">{t('status.revizyon')}</option>
-              </select>
-            </label>
-          </div>
           {recent.length === 0 ? (
             <EmptyState
               compact
               icon={<FolderOpen className="h-5 w-5" />}
-              title={t('dashboard.noCases')}
-              text={t('dashboard.noCasesHint')}
+              title={t('dashboard.recentEmpty')}
+              text={t('dashboard.recentEmptyHint')}
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-100">
-                <thead className="bg-slate-50/70">
-                  <tr>
-                    <th className="th w-10" />
-                    <th className="th">{t('cases.caseNo')}</th>
-                    <th className="th">{t('common.patient')}</th>
-                    <th className="th">{t('cases.speciesBreed')}</th>
-                    <th className="th">{t('cases.modality')}</th>
-                    <th className="th">{t('cases.study')}</th>
-                    <th className="th">{t('common.status')}</th>
-                    <th className="th">{t('cases.updated')}</th>
-                    <th className="th" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recent.map((c) => (
-                    <tr
-                      key={c.id}
-                      className="cursor-pointer transition hover:bg-teal-50/40"
-                      onClick={() => nav(`/vakalar/${c.id}`)}
-                    >
-                      <td className="td">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-navy-900 text-[10px] font-semibold text-teal-200">
-                          {(c.modality || 'IMG').slice(0, 3)}
-                        </div>
-                      </td>
-                      <td className="td font-mono text-[11px] text-slate-400">{c.no}</td>
-                      <td className="td">
-                        <div className="flex items-center gap-2 font-semibold text-navy-900">
-                          <SpeciesIcon species={c.patient.species} />
-                          {c.patient.name}
-                        </div>
-                      </td>
-                      <td className="td">
-                        <div>{c.patient.species}</div>
-                        <div className="text-xs text-slate-500">{c.patient.breed}</div>
-                      </td>
-                      <td className="td">
-                        <span className="rounded-md bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-700">
-                          {c.modality ? studyLabel(t, c.modality, c.anatomicalRegion) : '—'}
-                        </span>
-                      </td>
-                      <td className="td text-xs text-slate-600">
-                        {c.seriesCount != null || c.instanceCount != null
-                          ? `${t('cases.seriesShort', { n: c.seriesCount ?? '—' })} · ${t('cases.imagesShort', { n: c.instanceCount ?? '—' })}`
-                          : t('common.dash')}
-                      </td>
-                      <td className="td">
-                        <StatusBadge status={c.status} />
-                      </td>
-                      <td className="td text-xs text-slate-500">{fmtDate(c.createdAt, locale)}</td>
-                      <td className="td text-right">
-                        <button
-                          type="button"
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-navy-700"
-                          aria-label={t('dashboard.caseDetailAria')}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            nav(`/vakalar/${c.id}`)
-                          }}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            // Same table as the case list and the radiologist worklist.
+            <CaseTable cases={recent} />
           )}
         </Card>
 
-        <Card className="p-4 self-start">
-          <div className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-              <HelpCircle className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-navy-900">{t('dashboard.helpTitle')}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{t('dashboard.helpBody')}</p>
-              {stats && stats.unread_messages > 0 ? (
-                <p className="mt-1 text-xs font-medium text-amber-800">
-                  {t('dashboard.unreadCaseMessages', { count: stats.unread_messages })}
-                </p>
-              ) : null}
-              {/* In-app support conversation instead of a mailto link (issue #92). */}
-              <LocalizedLink
-                to="/mesajlar?new=support"
-                className="mt-2 inline-block text-xs font-semibold text-teal-700 hover:underline"
-              >
-                {t('dashboard.contactSupport')}
-              </LocalizedLink>
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   )
