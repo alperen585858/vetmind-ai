@@ -339,6 +339,8 @@ class CaseSummary(BaseModel):
     status: CaseLifecycleStatus
     priority: CasePriority = "normal"
     assigned_reviewer_id: Optional[str] = None
+    # Issue #77: the assigned expert's display name (None when only the e-mail is known).
+    assigned_reviewer_name: Optional[str] = None
     awaiting_review_since: Optional[datetime] = None
     review_due_at: Optional[datetime] = None
     scenario: Optional[MockScenario] = None

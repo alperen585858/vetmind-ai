@@ -34,6 +34,12 @@ export function purgeLegacyLocalAccounts() {
   }
 }
 
+/** Name of a seeded demo account (the backend directory has none for them). */
+export function demoAccountName(email: string): string | undefined {
+  const normalized = email.trim().toLowerCase()
+  return DEMO_ACCOUNTS.find((a) => a.email === normalized)?.name
+}
+
 export function listDemoCredentials(): { email: string; password: string; role: Role }[] {
   return DEMO_ACCOUNTS.map(({ email, role }) => ({ email, password: DEMO_PASSWORD, role }))
 }

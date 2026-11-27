@@ -20,6 +20,7 @@ import { EmptyState } from '../../shared/ui/EmptyState'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
 import type { BackendModality, CaseStatus, VetCase } from '../../shared/types'
 import { AWAITING_REPORT_FILTER, isAwaitingReport } from './lib/caseStatusMap'
+import { reviewerDisplay } from '../../shared/lib/reviewer'
 
 type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER
 
@@ -75,13 +76,13 @@ export default function CaseList() {
   }, [refreshBackendCases])
 
   const experts = useMemo(() => {
-    const set = new Set<string>()
+    const byId = new Map<string, string>()
     for (const c of cases) {
       const k = expertKey(c)
-      if (k) set.add(k)
+      if (k && !byId.has(k)) byId.set(k, reviewerDisplay(c, t))
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, intlLocale))
-  }, [cases, intlLocale])
+    return Array.from(byId, ([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, intlLocale))
+  }, [cases, intlLocale, t])
 
   const counts = useMemo(() => {
     const byStatus = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<CaseStatus, number>
@@ -111,11 +112,11 @@ export default function CaseList() {
         (!modality || c.modality === modality) &&
         (!expert || expertKey(c) === expert) &&
         (!s ||
-          [c.no, c.patient.name, c.patient.breed, c.modality, c.anatomicalRegion, c.studyInstanceUid, c.assignedReviewerId]
+          [c.no, c.patient.name, c.patient.breed, c.modality, c.anatomicalRegion, c.assignedReviewerId ? reviewerDisplay(c, t) : '']
             .filter(Boolean)
             .some((f) => String(f).toLocaleLowerCase(intlLocale).includes(s))),
     )
-  }, [cases, q, status, species, modality, expert, intlLocale])
+  }, [cases, q, status, species, modality, expert, intlLocale, t])
 
   const onSync = async () => {
     const r = await refreshBackendCases()
@@ -280,8 +281,8 @@ export default function CaseList() {
               >
                 <option value="">{t('cases.filterAllExperts')}</option>
                 {experts.map((e) => (
-                  <option key={e} value={e}>
-                    {e.includes('@') ? e.split('@')[0] : e}
+                  <option key={e.id} value={e.id}>
+                    {e.label}
                   </option>
                 ))}
               </select>
