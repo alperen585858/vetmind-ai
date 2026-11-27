@@ -132,7 +132,7 @@ class MessagingService:
         return not a or not b or a == b
 
     def list_recipients(self, *, principal: AuthPrincipal, query: str | None = None) -> list[MessageRecipient]:
-        """Radiologists the caller may contact, plus the support team."""
+        """Radiologists the caller may contact, the clinic manager <-> vets, plus the support team."""
         if principal.role not in self.STARTER_ROLES and principal.via != "disabled":
             raise HTTPException(status_code=403, detail="Messaging not available for this role.")
         needle = (query or "").strip().lower()
@@ -150,6 +150,22 @@ class MessagingService:
                     channel="radiologist",
                 )
             )
+        # Inside one clinic the manager can write to the vets, and the vets to the manager.
+        peer_role = {"clinic_owner": "vet", "vet": "clinic_owner"}.get(principal.role)
+        if peer_role:
+            for email, rec in sorted(self._auth_users.items()):
+                if rec.role != peer_role or email == principal.subject:
+                    continue
+                if not principal.clinic_id or rec.clinic_id != principal.clinic_id:
+                    continue
+                out.append(
+                    MessageRecipient(
+                        subject=email,
+                        display_name=self._display_name(email),
+                        role=peer_role,
+                        channel="clinic",
+                    )
+                )
         out.append(
             MessageRecipient(
                 subject=self.SUPPORT_SUBJECT,
@@ -159,7 +175,12 @@ class MessagingService:
             )
         )
         if needle:
-            role_words = {"expert": "radyolog radiologist uzman", "support": "destek support admin yönetim"}
+            role_words = {
+                "expert": "radyolog radiologist uzman",
+                "support": "destek support admin yönetim",
+                "vet": "veteriner vet hekim",
+                "clinic_owner": "klinik yönetici clinic manager",
+            }
             out = [
                 r
                 for r in out
@@ -199,7 +220,8 @@ class MessagingService:
             if thread.channel == "admin":
                 return self._display_name(self.SUPPORT_SUBJECT), "support"
             if thread.recipient_subject:
-                return self._display_name(thread.recipient_subject), "expert"
+                rec = self._auth_users.get(thread.recipient_subject)
+                return self._display_name(thread.recipient_subject), getattr(rec, "role", "") or "expert"
             return "Radyolog", "expert"
         starter = self._auth_users.get(thread.owner_subject)
         return self._display_name(thread.owner_subject), getattr(starter, "role", "") or "vet"
@@ -335,7 +357,7 @@ class MessagingService:
                 detail="Only clinic staff can start a new conversation.",
             )
         recipient: str | None = None
-        if payload.channel == "radiologist":
+        if payload.channel in {"radiologist", "clinic"}:
             recipient = (payload.recipient_subject or "").strip().lower() or None
             allowed = {
                 r.subject
@@ -345,7 +367,7 @@ class MessagingService:
                         via=principal.via, clinic_id=principal.clinic_id,
                     )
                 )
-                if r.channel == "radiologist"
+                if r.channel == payload.channel
             }
             if recipient is None or recipient not in allowed:
                 # 404, not 403: do not reveal accounts outside the caller's reach.
@@ -368,7 +390,7 @@ class MessagingService:
         )
         saved = self._store.save_thread(thread)
         self._publish(saved, {"type": "thread.created"})
-        channel_label = "radyolog" if saved.channel == "radiologist" else "yönetim"
+        channel_label = {"radiologist": "radyolog", "clinic": "klinik"}.get(saved.channel, "yönetim")
         self._notify_recipients(
             saved,
             author=subject,
@@ -437,7 +459,7 @@ class MessagingService:
                 | {"unread": True},
             },
         )
-        channel_label = "radyolog" if saved.channel == "radiologist" else "yönetim"
+        channel_label = {"radiologist": "radyolog", "clinic": "klinik"}.get(saved.channel, "yönetim")
         self._notify_recipients(
             saved,
             author=effective_subject,

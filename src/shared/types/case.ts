@@ -303,6 +303,8 @@ export interface VetCase {
   assignedReviewerId?: string
   /** #77: display name of the assigned expert, from the case list. */
   assignedReviewerName?: string
+  /** Account that created the case (the referring vet's e-mail); clinic team page. */
+  submittedBy?: string
   /** When expert review queue clock started (ISO). */
   awaitingReviewSince?: string
   /** Expert response deadline (ISO). Urgent/STAT=24h, else=48h. */

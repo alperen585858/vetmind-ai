@@ -49,7 +49,7 @@ import type {
 
 // --- helpers ---------------------------------------------------------------------------
 
-type Filter = 'all' | 'unread' | 'radiologist' | 'admin'
+type Filter = 'all' | 'unread' | 'radiologist' | 'admin' | 'clinic'
 
 /** A message as shown in the UI: server messages plus optimistic ones still sending. */
 type UiMessage = BackendSupportMessage & { localState?: 'sending' | 'failed'; localId?: string }
@@ -63,7 +63,9 @@ const TYPING_SHOW_MS = 4_000
 const TYPING_PING_MS = 3_000
 
 function channelLabel(channel: SupportMessageChannel, t: TranslateFn) {
-  return channel === 'admin' ? t('messages.channelAdmin') : t('messages.channelRadiologist')
+  if (channel === 'admin') return t('messages.channelAdmin')
+  if (channel === 'clinic') return t('messages.channelClinic')
+  return t('messages.channelRadiologist')
 }
 
 function roleLabel(role: string, t: TranslateFn): string {
@@ -89,6 +91,7 @@ function initials(name: string): string {
 function avatarTone(role: string | null | undefined) {
   if (role === 'support' || role === 'admin') return 'bg-sky-100 text-sky-800'
   if (role === 'expert') return 'bg-violet-100 text-violet-800'
+  if (role === 'clinic_owner') return 'bg-amber-100 text-amber-800'
   return 'bg-teal-100 text-teal-800'
 }
 
@@ -344,6 +347,24 @@ export default function Messages() {
     }
   }, [composeOpen, canCompose, recipientQuery])
 
+  // /mesajlar?yeni=<e-mail> (clinic team page) → new conversation with that colleague preselected.
+  useEffect(() => {
+    const to = searchParams.get('yeni')?.trim().toLowerCase()
+    if (!to || !canCompose) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('yeni')
+    setSearchParams(next, { replace: true })
+    // Not cancelled on cleanup: removing the param above re-runs this effect.
+    listMessageRecipients(to)
+      .then((items) => {
+        const match = items.find((r) => r.subject.toLowerCase() === to)
+        setRecipient(match ?? null)
+        setRecipientQuery(match ? '' : to)
+      })
+      .catch(() => setRecipientQuery(to))
+      .finally(() => setComposeOpen(true))
+  }, [searchParams, setSearchParams, canCompose])
+
   // /mesajlar?new=support → new conversation with the support team preselected.
   useEffect(() => {
     if (searchParams.get('new') !== 'support' || !canCompose) return
@@ -373,7 +394,7 @@ export default function Messages() {
     try {
       const created = await createSupportThread({
         channel: recipient.channel,
-        recipient_subject: recipient.channel === 'radiologist' ? recipient.subject : undefined,
+        recipient_subject: recipient.channel === 'admin' ? undefined : recipient.subject,
         subject: subject.trim(),
         body: body.trim(),
       })
@@ -525,6 +546,7 @@ export default function Messages() {
         if (filter === 'unread' && th.unread_count === 0) return false
         if (filter === 'radiologist' && th.channel !== 'radiologist') return false
         if (filter === 'admin' && th.channel !== 'admin') return false
+        if (filter === 'clinic' && th.channel !== 'clinic') return false
         if (!q) return true
         return [th.subject, th.last_message_preview, th.counterpart_name, th.owner_subject]
           .filter(Boolean)
@@ -555,6 +577,7 @@ export default function Messages() {
     { id: 'unread', label: unreadTotal ? `${t('messages.filterUnread')} · ${unreadTotal}` : t('messages.filterUnread') },
     { id: 'radiologist', label: t('messages.channelRadiologist') },
     { id: 'admin', label: t('messages.channelAdmin') },
+    ...(canCompose ? [{ id: 'clinic' as const, label: t('messages.channelClinic') }] : []),
   ]
 
   // --- render ----------------------------------------------------------------------------
@@ -951,7 +974,13 @@ export default function Messages() {
             {recipient ? (
               <div className="mt-1.5 flex items-center gap-3 rounded-xl bg-teal-50 px-3 py-2 ring-1 ring-inset ring-teal-200">
                 <span className={`flex h-9 w-9 items-center justify-center rounded-full ${avatarTone(recipient.role)}`}>
-                  {recipient.channel === 'admin' ? <Shield className="h-4 w-4" /> : <Stethoscope className="h-4 w-4" />}
+                  {recipient.channel === 'admin' ? (
+                    <Shield className="h-4 w-4" />
+                  ) : recipient.channel === 'clinic' ? (
+                    initials(recipient.display_name)
+                  ) : (
+                    <Stethoscope className="h-4 w-4" />
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-navy-900">{recipient.display_name}</span>

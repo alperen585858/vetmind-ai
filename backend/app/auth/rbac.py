@@ -68,6 +68,7 @@ ROLE_CAPABILITIES: dict[str, frozenset[str]] = {
             CAP_RAG_SEARCH,
             CAP_CLINIC_MANAGE,
             CAP_DICOM,  # read linked case studies in clinic worklist
+            CAP_MESSAGES,  # talk to the clinic's vets and radiologists
         }
     ),
 }

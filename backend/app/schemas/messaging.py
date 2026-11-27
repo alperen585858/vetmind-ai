@@ -8,7 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-MessageChannel = Literal["radiologist", "admin"]
+# ``clinic``: clinic manager <-> the clinic's own vets.
+MessageChannel = Literal["radiologist", "admin", "clinic"]
 ThreadStatus = Literal["open", "closed"]
 
 
