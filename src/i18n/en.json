@@ -1359,7 +1359,7 @@
     "modalityXR": "X-ray",
     "clearFilters": "Clear filters",
     "emptyMineTitle": "No cases assigned to you",
-    "emptyMineText": "Use \"Claim\" on a case in the list to assign it to yourself."
+    "emptyMineText": "Cases assigned to you will show up here."
   },
   "analysis": {
     "pending": "Pending",

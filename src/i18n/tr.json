@@ -1359,7 +1359,7 @@
     "modalityXR": "Röntgen",
     "clearFilters": "Filtreleri temizle",
     "emptyMineTitle": "Size atanmış vaka yok",
-    "emptyMineText": "Listeden bir vakayı \"Üstlen\" ile kendinize atayabilirsiniz."
+    "emptyMineText": "Size bir vaka atandığında burada görünecek."
   },
   "analysis": {
     "pending": "Bekliyor",

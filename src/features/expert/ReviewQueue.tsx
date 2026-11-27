@@ -8,7 +8,7 @@ import { ExpertWorklistTable, isUrgentCase } from './ExpertWorklistTable'
 import { Modal } from '../../shared/ui/Modal'
 import { currentActorId } from '../../shared/auth/session'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
-import { hideBackendCase, listBackendWorklist, updateCaseAssignment } from '../../shared/api'
+import { hideBackendCase, listBackendWorklist } from '../../shared/api'
 import { summaryToVetCase } from '../../shared/lib/caseMapper'
 import { isSlaAttention } from '../../shared/lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../../shared/types'
@@ -75,7 +75,7 @@ function safeActorId(): string {
 }
 
 export default function ReviewQueue() {
-  const { cases, pushToast, hydrateBackendCase, removeCase } = useApp()
+  const { cases, pushToast, removeCase } = useApp()
   const { t } = useLocale()
   const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<BackendCaseSummary[]>([])
@@ -142,32 +142,6 @@ export default function ReviewQueue() {
     if (next === 'urgent') p.set('acil', '1')
     if (next === 'mine') p.set('bana', '1')
     setParams(p, { replace: true })
-  }
-
-  const claim = (c: VetCase) => {
-    void updateCaseAssignment(c.backendCaseId || c.id, {
-      assigned_reviewer_id: currentActorId(),
-      priority:
-        c.priority === 'STAT'
-          ? 'stat'
-          : c.priority === 'Acil'
-            ? 'urgent'
-            : c.priority === 'Yüksek'
-              ? 'high'
-              : 'normal',
-    })
-      .then(() => {
-        pushToast({ tone: 'success', title: t('review.assignedToast') })
-        void hydrateBackendCase(c.backendCaseId || c.id)
-        load()
-      })
-      .catch((err) =>
-        pushToast({
-          tone: 'error',
-          title: t('review.assignFailed'),
-          body: toastErrorBody(err, t),
-        }),
-      )
   }
 
   const hasFilters = Boolean(needle || modality || view !== 'all')
@@ -315,8 +289,6 @@ export default function ReviewQueue() {
             items={display}
             loading={loading}
             order={view === 'sla' ? 'urgent' : 'newest'}
-            showClaim
-            onClaim={claim}
             emptyTitle={
               view === 'sla'
                 ? t('review.emptySlaTitle')
@@ -351,7 +323,7 @@ export default function ReviewQueue() {
             secondaryActions={(c) => (
               <button
                 type="button"
-                className="inline-flex items-center text-slate-400 transition hover:text-slate-700"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/70 hover:text-slate-700"
                 onClick={() => setPendingDelete(c)}
                 aria-label={t('review.hideFromMyList')}
                 title={t('review.hideFromMyList')}

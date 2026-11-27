@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { ChevronRight, Clock, Loader2, UserPlus } from 'lucide-react'
+import { Cat, ChevronRight, Clock, Dog, Loader2, PawPrint } from 'lucide-react'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { studyLabel } from '../../shared/lib/displayClean'
@@ -57,9 +57,15 @@ export function sortWorklist(items: VetCase[], order: WorklistOrder = 'newest') 
 
 function waitClass(c: VetCase) {
   const tone = slaTone(c.reviewDueAt)
-  if (tone === 'overdue' || tone === 'critical') return 'text-rose-700'
-  if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'text-amber-700'
-  return 'text-slate-600'
+  if (tone === 'overdue' || tone === 'critical') return 'bg-rose-100 text-rose-800 ring-rose-200'
+  if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'bg-amber-100 text-amber-800 ring-amber-200'
+  return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+}
+
+const SPECIES_AVATAR: Record<string, { icon: typeof Dog; cls: string }> = {
+  Köpek: { icon: Dog, cls: 'bg-teal-100 text-teal-700' },
+  Kedi: { icon: Cat, cls: 'bg-amber-100 text-amber-700' },
+  Diğer: { icon: PawPrint, cls: 'bg-sky-100 text-sky-700' },
 }
 
 export function ExpertWorklistTable({
@@ -68,8 +74,6 @@ export function ExpertWorklistTable({
   emptyTitle,
   emptyText,
   emptyAction,
-  showClaim = false,
-  onClaim,
   secondaryActions,
   compact = false,
   order = 'newest',
@@ -79,8 +83,6 @@ export function ExpertWorklistTable({
   emptyTitle?: string
   emptyText?: string
   emptyAction?: ReactNode
-  showClaim?: boolean
-  onClaim?: (c: VetCase) => void
   secondaryActions?: (c: VetCase) => ReactNode
   compact?: boolean
   order?: WorklistOrder
@@ -123,24 +125,25 @@ export function ExpertWorklistTable({
               {t('dashboard.expertColStudy')}
             </th>
             <th scope="col" className={`${head} font-medium`}>
-              {t('dashboard.expertColPriority')}
-            </th>
-            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColWait')}
-            </th>
-            <th scope="col" className={`${head} font-medium`}>
-              {t('dashboard.expertColStatus')}
             </th>
             <th scope="col" className={`${head} text-right font-medium`}>
               <span className="sr-only">{t('dashboard.expertColAction')}</span>
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
-          {sorted.map((c) => {
+        <tbody className="divide-y divide-slate-200/70">
+          {sorted.map((c, idx) => {
             const urgent = isUrgentCase(c)
             const openCase = () => nav(`/vakalar/${c.id}/calisma`)
-            const meta = [c.patient.species, c.patient.breed, c.no].filter((v) => v && v.trim() !== '—' && v.trim() !== '-').join(' · ')
+            const breed = c.patient.breed && !['—', '-'].includes(c.patient.breed.trim()) ? c.patient.breed : ''
+            const avatar = SPECIES_AVATAR[c.patient.species] ?? SPECIES_AVATAR.Diğer
+            const AvatarIcon = avatar.icon
+            const rowBg = urgent
+              ? 'bg-rose-50 hover:bg-rose-100/70'
+              : idx % 2
+                ? 'bg-slate-50/70 hover:bg-teal-50/70'
+                : 'bg-white hover:bg-teal-50/70'
             return (
               <tr
                 key={c.id}
@@ -156,54 +159,58 @@ export function ExpertWorklistTable({
                   e.preventDefault()
                   openCase()
                 }}
-                className={`group cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${
-                  urgent ? 'bg-rose-50/70 hover:bg-rose-50' : 'bg-white hover:bg-slate-50'
-                }`}
+                className={`cursor-pointer border-l-4 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${
+                  urgent ? 'border-l-rose-500' : 'border-l-transparent hover:border-l-teal-500'
+                } ${rowBg}`}
               >
                 <td className={`${cell} align-middle`}>
                   <div className="flex items-center gap-3">
                     <span
                       aria-hidden
-                      className={`h-9 w-1 shrink-0 rounded-full ${urgent ? 'bg-rose-500' : 'bg-transparent'}`}
-                    />
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${avatar.cls}`}
+                    >
+                      <AvatarIcon className="h-5 w-5" />
+                    </span>
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">{c.patient.name}</p>
-                      <p className="truncate text-xs text-slate-500">{meta}</p>
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-[15px] font-semibold text-slate-900">{c.patient.name}</span>
+                        {c.priority !== 'Normal' ? <PriorityBadge priority={c.priority} /> : null}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                        {[c.patient.species, breed].filter(Boolean).join(' · ')}
+                        <span className="ml-2 font-mono text-[11px] text-slate-400">{c.no}</span>
+                      </p>
                     </div>
                   </div>
                 </td>
                 <td className={`${cell} align-middle`}>
-                  <p className="text-slate-800">{studyLine(c, t)}</p>
-                  <p className="text-xs text-slate-500">{c.modality || t('common.dash')}</p>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="rounded-md bg-[color:var(--vm-sidebar,#102a43)] px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">
+                      {c.modality || t('common.dash')}
+                    </span>
+                    <span className="font-medium text-slate-800">{studyLine(c, t)}</span>
+                  </span>
+                  {c.status !== 'uzman_incelemesinde' ? (
+                    <span className="mt-1 block">
+                      <StatusBadge status={c.status} />
+                    </span>
+                  ) : null}
                 </td>
                 <td className={`${cell} align-middle`}>
-                  <PriorityBadge priority={c.priority} />
-                </td>
-                <td className={`${cell} align-middle`}>
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${waitClass(c)}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${waitClass(c)}`}
+                  >
                     <Clock className="h-3.5 w-3.5" aria-hidden />
                     {waitLabel(c, t)}
                   </span>
                 </td>
-                <td className={`${cell} align-middle`}>
-                  <StatusBadge status={c.status} />
-                </td>
                 <td className={`${cell} align-middle`} data-stop-row-nav onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-end gap-3">
-                    {showClaim && onClaim && !c.assignedReviewerId ? (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-900"
-                        onClick={() => onClaim(c)}
-                      >
-                        <UserPlus className="h-3.5 w-3.5" aria-hidden /> {t('review.claimCase')}
-                      </button>
-                    ) : null}
+                  <div className="flex items-center justify-end gap-2">
                     {secondaryActions?.(c)}
                     <button
                       type="button"
                       onClick={openCase}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:border-teal-600 hover:text-teal-700"
+                      className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
                     >
                       {t('dashboard.expertOpen')}
                       <ChevronRight className="h-3.5 w-3.5" aria-hidden />
