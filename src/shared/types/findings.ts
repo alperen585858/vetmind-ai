@@ -42,6 +42,8 @@ export interface AIAssessment {
   differentials: Differential[]
   recommendedTests: string[]
   validation: ValidationItem[]
+  /** #75: technical pipeline notes; shown under Details, never counted as missing information. */
+  technicalNotes?: string[]
   model: string
   generatedAt: string
 }

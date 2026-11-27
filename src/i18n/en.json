@@ -921,11 +921,9 @@
       "structuredFindings": "Structured findings",
       "noFindingsReturned": "No findings were returned.",
       "potentialConflicts": "Potential conflicts (not auto-resolved)",
-      "caseSummary": "Case summary",
       "differentials": "Possible differential diagnoses",
       "differentialsSub": "Likelihood is the model's relative ranking, not a clinical probability.",
       "noDifferentials": "The model produced no differential list (no findings, failed analysis or template draft).",
-      "recommendedTests": "Recommended additional tests",
       "validationReport": "Validation report",
       "validationReportSub": "Click a box for details",
       "validatedCount": "{n} verified",
@@ -972,7 +970,6 @@
       "valOk": "Supported by sources",
       "valMissing": "Missing information",
       "valUnsupported": "Statement not supported by sources",
-      "findingsOfNote": "Findings of note",
       "supporting": "Supporting findings",
       "against": "Findings against",
       "sourcesRag": "Sources",
@@ -1001,7 +998,19 @@
       "tabHistory": "History",
       "actorSystem": "System",
       "emailSent": "Report e-mail",
-      "rowHandoffNotes": "Clinical note"
+      "rowHandoffNotes": "Clinical note",
+      "evidenceLabel": "Evidence:",
+      "uncertaintyLabel": "Uncertainty:",
+      "findingCodeHint": "Model's internal finding code",
+      "analysisCoverage": "Analysis coverage",
+      "technicalDetails": "Details (technical)",
+      "pipelineNotes": "Pipeline notes",
+      "findingStatus": {
+        "suspected": "suspected",
+        "possible": "possible",
+        "uncertain": "uncertain",
+        "not_assessed": "not assessed"
+      }
     },
     "processing": {
       "title": "AI processing",

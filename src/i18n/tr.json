@@ -921,11 +921,9 @@
       "structuredFindings": "Yapılandırılmış bulgular",
       "noFindingsReturned": "Döndürülen bulgu yok.",
       "potentialConflicts": "Potansiyel çatışmalar (auto-resolve yok)",
-      "caseSummary": "Vaka Özeti",
       "differentials": "Olası Ayırıcı Tanılar",
       "differentialsSub": "Olasılık düzeyi modelin göreli sıralamasıdır; klinik olasılık değildir.",
       "noDifferentials": "Model ayırıcı tanı listesi üretmedi (bulgu yok, analiz başarısız ya da şablon taslak).",
-      "recommendedTests": "Önerilen Ek Tetkikler",
       "validationReport": "Doğrulama Raporu",
       "validationReportSub": "Ayrıntı için kutulara tıklayın",
       "validatedCount": "{n} doğrulandı",
@@ -972,7 +970,6 @@
       "valOk": "Kaynakla desteklendi",
       "valMissing": "Eksik bilgi",
       "valUnsupported": "Kaynakla desteklenmeyen ifade",
-      "findingsOfNote": "Dikkat Edilmesi Gereken Bulgular",
       "supporting": "Lehine bulgular",
       "against": "Aleyhine bulgular",
       "sourcesRag": "Kaynaklar",
@@ -1001,7 +998,19 @@
       "tabHistory": "Geçmiş",
       "actorSystem": "Sistem",
       "emailSent": "Rapor e-postası",
-      "rowHandoffNotes": "Klinik not"
+      "rowHandoffNotes": "Klinik not",
+      "evidenceLabel": "Kanıt:",
+      "uncertaintyLabel": "Belirsizlik:",
+      "findingCodeHint": "Modelin iç bulgu kodu",
+      "analysisCoverage": "Analiz kapsamı",
+      "technicalDetails": "Detaylar (teknik bilgi)",
+      "pipelineNotes": "Pipeline notları",
+      "findingStatus": {
+        "suspected": "şüpheli",
+        "possible": "olası",
+        "uncertain": "belirsiz",
+        "not_assessed": "değerlendirilmedi"
+      }
     },
     "processing": {
       "title": "AI İşleme",

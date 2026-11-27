@@ -72,7 +72,7 @@ describe('assessmentSeverityForFinding', () => {
 })
 
 describe('pipelineToAssessment', () => {
-  it('embeds status in text and demotes technical suspected findings', () => {
+  it('keeps internal codes and raw status out of the text; demotes technical findings', () => {
     const ai = pipelineToAssessment(
       minimalFindings([
         {
@@ -89,9 +89,16 @@ describe('pipelineToAssessment', () => {
       minimalReport(),
     )
     expect(ai.findings[0].severity).toBe('Düşük')
-    expect(ai.findings[0].text).toContain('(suspected)')
-    expect(ai.findings[0].text).toContain('[IMAGE-QUALITY]')
+    expect(ai.findings[0].text).toBe('net izlenmektedir')
     expect(ai.findings[1].severity).toBe('Orta')
-    expect(ai.findings[1].text).toContain('(possible)')
+    expect(ai.findings[1].text).toBe('genişleme')
+  })
+
+  it('puts pipeline notes under technical notes, not in validation (#75)', () => {
+    const f = minimalFindings([{}])
+    f.warnings = ['ImagingModelInput v1.0.0 metadata_only=True; pixel_analysis_authorized=False']
+    const ai = pipelineToAssessment(f, minimalReport())
+    expect(ai.validation).toEqual([])
+    expect(ai.technicalNotes).toEqual(f.warnings)
   })
 })
