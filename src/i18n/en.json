@@ -1349,13 +1349,17 @@
     "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale.",
     "hideFromMyList": "Hide from my list",
     "urgentFilter": "Urgent / STAT",
-    "filterStatusLabel": "Status",
     "filterModalityLabel": "Modality",
-    "filterPriorityLabel": "Priority",
-    "filterAssignmentLabel": "Assignment",
     "filteredCount": "{shown} / {total} cases",
     "emptyUrgentTitle": "No urgent cases",
-    "emptyUrgentText": "There are no STAT or urgent cases waiting right now."
+    "emptyUrgentText": "There are no STAT or urgent cases waiting right now.",
+    "allModalities": "All",
+    "modalityMR": "MRI",
+    "modalityCT": "CT",
+    "modalityXR": "X-ray",
+    "clearFilters": "Clear filters",
+    "emptyMineTitle": "No cases assigned to you",
+    "emptyMineText": "Use \"Claim\" on a case in the list to assign it to yourself."
   },
   "analysis": {
     "pending": "Pending",

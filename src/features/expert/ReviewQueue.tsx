@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Clock, EyeOff, Info, Loader2, RefreshCw, Search, X } from 'lucide-react'
+import { AlertTriangle, Clock, EyeOff, Info, Loader2, RefreshCw, Search, UserCheck, X } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
@@ -13,10 +13,10 @@ import { summaryToVetCase } from '../../shared/lib/caseMapper'
 import { isSlaAttention } from '../../shared/lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../../shared/types'
 
-const FILTER_SELECT =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20'
+type QueueView = 'all' | 'urgent' | 'sla' | 'mine'
+type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
-type QueueView = 'all' | 'urgent' | 'sla'
+const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
 
 function matchesSearch(c: VetCase, needle: string) {
   if (!needle) return true
@@ -27,27 +27,19 @@ function matchesSearch(c: VetCase, needle: string) {
     .includes(needle)
 }
 
-function FilterSelect({
-  id,
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (v: string) => void
-  children: ReactNode
-}) {
-  return (
-    <label htmlFor={id} className="flex min-w-[9rem] flex-1 flex-col gap-1 sm:flex-none">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
-      <select id={id} className={FILTER_SELECT} value={value} onChange={(e) => onChange(e.target.value)}>
-        {children}
-      </select>
-    </label>
-  )
+function viewFromParams(params: URLSearchParams): QueueView {
+  if (params.get('sla') === 'az') return 'sla'
+  if (params.get('acil') === '1') return 'urgent'
+  if (params.get('bana') === '1') return 'mine'
+  return 'all'
+}
+
+function safeActorId(): string {
+  try {
+    return currentActorId()
+  } catch {
+    return ''
+  }
 }
 
 export default function ReviewQueue() {
@@ -58,23 +50,18 @@ export default function ReviewQueue() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
-  const [modality, setModality] = useState('')
-  const [priority, setPriority] = useState('')
-  const [status, setStatus] = useState('awaiting_review')
-  const [assigned, setAssigned] = useState('')
+  const [modality, setModality] = useState<ModalityFilter>('')
   const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const view: QueueView = params.get('sla') === 'az' ? 'sla' : params.get('acil') === '1' ? 'urgent' : 'all'
+  const view = viewFromParams(params)
+  const me = safeActorId()
 
+  // One request for the whole queue; every filter below is instant and client-side,
+  // so the counts on the tabs always match what the table shows.
   const load = () => {
     setLoading(true)
     setError(null)
-    void listBackendWorklist({
-      status: status || undefined,
-      modality: modality || undefined,
-      priority: priority || undefined,
-      assigned_to: assigned || undefined,
-    })
+    void listBackendWorklist({ status: 'awaiting_review' })
       .then(setRows)
       .catch((err) => {
         setError(err instanceof Error ? err.message : t('review.loadFailed'))
@@ -86,7 +73,7 @@ export default function ReviewQueue() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, modality, priority, assigned])
+  }, [])
 
   const localFallback = useMemo(() => cases.filter((c) => c.status === 'uzman_incelemesinde'), [cases])
 
@@ -97,22 +84,31 @@ export default function ReviewQueue() {
   )
 
   const needle = q.trim().toLocaleLowerCase('tr')
-  const searched = useMemo(() => baseDisplay.filter((c) => matchesSearch(c, needle)), [baseDisplay, needle])
-  const urgentCount = searched.filter(isUrgentCase).length
-  const slaCount = searched.filter((c) => isSlaAttention(c.reviewDueAt)).length
+  const narrowed = useMemo(
+    () =>
+      baseDisplay.filter(
+        (c) => matchesSearch(c, needle) && (!modality || (c.modality || '').toUpperCase() === modality),
+      ),
+    [baseDisplay, needle, modality],
+  )
 
-  const display = useMemo(() => {
-    if (view === 'urgent') return searched.filter(isUrgentCase)
-    if (view === 'sla') return searched.filter((c) => isSlaAttention(c.reviewDueAt))
-    return searched
-  }, [searched, view])
+  const inView = (c: VetCase, v: QueueView) => {
+    if (v === 'urgent') return isUrgentCase(c)
+    if (v === 'sla') return isSlaAttention(c.reviewDueAt)
+    if (v === 'mine') return Boolean(me) && c.assignedReviewerId === me
+    return true
+  }
+  const display = narrowed.filter((c) => inView(c, view))
+  const countFor = (v: QueueView) => narrowed.filter((c) => inView(c, v)).length
 
   const setView = (next: QueueView) => {
     const p = new URLSearchParams(params)
     p.delete('sla')
     p.delete('acil')
+    p.delete('bana')
     if (next === 'sla') p.set('sla', 'az')
     if (next === 'urgent') p.set('acil', '1')
+    if (next === 'mine') p.set('bana', '1')
     setParams(p, { replace: true })
   }
 
@@ -142,21 +138,19 @@ export default function ReviewQueue() {
       )
   }
 
-  const hasFilters = Boolean(needle || modality || priority || assigned || status !== 'awaiting_review' || view !== 'all')
+  const hasFilters = Boolean(needle || modality || view !== 'all')
 
   const clearFilters = () => {
     setQ('')
     setModality('')
-    setPriority('')
-    setAssigned('')
-    setStatus('awaiting_review')
     setView('all')
   }
 
-  const tabs: { id: QueueView; label: string; count: number; icon?: ReactNode }[] = [
-    { id: 'all', label: t('review.allQueue'), count: searched.length },
-    { id: 'urgent', label: t('review.urgentFilter'), count: urgentCount, icon: <AlertTriangle className="h-4 w-4" aria-hidden /> },
-    { id: 'sla', label: t('review.slaFilter'), count: slaCount, icon: <Clock className="h-4 w-4" aria-hidden /> },
+  const tabs: { id: QueueView; label: string; icon?: ReactNode }[] = [
+    { id: 'all', label: t('review.allQueue') },
+    { id: 'urgent', label: t('review.urgentFilter'), icon: <AlertTriangle className="h-4 w-4" aria-hidden /> },
+    { id: 'sla', label: t('review.slaFilter'), icon: <Clock className="h-4 w-4" aria-hidden /> },
+    { id: 'mine', label: t('review.assignedToMe'), icon: <UserCheck className="h-4 w-4" aria-hidden /> },
   ]
 
   const listSubtitle = view === 'sla' ? t('review.slaListSubtitle') : t('review.defaultListSubtitle')
@@ -196,8 +190,9 @@ export default function ReviewQueue() {
           <div className="flex flex-wrap gap-1 border-b border-slate-200 px-3 pt-3" role="tablist" aria-label={t('dashboard.expertFilterAria')}>
             {tabs.map((tab) => {
               const active = view === tab.id
+              const count = countFor(tab.id)
               const tone =
-                tab.id === 'urgent' && tab.count > 0 && !active ? 'text-rose-700' : active ? 'text-slate-900' : 'text-slate-500'
+                tab.id === 'urgent' && count > 0 && !active ? 'text-rose-700' : active ? 'text-slate-900' : 'text-slate-500'
               return (
                 <button
                   key={tab.id}
@@ -213,69 +208,65 @@ export default function ReviewQueue() {
                   {tab.label}
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${
-                      tab.id === 'urgent' && tab.count > 0
+                      tab.id === 'urgent' && count > 0
                         ? 'bg-rose-600 text-white'
                         : active
                           ? 'bg-slate-900 text-white'
                           : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    {tab.count}
+                    {count}
                   </span>
                 </button>
               )
             })}
           </div>
 
-          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-4 lg:flex-row lg:items-end">
-            <label htmlFor="wl-q" className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-xs font-medium text-slate-600">{t('common.search')}</span>
-              <span className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
-                <input
-                  id="wl-q"
-                  type="search"
-                  className={`${FILTER_SELECT} pl-9`}
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder={t('review.searchPlaceholder')}
-                />
-              </span>
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center">
+            <label htmlFor="wl-q" className="relative block min-w-0 flex-1">
+              <span className="sr-only">{t('common.search')}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+              <input
+                id="wl-q"
+                type="search"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('review.searchPlaceholder')}
+              />
             </label>
-            <div className="flex flex-wrap items-end gap-3">
-              <FilterSelect id="wl-status" label={t('review.filterStatusLabel')} value={status} onChange={setStatus}>
-                <option value="">{t('common.all')}</option>
-                <option value="awaiting_review">{t('review.statusAwaitingReview')}</option>
-                <option value="revision_requested">{t('review.statusRevision')}</option>
-                <option value="manual_review">{t('review.statusManual')}</option>
-                <option value="analyzing">{t('review.statusAnalyzing')}</option>
-              </FilterSelect>
-              <FilterSelect id="wl-modality" label={t('review.filterModalityLabel')} value={modality} onChange={setModality}>
-                <option value="">{t('common.all')}</option>
-                <option value="MR">MR</option>
-                <option value="CT">CT</option>
-                <option value="XR">XR</option>
-              </FilterSelect>
-              <FilterSelect id="wl-priority" label={t('review.filterPriorityLabel')} value={priority} onChange={setPriority}>
-                <option value="">{t('common.all')}</option>
-                <option value="stat">{t('priority.STAT')}</option>
-                <option value="urgent">{t('priority.Acil')}</option>
-                <option value="high">{t('priority.Yüksek')}</option>
-                <option value="normal">{t('priority.Normal')}</option>
-              </FilterSelect>
-              <FilterSelect id="wl-assigned" label={t('review.filterAssignmentLabel')} value={assigned} onChange={setAssigned}>
-                <option value="">{t('common.all')}</option>
-                <option value="unassigned">{t('cases.unassigned')}</option>
-                <option value={currentActorId()}>{t('review.assignedToMe')}</option>
-              </FilterSelect>
+            <div className="flex flex-wrap items-center gap-3">
+              <div
+                role="radiogroup"
+                aria-label={t('review.filterModalityLabel')}
+                className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5"
+              >
+                {MODALITIES.map((m) => {
+                  const active = modality === m
+                  return (
+                    <button
+                      key={m || 'all'}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setModality(m)}
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                        active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {m ? t(`review.modality${m}`) : t('review.allModalities')}
+                    </button>
+                  )
+                })}
+              </div>
               {hasFilters ? (
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-slate-900"
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
                 >
                   <X className="h-4 w-4" aria-hidden />
-                  {t('common.clear')}
+                  {t('review.clearFilters')}
                 </button>
               ) : null}
             </div>
@@ -293,14 +284,22 @@ export default function ReviewQueue() {
             showClaim
             onClaim={claim}
             emptyTitle={
-              view === 'sla' ? t('review.emptySlaTitle') : view === 'urgent' ? t('review.emptyUrgentTitle') : t('review.emptyNoMatch')
+              view === 'sla'
+                ? t('review.emptySlaTitle')
+                : view === 'urgent'
+                  ? t('review.emptyUrgentTitle')
+                  : view === 'mine'
+                    ? t('review.emptyMineTitle')
+                    : t('review.emptyNoMatch')
             }
             emptyText={
               view === 'sla'
                 ? t('review.emptySlaText')
                 : view === 'urgent'
                   ? t('review.emptyUrgentText')
-                  : error
+                  : view === 'mine'
+                    ? t('review.emptyMineText')
+                    : error
                     ? t('review.emptyApiText', { error })
                     : t('review.emptyExpandFilters')
             }
