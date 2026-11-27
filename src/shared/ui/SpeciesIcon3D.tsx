@@ -13,58 +13,75 @@ function useIds(...names: string[]) {
   return Object.fromEntries(names.map((n) => [n, `${base}-${n}`])) as Record<string, string>
 }
 
+/** Big glossy kawaii eye: dark iris, a large shine and a small one. */
+function Eye({ cx, cy, r, iris }: { cx: number; cy: number; r: number; iris: string }) {
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill={iris} />
+      <circle cx={cx} cy={cy + r * 0.15} r={r * 0.62} fill="#0b0b12" />
+      <circle cx={cx + r * 0.32} cy={cy - r * 0.34} r={r * 0.36} fill="#fff" />
+      <circle cx={cx - r * 0.38} cy={cy + r * 0.38} r={r * 0.15} fill="#fff" opacity="0.9" />
+    </g>
+  )
+}
+
 export function Dog3D({ size = 40, className }: IconProps) {
-  const id = useIds('head', 'ear', 'muzzle', 'nose', 'shadow', 'tongue')
+  const id = useIds('head', 'ear', 'muzzle', 'nose', 'shadow', 'tongue', 'iris')
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden>
       <defs>
-        <radialGradient id={id.head} cx="38%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#fde68a" />
-          <stop offset="45%" stopColor="#f59e0b" />
-          <stop offset="100%" stopColor="#b45309" />
+        <radialGradient id={id.head} cx="40%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#fff1c2" />
+          <stop offset="45%" stopColor="#fbbf4d" />
+          <stop offset="100%" stopColor="#d97706" />
         </radialGradient>
-        <radialGradient id={id.ear} cx="40%" cy="25%" r="80%">
-          <stop offset="0%" stopColor="#d97706" />
-          <stop offset="100%" stopColor="#78350f" />
+        <radialGradient id={id.ear} cx="40%" cy="25%" r="85%">
+          <stop offset="0%" stopColor="#c2721c" />
+          <stop offset="100%" stopColor="#7c3a10" />
         </radialGradient>
         <radialGradient id={id.muzzle} cx="45%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#fffbeb" />
-          <stop offset="100%" stopColor="#fcd34d" />
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#fde7b0" />
         </radialGradient>
         <radialGradient id={id.nose} cx="35%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#64748b" />
-          <stop offset="100%" stopColor="#0f172a" />
+          <stop offset="0%" stopColor="#6b5b57" />
+          <stop offset="100%" stopColor="#1c1414" />
         </radialGradient>
         <radialGradient id={id.tongue} cx="50%" cy="20%" r="80%">
-          <stop offset="0%" stopColor="#fda4af" />
-          <stop offset="100%" stopColor="#e11d48" />
+          <stop offset="0%" stopColor="#fecdd3" />
+          <stop offset="100%" stopColor="#f43f5e" />
+        </radialGradient>
+        <radialGradient id={id.iris} cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#8a5a2b" />
+          <stop offset="100%" stopColor="#3b2412" />
         </radialGradient>
         <radialGradient id={id.shadow}>
           <stop offset="0%" stopColor="#0f172a" stopOpacity="0.35" />
           <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <ellipse cx="32" cy="58" rx="18" ry="3.5" fill={`url(#${id.shadow})`} />
-      {/* floppy ears behind the head */}
-      <ellipse cx="13.5" cy="32" rx="7.5" ry="14" transform="rotate(18 13.5 32)" fill={`url(#${id.ear})`} />
-      <ellipse cx="50.5" cy="32" rx="7.5" ry="14" transform="rotate(-18 50.5 32)" fill={`url(#${id.ear})`} />
-      <circle cx="32" cy="31" r="20" fill={`url(#${id.head})`} />
-      {/* brows */}
-      <path d="M21 23.5 q3.5 -3 7 -0.5" stroke="#92400e" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <path d="M36 23 q3.5 -2.5 7 0.5" stroke="#92400e" strokeWidth="2" strokeLinecap="round" fill="none" />
-      {/* eyes */}
-      <circle cx="24.5" cy="29" r="3.6" fill="#1c1917" />
-      <circle cx="39.5" cy="29" r="3.6" fill="#1c1917" />
-      <circle cx="25.8" cy="27.7" r="1.3" fill="#fff" />
-      <circle cx="40.8" cy="27.7" r="1.3" fill="#fff" />
-      {/* muzzle, tongue, nose */}
-      <ellipse cx="32" cy="41" rx="11.5" ry="8.5" fill={`url(#${id.muzzle})`} />
-      <path d="M29 44.5 q3 5.5 6 0 z" fill={`url(#${id.tongue})`} />
-      <path d="M32 39 v3 M27.5 42.5 q4.5 3.5 9 0" stroke="#7c2d12" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-      <ellipse cx="32" cy="36.5" rx="4.8" ry="3.4" fill={`url(#${id.nose})`} />
-      <ellipse cx="30.6" cy="35.4" rx="1.5" ry="0.8" fill="#fff" opacity="0.75" />
+      <ellipse cx="32" cy="58.5" rx="18" ry="3.5" fill={`url(#${id.shadow})`} />
+      {/* short, round floppy ears */}
+      <ellipse cx="12.5" cy="31" rx="7.5" ry="11.5" transform="rotate(22 12.5 31)" fill={`url(#${id.ear})`} />
+      <ellipse cx="51.5" cy="31" rx="7.5" ry="11.5" transform="rotate(-22 51.5 31)" fill={`url(#${id.ear})`} />
+      {/* round, slightly wide head */}
+      <ellipse cx="32" cy="33" rx="21" ry="19.5" fill={`url(#${id.head})`} />
+      {/* little tuft */}
+      <path d="M27.5 15 q2.5 -5 4.5 -1 q2 -4.5 4.5 1" fill="#fbbf4d" stroke="#e8a23a" strokeWidth="0.6" />
+      {/* big eyes */}
+      <Eye cx={23.5} cy={31} r={5} iris={`url(#${id.iris})`} />
+      <Eye cx={40.5} cy={31} r={5} iris={`url(#${id.iris})`} />
+      {/* blush */}
+      <ellipse cx="16.5" cy="39.5" rx="3.6" ry="2.2" fill="#fb7185" opacity="0.45" />
+      <ellipse cx="47.5" cy="39.5" rx="3.6" ry="2.2" fill="#fb7185" opacity="0.45" />
+      {/* small muzzle, tongue, nose */}
+      <ellipse cx="32" cy="42.5" rx="8.5" ry="6.5" fill={`url(#${id.muzzle})`} />
+      <path d="M29.6 45 q2.4 6 4.8 0 z" fill={`url(#${id.tongue})`} />
+      <path d="M32 41.3 v1.8 M28.5 43.6 q1.8 1.8 3.5 0 q1.7 1.8 3.5 0" stroke="#8a4a1c" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M28.6 38.6 q3.4 -2.6 6.8 0 q-0.4 2.8 -3.4 3.4 q-3 -0.6 -3.4 -3.4 z" fill={`url(#${id.nose})`} />
+      <ellipse cx="31" cy="38.4" rx="1.3" ry="0.6" fill="#fff" opacity="0.8" />
       {/* specular highlight */}
-      <ellipse cx="25" cy="17" rx="8" ry="3.6" fill="#fff" opacity="0.38" transform="rotate(-15 25 17)" />
+      <ellipse cx="25" cy="19.5" rx="8" ry="3.4" fill="#fff" opacity="0.45" transform="rotate(-15 25 19.5)" />
     </svg>
   )
 }
@@ -74,56 +91,55 @@ export function Cat3D({ size = 40, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden>
       <defs>
-        <radialGradient id={id.head} cx="38%" cy="28%" r="80%">
-          <stop offset="0%" stopColor="#94a3b8" />
-          <stop offset="50%" stopColor="#475569" />
-          <stop offset="100%" stopColor="#1e293b" />
+        <radialGradient id={id.head} cx="40%" cy="28%" r="80%">
+          <stop offset="0%" stopColor="#a5b4c8" />
+          <stop offset="50%" stopColor="#5b6b82" />
+          <stop offset="100%" stopColor="#2b3547" />
         </radialGradient>
         <linearGradient id={id.ear} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#64748b" />
-          <stop offset="100%" stopColor="#334155" />
+          <stop offset="0%" stopColor="#7c8aa0" />
+          <stop offset="100%" stopColor="#3f4a5e" />
         </linearGradient>
         <radialGradient id={id.muzzle} cx="45%" cy="30%" r="75%">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="100%" stopColor="#cbd5e1" />
+          <stop offset="100%" stopColor="#d7dee8" />
         </radialGradient>
-        <radialGradient id={id.iris} cx="40%" cy="35%" r="70%">
-          <stop offset="0%" stopColor="#d9f99d" />
-          <stop offset="100%" stopColor="#65a30d" />
+        <radialGradient id={id.iris} cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#bef264" />
+          <stop offset="100%" stopColor="#3f7d12" />
         </radialGradient>
         <radialGradient id={id.shadow}>
           <stop offset="0%" stopColor="#0f172a" stopOpacity="0.35" />
           <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <ellipse cx="32" cy="58" rx="18" ry="3.5" fill={`url(#${id.shadow})`} />
-      {/* ears */}
-      <path d="M12 26 L15.5 6 L29 16 Z" fill={`url(#${id.ear})`} strokeLinejoin="round" />
-      <path d="M52 26 L48.5 6 L35 16 Z" fill={`url(#${id.ear})`} strokeLinejoin="round" />
-      <path d="M16 20 L17.8 10.5 L25 15.5 Z" fill="#f9a8d4" />
-      <path d="M48 20 L46.2 10.5 L39 15.5 Z" fill="#f9a8d4" />
-      <ellipse cx="32" cy="34" rx="21.5" ry="18.5" fill={`url(#${id.head})`} />
-      {/* eyes */}
-      <ellipse cx="23.5" cy="31" rx="3.6" ry="4.2" fill={`url(#${id.iris})`} />
-      <ellipse cx="40.5" cy="31" rx="3.6" ry="4.2" fill={`url(#${id.iris})`} />
-      <ellipse cx="23.5" cy="31.3" rx="1.1" ry="3.2" fill="#0f172a" />
-      <ellipse cx="40.5" cy="31.3" rx="1.1" ry="3.2" fill="#0f172a" />
-      <circle cx="24.7" cy="29.4" r="1" fill="#fff" />
-      <circle cx="41.7" cy="29.4" r="1" fill="#fff" />
-      {/* white muzzle */}
-      <ellipse cx="27.6" cy="42" rx="6.4" ry="5.2" fill={`url(#${id.muzzle})`} />
-      <ellipse cx="36.4" cy="42" rx="6.4" ry="5.2" fill={`url(#${id.muzzle})`} />
-      <ellipse cx="32" cy="46.5" rx="4.5" ry="3" fill={`url(#${id.muzzle})`} />
-      <path d="M29.6 38.2 h4.8 l-2.4 2.8 z" fill="#f472b6" strokeLinejoin="round" />
-      <path d="M32 41 v2 M29.5 44 q2.5 1.8 5 0" stroke="#64748b" strokeWidth="1" strokeLinecap="round" fill="none" />
+      <ellipse cx="32" cy="58.5" rx="18" ry="3.5" fill={`url(#${id.shadow})`} />
+      {/* soft rounded ears */}
+      <path d="M11.5 27 Q11 10 16.5 7.5 Q20 7 29 16 Z" fill={`url(#${id.ear})`} />
+      <path d="M52.5 27 Q53 10 47.5 7.5 Q44 7 35 16 Z" fill={`url(#${id.ear})`} />
+      <path d="M15 21.5 Q15 12.5 17.5 11.5 Q19.5 11.5 24.5 16 Z" fill="#f9a8d4" />
+      <path d="M49 21.5 Q49 12.5 46.5 11.5 Q44.5 11.5 39.5 16 Z" fill="#f9a8d4" />
+      {/* chubby round head */}
+      <ellipse cx="32" cy="34.5" rx="22" ry="19" fill={`url(#${id.head})`} />
+      {/* big round eyes */}
+      <Eye cx={23} cy={32} r={5.2} iris={`url(#${id.iris})`} />
+      <Eye cx={41} cy={32} r={5.2} iris={`url(#${id.iris})`} />
+      {/* blush */}
+      <ellipse cx="15.5" cy="40.5" rx="3.6" ry="2.2" fill="#f472b6" opacity="0.5" />
+      <ellipse cx="48.5" cy="40.5" rx="3.6" ry="2.2" fill="#f472b6" opacity="0.5" />
+      {/* small white muzzle with an ω mouth */}
+      <ellipse cx="28.4" cy="43.2" rx="4.8" ry="3.9" fill={`url(#${id.muzzle})`} />
+      <ellipse cx="35.6" cy="43.2" rx="4.8" ry="3.9" fill={`url(#${id.muzzle})`} />
+      <path d="M30.4 40 q1.6 -1 3.2 0 q-0.3 1.7 -1.6 2.1 q-1.3 -0.4 -1.6 -2.1 z" fill="#f472b6" />
+      <path d="M28.6 44.2 q1.7 1.6 3.4 0 q1.7 1.6 3.4 0" stroke="#5b6b82" strokeWidth="1" strokeLinecap="round" fill="none" />
       {/* whiskers */}
-      <g stroke="#e2e8f0" strokeWidth="0.9" strokeLinecap="round">
-        <path d="M21.5 41 L8.5 38.5" />
-        <path d="M21.5 43.5 L8.5 44.5" />
-        <path d="M42.5 41 L55.5 38.5" />
-        <path d="M42.5 43.5 L55.5 44.5" />
+      <g stroke="#eef2f7" strokeWidth="0.9" strokeLinecap="round">
+        <path d="M22.5 42.5 L10 40.5" />
+        <path d="M22.5 44.8 L10.5 46" />
+        <path d="M41.5 42.5 L54 40.5" />
+        <path d="M41.5 44.8 L53.5 46" />
       </g>
-      <ellipse cx="25" cy="21" rx="8" ry="3.4" fill="#fff" opacity="0.28" transform="rotate(-12 25 21)" />
+      <ellipse cx="25" cy="21.5" rx="8" ry="3.4" fill="#fff" opacity="0.3" transform="rotate(-12 25 21.5)" />
     </svg>
   )
 }
