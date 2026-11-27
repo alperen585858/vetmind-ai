@@ -36,7 +36,14 @@ test('legacy messages link opens the clinical summary and imaging remains access
   await expect(overview.getByRole('button', { name: 'Mesajlar', exact: true })).toHaveCount(0)
 
   await page.getByRole('tab', { name: 'Görüntüleme' }).click()
-  await expect(page.getByRole('tabpanel', { name: 'Görüntüleme' })).toBeVisible()
+  const imaging = page.getByRole('tabpanel', { name: 'Görüntüleme' })
+  await expect(imaging).toBeVisible()
+  // #74: the case viewer shows only the case's own study; no sample or local-file paths.
+  await expect(imaging.getByTestId('case-study-source')).toHaveText('DICOM yok')
+  for (const name of ['Örnek', 'Örnek yükle', 'Vakadan yükle', 'Dosya', 'Dosya seç', 'Klasör']) {
+    await expect(imaging.getByRole('button', { name, exact: true })).toHaveCount(0)
+  }
+  await expect(imaging.locator('input[type="file"]')).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('tab', { name: 'Görüntüleme' })).toHaveAttribute('aria-selected', 'true')
 })
