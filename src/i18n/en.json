@@ -1366,7 +1366,12 @@
     "colCaseNo": "Case no",
     "modalityBreakdown": "Modality breakdown",
     "regionBreakdown": "Anatomical region breakdown",
-    "casesUnit": "Cases"
+    "casesUnit": "Cases",
+    "cardAllHint": "Awaiting review",
+    "cardUrgentHint": "Needs attention now",
+    "cardUrgentNone": "No urgent cases",
+    "cardSlaHint": "≤ 12 hours left",
+    "cardMineHint": "Your personal worklist"
   },
   "analysis": {
     "pending": "Pending",

@@ -1366,7 +1366,12 @@
     "colCaseNo": "Vaka no",
     "modalityBreakdown": "İnceleme dağılımı",
     "regionBreakdown": "Anatomik bölge dağılımı",
-    "casesUnit": "Vaka"
+    "casesUnit": "Vaka",
+    "cardAllHint": "İnceleme bekliyor",
+    "cardUrgentHint": "Hemen bakılmalı",
+    "cardUrgentNone": "Acil vaka bulunmuyor",
+    "cardSlaHint": "≤ 12 saat kaldı",
+    "cardMineHint": "Kişisel iş listeniz"
   },
   "analysis": {
     "pending": "Bekliyor",

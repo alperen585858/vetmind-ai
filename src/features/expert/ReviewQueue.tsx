@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Bone, Brain, ChevronRight, Clock, EyeOff, Info, Layers, Loader2, PawPrint, RefreshCw, ScanLine, Search, User, X } from 'lucide-react'
+import { Bone, Brain, ChevronRight, Clock, EyeOff, Layers, Loader2, PawPrint, RefreshCw, ScanLine, Search, X } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { isUrgentCase, sortWorklist, waitLabel } from './ExpertWorklistTable'
 import { HoloOrgan } from './HoloOrgan'
+import { Clock3D, Siren3D, Stack3D, Users3D } from './StatIcons3D'
 import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
 import { PriorityBadge } from '../../shared/ui/StatusBadge'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
@@ -23,31 +24,27 @@ type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
 
-/** Dark "glass" stat cards: a tinted gradient per queue tab, glowing when selected. */
-const TAB_STYLE: Record<QueueView, { card: string; active: string; tile: string; line: string }> = {
+/** Light pastel stat cards with a 3D icon and a soft wave, one tint per queue tab. */
+const TAB_STYLE: Record<QueueView, { card: string; active: string; wave: string }> = {
   all: {
-    card: 'from-teal-50 ring-teal-200',
-    active: 'ring-2 ring-teal-400 shadow-[0_10px_30px_-10px_rgba(13,148,136,0.55)]',
-    tile: 'from-teal-400 to-teal-700 shadow-[0_6px_16px_-4px_rgba(13,148,136,0.6)]',
-    line: '#14b8a6',
+    card: 'from-teal-50/90 via-white to-white ring-teal-100',
+    active: 'ring-2 ring-teal-400 shadow-[0_14px_34px_-14px_rgba(13,148,136,0.55)]',
+    wave: '#5eead4',
   },
   urgent: {
-    card: 'from-rose-50 ring-rose-200',
-    active: 'ring-2 ring-rose-400 shadow-[0_10px_30px_-10px_rgba(225,29,72,0.55)]',
-    tile: 'from-rose-400 to-rose-700 shadow-[0_6px_16px_-4px_rgba(225,29,72,0.6)]',
-    line: '#f43f5e',
+    card: 'from-rose-50 via-white to-white ring-rose-100',
+    active: 'ring-2 ring-rose-400 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.5)]',
+    wave: '#fda4af',
   },
   sla: {
-    card: 'from-amber-50 ring-amber-200',
-    active: 'ring-2 ring-amber-400 shadow-[0_10px_30px_-10px_rgba(217,119,6,0.55)]',
-    tile: 'from-amber-300 to-amber-600 shadow-[0_6px_16px_-4px_rgba(217,119,6,0.6)]',
-    line: '#f59e0b',
+    card: 'from-amber-50 via-amber-50/40 to-white ring-amber-100',
+    active: 'ring-2 ring-amber-400 shadow-[0_14px_34px_-14px_rgba(217,119,6,0.5)]',
+    wave: '#fcd34d',
   },
   mine: {
-    card: 'from-sky-50 ring-sky-200',
-    active: 'ring-2 ring-sky-400 shadow-[0_10px_30px_-10px_rgba(2,132,199,0.55)]',
-    tile: 'from-sky-400 to-sky-700 shadow-[0_6px_16px_-4px_rgba(2,132,199,0.6)]',
-    line: '#0ea5e9',
+    card: 'from-sky-50 via-white to-white ring-sky-100',
+    active: 'ring-2 ring-sky-400 shadow-[0_14px_34px_-14px_rgba(2,132,199,0.5)]',
+    wave: '#7dd3fc',
   },
 }
 
@@ -60,15 +57,15 @@ function waitPillClass(c: VetCase) {
   return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
 }
 
-function Sparkline({ color }: { color: string }) {
+function CardWave({ color }: { color: string }) {
   return (
-    <svg viewBox="0 0 80 28" className="pointer-events-none absolute bottom-2 right-3 h-7 w-20 opacity-70" aria-hidden>
-      <path d="M2 22 C12 20 16 12 26 15 C36 18 40 8 50 10 C60 12 64 4 78 3" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 w-full" aria-hidden>
+      <path d="M0 26 C40 10 70 34 110 22 C145 12 170 18 200 8 V40 H0 Z" fill={color} opacity="0.18" />
+      <path d="M0 32 C45 20 80 38 120 28 C155 20 178 26 200 18 V40 H0 Z" fill={color} opacity="0.22" />
     </svg>
   )
 }
 
-/** Ring chart of the queue by modality. */
 function ModalityDonut({ counts, total, label }: { counts: { key: string; name: string; value: number }[]; total: number; label: string }) {
   const r = 42
   const len = 2 * Math.PI * r
@@ -212,11 +209,17 @@ export default function ReviewQueue() {
     setView('all')
   }
 
-  const tabs: { id: QueueView; label: string; icon: ReactNode }[] = [
-    { id: 'all', label: t('review.totalCases'), icon: <Layers className="h-5 w-5" aria-hidden /> },
-    { id: 'urgent', label: t('review.urgentFilter'), icon: <AlertTriangle className="h-5 w-5" aria-hidden /> },
-    { id: 'sla', label: t('review.slaFilter'), icon: <Clock className="h-5 w-5" aria-hidden /> },
-    { id: 'mine', label: t('review.assignedToMe'), icon: <User className="h-5 w-5" aria-hidden /> },
+  const urgentCount = countFor('urgent')
+  const tabs: { id: QueueView; label: string; hint: string; icon: ReactNode }[] = [
+    { id: 'all', label: t('review.totalCases'), hint: t('review.cardAllHint'), icon: <Stack3D size={76} /> },
+    {
+      id: 'urgent',
+      label: t('review.urgentFilter'),
+      hint: urgentCount ? t('review.cardUrgentHint') : t('review.cardUrgentNone'),
+      icon: <Siren3D size={76} />,
+    },
+    { id: 'sla', label: t('review.slaFilter'), hint: t('review.cardSlaHint'), icon: <Clock3D size={76} /> },
+    { id: 'mine', label: t('review.assignedToMe'), hint: t('review.cardMineHint'), icon: <Users3D size={76} /> },
   ]
 
   const modalityIcons: Record<string, ReactNode> = {
@@ -272,7 +275,6 @@ export default function ReviewQueue() {
             <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h1 className="font-display text-3xl font-bold tracking-tight text-[#102a43] sm:text-4xl">{t('review.worklistTitle')}</h1>
-                <p className="mt-1.5 text-sm text-slate-500">{t('review.worklistSubtitle')}</p>
               </div>
               <button
                 type="button"
@@ -302,18 +304,19 @@ export default function ReviewQueue() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setView(tab.id)}
-                    className={`relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-br to-white px-4 py-4 text-left shadow-sm ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
+                    className={`group relative flex min-h-[128px] items-start justify-between gap-2 overflow-hidden rounded-3xl bg-gradient-to-br px-4 pb-5 pt-4 text-left shadow-[0_4px_18px_-8px_rgba(15,23,42,0.15)] ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${st.card} ${
                       active ? st.active : ''
                     }`}
                   >
-                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ${st.tile}`}>
+                    <CardWave color={st.wave} />
+                    <span className="relative min-w-0 pr-14 2xl:pr-20">
+                      <span className="block text-sm font-semibold leading-snug text-slate-700">{tab.label}</span>
+                      <span className="mt-1 block font-display text-4xl font-bold leading-none tabular-nums text-[#102a43]">{countFor(tab.id)}</span>
+                      <span className="mt-2.5 block text-xs font-medium leading-snug text-slate-500">{tab.hint}</span>
+                    </span>
+                    <span className="absolute right-2 top-1/2 w-14 -translate-y-1/2 sm:right-3 2xl:w-[76px] [&>svg]:h-auto [&>svg]:w-full drop-shadow-[0_8px_10px_rgba(15,23,42,0.12)] transition-transform duration-300 group-hover:scale-105">
                       {tab.icon}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-600">{tab.label}</span>
-                      <span className="block font-display text-3xl font-bold leading-tight tabular-nums text-[#102a43]">{countFor(tab.id)}</span>
-                    </span>
-                    <Sparkline color={st.line} />
                   </button>
                 )
               })}
@@ -490,10 +493,6 @@ export default function ReviewQueue() {
                 </div>
               )}
             </div>
-
-            <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
-              <Info className="h-3.5 w-3.5" aria-hidden /> {t('review.footerNote')}
-            </p>
           </div>
 
           <aside className="space-y-4">
