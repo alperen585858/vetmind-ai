@@ -192,10 +192,6 @@ body:has([data-role='expert']) {
 [data-role='expert'] :where(a, button, [role='button'], summary):focus-visible {
   @apply outline-teal-700;
 }
-[data-role='expert'] aside.vm-sidebar {
-  background: #102a43;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-}
 [data-role='expert'] aside.vm-sidebar .font-bold {
   letter-spacing: -0.02em;
 }
