@@ -452,6 +452,54 @@ class AnalysisApplication(HostBound):
                 self._release_analyze_slot()
             raise
 
+    def recover_interrupted_jobs(self) -> int:
+        """Close analyses a previous process left unfinished (#118). Returns how many.
+
+        With the thread job backend an analysis lives only in the process that started it.
+        After a restart its job stays queued/running in the database and the case stays
+        ANALYZING, so re-analyze answers 409 and cancel never completes. Call once at
+        startup, before any request: every such job is failed, its case goes back to the
+        prior draft (or FAILED), and the analyze gate's leaked slots are released.
+
+        Not for RQ (jobs survive in Redis and the gate is shared with workers) or for
+        several API processes sharing one database with the thread backend.
+        """
+        if not isinstance(self._jobs, ThreadJobBackend):
+            return 0
+        active = {JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.CANCEL_REQUESTED}
+        recovered = 0
+        with self._lock:
+            for case in self._repo.list_cases():
+                if not case.latest_job_id:
+                    continue
+                job = self._repo.get_job(case.latest_job_id)
+                if job is None or job.status not in active:
+                    continue
+                job.status = JobStatus.FAILED
+                job.outcome = PipelineOutcome.FAILED
+                job.error_message = "Analysis interrupted: the server restarted. Start the analysis again."
+                job.completed_at = _now()
+                self._repo.save_job(job)
+                if case.status == CaseLifecycleStatus.ANALYZING:
+                    # Same rule as cancel: keep a prior approvable draft.
+                    if case.draft_report is not None and not case.draft_report.immutable:
+                        case.status = CaseLifecycleStatus.AWAITING_REVIEW
+                        apply_review_sla(case)
+                    else:
+                        case.status = CaseLifecycleStatus.FAILED
+                    case.updated_at = _now()
+                    self._repo.save_case(case)
+                recovered += 1
+                self._emit_audit(
+                    "analysis.interrupted",
+                    principal=None,
+                    resource=case.case_id,
+                    outcome=AuditOutcome.ERROR,
+                    detail=job.job_id,
+                )
+        self._analyze_gate.reset()
+        return recovered
+
     def request_cancel_job(
         self, job_id: str, *, principal: AuthPrincipal | None = None
     ) -> AnalysisJob:

@@ -50,6 +50,9 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.container = container or AppContainer()
+    if container is None:
+        # Fresh process: analyses the previous one was running are gone (#118).
+        app.state.container.analysis.recover_interrupted_jobs()
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:

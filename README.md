@@ -541,6 +541,8 @@ Saklanan başlıca varlıklar: `CaseRecord`, `AnalysisJob`, `DicomIngestionRecor
 
 Job alanları (özet): `status`, `outcome`, `cancel_requested`, `idempotency_key`, `timeout_s`, `routed_model_versions`, `analysis_mode`.
 
+**Yeniden başlatma (#118):** thread arka ucunda analiz yalnızca onu başlatan süreçte yaşar. Backend açılırken önceki süreçten kalan `queued` / `running` / `cancel_requested` işler `failed` ("sunucu yeniden başladı") olarak kapatılır; vaka önceki taslağa (varsa "İncelemede") veya "Başarısız"a döner ve tekrar analiz edilebilir. Diskteki eşzamanlı analiz sayacı (`data/analyze_gate.count`) da sıfırlanır. RQ arka ucunda bu adım çalışmaz (işler Redis'te kalır). Thread arka ucuyla aynı veritabanına bağlı birden fazla API süreci çalıştırılmamalıdır.
+
 ---
 
 ## 7. Uçtan uca veri akışı

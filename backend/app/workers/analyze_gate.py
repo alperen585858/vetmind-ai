@@ -36,6 +36,12 @@ class AnalyzeGate:
         with self._thread_lock:
             self._with_file_lock(self._dec)
 
+    def reset(self) -> None:
+        """Set the counter back to 0. Only safe when no process holds a slot (#118):
+        a restart never releases the slots of the analyses it killed."""
+        with self._thread_lock:
+            self._with_file_lock(lambda f: self._write_count(f, 0))
+
     def _try_inc(self, f) -> bool:
         count = self._read_count(f)
         if count >= self.max_concurrent:
