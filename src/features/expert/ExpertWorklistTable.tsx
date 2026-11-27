@@ -115,7 +115,7 @@ export function ExpertWorklistTable({
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
+          <tr className="bg-[color:var(--vm-sidebar,#102a43)] text-xs font-medium text-slate-200">
             <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColPatient')}
             </th>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Clock, EyeOff, Info, Loader2, RefreshCw, Search, UserCheck, X } from 'lucide-react'
+import { AlertTriangle, ClipboardList, Clock, EyeOff, Inbox, Info, Loader2, RefreshCw, Search, UserCheck, X } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
@@ -17,6 +17,38 @@ type QueueView = 'all' | 'urgent' | 'sla' | 'mine'
 type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
+
+/** Flat brand colours per queue tab: no gradients or glow. */
+const TAB_COLORS: Record<QueueView, { active: string; idle: string; icon: string; label: string; value: string }> = {
+  all: {
+    active: 'border-teal-700 bg-teal-600 shadow-md',
+    idle: 'border-teal-200 bg-teal-50 hover:border-teal-400',
+    icon: 'bg-teal-600 text-white',
+    label: 'text-teal-800',
+    value: 'text-teal-900',
+  },
+  urgent: {
+    active: 'border-rose-700 bg-rose-600 shadow-md',
+    idle: 'border-rose-200 bg-rose-50 hover:border-rose-400',
+    icon: 'bg-rose-600 text-white',
+    label: 'text-rose-800',
+    value: 'text-rose-900',
+  },
+  sla: {
+    active: 'border-amber-600 bg-amber-500 shadow-md',
+    idle: 'border-amber-200 bg-amber-50 hover:border-amber-400',
+    icon: 'bg-amber-500 text-white',
+    label: 'text-amber-800',
+    value: 'text-amber-900',
+  },
+  mine: {
+    active: 'border-sky-700 bg-sky-600 shadow-md',
+    idle: 'border-sky-200 bg-sky-50 hover:border-sky-400',
+    icon: 'bg-sky-600 text-white',
+    label: 'text-sky-800',
+    value: 'text-sky-900',
+  },
+}
 
 function matchesSearch(c: VetCase, needle: string) {
   if (!needle) return true
@@ -147,10 +179,10 @@ export default function ReviewQueue() {
   }
 
   const tabs: { id: QueueView; label: string; icon?: ReactNode }[] = [
-    { id: 'all', label: t('review.allQueue') },
-    { id: 'urgent', label: t('review.urgentFilter'), icon: <AlertTriangle className="h-4 w-4" aria-hidden /> },
-    { id: 'sla', label: t('review.slaFilter'), icon: <Clock className="h-4 w-4" aria-hidden /> },
-    { id: 'mine', label: t('review.assignedToMe'), icon: <UserCheck className="h-4 w-4" aria-hidden /> },
+    { id: 'all', label: t('review.allQueue'), icon: <Inbox className="h-5 w-5" aria-hidden /> },
+    { id: 'urgent', label: t('review.urgentFilter'), icon: <AlertTriangle className="h-5 w-5" aria-hidden /> },
+    { id: 'sla', label: t('review.slaFilter'), icon: <Clock className="h-5 w-5" aria-hidden /> },
+    { id: 'mine', label: t('review.assignedToMe'), icon: <UserCheck className="h-5 w-5" aria-hidden /> },
   ]
 
   const listSubtitle = view === 'sla' ? t('review.slaListSubtitle') : t('review.defaultListSubtitle')
@@ -159,11 +191,16 @@ export default function ReviewQueue() {
     <>
       <div className="vm-fade-up space-y-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-              {t('review.worklistTitle')}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">{t('review.worklistSubtitle')}</p>
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm">
+              <ClipboardList className="h-6 w-6" aria-hidden />
+            </span>
+            <div>
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-[color:var(--vm-sidebar,#102a43)] sm:text-3xl">
+                {t('review.worklistTitle')}
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-600">{t('review.worklistSubtitle')}</p>
+            </div>
           </div>
           <Button
             size="sm"
@@ -186,43 +223,40 @@ export default function ReviewQueue() {
           </p>
         ) : null}
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap gap-1 border-b border-slate-200 px-3 pt-3" role="tablist" aria-label={t('dashboard.expertFilterAria')}>
-            {tabs.map((tab) => {
-              const active = view === tab.id
-              const count = countFor(tab.id)
-              const tone =
-                tab.id === 'urgent' && count > 0 && !active ? 'text-rose-700' : active ? 'text-slate-900' : 'text-slate-500'
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setView(tab.id)}
-                  className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm font-semibold transition ${
-                    active ? 'border-teal-600' : 'border-transparent hover:text-slate-800'
-                  } ${tone}`}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label={t('dashboard.expertFilterAria')}>
+          {tabs.map((tab) => {
+            const active = view === tab.id
+            const count = countFor(tab.id)
+            const c = TAB_COLORS[tab.id]
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setView(tab.id)}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${
+                  active ? c.active : c.idle
+                }`}
+              >
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-white/20 text-white' : c.icon}`}
                 >
                   {tab.icon}
-                  {tab.label}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${
-                      tab.id === 'urgent' && count > 0
-                        ? 'bg-rose-600 text-white'
-                        : active
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-xs font-semibold ${active ? 'text-white/85' : c.label}`}>{tab.label}</span>
+                  <span className={`block font-display text-2xl font-bold tabular-nums leading-tight ${active ? 'text-white' : c.value}`}>
                     {count}
                   </span>
-                </button>
-              )
-            })}
-          </div>
+                </span>
+              </button>
+            )
+          })}
+        </div>
 
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-teal-100 bg-teal-50/60 px-4 py-3 md:flex-row md:items-center">
             <label htmlFor="wl-q" className="relative block min-w-0 flex-1">
               <span className="sr-only">{t('common.search')}</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -239,7 +273,7 @@ export default function ReviewQueue() {
               <div
                 role="radiogroup"
                 aria-label={t('review.filterModalityLabel')}
-                className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-0.5"
+                className="inline-flex rounded-lg border border-teal-200 bg-white p-0.5"
               >
                 {MODALITIES.map((m) => {
                   const active = modality === m
@@ -251,7 +285,7 @@ export default function ReviewQueue() {
                       aria-checked={active}
                       onClick={() => setModality(m)}
                       className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                        active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
+                        active ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'
                       }`}
                     >
                       {m ? t(`review.modality${m}`) : t('review.allModalities')}
