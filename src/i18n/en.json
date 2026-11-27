@@ -168,7 +168,8 @@
     "mainMenuAria": "Main menu",
     "skipToContent": "Skip to content",
     "aiArchitecture": "AI Architecture",
-    "security": "Security / Audit"
+    "security": "Security / Audit",
+    "helpSupport": "Help & support"
   },
   "topbar": {
     "openMenu": "Open menu",
@@ -717,7 +718,21 @@
     "quickAwaitingReport": "Cases Awaiting Report",
     "hintAwaitingReport": "{count} cases awaiting a report",
     "clinicStatAwaitingReportHint": "Report not approved yet",
-    "expertUrgentHintNone": "No urgent cases waiting"
+    "expertUrgentHintNone": "No urgent cases waiting",
+    "heroInReview": "{count} of your cases are with the specialist;",
+    "heroTodo": "{count} items need you.",
+    "heroAllClear": "nothing needs you right now.",
+    "todoTitle": "Needs your attention",
+    "todoSubtitle": "Cases waiting for your reply, reading or completion",
+    "todoEmpty": "Nothing needs your attention right now.",
+    "todoFailed": "Analysis failed — start it again",
+    "todoMessages": "{count} new message(s) from the specialist",
+    "todoReport": "Report ready — read it, share with the owner",
+    "todoDraft": "Draft — complete it and send to the specialist",
+    "todoMore": "+{count} more cases",
+    "recentLast24h": "{count} cases added in the last 24 hours",
+    "recentEmpty": "No new cases in the last 24 hours",
+    "recentEmptyHint": "Use Cases in the menu on the left to see every case."
   },
   "cases": {
     "title": "Cases",

@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Gauge,
   GraduationCap,
+  HelpCircle,
   LayoutDashboard,
   Layers,
   LogOut,
@@ -235,6 +236,23 @@ export function Sidebar({
           ))}
         </nav>
         <div className={`mt-auto space-y-1 border-t border-navy-800 pt-2 ${collapsed ? 'lg:px-2' : 'px-3'} px-3 pb-3`}>
+          {role === 'vet' ? (
+            // Opens a support conversation (#92); moved here from the dashboard help card.
+            <button
+              type="button"
+              title={collapsed ? t('nav.helpSupport') : undefined}
+              onClick={() => {
+                onClose()
+                nav('/mesajlar?new=support')
+              }}
+              className={`flex w-full min-h-11 items-center rounded-lg text-sm font-medium text-navy-200 transition hover:bg-navy-800/80 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500 ${
+                collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
+              } gap-3 px-3 py-2.5`}
+            >
+              <HelpCircle className={ic} aria-hidden="true" />
+              <span className={collapsed ? 'lg:hidden' : ''}>{t('nav.helpSupport')}</span>
+            </button>
+          ) : null}
           <NavLink
             to={lp('/ayarlar')}
             onClick={onClose}
