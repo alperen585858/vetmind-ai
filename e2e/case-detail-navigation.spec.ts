@@ -29,11 +29,22 @@ test('legacy messages link opens the clinical summary and imaging remains access
   await expect(banner.getByRole('button', { name: 'Mesajlar' })).toHaveCount(0)
 
   const overview = page.getByRole('tabpanel', { name: 'Klinik Özet' })
-  const history = overview.getByRole('button', { name: 'İşlem geçmişi' })
-  await expect(history).toBeHidden()
-  await overview.locator('summary').filter({ hasText: 'Diğer vaka modülleri' }).click()
-  await expect(history).toBeVisible()
   await expect(overview.getByRole('button', { name: 'Mesajlar', exact: true })).toHaveCount(0)
+  // #73: one tab row; Report, Documents and History are top-level tabs with their own address.
+  await expect(page.getByText('Diğer vaka modülleri')).toHaveCount(0)
+  await expect(page.getByRole('tab')).toHaveText(['Klinik Özet', 'Görüntüleme', 'AI Bulguları', 'Rapor', 'Kaynaklar', 'Belgeler', 'Geçmiş'])
+  // #69: no separate progress box on the overview.
+  await expect(overview.getByText('Vaka ilerleme')).toHaveCount(0)
+
+  await page.getByRole('tab', { name: 'Geçmiş' }).click()
+  await expect(page).toHaveURL(`/vakalar/${case_id}?tab=gecmis&ref=list`)
+  const timeline = page.getByTestId('case-timeline')
+  await expect(timeline.getByText('Vaka oluşturuldu')).toBeVisible()
+  await expect(page.getByText('Görüntülendi', { exact: true })).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Belgeler' }).click()
+  await expect(page).toHaveURL(`/vakalar/${case_id}?tab=belgeler&ref=list`)
+  await page.goBack()
+  await expect(page.getByRole('tab', { name: 'Geçmiş' })).toHaveAttribute('aria-selected', 'true')
 
   await page.getByRole('tab', { name: 'Görüntüleme' }).click()
   const imaging = page.getByRole('tabpanel', { name: 'Görüntüleme' })

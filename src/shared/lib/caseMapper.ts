@@ -403,9 +403,6 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
       ...(r.report_delivered_at
         ? [{ date: r.report_delivered_at, label: 'Rapor kliniklere iletildi', by: 'Sistem' }]
         : []),
-      ...(r.report_viewed_at
-        ? [{ date: r.report_viewed_at, label: 'Rapor görüntülendi', by: 'Sistem' }]
-        : []),
     ],
     backendCaseId: r.case_id,
     backendJobId: r.latest_job_id ?? undefined,
