@@ -1364,7 +1364,10 @@
       "noImagesText": "No DICOM files were uploaded, or they are still processing. You can write the report from the findings.",
       "shortcutsTitle": "Keyboard shortcuts",
       "sectionReport": "Report",
-      "sectionDecision": "Decision"
+      "sectionDecision": "Decision",
+      "factAge": "Age",
+      "factClinic": "Clinic",
+      "factStudy": "Study"
     },
     "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale.",
     "hideFromMyList": "Hide from my list",
@@ -2311,7 +2314,11 @@
       "trainingVerify": "Training verification (separate from accept)",
       "verified": "Verified",
       "unverify": "Unverify",
-      "verify": "Verify for training"
+      "verify": "Verify for training",
+      "sumFindings": "Findings",
+      "sumPending": "Pending marks",
+      "sumAccepted": "Accepted",
+      "sumRejected": "Rejected"
     }
   },
   "empty": {

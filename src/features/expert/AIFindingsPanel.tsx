@@ -47,6 +47,18 @@ export function AIFindingsPanel({
   const sourceKind = (findings?.source_kind || '').toUpperCase()
   const isReal = sourceKind === 'REAL'
   const mode = (analysisMode || '').toLowerCase()
+  const marks = items.flatMap((f) => f.evidence_references ?? [])
+  const reviewed = (st?: string | null) => st === 'accepted' || st === 'edited'
+  const summary = [
+    { label: t('ai.panel.sumFindings'), value: items.length, cls: 'from-teal-50 text-teal-800 ring-teal-100' },
+    {
+      label: t('ai.panel.sumPending'),
+      value: marks.filter((e) => (e.origin || 'ai_proposed') === 'ai_proposed' && !reviewed(e.review_status) && e.review_status !== 'rejected').length,
+      cls: 'from-amber-50 text-amber-800 ring-amber-100',
+    },
+    { label: t('ai.panel.sumAccepted'), value: marks.filter((e) => reviewed(e.review_status)).length, cls: 'from-emerald-50 text-emerald-800 ring-emerald-100' },
+    { label: t('ai.panel.sumRejected'), value: marks.filter((e) => e.review_status === 'rejected').length, cls: 'from-rose-50 text-rose-700 ring-rose-100' },
+  ]
 
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -67,6 +79,16 @@ export function AIFindingsPanel({
         ) : null}
         {headerExtra}
       </div>
+      {items.length ? (
+        <dl className="mt-3 grid grid-cols-4 gap-2">
+          {summary.map((m) => (
+            <div key={m.label} className={`rounded-xl bg-gradient-to-b to-white px-2.5 py-2 ring-1 ${m.cls}`}>
+              <dd className="font-display text-xl font-bold leading-none tabular-nums">{m.value}</dd>
+              <dt className="mt-1 truncate text-[10px] font-semibold text-slate-500">{m.label}</dt>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       <p className="mt-2 text-[11px] leading-snug text-slate-500">{t('ai.panel.notice')}</p>
       {items.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">{t('ai.findingsEmpty')}</p>
