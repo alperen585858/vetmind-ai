@@ -1359,7 +1359,12 @@
       "worklistLoadFailed": "Could not load side worklist",
       "priorLoadFailed": "Could not load prior reports",
       "evidenceReviewFailed": "Evidence review failed",
-      "verificationFailed": "Verification failed"
+      "verificationFailed": "Verification failed",
+      "noImagesTitle": "No images for this case",
+      "noImagesText": "No DICOM files were uploaded, or they are still processing. You can write the report from the findings.",
+      "shortcutsTitle": "Keyboard shortcuts",
+      "sectionReport": "Report",
+      "sectionDecision": "Decision"
     },
     "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale.",
     "hideFromMyList": "Hide from my list",
