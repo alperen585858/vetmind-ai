@@ -246,6 +246,7 @@ export function summaryToVetCase(s: BackendCaseSummary): VetCase {
     seriesCount: s.series_count ?? undefined,
     instanceCount: s.instance_count ?? undefined,
     assignedReviewerId: s.assigned_reviewer_id ?? undefined,
+    assignedReviewerName: s.assigned_reviewer_name ?? undefined,
     awaitingReviewSince: s.awaiting_review_since ?? undefined,
     reviewDueAt: s.review_due_at ?? undefined,
     unreadMessages: s.unread_messages ?? 0,
@@ -402,9 +403,6 @@ export function recordToVetCase(r: BackendCaseRecord): VetCase {
       ...(r.report_delivered_at
         ? [{ date: r.report_delivered_at, label: 'Rapor kliniklere iletildi', by: 'Sistem' }]
         : []),
-      ...(r.report_viewed_at
-        ? [{ date: r.report_viewed_at, label: 'Rapor görüntülendi', by: 'Sistem' }]
-        : []),
     ],
     backendCaseId: r.case_id,
     backendJobId: r.latest_job_id ?? undefined,
@@ -541,6 +539,8 @@ export function mergeBackendCases(local: VetCase[], backend: VetCase[]): VetCase
       seriesCount: row.seriesCount ?? prev.seriesCount,
       instanceCount: row.instanceCount ?? prev.instanceCount,
       classificationConfirmed: row.classificationConfirmed ?? prev.classificationConfirmed,
+      assignedReviewerId: row.assignedReviewerId,
+      assignedReviewerName: row.assignedReviewerName,
       currentReportVersion: row.currentReportVersion ?? prev.currentReportVersion,
       reportVersionCount: row.reportVersionCount ?? prev.reportVersionCount,
       fromBackend: true,

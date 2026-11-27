@@ -1,18 +1,12 @@
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
-import {
-  CheckCircle2,
-  ChevronRight,
-  FolderOpen,
-  Image as ImageIcon,
-  XCircle,
-} from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { VetCase } from '../types'
 import { PriorityBadge, StatusBadge } from './StatusBadge'
-import { analysisStatusLabel, expertReviewLabel } from '../lib/caseMapper'
 import { fmtDate } from '../lib/format'
 import { useLocale } from '../shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
 import { studyLabel } from '../lib/displayClean'
+import { reviewerDisplay } from '../lib/reviewer'
 
 const SPECIES_EMOJI: Record<string, string> = { Kedi: '🐱', Köpek: '🐶' }
 
@@ -36,59 +30,9 @@ export function SpeciesIcon({ species }: { species: string }) {
   )
 }
 
-function studyCell(c: VetCase, t: TranslateFn): string {
-  if (c.instanceCount != null || c.seriesCount != null) {
-    const parts = [
-      c.seriesCount != null ? t('cases.seriesShort', { n: c.seriesCount }) : null,
-      c.instanceCount != null ? t('cases.imagesShort', { n: c.instanceCount }) : null,
-    ].filter(Boolean)
-    return parts.join(' · ') || t('common.dash')
-  }
-  if (c.studyInstanceUid) return `UID …${c.studyInstanceUid.slice(-8)}`
-  if (c.documents.some((d) => d.name.toUpperCase().includes('DICOM'))) return 'DICOM'
-  return t('common.dash')
-}
-
 function modalityLabel(c: VetCase, dash: string, t: TranslateFn): string {
   if (!c.modality) return dash
   return studyLabel(t, c.modality, c.anatomicalRegion)
-}
-
-function AnalysisCell({ c }: { c: VetCase }) {
-  const { t } = useLocale()
-  const label = analysisStatusLabel(c.status, t)
-  if (c.status === 'analiz_basarisiz') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-700">
-        <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        {t('status.analiz_basarisiz')}
-      </span>
-    )
-  }
-  if (
-    c.status === 'uzman_incelemesinde' ||
-    c.status === 'onaylandi' ||
-    c.status === 'reddedildi' ||
-    c.status === 'revizyon'
-  ) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        {t('analysis.aiCompleted')}
-      </span>
-    )
-  }
-  return <span className="text-xs text-slate-600">{label}</span>
-}
-
-function expertDisplay(c: VetCase, t: TranslateFn): string {
-  if (c.assignedReviewerId) {
-    const id = c.assignedReviewerId
-    if (id.includes('@')) return id.split('@')[0]
-    return id
-  }
-  const review = expertReviewLabel(c.status, t)
-  return review === t('common.dash') ? t('cases.unassigned') : review
 }
 
 export function CaseTable({
@@ -112,8 +56,6 @@ export function CaseTable({
             <th className="th">{t('cases.patient')}</th>
             <th className="th">{t('cases.speciesBreed')}</th>
             <th className="th">{t('cases.modality')}</th>
-            <th className="th">{t('cases.study')}</th>
-            <th className="th">{t('cases.analysisCol')}</th>
             <th className="th">{t('cases.expert')}</th>
             {showPriority && <th className="th">{t('common.priority')}</th>}
             <th className="th">{t('common.status')}</th>
@@ -161,16 +103,7 @@ export function CaseTable({
                   {modalityLabel(c, dash, t)}
                 </span>
               </td>
-              <td className="td" title={c.studyInstanceUid}>
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                  <FolderOpen className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                  {studyCell(c, t)}
-                </span>
-              </td>
-              <td className="td">
-                <AnalysisCell c={c} />
-              </td>
-              <td className="td text-xs text-slate-700">{expertDisplay(c, t)}</td>
+              <td className="td text-xs text-slate-700">{reviewerDisplay(c, t)}</td>
               {showPriority && (
                 <td className="td">
                   <PriorityBadge priority={c.priority} />
@@ -182,16 +115,6 @@ export function CaseTable({
               <td className="td text-xs text-slate-500">{fmtDate(c.createdAt, locale)}</td>
               <td className="td text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-navy-700 hover:bg-slate-100"
-                    onClick={() => nav(`/vakalar/${c.id}?tab=goruntu`)}
-                    aria-label={t('cases.viewDicomAria', { no: c.no })}
-                    title={t('cases.viewDicom')}
-                  >
-                    <ImageIcon className="h-3.5 w-3.5" aria-hidden />
-                    {t('common.view')}
-                  </button>
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50"

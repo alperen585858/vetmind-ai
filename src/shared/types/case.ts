@@ -159,6 +159,8 @@ export interface BackendCaseSummary {
   status: string
   priority?: BackendCasePriority
   assigned_reviewer_id?: string | null
+  /** #77: the assigned expert's display name (summary only). */
+  assigned_reviewer_name?: string | null
   awaiting_review_since?: string | null
   review_due_at?: string | null
   scenario?: string | null
@@ -299,6 +301,8 @@ export interface VetCase {
   backendFindings?: BackendFindings
   backendDraft?: BackendDraftReport
   assignedReviewerId?: string
+  /** #77: display name of the assigned expert, from the case list. */
+  assignedReviewerName?: string
   /** When expert review queue clock started (ISO). */
   awaitingReviewSince?: string
   /** Expert response deadline (ISO). Urgent/STAT=24h, else=48h. */

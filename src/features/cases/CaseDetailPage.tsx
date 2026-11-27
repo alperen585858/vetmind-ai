@@ -7,13 +7,14 @@ import {
   AlertCircle,
   BookOpen,
   Brain,
-  ChevronDown,
   Clock,
   FileSearch,
   FileText,
+  History,
   Image as ImageIcon,
   Loader2,
   Microscope,
+  Paperclip,
   Sparkles,
   Stethoscope,
   XCircle,
@@ -49,29 +50,26 @@ import { PriorStudiesPanel } from '../patients/PriorStudiesPanel'
 import { OwnerSummaryCard } from './OwnerSummaryCard'
 export { AssessmentView }
 
+// #73: one tab row; each tab has its own ?tab= address.
 const TAB_DEFS = [
   { key: 'genel', labelKey: 'cases.detail.tabOverview', icon: <Stethoscope className="h-4 w-4" /> },
   { key: 'goruntu', labelKey: 'cases.detail.tabImaging', icon: <ImageIcon className="h-4 w-4" /> },
   { key: 'bulgular', labelKey: 'cases.detail.tabAiFindings', icon: <Brain className="h-4 w-4" /> },
+  { key: 'rapor', labelKey: 'cases.detail.tabReport', icon: <FileText className="h-4 w-4" /> },
   { key: 'kaynaklar', labelKey: 'cases.detail.tabSources', icon: <BookOpen className="h-4 w-4" /> },
+  { key: 'belgeler', labelKey: 'cases.detail.tabDocuments', icon: <Paperclip className="h-4 w-4" /> },
+  { key: 'gecmis', labelKey: 'cases.detail.tabHistory', icon: <History className="h-4 w-4" /> },
 ] as const
 
-type CaseDetailTab = (typeof TAB_DEFS)[number]['key']
+export type CaseDetailTab = (typeof TAB_DEFS)[number]['key']
 
-type CaseDetailModule = 'genel' | 'rapor' | 'gecmis' | 'belgeler'
+const TAB_ALIASES: Record<string, CaseDetailTab> = { imaging: 'goruntu', ai: 'bulgular', sources: 'kaynaklar' }
 
-function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
-  if (value === 'goruntu' || value === 'imaging') return 'goruntu'
-  if (value === 'ai' || value === 'bulgular') return 'bulgular'
-  if (value === 'kaynaklar' || value === 'sources') return 'kaynaklar'
-  return 'genel'
-}
-
-function caseDetailModule(value: string | null): CaseDetailModule {
-  if (value === 'rapor' || value === 'gecmis' || value === 'belgeler') {
-    return value
-  }
-  return 'genel'
+/** Known tabs and their aliases; anything else (e.g. the removed ?tab=mesajlar) opens the overview. */
+export function normalizeCaseDetailTab(value: string | null): CaseDetailTab {
+  if (!value) return 'genel'
+  if (TAB_DEFS.some((d) => d.key === value)) return value as CaseDetailTab
+  return TAB_ALIASES[value] ?? 'genel'
 }
 
 function DetailSkeleton({ loadingLabel }: { loadingLabel: string }) {
@@ -103,39 +101,24 @@ export default function CaseDetail() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [stoppingAnalysis, setStoppingAnalysis] = useState(false)
   const [resendingAi, setResendingAi] = useState(false)
-  const [tab, setTab] = useState<CaseDetailTab>(() => normalizeCaseDetailTab(params.get('tab')))
-  const [summaryModule, setSummaryModule] = useState<CaseDetailModule>(() => caseDetailModule(params.get('tab')))
-  const [modulesOpen, setModulesOpen] = useState(() => {
-    const routeTab = params.get('tab')
-    return normalizeCaseDetailTab(routeTab) === 'genel' && caseDetailModule(routeTab) !== 'genel'
-  })
+  const routeTab = params.get('tab')
+  const tab = normalizeCaseDetailTab(routeTab)
 
   useEffect(() => {
-    const routeTab = params.get('tab')
-    if (routeTab === 'mesajlar') {
+    // Unknown or removed tab addresses (e.g. ?tab=mesajlar) are rewritten to the overview.
+    if (routeTab && normalizeCaseDetailTab(routeTab) === 'genel' && routeTab !== 'genel') {
       const nextParams = new URLSearchParams(params)
       nextParams.set('tab', 'genel')
       setParams(nextParams, { replace: true })
     }
-    const nextTab = normalizeCaseDetailTab(routeTab)
-    setTab(nextTab)
-    const module = caseDetailModule(routeTab)
-    setSummaryModule(module)
-    setModulesOpen(nextTab === 'genel' && module !== 'genel')
-  }, [params, setParams])
+  }, [routeTab, params, setParams])
 
+  // A new history entry per tab, so the browser back button returns to the previous tab.
   const selectTab = (nextTab: CaseDetailTab) => {
-    setTab(nextTab)
-    setSummaryModule('genel')
-    setModulesOpen(false)
-    setParams({ tab: nextTab }, { replace: true })
-  }
-
-  const selectSummaryModule = (module: CaseDetailModule) => {
-    setTab('genel')
-    setSummaryModule(module)
-    setModulesOpen(true)
-    setParams({ tab: module }, { replace: true })
+    if (nextTab === tab) return
+    const nextParams = new URLSearchParams(params)
+    nextParams.set('tab', nextTab)
+    setParams(nextParams)
   }
 
   const reload = () => {
@@ -490,7 +473,7 @@ export default function CaseDetail() {
             aria-selected={tab === tabItem.key}
             aria-controls={`case-panel-${tabItem.key}`}
             onClick={() => selectTab(tabItem.key)}
-            className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${
+            className={`-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${
               tab === tabItem.key ? 'border-b-2 border-vet-turquoise text-vet-turquoise' : 'border-transparent text-slate-500 hover:text-navy-800'
             }`}
           >
@@ -507,63 +490,22 @@ export default function CaseDetail() {
       >
         {tab === 'genel' && (
           <>
-            {summaryModule === 'genel' && (
-              <Overview c={c} onOpenAiTab={() => selectTab('bulgular')} />
-            )}
-            {summaryModule === 'genel' && (c.backendCaseId || c.id.startsWith('case-')) && (
+            <Overview c={c} />
+            {(c.backendCaseId || c.id.startsWith('case-')) && (
               <PriorStudiesPanel caseId={c.backendCaseId || c.id} canLink={role === 'vet' || role === 'admin'} />
             )}
-            {summaryModule === 'genel' && (c.backendCaseId || c.id.startsWith('case-')) && (
+            {(c.backendCaseId || c.id.startsWith('case-')) && (
               // Issue #113: plain-language note for the owner (vet writes, radiologist reads).
               <OwnerSummaryCard caseId={c.backendCaseId || c.id} canWrite={role === 'vet' || role === 'admin'} />
             )}
-            <details
-              className="group rounded-xl border border-slate-200 bg-white shadow-soft"
-              open={modulesOpen}
-              onToggle={(event) => setModulesOpen(event.currentTarget.open)}
-            >
-              <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-navy-900 marker:hidden">
-                <span className="flex items-center justify-between gap-3">
-                  {t('cases.detail.otherModules')}
-                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
-                </span>
-                <span className="mt-1 block text-xs font-normal text-slate-500">
-                  {t('cases.detail.otherModulesHint')}
-                </span>
-              </summary>
-              <div className="border-t border-slate-100 p-4">
-                <div className="mb-4 flex flex-wrap gap-2" aria-label={t('cases.detail.toolsAria')}>
-                  {([
-                    ['genel', t('cases.detail.backToOverview')],
-                    ['rapor', t('cases.detail.moduleReport')],
-                    ['gecmis', t('cases.detail.moduleHistory')],
-                    ['belgeler', t('cases.documents')],
-                  ] as const).map(([module, label]) => (
-                    <button
-                      key={module}
-                      type="button"
-                      aria-pressed={summaryModule === module}
-                      onClick={() => selectSummaryModule(module)}
-                      className={`min-h-9 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        summaryModule === module
-                          ? 'bg-vet-turquoise text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {summaryModule === 'rapor' && <ReportWorkspace c={c} />}
-                {summaryModule === 'gecmis' && <CaseHistoryPanel c={c} />}
-                {summaryModule === 'belgeler' && <Documents c={c} />}
-              </div>
-            </details>
           </>
         )}
         {tab === 'goruntu' && <Imaging c={c} />}
         {tab === 'bulgular' && <AssessmentView c={c} />}
+        {tab === 'rapor' && <ReportWorkspace c={c} />}
         {tab === 'kaynaklar' && <SourcesView c={c} />}
+        {tab === 'belgeler' && <Documents c={c} />}
+        {tab === 'gecmis' && <CaseHistoryPanel c={c} />}
       </div>
     </>
   )

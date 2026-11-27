@@ -66,6 +66,11 @@ export function CaseProvider({ children }: { children: ReactNode }) {
       const record = await getBackendCase(canonicalizeCaseId(caseId))
       const mapped = recordToVetCase(record)
       setCases((all) => {
+        const prev = all.find((c) => c.id === mapped.id || c.backendCaseId === mapped.id)
+        // The full record has no reviewer name (#77); keep the one from the list.
+        if (prev?.assignedReviewerName && prev.assignedReviewerId === mapped.assignedReviewerId) {
+          mapped.assignedReviewerName = prev.assignedReviewerName
+        }
         const without = all.filter((c) => c.id !== mapped.id && c.backendCaseId !== mapped.id)
         return [mapped, ...without]
       })

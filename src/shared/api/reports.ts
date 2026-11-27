@@ -186,8 +186,9 @@ export function assessmentSeverityForFinding(
 export function pipelineToAssessment(findings: BackendFindings, report: BackendDraftReport): AIAssessment {
   const mapped = findings.findings.map((f) => {
     const code = normalizeFindingCode(f.finding_code)
+    // #75: plain description; status and severity are shown as labels, internal codes not in the text.
     return {
-      text: `[${code}] (${f.finding_status}) ${f.description}`,
+      text: f.description,
       severity: assessmentSeverityForFinding(code, f.finding_status),
     }
   })
@@ -206,9 +207,8 @@ export function pipelineToAssessment(findings: BackendFindings, report: BackendD
       aliases: d.citations,
     })),
     recommendedTests: splitRecommendations(report.recommendations.text),
-    validation: findings.warnings
-      .filter((w) => !isDisclaimerWarning(w))
-      .map((w) => ({ kind: 'missing' as const, text: 'Pipeline notu', detail: w })),
+    validation: [],
+    technicalNotes: findings.warnings.filter((w) => !isDisclaimerWarning(w)),
     model: `${findings.source_model_id} + ${report.generation.model_id}`,
     generatedAt: report.generation.generated_at,
   }
