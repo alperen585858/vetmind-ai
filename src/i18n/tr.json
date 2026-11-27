@@ -580,7 +580,7 @@
     "expertSlaEmptyTitle": "Süresi az kalan yok",
     "expertSlaEmptyText": "Şu an 12 saatin altında kalan vaka yok.",
     "expertPendingReports": "İş kuyruğu",
-    "expertPendingSubtitle": "Acil ve süresi az kalanlar üstte",
+    "expertPendingSubtitle": "Acil vakalar en başta, ardından en yeni gelenler",
     "expertFullWorklist": "Tüm iş listem",
     "expertRecentDecisions": "Son işlemler",
     "expertNoDecisions": "Henüz karar yok",
@@ -716,7 +716,8 @@
     "weekday6": "Paz",
     "quickAwaitingReport": "Rapor Bekleyen Vakalar",
     "hintAwaitingReport": "{count} vaka raporu bekliyor",
-    "clinicStatAwaitingReportHint": "Raporu henüz onaylanmamış"
+    "clinicStatAwaitingReportHint": "Raporu henüz onaylanmamış",
+    "expertUrgentHintNone": "Bekleyen acil vaka yok"
   },
   "cases": {
     "title": "Vakalar",
@@ -1183,12 +1184,12 @@
     "slaWarn": "SLA yaklaşıyor",
     "slaOver": "SLA aşıldı",
     "worklistTitle": "Radyolog İş Listesi",
-    "worklistSubtitle": "Acil/STAT → 24 saat · diğerleri → 48 saat · süresi az kalanlara tek tıkla filtre",
-    "allQueue": "Tüm kuyruk",
+    "worklistSubtitle": "Yeni gelen vakalar üstte. Acil ve STAT vakalar her zaman en başta.",
+    "allQueue": "Tümü",
     "slaFilter": "Süresi az kalanlar",
     "slaBanner": "Süresi az kalanlar gösteriliyor (gecikme veya ≤12 saat). En acil üstte.",
     "clearFilter": "Filtreyi kaldır",
-    "searchPlaceholder": "hasta / vaka / klinik",
+    "searchPlaceholder": "Hasta adı, vaka no veya klinik ara",
     "statusAwaitingReview": "Uzman inceleme",
     "statusRevision": "Revizyon",
     "statusManual": "Manuel inceleme",
@@ -1199,7 +1200,7 @@
     "caseCountTitle": "{count} vaka",
     "apiFallbackSubtitle": "Sunucuya ulaşılamadı ({error}) · yerel liste gösteriliyor",
     "slaListSubtitle": "Süresi az kalanlar · en acil üstte",
-    "defaultListSubtitle": "Acil vakalar üstte · süre ≤12 sa “az kalan” filtresinde",
+    "defaultListSubtitle": "Acil vakalar en başta, ardından en yeni gelenler",
     "loadingWorklist": "İş listesi yükleniyor…",
     "loadFailed": "İş listesi alınamadı",
     "emptySlaTitle": "Süresi az kalan vaka yok",
@@ -1346,7 +1347,15 @@
       "verificationFailed": "Doğrulama başarısız"
     },
     "staleFallbackBanner": "Sunucu listesi alınamadı — yerel önbellekteki eski veriler gösteriliyor. Güncel olmayabilir.",
-    "hideFromMyList": "Listemden gizle"
+    "hideFromMyList": "Listemden gizle",
+    "urgentFilter": "Acil / STAT",
+    "filterStatusLabel": "Durum",
+    "filterModalityLabel": "Modalite",
+    "filterPriorityLabel": "Öncelik",
+    "filterAssignmentLabel": "Atama",
+    "filteredCount": "{shown} / {total} vaka",
+    "emptyUrgentTitle": "Acil vaka yok",
+    "emptyUrgentText": "Şu an bekleyen STAT veya acil vaka yok."
   },
   "analysis": {
     "pending": "Bekliyor",

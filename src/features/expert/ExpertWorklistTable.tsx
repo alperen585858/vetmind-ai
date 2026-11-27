@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { ChevronDown, Clock, Loader2, UserPlus } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
+import { ChevronRight, Clock, Loader2, UserPlus } from 'lucide-react'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import { studyLabel } from '../../shared/lib/displayClean'
@@ -7,16 +7,23 @@ import {
   compareBySlaUrgency,
   formatSlaRemaining,
   isSlaAttention,
-  slaBadgeClass,
   slaHoursForPriority,
   slaLabelsFromT,
   slaTone,
 } from '../../shared/lib/reviewSla'
 import type { TranslateFn } from '../../i18n'
-import type { VetCase } from '../../shared/types'
-import { Button } from '../../shared/ui/Button'
+import type { Priority, VetCase } from '../../shared/types'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { PriorityBadge, StatusBadge } from '../../shared/ui/StatusBadge'
+
+/** `newest`: urgent first, then the most recent case on top. `urgent`: least time left on top. */
+export type WorklistOrder = 'newest' | 'urgent'
+
+const PRIORITY_RANK: Record<Priority, number> = { STAT: 0, Acil: 1, Yüksek: 2, Normal: 3 }
+
+export function isUrgentCase(c: VetCase) {
+  return c.priority === 'STAT' || c.priority === 'Acil'
+}
 
 function studyLine(c: VetCase, t: TranslateFn) {
   if (c.anatomicalRegion) return studyLabel(t, null, c.anatomicalRegion)
@@ -28,26 +35,31 @@ function waitLabel(c: VetCase, t: TranslateFn) {
   return t('dashboard.queueSlaShort', { hours: String(slaHoursForPriority(c.priority)) })
 }
 
-function sortWorklist(items: VetCase[]) {
-  const order = { STAT: 0, Acil: 1, Yüksek: 2, Normal: 3 }
+/** When the case arrived: the due time minus its SLA window, else the creation date. */
+function arrivedAt(c: VetCase): number {
+  if (c.reviewDueAt) {
+    const due = Date.parse(c.reviewDueAt)
+    if (!Number.isNaN(due)) return due - slaHoursForPriority(c.priority) * 3_600_000
+  }
+  const created = Date.parse(c.createdAt)
+  return Number.isNaN(created) ? 0 : created
+}
+
+export function sortWorklist(items: VetCase[], order: WorklistOrder = 'newest') {
   return [...items].sort((a, b) => {
-    const pa = order[a.priority] ?? 9
-    const pb = order[b.priority] ?? 9
+    const pa = PRIORITY_RANK[a.priority] ?? 9
+    const pb = PRIORITY_RANK[b.priority] ?? 9
     if (pa !== pb) return pa - pb
-    return compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt)
+    if (order === 'urgent') return compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt)
+    return arrivedAt(b) - arrivedAt(a)
   })
 }
 
-function accentClass(tone: ReturnType<typeof slaTone>) {
-  switch (tone) {
-    case 'overdue':
-    case 'critical':
-      return 'border-l-[var(--vm-danger)]'
-    case 'warn':
-      return 'border-l-[var(--vm-warning,#d99a32)]'
-    default:
-      return 'border-l-transparent'
-  }
+function waitClass(c: VetCase) {
+  const tone = slaTone(c.reviewDueAt)
+  if (tone === 'overdue' || tone === 'critical') return 'text-rose-700'
+  if (tone === 'warn' || isSlaAttention(c.reviewDueAt)) return 'text-amber-700'
+  return 'text-slate-600'
 }
 
 export function ExpertWorklistTable({
@@ -60,6 +72,7 @@ export function ExpertWorklistTable({
   onClaim,
   secondaryActions,
   compact = false,
+  order = 'newest',
 }: {
   items: VetCase[]
   loading?: boolean
@@ -70,16 +83,17 @@ export function ExpertWorklistTable({
   onClaim?: (c: VetCase) => void
   secondaryActions?: (c: VetCase) => ReactNode
   compact?: boolean
+  order?: WorklistOrder
 }) {
   const { t } = useLocale()
   const nav = useLocalizedNavigate()
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const sorted = useMemo(() => sortWorklist(items), [items])
-  const cell = compact ? 'px-3 py-2' : 'px-4 py-2.5'
+  const sorted = useMemo(() => sortWorklist(items, order), [items, order])
+  const cell = compact ? 'px-4 py-3' : 'px-5 py-3.5'
+  const head = compact ? 'px-4 py-2.5' : 'px-5 py-3'
 
   if (loading) {
     return (
-      <p className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500" role="status">
+      <p className="flex items-center gap-2 px-5 py-10 text-sm text-slate-500" role="status">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t('review.loadingWorklist')}
       </p>
     )
@@ -101,110 +115,73 @@ export function ExpertWorklistTable({
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200/80 bg-slate-50/50 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            <th scope="col" className={`${cell} font-semibold`}>
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
+            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColPatient')}
             </th>
-            <th scope="col" className={`${cell} font-semibold`}>
+            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColStudy')}
             </th>
-            <th scope="col" className={`${cell} font-semibold`}>
-              {t('dashboard.expertColModality')}
-            </th>
-            <th scope="col" className={`${cell} font-semibold`}>
+            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColPriority')}
             </th>
-            <th scope="col" className={`${cell} font-semibold`}>
+            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColWait')}
             </th>
-            <th scope="col" className={`${cell} font-semibold`}>
+            <th scope="col" className={`${head} font-medium`}>
               {t('dashboard.expertColStatus')}
             </th>
-            <th scope="col" className={`${cell} text-right font-semibold`}>
-              {t('dashboard.expertColAction')}
+            <th scope="col" className={`${head} text-right font-medium`}>
+              <span className="sr-only">{t('dashboard.expertColAction')}</span>
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {sorted.map((c) => {
-            const tone = slaTone(c.reviewDueAt)
-            const attention = isSlaAttention(c.reviewDueAt)
-            const displayTone = attention && (tone === 'ok' || tone === 'none') ? 'warn' : tone
-            const open = expanded === c.id
-            const workspaceHref = `/vakalar/${c.id}/calisma`
-            const openCase = () => nav(workspaceHref)
+            const urgent = isUrgentCase(c)
+            const openCase = () => nav(`/vakalar/${c.id}/calisma`)
+            const meta = [c.patient.species, c.patient.breed, c.no].filter((v) => v && v.trim() !== '—' && v.trim() !== '-').join(' · ')
             return (
               <tr
                 key={c.id}
                 tabIndex={0}
                 aria-label={`${c.patient.name} — ${t('dashboard.expertOpen')}`}
                 onClick={(e) => {
-                  const target = e.target as HTMLElement
-                  if (target.closest('button, a, input, [data-stop-row-nav]')) return
+                  if ((e.target as HTMLElement).closest('button, a, input, [data-stop-row-nav]')) return
                   openCase()
                 }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter' && e.key !== ' ') return
-                  const target = e.target as HTMLElement
-                  if (target.closest('button, a, input, [data-stop-row-nav]')) return
+                  if ((e.target as HTMLElement).closest('button, a, input, [data-stop-row-nav]')) return
                   e.preventDefault()
                   openCase()
                 }}
-                className={`cursor-pointer border-l-4 bg-white transition duration-150 hover:bg-teal-50/40 focus-visible:bg-teal-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${accentClass(displayTone)}`}
+                className={`group cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600 ${
+                  urgent ? 'bg-rose-50/70 hover:bg-rose-50' : 'bg-white hover:bg-slate-50'
+                }`}
               >
                 <td className={`${cell} align-middle`}>
-                  <button
-                    type="button"
-                    className="text-left font-semibold text-[color:var(--vm-text,#172b4d)] transition hover:text-teal-700 hover:underline"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openCase()
-                    }}
-                  >
-                    {c.patient.name}
-                  </button>
-                  <p className="text-[11px] text-slate-500">{c.patient.species}</p>
-                  <button
-                    type="button"
-                    data-stop-row-nav
-                    className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-medium text-slate-400 transition hover:text-teal-700"
-                    aria-expanded={open}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setExpanded(open ? null : c.id)
-                    }}
-                  >
-                    {t('common.details')}
-                    <ChevronDown className={`h-3 w-3 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
-                  </button>
-                  {open ? (
-                    <div data-stop-row-nav className="mt-1.5 space-y-0.5 text-[11px] text-slate-500" onClick={(e) => e.stopPropagation()}>
-                      <p className="font-mono">{c.no}</p>
-                      <p>
-                        {c.patient.breed}
-                        {c.patient.age != null ? ` · ${t('dashboard.ownerAgeYears', { age: c.patient.age })}` : ''}
-                      </p>
-                      {(c.clinic || c.vetName) && <p>{[c.clinic, c.vetName].filter(Boolean).join(' · ')}</p>}
-                      <p title={t('review.slaHoursTitle', { hours: String(slaHoursForPriority(c.priority)) })}>
-                        SLA {slaHoursForPriority(c.priority)}s · {waitLabel(c, t)}
-                      </p>
+                  <div className="flex items-center gap-3">
+                    <span
+                      aria-hidden
+                      className={`h-9 w-1 shrink-0 rounded-full ${urgent ? 'bg-rose-500' : 'bg-transparent'}`}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">{c.patient.name}</p>
+                      <p className="truncate text-xs text-slate-500">{meta}</p>
                     </div>
-                  ) : null}
+                  </div>
                 </td>
-                <td className={`${cell} align-middle text-slate-700`}>{studyLine(c, t)}</td>
                 <td className={`${cell} align-middle`}>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                    {c.modality || t('common.dash')}
-                  </span>
+                  <p className="text-slate-800">{studyLine(c, t)}</p>
+                  <p className="text-xs text-slate-500">{c.modality || t('common.dash')}</p>
                 </td>
                 <td className={`${cell} align-middle`}>
                   <PriorityBadge priority={c.priority} />
                 </td>
                 <td className={`${cell} align-middle`}>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(displayTone)}`}
-                  >
-                    <Clock className="h-3 w-3" aria-hidden />
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${waitClass(c)}`}>
+                    <Clock className="h-3.5 w-3.5" aria-hidden />
                     {waitLabel(c, t)}
                   </span>
                 </td>
@@ -212,20 +189,25 @@ export function ExpertWorklistTable({
                   <StatusBadge status={c.status} />
                 </td>
                 <td className={`${cell} align-middle`} data-stop-row-nav onClick={(e) => e.stopPropagation()}>
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Button size="sm" onClick={openCase}>
-                      {t('dashboard.expertOpen')}
-                    </Button>
-                    {showClaim && onClaim ? (
+                  <div className="flex items-center justify-end gap-3">
+                    {showClaim && onClaim && !c.assignedReviewerId ? (
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-navy-900"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-900"
                         onClick={() => onClaim(c)}
                       >
-                        <UserPlus className="h-3.5 w-3.5" /> {t('review.claimCase')}
+                        <UserPlus className="h-3.5 w-3.5" aria-hidden /> {t('review.claimCase')}
                       </button>
                     ) : null}
                     {secondaryActions?.(c)}
+                    <button
+                      type="button"
+                      onClick={openCase}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:border-teal-600 hover:text-teal-700"
+                    >
+                      {t('dashboard.expertOpen')}
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                    </button>
                   </div>
                 </td>
               </tr>

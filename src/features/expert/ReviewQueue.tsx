@@ -1,17 +1,54 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Clock, EyeOff, Info, Loader2, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, Clock, EyeOff, Info, Loader2, RefreshCw, Search, X } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
-import { ExpertWorklistTable } from './ExpertWorklistTable'
+import { ExpertWorklistTable, isUrgentCase } from './ExpertWorklistTable'
 import { Modal } from '../../shared/ui/Modal'
 import { currentActorId } from '../../shared/auth/session'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { hideBackendCase, listBackendWorklist, updateCaseAssignment } from '../../shared/api'
 import { summaryToVetCase } from '../../shared/lib/caseMapper'
-import { compareBySlaUrgency, isSlaAttention } from '../../shared/lib/reviewSla'
+import { isSlaAttention } from '../../shared/lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../../shared/types'
+
+const FILTER_SELECT =
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20'
+
+type QueueView = 'all' | 'urgent' | 'sla'
+
+function matchesSearch(c: VetCase, needle: string) {
+  if (!needle) return true
+  return [c.patient.name, c.no, c.id, c.clinic, c.patient.breed, c.patient.species, c.modality, c.anatomicalRegion]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase('tr')
+    .includes(needle)
+}
+
+function FilterSelect({
+  id,
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+  children: ReactNode
+}) {
+  return (
+    <label htmlFor={id} className="flex min-w-[9rem] flex-1 flex-col gap-1 sm:flex-none">
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <select id={id} className={FILTER_SELECT} value={value} onChange={(e) => onChange(e.target.value)}>
+        {children}
+      </select>
+    </label>
+  )
+}
 
 export default function ReviewQueue() {
   const { cases, pushToast, hydrateBackendCase, removeCase } = useApp()
@@ -27,7 +64,7 @@ export default function ReviewQueue() {
   const [assigned, setAssigned] = useState('')
   const [pendingDelete, setPendingDelete] = useState<VetCase | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const slaOnly = params.get('sla') === 'az'
+  const view: QueueView = params.get('sla') === 'az' ? 'sla' : params.get('acil') === '1' ? 'urgent' : 'all'
 
   const load = () => {
     setLoading(true)
@@ -37,7 +74,6 @@ export default function ReviewQueue() {
       modality: modality || undefined,
       priority: priority || undefined,
       assigned_to: assigned || undefined,
-      q: q || undefined,
     })
       .then(setRows)
       .catch((err) => {
@@ -52,31 +88,32 @@ export default function ReviewQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, modality, priority, assigned])
 
-  const localFallback = useMemo(
-    () => cases.filter((c) => c.status === 'uzman_incelemesinde').map((c) => c),
-    [cases],
-  )
+  const localFallback = useMemo(() => cases.filter((c) => c.status === 'uzman_incelemesinde'), [cases])
 
   const usingStaleFallback = Boolean(error && rows.length === 0 && localFallback.length > 0)
-  const baseDisplay = rows.length
-    ? rows.map(summaryToVetCase)
-    : usingStaleFallback
-      ? localFallback
-      : rows.map(summaryToVetCase)
+  const baseDisplay = useMemo(
+    () => (rows.length ? rows.map(summaryToVetCase) : usingStaleFallback ? localFallback : []),
+    [rows, usingStaleFallback, localFallback],
+  )
+
+  const needle = q.trim().toLocaleLowerCase('tr')
+  const searched = useMemo(() => baseDisplay.filter((c) => matchesSearch(c, needle)), [baseDisplay, needle])
+  const urgentCount = searched.filter(isUrgentCase).length
+  const slaCount = searched.filter((c) => isSlaAttention(c.reviewDueAt)).length
 
   const display = useMemo(() => {
-    const list = slaOnly ? baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt)) : baseDisplay
-    if (!slaOnly) return list
-    return [...list].sort((a, b) => compareBySlaUrgency(a.reviewDueAt, b.reviewDueAt))
-  }, [baseDisplay, slaOnly])
+    if (view === 'urgent') return searched.filter(isUrgentCase)
+    if (view === 'sla') return searched.filter((c) => isSlaAttention(c.reviewDueAt))
+    return searched
+  }, [searched, view])
 
-  const slaCount = baseDisplay.filter((c) => isSlaAttention(c.reviewDueAt)).length
-
-  const setSlaFilter = (on: boolean) => {
-    const next = new URLSearchParams(params)
-    if (on) next.set('sla', 'az')
-    else next.delete('sla')
-    setParams(next, { replace: true })
+  const setView = (next: QueueView) => {
+    const p = new URLSearchParams(params)
+    p.delete('sla')
+    p.delete('acil')
+    if (next === 'sla') p.set('sla', 'az')
+    if (next === 'urgent') p.set('acil', '1')
+    setParams(p, { replace: true })
   }
 
   const claim = (c: VetCase) => {
@@ -105,9 +142,7 @@ export default function ReviewQueue() {
       )
   }
 
-  const hasFilters = Boolean(q.trim() || modality || priority || assigned || status !== 'awaiting_review')
-  const filterClass =
-    'rounded-xl border-0 bg-white/90 px-3 py-2.5 text-xs font-medium text-navy-900 outline-none ring-1 ring-white/50 focus:ring-2 focus:ring-white'
+  const hasFilters = Boolean(needle || modality || priority || assigned || status !== 'awaiting_review' || view !== 'all')
 
   const clearFilters = () => {
     setQ('')
@@ -115,192 +150,164 @@ export default function ReviewQueue() {
     setPriority('')
     setAssigned('')
     setStatus('awaiting_review')
-    setSlaFilter(false)
-    setLoading(true)
-    setError(null)
-    void listBackendWorklist({ status: 'awaiting_review' })
-      .then(setRows)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : t('review.loadFailed'))
-        setRows([])
-      })
-      .finally(() => setLoading(false))
+    setView('all')
   }
 
-  const listSubtitle = error
-    ? t('review.apiFallbackSubtitle', { error })
-    : slaOnly
-      ? t('review.slaListSubtitle')
-      : t('review.defaultListSubtitle')
+  const tabs: { id: QueueView; label: string; count: number; icon?: ReactNode }[] = [
+    { id: 'all', label: t('review.allQueue'), count: searched.length },
+    { id: 'urgent', label: t('review.urgentFilter'), count: urgentCount, icon: <AlertTriangle className="h-4 w-4" aria-hidden /> },
+    { id: 'sla', label: t('review.slaFilter'), count: slaCount, icon: <Clock className="h-4 w-4" aria-hidden /> },
+  ]
+
+  const listSubtitle = view === 'sla' ? t('review.slaListSubtitle') : t('review.defaultListSubtitle')
 
   return (
     <>
-      <div className="vm-fade-up relative -mx-1 space-y-4">
-        <section className="relative overflow-hidden rounded-[1.5rem] bg-[color:var(--vm-midnight,#0b1728)] px-5 py-6 text-white shadow-[0_20px_50px_-28px_rgba(11,23,40,0.55)] sm:px-7">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(129,140,248,0.4),transparent_50%),radial-gradient(ellipse_at_100%_80%,rgba(45,212,191,0.2),transparent_45%)]"
-          />
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-300/90">
-                {t('review.caseCountTitle', { count: display.length })}
-              </p>
-              <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                {t('review.worklistTitle')}
-              </h1>
-              <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-300">{t('review.worklistSubtitle')}</p>
-              {usingStaleFallback ? (
-                <p className="mt-3 rounded-lg bg-amber-400/20 px-3 py-2 text-xs text-amber-100 ring-1 ring-amber-300/30" role="status">
-                  {t('review.staleFallbackBanner')}
-                </p>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={t('dashboard.expertFilterAria')}>
+      <div className="vm-fade-up space-y-5">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+              {t('review.worklistTitle')}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">{t('review.worklistSubtitle')}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={load}
+            disabled={loading}
+            icon={<RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />}
+          >
+            {t('common.refresh')}
+          </Button>
+        </header>
+
+        {usingStaleFallback ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+            {t('review.staleFallbackBanner')}
+          </p>
+        ) : error ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+            {t('review.apiFallbackSubtitle', { error })}
+          </p>
+        ) : null}
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap gap-1 border-b border-slate-200 px-3 pt-3" role="tablist" aria-label={t('dashboard.expertFilterAria')}>
+            {tabs.map((tab) => {
+              const active = view === tab.id
+              const tone =
+                tab.id === 'urgent' && tab.count > 0 && !active ? 'text-rose-700' : active ? 'text-slate-900' : 'text-slate-500'
+              return (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => setSlaFilter(false)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    !slaOnly ? 'bg-teal-400 text-navy-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setView(tab.id)}
+                  className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm font-semibold transition ${
+                    active ? 'border-teal-600' : 'border-transparent hover:text-slate-800'
+                  } ${tone}`}
                 >
-                  {t('review.allQueue')}{' '}
-                  <span className={!slaOnly ? 'opacity-80' : 'text-slate-400'}>{baseDisplay.length}</span>
+                  {tab.icon}
+                  {tab.label}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${
+                      tab.id === 'urgent' && tab.count > 0
+                        ? 'bg-rose-600 text-white'
+                        : active
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSlaFilter(true)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    slaOnly ? 'bg-rose-400 text-rose-950' : 'bg-white/10 text-slate-200 hover:bg-white/15'
-                  }`}
-                >
-                  <Clock className="h-3.5 w-3.5" aria-hidden />
-                  {t('review.slaFilter')}{' '}
-                  <span className={slaOnly ? 'opacity-80' : 'text-slate-400'}>{slaCount}</span>
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="inline-flex items-center gap-2 self-start rounded-xl bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15 disabled:opacity-50 lg:self-end"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-              {t('common.refresh')}
-            </button>
+              )
+            })}
           </div>
 
-          <div className="relative mt-5 flex flex-col gap-2 lg:flex-row lg:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">{t('common.search')}</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-teal-200/70" aria-hidden />
-              <input
-                id="wl-q"
-                className="w-full rounded-xl border-0 bg-white/10 py-2.5 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/20 placeholder:text-slate-400 focus:bg-white/15 focus:ring-2 focus:ring-teal-300/50"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && load()}
-                placeholder={t('review.searchPlaceholder')}
-              />
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-4 lg:flex-row lg:items-end">
+            <label htmlFor="wl-q" className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="text-xs font-medium text-slate-600">{t('common.search')}</span>
+              <span className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+                <input
+                  id="wl-q"
+                  type="search"
+                  className={`${FILTER_SELECT} pl-9`}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={t('review.searchPlaceholder')}
+                />
+              </span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              <select
-                id="wl-status"
-                aria-label={t('common.status')}
-                className={filterClass}
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
+            <div className="flex flex-wrap items-end gap-3">
+              <FilterSelect id="wl-status" label={t('review.filterStatusLabel')} value={status} onChange={setStatus}>
                 <option value="">{t('common.all')}</option>
                 <option value="awaiting_review">{t('review.statusAwaitingReview')}</option>
                 <option value="revision_requested">{t('review.statusRevision')}</option>
                 <option value="manual_review">{t('review.statusManual')}</option>
                 <option value="analyzing">{t('review.statusAnalyzing')}</option>
-              </select>
-              <select
-                id="wl-modality"
-                aria-label={t('cases.modality')}
-                className={filterClass}
-                value={modality}
-                onChange={(e) => setModality(e.target.value)}
-              >
+              </FilterSelect>
+              <FilterSelect id="wl-modality" label={t('review.filterModalityLabel')} value={modality} onChange={setModality}>
                 <option value="">{t('common.all')}</option>
                 <option value="MR">MR</option>
                 <option value="CT">CT</option>
                 <option value="XR">XR</option>
-              </select>
-              <select
-                id="wl-priority"
-                aria-label={t('common.priority')}
-                className={filterClass}
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-              >
+              </FilterSelect>
+              <FilterSelect id="wl-priority" label={t('review.filterPriorityLabel')} value={priority} onChange={setPriority}>
                 <option value="">{t('common.all')}</option>
                 <option value="stat">{t('priority.STAT')}</option>
                 <option value="urgent">{t('priority.Acil')}</option>
                 <option value="high">{t('priority.Yüksek')}</option>
                 <option value="normal">{t('priority.Normal')}</option>
-              </select>
-              <select
-                id="wl-assigned"
-                aria-label={t('review.assignment')}
-                className={filterClass}
-                value={assigned}
-                onChange={(e) => setAssigned(e.target.value)}
-              >
+              </FilterSelect>
+              <FilterSelect id="wl-assigned" label={t('review.filterAssignmentLabel')} value={assigned} onChange={setAssigned}>
                 <option value="">{t('common.all')}</option>
                 <option value="unassigned">{t('cases.unassigned')}</option>
                 <option value={currentActorId()}>{t('review.assignedToMe')}</option>
-              </select>
-              <button
-                type="button"
-                onClick={load}
-                className="rounded-xl bg-teal-400 px-3.5 py-2.5 text-xs font-semibold text-navy-950 transition hover:bg-teal-300"
-              >
-                {t('review.filterApply')}
-              </button>
-              {hasFilters || slaOnly ? (
+              </FilterSelect>
+              {hasFilters ? (
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-teal-100 ring-1 ring-white/20 transition hover:bg-white/20"
+                  className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-slate-900"
                 >
+                  <X className="h-4 w-4" aria-hidden />
                   {t('common.clear')}
                 </button>
               ) : null}
             </div>
           </div>
-        </section>
 
-        {error && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert">
-            {t('review.apiFallbackSubtitle', { error })}
+          <div className="flex items-center justify-between gap-2 px-5 py-3 text-xs text-slate-500">
+            <span>{listSubtitle}</span>
+            <span className="tabular-nums">{t('review.filteredCount', { shown: display.length, total: baseDisplay.length })}</span>
           </div>
-        )}
 
-        <div className="relative overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200/70">
-          <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
-            <h2 className="text-sm font-semibold text-navy-900">{t('review.caseCountTitle', { count: display.length })}</h2>
-            <p className="text-xs text-slate-500">{listSubtitle}</p>
-          </div>
           <ExpertWorklistTable
             items={display}
             loading={loading}
+            order={view === 'sla' ? 'urgent' : 'newest'}
             showClaim
             onClaim={claim}
-            emptyTitle={slaOnly ? t('review.emptySlaTitle') : t('review.emptyNoMatch')}
+            emptyTitle={
+              view === 'sla' ? t('review.emptySlaTitle') : view === 'urgent' ? t('review.emptyUrgentTitle') : t('review.emptyNoMatch')
+            }
             emptyText={
-              slaOnly
+              view === 'sla'
                 ? t('review.emptySlaText')
-                : error
-                  ? t('review.emptyApiText', { error })
-                  : t('review.emptyExpandFilters')
+                : view === 'urgent'
+                  ? t('review.emptyUrgentText')
+                  : error
+                    ? t('review.emptyApiText', { error })
+                    : t('review.emptyExpandFilters')
             }
             emptyAction={
-              slaOnly ? (
-                <Button size="sm" variant="secondary" onClick={() => setSlaFilter(false)}>
-                  {t('review.showAllQueue')}
+              hasFilters ? (
+                <Button size="sm" variant="secondary" onClick={clearFilters}>
+                  {t('common.clear')}
                 </Button>
               ) : (
                 <Button size="sm" variant="secondary" onClick={load}>
@@ -311,16 +318,16 @@ export default function ReviewQueue() {
             secondaryActions={(c) => (
               <button
                 type="button"
-                className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-navy-700"
+                className="inline-flex items-center text-slate-400 transition hover:text-slate-700"
                 onClick={() => setPendingDelete(c)}
                 aria-label={t('review.hideFromMyList')}
                 title={t('review.hideFromMyList')}
               >
-                <EyeOff className="h-3.5 w-3.5" />
+                <EyeOff className="h-4 w-4" />
               </button>
             )}
           />
-        </div>
+        </section>
 
         <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
           <Info className="h-3.5 w-3.5" aria-hidden /> {t('review.footerNote')}

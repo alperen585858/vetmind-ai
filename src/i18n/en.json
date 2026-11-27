@@ -580,7 +580,7 @@
     "expertSlaEmptyTitle": "Nothing low on time",
     "expertSlaEmptyText": "No cases under 12 hours right now.",
     "expertPendingReports": "Work queue",
-    "expertPendingSubtitle": "Urgent and low-time cases first",
+    "expertPendingSubtitle": "Urgent cases first, then the newest",
     "expertFullWorklist": "Full worklist",
     "expertRecentDecisions": "Recent activity",
     "expertNoDecisions": "No decisions yet",
@@ -716,7 +716,8 @@
     "weekday6": "Sun",
     "quickAwaitingReport": "Cases Awaiting Report",
     "hintAwaitingReport": "{count} cases awaiting a report",
-    "clinicStatAwaitingReportHint": "Report not approved yet"
+    "clinicStatAwaitingReportHint": "Report not approved yet",
+    "expertUrgentHintNone": "No urgent cases waiting"
   },
   "cases": {
     "title": "Cases",
@@ -1183,12 +1184,12 @@
     "slaWarn": "SLA approaching",
     "slaOver": "SLA exceeded",
     "worklistTitle": "Radiologist worklist",
-    "worklistSubtitle": "STAT/Urgent → 24 h · others → 48 h · one-click filter for low time",
-    "allQueue": "Full queue",
+    "worklistSubtitle": "Newest cases on top. Urgent and STAT cases always come first.",
+    "allQueue": "All",
     "slaFilter": "Low time remaining",
     "slaBanner": "Showing low time remaining (overdue or ≤12 h). Most urgent on top.",
     "clearFilter": "Clear filter",
-    "searchPlaceholder": "patient / case / clinic",
+    "searchPlaceholder": "Search patient, case no or clinic",
     "statusAwaitingReview": "Specialist review",
     "statusRevision": "Revision",
     "statusManual": "Manual review",
@@ -1199,7 +1200,7 @@
     "caseCountTitle": "{count} cases",
     "apiFallbackSubtitle": "Could not reach the server ({error}) · showing the local list",
     "slaListSubtitle": "Low time remaining · most urgent first",
-    "defaultListSubtitle": "Urgent cases on top · ≤12 h in “low time” filter",
+    "defaultListSubtitle": "Urgent cases first, then the newest",
     "loadingWorklist": "Loading worklist…",
     "loadFailed": "Could not load worklist",
     "emptySlaTitle": "No low-time cases",
@@ -1346,7 +1347,15 @@
       "verificationFailed": "Verification failed"
     },
     "staleFallbackBanner": "Could not load the server worklist — showing older local cache. Data may be stale.",
-    "hideFromMyList": "Hide from my list"
+    "hideFromMyList": "Hide from my list",
+    "urgentFilter": "Urgent / STAT",
+    "filterStatusLabel": "Status",
+    "filterModalityLabel": "Modality",
+    "filterPriorityLabel": "Priority",
+    "filterAssignmentLabel": "Assignment",
+    "filteredCount": "{shown} / {total} cases",
+    "emptyUrgentTitle": "No urgent cases",
+    "emptyUrgentText": "There are no STAT or urgent cases waiting right now."
   },
   "analysis": {
     "pending": "Pending",
