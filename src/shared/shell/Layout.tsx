@@ -91,7 +91,7 @@ export function Layout({
       />
       <div
         className={`print:pl-0 transition-[padding] duration-200 ease-out ${
-          collapsed ? 'lg:pl-[64px]' : role === 'expert' ? 'lg:pl-56' : 'lg:pl-64'
+          collapsed ? 'lg:pl-[64px]' : 'lg:pl-64'
         }`}
       >
         <Topbar onMenu={() => setMenu(true)} notificationSlot={notificationSlot} />

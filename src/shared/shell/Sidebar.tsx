@@ -54,7 +54,6 @@ export function Sidebar({
   const lp = useLocalePath()
   const queue = cases.filter((c) => c.status === 'uzman_incelemesinde').length
   const ic = 'h-[18px] w-[18px] shrink-0'
-  const isExpert = role === 'expert'
   const isClinic = role === 'clinic_owner'
   const isAdmin = role === 'admin'
   const roleLabels: Record<NonNullable<typeof role>, string> = {
@@ -123,7 +122,7 @@ export function Sidebar({
       <aside
         aria-label={t('nav.menuAria')}
         className={`vm-sidebar no-print fixed inset-y-0 left-0 z-40 flex flex-col overflow-y-auto overscroll-contain bg-navy-950 text-navy-100 transition-[width,transform] duration-200 ease-out lg:translate-x-0 ${
-          collapsed ? 'lg:w-[64px]' : isExpert ? 'lg:w-56' : 'lg:w-64'
+          collapsed ? 'lg:w-[64px]' : 'lg:w-64'
         } w-64 ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className={`flex items-start gap-2 pb-4 pt-5 ${collapsed ? 'lg:flex-col lg:items-center lg:px-2' : 'justify-between px-5'}`}>
@@ -145,15 +144,13 @@ export function Sidebar({
               </div>
             ) : null}
             <div className={collapsed ? 'lg:hidden' : ''}>
-              <Logo dark accent={isExpert || isClinic || isAdmin ? 'navy' : 'teal'} />
+              <Logo dark accent={isClinic || isAdmin ? 'navy' : 'teal'} />
               <p
                 className={`mt-1.5 pl-[46px] text-[11px] ${
-                  isExpert || isClinic || isAdmin ? 'text-slate-400' : 'text-navy-300'
+                  isClinic || isAdmin ? 'text-slate-400' : 'text-navy-300'
                 }`}
               >
-                {isExpert
-                  ? 'Veterinary Radiology Intelligence'
-                  : isClinic
+                {isClinic
                       ? 'Clinic Operations Intelligence'
                       : isAdmin
                         ? 'Platform Control Plane'
@@ -162,9 +159,7 @@ export function Sidebar({
               {role && (
                 <span
                   className={`mt-2 ml-[46px] inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${
-                    isExpert
-                        ? 'bg-white/10 text-slate-200 ring-white/10'
-                        : isClinic
+                    isClinic
                           ? 'bg-indigo-400/15 text-indigo-200 ring-indigo-300/30'
                           : isAdmin
                             ? 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/30'
@@ -213,9 +208,7 @@ export function Sidebar({
                   collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
                 } px-3 py-2.5 ${
                   isActive
-                    ? isExpert
-                        ? 'bg-white/12 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
-                        : isClinic
+                    ? isClinic
                           ? 'bg-indigo-500/25 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
                           : isAdmin
                             ? 'bg-emerald-500/20 text-white shadow-[inset_3px_0_0_0_#34d399]'
@@ -265,9 +258,7 @@ export function Sidebar({
                 collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-3 px-3 py-2.5'
               } gap-3 px-3 py-2.5 ${
                 isActive
-                  ? isExpert
-                      ? 'bg-white/10 text-white shadow-[inset_3px_0_0_0_#94a3b8]'
-                      : isClinic
+                  ? isClinic
                         ? 'bg-indigo-500/20 text-white shadow-[inset_3px_0_0_0_#a5b4fc]'
                         : isAdmin
                           ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_0_#34d399]'
