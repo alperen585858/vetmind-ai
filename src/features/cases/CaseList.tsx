@@ -18,7 +18,7 @@ import { CardWave } from '../../shared/ui/CardWave'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { STATUS_META, STATUS_ORDER } from '../../shared/ui/StatusBadge'
 import type { CaseStatus, VetCase } from '../../shared/types'
-import { AWAITING_REPORT_FILTER, isAwaitingReport } from './lib/caseStatusMap'
+import { AWAITING_REPORT_FILTER, OVERDUE_FILTER, isAwaitingReport, isOverdueCase } from './lib/caseStatusMap'
 import { reviewerDisplay } from '../../shared/lib/reviewer'
 
 type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
@@ -41,6 +41,11 @@ const CARD_STYLE = {
     active: 'ring-2 ring-emerald-400 shadow-[0_14px_34px_-14px_rgba(5,150,105,0.5)]',
     wave: '#6ee7b7',
   },
+  orange: {
+    card: 'from-orange-50 via-white to-white ring-orange-100',
+    active: 'ring-2 ring-orange-400 shadow-[0_14px_34px_-14px_rgba(234,88,12,0.5)]',
+    wave: '#fdba74',
+  },
   rose: {
     card: 'from-rose-50 via-white to-white ring-rose-100',
     active: 'ring-2 ring-rose-400 shadow-[0_14px_34px_-14px_rgba(225,29,72,0.5)]',
@@ -48,7 +53,7 @@ const CARD_STYLE = {
   },
 } as const
 
-type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER
+type StatusFilter = CaseStatus | '' | 'failed' | typeof AWAITING_REPORT_FILTER | typeof OVERDUE_FILTER
 
 function TableSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
@@ -84,12 +89,15 @@ export default function CaseList() {
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<StatusFilter>(() => {
     const d = searchParams.get('durum')
-    if (d === AWAITING_REPORT_FILTER || d === 'onaylandi' || d === 'iptal') return d
+    if (d === AWAITING_REPORT_FILTER || d === OVERDUE_FILTER || d === 'onaylandi' || d === 'iptal') return d
     return ''
   })
   const [species, setSpecies] = useState('')
   const [modality, setModality] = useState<ModalityFilter>('')
-  const [expert, setExpert] = useState('')
+  // Clinic dashboard's radiologist rows link here with ?uzman=<reviewer id>.
+  const [expert, setExpert] = useState(() => searchParams.get('uzman') ?? '')
+  // Clinic team page links here with ?veteriner=<e-mail> (cases that vet sent).
+  const [sender, setSender] = useState(() => searchParams.get('veteriner')?.toLowerCase() ?? '')
   // Dashboard "Acil / STAT" card links here with ?acil=1 (same rule as its count).
   const [urgentOnly, setUrgentOnly] = useState(() => searchParams.get('acil') === '1')
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -126,7 +134,8 @@ export default function CaseList() {
     const failed = (byStatus.analiz_basarisiz ?? 0) + (byStatus.reddedildi ?? 0)
     const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0)
     const inProgress = cases.filter((c) => isAwaitingReport(c.status) && c.status !== 'iptal').length
-    return { byStatus, total, review, approved, failed, pct, inProgress }
+    const overdue = cases.filter((c) => isOverdueCase(c)).length
+    return { byStatus, total, review, approved, failed, pct, inProgress, overdue }
   }, [cases])
 
   const filtered = useMemo(() => {
@@ -140,17 +149,20 @@ export default function CaseList() {
             ? c.status === 'analiz_basarisiz' || c.status === 'reddedildi'
             : status === AWAITING_REPORT_FILTER
               ? isAwaitingReport(c.status)
-              : c.status === status)) &&
+              : status === OVERDUE_FILTER
+                ? isOverdueCase(c)
+                : c.status === status)) &&
         (!species || c.patient.species === species) &&
         (!modality || c.modality === modality) &&
         (!expert || expertKey(c) === expert) &&
+        (!sender || c.submittedBy?.toLowerCase() === sender) &&
         (!urgentOnly || isOpenUrgent(c)) &&
         (!s ||
           [c.no, c.patient.name, c.patient.breed, c.modality, c.anatomicalRegion, c.assignedReviewerId ? reviewerDisplay(c, t) : '']
             .filter(Boolean)
             .some((f) => String(f).toLocaleLowerCase(intlLocale).includes(s))),
     )
-  }, [cases, q, status, species, modality, expert, urgentOnly, intlLocale, t])
+  }, [cases, q, status, species, modality, expert, sender, urgentOnly, intlLocale, t])
 
   const onSync = async () => {
     const r = await refreshBackendCases()
@@ -174,17 +186,30 @@ export default function CaseList() {
     setSpecies('')
     setModality('')
     setExpert('')
+    setSender('')
     setUrgentOnly(false)
   }
 
   const showSkeleton = initialLoad && backendSyncing && cases.length === 0
-  const hasFilters = Boolean(q.trim() || status || species || modality || expert || urgentOnly)
+  const hasFilters = Boolean(q.trim() || status || species || modality || expert || sender || urgentOnly)
   const selectClass =
     'rounded-xl bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-teal-500/50'
 
+  const isClinic = role === 'clinic_owner'
   const cards: { id: StatusFilter; label: string; n: number; hint: string; tone: keyof typeof CARD_STYLE }[] = [
     { id: '', label: t('common.all'), n: counts.total - (counts.byStatus.iptal ?? 0), hint: t('cases.cardAllHint'), tone: 'teal' },
     { id: AWAITING_REPORT_FILTER, label: t('cases.viewInProgress'), n: counts.inProgress, hint: t('cases.cardInProgressHint'), tone: 'amber' },
+    ...(isClinic
+      ? [
+          {
+            id: OVERDUE_FILTER as StatusFilter,
+            label: t('cases.viewOverdue'),
+            n: counts.overdue,
+            hint: counts.overdue ? t('cases.cardOverdueHint') : t('cases.cardOverdueNone'),
+            tone: 'orange' as const,
+          },
+        ]
+      : []),
     { id: 'onaylandi', label: t('cases.viewApprovedReports'), n: counts.approved, hint: t('cases.cardApprovedHint'), tone: 'emerald' },
     {
       id: 'failed',
@@ -241,7 +266,7 @@ export default function CaseList() {
         )}
 
         {/* #81: approved reports are a view of the case list, not a separate page. */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label={t('cases.viewTabs')}>
+        <div className={`grid grid-cols-2 gap-3 ${isClinic ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`} role="tablist" aria-label={t('cases.viewTabs')}>
           {cards.map((card) => {
             const active = status === card.id
             const st = CARD_STYLE[card.tone]
@@ -301,6 +326,17 @@ export default function CaseList() {
                   )
                 })}
               </div>
+              {sender ? (
+                <button
+                  type="button"
+                  onClick={() => setSender('')}
+                  aria-label={`${t('cases.filterVet')}: ${sender} — ${t('common.clear')}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 ring-1 ring-inset ring-sky-200 transition hover:bg-sky-100"
+                >
+                  {t('cases.filterVet')}: {sender}
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
               {urgentOnly ? (
                 <button
                   type="button"
@@ -316,6 +352,7 @@ export default function CaseList() {
               <select aria-label={t('common.status')} className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
                 <option value="">{t('cases.filterAllStatuses')}</option>
                 <option value={AWAITING_REPORT_FILTER}>{t('cases.filterAwaitingReport')}</option>
+                {isClinic ? <option value={OVERDUE_FILTER}>{t('cases.viewOverdue')}</option> : null}
                 {STATUS_ORDER.map((s) => (
                   <option key={s} value={s}>
                     {t(STATUS_META[s].labelKey)}
@@ -360,6 +397,7 @@ export default function CaseList() {
             <CaseTable
               cases={filtered}
               showPriority={role === 'expert'}
+              showDue={isClinic}
             />
           ) : cases.length === 0 ? (
             <EmptyState

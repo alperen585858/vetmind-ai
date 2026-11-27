@@ -84,8 +84,8 @@ export async function listMessageRecipients(q?: string) {
 }
 
 export async function createSupportThread(payload: {
-  channel: 'radiologist' | 'admin'
-  /** Required for the radiologist channel. */
+  channel: import('../types').SupportMessageChannel
+  /** Required for the radiologist and clinic channels. */
   recipient_subject?: string
   subject: string
   body: string

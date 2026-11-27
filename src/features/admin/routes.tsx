@@ -7,12 +7,14 @@ const SystemStatus = lazyPage(() => import('./SystemStatus'))
 const ModelPerformance = lazyPage(() => import('./ModelPerformance'))
 const AiArchitecture = lazyPage(() => import('./AiArchitecture'))
 const SecurityAudit = lazyPage(() => import('./SecurityAudit'))
+const ClinicTeam = lazyPage(() => import('./ClinicTeam'))
 
 export const adminRoutes = [
   ...dualRoutes('kullanicilar', 'users', <Gate roles={['admin']}><AdminUsers /></Gate>),
   ...dualRoutes('radyologlarim', 'my-radiologists', <Gate roles={['admin']}><AdminRadiologists /></Gate>),
   ...dualRoutes('sistem', 'system', <Gate roles={['admin']}><SystemStatus /></Gate>),
   // Issue #106: clinic owners see their own clinic's events (backend-scoped).
+  ...dualRoutes('ekibim', 'team', <Gate roles={['clinic_owner']}><ClinicTeam /></Gate>),
   ...dualRoutes('guvenlik', 'security', <Gate roles={['admin', 'clinic_owner']}><SecurityAudit /></Gate>),
   ...dualRoutes('ai-mimarisi', 'ai-architecture', <Gate roles={['admin']}><AiArchitecture /></Gate>),
   ...dualRoutes(

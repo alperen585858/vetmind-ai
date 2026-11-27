@@ -169,7 +169,8 @@
     "skipToContent": "İçeriğe atla",
     "aiArchitecture": "AI Mimarisi",
     "security": "Güvenlik / Audit",
-    "helpSupport": "Yardım ve destek"
+    "helpSupport": "Yardım ve destek",
+    "clinicTeam": "Ekibim"
   },
   "topbar": {
     "openMenu": "Menüyü aç",
@@ -732,7 +733,10 @@
     "todoMore": "+{count} vaka daha",
     "recentLast24h": "Son 24 saatte eklenen {count} vaka",
     "recentEmpty": "Son 24 saatte yeni vaka yok",
-    "recentEmptyHint": "Tüm vakalar için soldaki Vakalar menüsünü kullanın."
+    "recentEmptyHint": "Tüm vakalar için soldaki Vakalar menüsünü kullanın.",
+    "clinicRadOverdueAll": "{count} rapor gecikti",
+    "clinicRadUnassigned": "{count} vaka henüz bir radyologa atanmadı.",
+    "clinicTeamLine": "{radiologists} radyolog, {open} bekleyen rapor"
   },
   "cases": {
     "title": "Vakalar",
@@ -1175,7 +1179,12 @@
     "cardInProgressHint": "Rapor bekleniyor",
     "cardApprovedHint": "PDF raporu hazır",
     "cardFailedHint": "Tekrar gönderilmeli",
-    "cardFailedNone": "Sorunlu vaka yok"
+    "cardFailedNone": "Sorunlu vaka yok",
+    "viewOverdue": "Süresi geçmiş",
+    "cardOverdueHint": "Radyolog süresini aştı",
+    "cardOverdueNone": "Geciken rapor yok",
+    "colDue": "Süre",
+    "filterVet": "Veteriner"
   },
   "sections": {
     "klinikOzet": "Teknik / Klinik özet",
@@ -1701,7 +1710,8 @@
     "statusSent": "Gönderildi",
     "statusRead": "Okundu",
     "retrySend": "Tekrar gönder",
-    "composerHint": "Enter ile gönderin, Shift+Enter ile alt satıra geçin."
+    "composerHint": "Enter ile gönderin, Shift+Enter ile alt satıra geçin.",
+    "channelClinic": "Klinik içi"
   },
   "submissions": {
     "title": "Başvurular",
@@ -2757,5 +2767,38 @@
     "saveFailed": "Özet kaydedilemedi",
     "approveFailed": "Özet onaylanamadı",
     "pdfFailed": "PDF indirilemedi"
+  },
+  "team": {
+    "title": "Ekibim",
+    "subtitle": "Kliniğinizin vakalarını okuyan radyologlar ve veterinerleriniz; kime ne atandığı ve neyin geciktiği.",
+    "statRadiologists": "Radyologlarım",
+    "statRadiologistsHint": "Vakalarınızı okuyan",
+    "statVets": "Veterinerlerim",
+    "statVetsHint": "Klinik ekibiniz",
+    "statOpen": "Bekleyen rapor",
+    "statOpenHint": "Henüz onaylanmadı",
+    "statOverdue": "Süresi geçmiş",
+    "statOverdueHint": "Radyolog süresini aştı",
+    "statOverdueNone": "Geciken rapor yok",
+    "tabRadiologists": "Radyologlarım",
+    "tabVets": "Veterinerlerim",
+    "roleRadiologist": "Radyolog",
+    "roleVet": "Veteriner",
+    "colOpen": "Bekleyen",
+    "colOverdue": "Gecikmiş",
+    "colDueSoon": "≤ 12 saat",
+    "colApproved": "Onaylanan",
+    "colSent": "Gönderilen",
+    "assignedOpen": "Atanan bekleyen vakalar",
+    "noOpenAssigned": "Bekleyen vakası yok.",
+    "recentSent": "Son gönderdiği vakalar",
+    "noCasesSent": "Henüz vaka göndermedi.",
+    "allCases": "Tüm vakaları",
+    "moreCases": "+{count} vaka daha",
+    "unassignedTitle": "{count} vaka atanmadı",
+    "unassignedHint": "Bu vakalar henüz bir radyologa atanmadı.",
+    "emptyRadiologists": "Henüz radyologa atanmış vaka yok.",
+    "emptyVets": "Kliniğinizde kayıtlı veteriner yok.",
+    "sendMessage": "Mesaj gönder"
   }
 }

@@ -14,3 +14,12 @@ export function reviewerDisplay(
   if (!id) return t('cases.unassigned')
   return c.assignedReviewerName?.trim() || demoAccountName(id) || t('cases.assignedExpert')
 }
+
+/** Two-letter avatar initials for a reviewer name, without titles ("Prof. Dr. Ahmet Demir" → "AD"). */
+export function reviewerInitials(name: string): string {
+  const parts = name
+    .replace(/^((Prof|Doç|Dr|Uzm)\.\s*)+/i, '')
+    .split(/\s+/)
+    .filter(Boolean)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toLocaleUpperCase('tr') || '?'
+}

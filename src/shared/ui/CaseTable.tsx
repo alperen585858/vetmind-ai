@@ -1,5 +1,6 @@
 import { useLocalizedNavigate } from '../hooks/useLocalizedNavigate'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Clock } from 'lucide-react'
+import { formatSlaRemaining, slaBadgeClass, slaLabelsFromT, slaTone } from '../lib/reviewSla'
 import type { VetCase } from '../types'
 import { PriorityBadge, StatusBadge } from './StatusBadge'
 import { fmtDate } from '../lib/format'
@@ -7,10 +8,13 @@ import { useLocale } from '../shell/LocaleContext'
 import type { TranslateFn } from '../../i18n'
 import { modalityLabel, studyLabel } from '../lib/displayClean'
 import { HoloOrgan } from './HoloOrgan'
-import { reviewerDisplay } from '../lib/reviewer'
+import { reviewerDisplay, reviewerInitials } from '../lib/reviewer'
 import { SpeciesIcon3D } from './SpeciesIcon3D'
 
 const SPECIES_EMOJI: Record<string, string> = { Kedi: '🐱', Köpek: '🐶' }
+
+/** Statuses with no report still to come; their deadline no longer matters. */
+const CLOSED = new Set<VetCase['status']>(['onaylandi', 'reddedildi', 'iptal'])
 
 /** #81: approved cases open straight on the approved report (PDF download there). */
 export function caseOpenPath(c: Pick<VetCase, 'id' | 'status'>): string {
@@ -34,9 +38,12 @@ function studyText(c: VetCase, t: TranslateFn): string {
 export function CaseTable({
   cases,
   showPriority = false,
+  showDue = false,
 }: {
   cases: VetCase[]
   showPriority?: boolean
+  /** Clinic manager: a column with the time left until the radiologist's deadline. */
+  showDue?: boolean
 }) {
   const nav = useLocalizedNavigate()
   const { t, locale } = useLocale()
@@ -52,7 +59,8 @@ export function CaseTable({
             <th scope="col" className={head}>{t('review.colRegion')}</th>
             <th scope="col" className={`${head} hidden lg:table-cell`}>{t('cases.expert')}</th>
             <th scope="col" className={head}>{t('common.status')}</th>
-            <th scope="col" className={`${head} hidden md:table-cell`}>{t('common.date')}</th>
+            {showDue ? <th scope="col" className={head}>{t('cases.colDue')}</th> : null}
+            <th scope="col" className={`${head} hidden ${showDue ? '2xl:table-cell' : 'md:table-cell'}`}>{t('common.date')}</th>
             <th scope="col" className={head}>
               <span className="sr-only">{t('common.actions')}</span>
             </th>
@@ -120,7 +128,7 @@ export function CaseTable({
                   {reviewer ? (
                     <span className="inline-flex items-center gap-2 whitespace-nowrap text-slate-700">
                       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-50 text-[11px] font-bold text-teal-700 ring-1 ring-teal-100">
-                        {initials(reviewer)}
+                        {reviewerInitials(reviewer)}
                       </span>
                       {reviewer}
                     </span>
@@ -131,7 +139,21 @@ export function CaseTable({
                 <td className={cell}>
                   <StatusBadge status={c.status} />
                 </td>
-                <td className={`${cell} hidden whitespace-nowrap text-slate-500 md:table-cell`}>{fmtDate(c.createdAt, locale)}</td>
+                {showDue ? (
+                  <td className={cell}>
+                    {c.reviewDueAt && !CLOSED.has(c.status) ? (
+                      <span
+                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
+                      >
+                        <Clock className="h-3.5 w-3.5" aria-hidden />
+                        {formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">{t('common.dash')}</span>
+                    )}
+                  </td>
+                ) : null}
+                <td className={`${cell} hidden whitespace-nowrap text-slate-500 ${showDue ? '2xl:table-cell' : 'md:table-cell'}`}>{fmtDate(c.createdAt, locale)}</td>
                 <td className={`${cell} pr-5`}>
                   <div className="flex justify-end">
                     <button
@@ -154,11 +176,3 @@ export function CaseTable({
   )
 }
 
-function initials(name: string) {
-  const parts = name
-    .replace(/^(Prof\.|Doç\.|Dr\.|Uzm\.)\s*/gi, '')
-    .replace(/^(Dr\.)\s*/i, '')
-    .split(/\s+/)
-    .filter(Boolean)
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toLocaleUpperCase('tr') || '?'
-}

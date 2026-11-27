@@ -28,6 +28,7 @@ import { fmtDate } from '../../../shared/lib/format'
 import type { BackendClinicStats, ClinicDashboardStats } from '../../../shared/types'
 
 import { buildTrend } from '../../../shared/lib/trend'
+import { ClinicRadiologistsCard } from './ClinicRadiologistsCard'
 
 function clinicGreeting(name: string, t: TranslateFn) {
   const h = new Date().getHours()
@@ -215,6 +216,8 @@ export function ClinicOwnerDashboard() {
           </Button>
         </div>
       )}
+
+      <ClinicRadiologistsCard cases={cases} />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Card className="vm-fade-up overflow-hidden border-slate-200/70 p-4 shadow-soft" style={{ animationDelay: '180ms' }}>

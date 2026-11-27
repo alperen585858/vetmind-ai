@@ -178,3 +178,67 @@ def test_delete_thread_endpoint(tmp_path: Path) -> None:
     gone = client.delete(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner))
     assert gone.status_code == 204
     assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(owner)).status_code == 404
+
+
+def test_clinic_manager_and_vet_message_each_other(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    manager = _token(client, "clinic-owner@demo.local")
+    vet = _token(client, "vet@demo.local")
+    expert = _token(client, "expert@demo.local")
+
+    # The manager sees the clinic's own vet, not the other clinic's vet.
+    recipients = client.get("/api/v1/messages/recipients", headers=_hdr(manager))
+    assert recipients.status_code == 200, recipients.text
+    clinic_peers = {r["subject"] for r in recipients.json() if r["channel"] == "clinic"}
+    assert clinic_peers == {"vet@demo.local"}
+
+    # The vet sees the manager as a clinic recipient.
+    vet_recipients = client.get("/api/v1/messages/recipients", headers=_hdr(vet)).json()
+    assert {r["subject"] for r in vet_recipients if r["channel"] == "clinic"} == {"clinic-owner@demo.local"}
+
+    created = client.post(
+        "/api/v1/messages/threads",
+        json={
+            "channel": "clinic",
+            "recipient_subject": "vet@demo.local",
+            "subject": "Geciken rapor",
+            "body": "Pax vakasının raporu gecikti, radyologla görüşebilir misin?",
+        },
+        headers=_hdr(manager),
+    )
+    assert created.status_code == 201, created.text
+    thread = created.json()["thread"]
+    assert thread["channel"] == "clinic"
+    assert thread["counterpart_role"] == "vet"
+    tid = thread["thread_id"]
+
+    vet_threads = client.get("/api/v1/messages/threads", headers=_hdr(vet)).json()
+    assert any(t["thread_id"] == tid and t["counterpart_role"] == "clinic_owner" for t in vet_threads)
+
+    reply = client.post(
+        f"/api/v1/messages/threads/{tid}/messages",
+        json={"body": "Tamam, bugün yazıyorum."},
+        headers=_hdr(vet),
+    )
+    assert reply.status_code == 200, reply.text
+
+    # A radiologist cannot read the clinic's internal conversation.
+    expert_threads = client.get("/api/v1/messages/threads", headers=_hdr(expert)).json()
+    assert not any(t["thread_id"] == tid for t in expert_threads)
+    assert client.get(f"/api/v1/messages/threads/{tid}", headers=_hdr(expert)).status_code == 404
+
+
+def test_clinic_manager_cannot_message_other_clinic_vet(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    manager = _token(client, "clinic-owner@demo.local")
+    res = client.post(
+        "/api/v1/messages/threads",
+        json={
+            "channel": "clinic",
+            "recipient_subject": "vet-b@demo.local",
+            "subject": "Merhaba",
+            "body": "Test",
+        },
+        headers=_hdr(manager),
+    )
+    assert res.status_code == 404, res.text

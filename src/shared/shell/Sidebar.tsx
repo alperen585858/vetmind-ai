@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Users,
   Wallet,
   X,
 } from 'lucide-react'
@@ -81,6 +82,8 @@ export function Sidebar({
     clinic_owner: [
       { to: '/', label: t('nav.clinicBoard'), icon: <LayoutDashboard className={ic} /> },
       { to: '/vakalar', label: t('nav.clinicCases'), icon: <FolderOpen className={ic} /> },
+      { to: '/ekibim', label: t('nav.clinicTeam'), icon: <Users className={ic} /> },
+      { to: '/mesajlar', label: t('nav.expertMessages'), icon: <MessageSquare className={ic} /> },
       { to: '/guvenlik', label: t('nav.security'), icon: <ShieldAlert className={ic} /> },
     ],
     admin: [

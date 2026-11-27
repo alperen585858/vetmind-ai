@@ -169,7 +169,8 @@
     "skipToContent": "Skip to content",
     "aiArchitecture": "AI Architecture",
     "security": "Security / Audit",
-    "helpSupport": "Help & support"
+    "helpSupport": "Help & support",
+    "clinicTeam": "My team"
   },
   "topbar": {
     "openMenu": "Open menu",
@@ -732,7 +733,10 @@
     "todoMore": "+{count} more cases",
     "recentLast24h": "{count} cases added in the last 24 hours",
     "recentEmpty": "No new cases in the last 24 hours",
-    "recentEmptyHint": "Use Cases in the menu on the left to see every case."
+    "recentEmptyHint": "Use Cases in the menu on the left to see every case.",
+    "clinicRadOverdueAll": "{count} reports overdue",
+    "clinicRadUnassigned": "{count} cases are not assigned to a radiologist yet.",
+    "clinicTeamLine": "{radiologists} radiologists, {open} open reports"
   },
   "cases": {
     "title": "Cases",
@@ -1175,7 +1179,12 @@
     "cardInProgressHint": "Waiting for a report",
     "cardApprovedHint": "PDF report ready",
     "cardFailedHint": "Needs to be resent",
-    "cardFailedNone": "No failed cases"
+    "cardFailedNone": "No failed cases",
+    "viewOverdue": "Overdue",
+    "cardOverdueHint": "Past the radiologist deadline",
+    "cardOverdueNone": "No late reports",
+    "colDue": "Time left",
+    "filterVet": "Vet"
   },
   "sections": {
     "klinikOzet": "Technical / Clinical summary",
@@ -1701,7 +1710,8 @@
     "statusSent": "Sent",
     "statusRead": "Read",
     "retrySend": "Send again",
-    "composerHint": "Press Enter to send, Shift+Enter for a new line."
+    "composerHint": "Press Enter to send, Shift+Enter for a new line.",
+    "channelClinic": "Clinic"
   },
   "submissions": {
     "title": "Submissions",
@@ -2757,5 +2767,38 @@
     "saveFailed": "Could not save the summary",
     "approveFailed": "Could not approve the summary",
     "pdfFailed": "Could not download the PDF"
+  },
+  "team": {
+    "title": "My team",
+    "subtitle": "The radiologists reading your clinic's cases and your vets: who has what and what is late.",
+    "statRadiologists": "My radiologists",
+    "statRadiologistsHint": "Reading your cases",
+    "statVets": "My vets",
+    "statVetsHint": "Your clinic staff",
+    "statOpen": "Open reports",
+    "statOpenHint": "Not approved yet",
+    "statOverdue": "Overdue",
+    "statOverdueHint": "Past the radiologist deadline",
+    "statOverdueNone": "No late reports",
+    "tabRadiologists": "My radiologists",
+    "tabVets": "My vets",
+    "roleRadiologist": "Radiologist",
+    "roleVet": "Vet",
+    "colOpen": "Open",
+    "colOverdue": "Overdue",
+    "colDueSoon": "≤ 12 h",
+    "colApproved": "Approved",
+    "colSent": "Sent",
+    "assignedOpen": "Open assigned cases",
+    "noOpenAssigned": "No open cases.",
+    "recentSent": "Recently sent cases",
+    "noCasesSent": "No cases sent yet.",
+    "allCases": "All cases",
+    "moreCases": "+{count} more",
+    "unassignedTitle": "{count} cases unassigned",
+    "unassignedHint": "These cases are not assigned to a radiologist yet.",
+    "emptyRadiologists": "No cases assigned to a radiologist yet.",
+    "emptyVets": "No vets registered at your clinic.",
+    "sendMessage": "Send message"
   }
 }

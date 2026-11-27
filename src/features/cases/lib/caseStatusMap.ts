@@ -19,3 +19,16 @@ export const AWAITING_REPORT_FILTER = 'rapor-bekleyen'
 export function isAwaitingReport(status: CaseStatus): boolean {
   return status !== 'onaylandi' && status !== 'reddedildi' && status !== 'iptal'
 }
+
+/** URL value for the case list's "overdue" filter (clinic manager). */
+export const OVERDUE_FILTER = 'gecikmis'
+
+/** Still waiting for a report and past the radiologist's review deadline. */
+export function isOverdueCase(
+  c: { status: CaseStatus; reviewDueAt?: string | null },
+  now = Date.now(),
+): boolean {
+  if (!isAwaitingReport(c.status) || !c.reviewDueAt) return false
+  const due = Date.parse(c.reviewDueAt)
+  return !Number.isNaN(due) && due <= now
+}

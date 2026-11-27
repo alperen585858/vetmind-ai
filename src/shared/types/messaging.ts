@@ -1,4 +1,5 @@
-export type SupportMessageChannel = 'radiologist' | 'admin'
+/** `clinic`: the clinic manager and the clinic's own vets. */
+export type SupportMessageChannel = 'radiologist' | 'admin' | 'clinic'
 
 export interface BackendSupportThreadSummary {
   thread_id: string
