@@ -1359,7 +1359,15 @@
       "worklistLoadFailed": "Yan iş listesi yüklenemedi",
       "priorLoadFailed": "Önceki raporlar yüklenemedi",
       "evidenceReviewFailed": "Kanıt incelemesi başarısız",
-      "verificationFailed": "Doğrulama başarısız"
+      "verificationFailed": "Doğrulama başarısız",
+      "noImagesTitle": "Bu vakada görüntü yok",
+      "noImagesText": "DICOM dosyası yüklenmemiş ya da henüz işleniyor. Raporu bulgular üzerinden yazabilirsiniz.",
+      "shortcutsTitle": "Klavye kısayolları",
+      "sectionReport": "Rapor",
+      "sectionDecision": "Karar",
+      "factAge": "Yaş",
+      "factClinic": "Klinik",
+      "factStudy": "İnceleme"
     },
     "staleFallbackBanner": "Sunucu listesi alınamadı — yerel önbellekteki eski veriler gösteriliyor. Güncel olmayabilir.",
     "hideFromMyList": "Listemden gizle",
@@ -2306,7 +2314,11 @@
       "trainingVerify": "Eğitim verisi onayı (kabulden ayrı)",
       "verified": "Doğrulandı",
       "unverify": "Doğrulamayı kaldır",
-      "verify": "Eğitim için doğrula"
+      "verify": "Eğitim için doğrula",
+      "sumFindings": "Bulgu",
+      "sumPending": "Bekleyen işaret",
+      "sumAccepted": "Kabul",
+      "sumRejected": "Ret"
     }
   },
   "empty": {

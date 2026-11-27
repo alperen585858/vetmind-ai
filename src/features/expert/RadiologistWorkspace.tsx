@@ -6,6 +6,7 @@ import { localizePath } from '../../i18n/paths'
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -13,6 +14,9 @@ import {
   GraduationCap,
   History,
   Image as ImageIcon,
+  Info,
+  ImageOff,
+  Keyboard,
   Loader2,
   Save,
   Send,
@@ -33,9 +37,11 @@ import { Card } from '../../shared/ui/Card'
 import { DicomViewer } from '../../shared/dicom/DicomViewer'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { Modal } from '../../shared/ui/Modal'
-import { PageHeader } from '../../shared/ui/PageHeader'
+import { Breadcrumbs } from '../../shared/ui/Breadcrumbs'
 import { ProvenanceBanner, provenanceKindFromSource } from '../../shared/ui/ProvenanceBanner'
 import { PriorityBadge } from '../../shared/ui/StatusBadge'
+import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
+import { HoloOrgan } from './HoloOrgan'
 import { ReportDocumentEditor } from '../../shared/ui/ReportDocumentEditor'
 import { PriorStudiesPanel } from '../patients/PriorStudiesPanel'
 import { ComparisonSection } from '../patients/ComparisonSection'
@@ -60,7 +66,7 @@ import {
 } from '../../shared/api'
 import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
 import { MAX_VIEWER_FRAMES } from '../../shared/lib/dicomFolder'
-import { cleanClinicalHistory, displayClinic } from '../../shared/lib/displayClean'
+import { cleanClinicalHistory, displayClinic, modalityLabel, regionLabel } from '../../shared/lib/displayClean'
 import {
   collectOverlayInputsFromFindings,
   eligibleOverlaysForFrame,
@@ -227,17 +233,26 @@ export default function RadiologistWorkspace() {
   }, [id, pushToast, t])
 
 
-  const contextBits = useMemo(() => {
+  const heroFacts = useMemo(() => {
     if (!c) return []
-    const clinic = displayClinic(c.clinic)
+    const dash = t('common.dash')
+    const breed = c.patient.breed && !['—', '-'].includes(c.patient.breed.trim()) ? c.patient.breed : ''
     return [
-      `${c.patient.species} · ${c.patient.breed}`,
-      c.patient.age ? t('review.workspace.ageYears', { age: c.patient.age }) : null,
-      c.modality || null,
-      c.anatomicalRegion || null,
-      clinic || null,
-    ].filter(Boolean) as string[]
-  }, [c])
+      { label: t('review.colSpeciesBreed'), value: [c.patient.species, breed].filter(Boolean).join(' · ') || dash },
+      { label: t('review.workspace.factAge'), value: c.patient.age ? t('review.workspace.ageYears', { age: c.patient.age }) : dash },
+      { label: t('review.workspace.factClinic'), value: displayClinic(c.clinic) || dash },
+      {
+        label: t('review.workspace.factStudy'),
+        value: [modalityLabel(t, c.modality), regionLabel(t, c.anatomicalRegion)].filter(Boolean).join(' · ') || dash,
+      },
+    ]
+  }, [c, t])
+
+  const provSource = c?.backendFindings?.source_kind || c?.backendDraft?.generation?.source_kind
+  const provKind = provenanceKindFromSource(provSource, { analysisMode: (provSource || '').toString().toLowerCase() })
+  const provModel = c?.backendFindings?.source_model_id || c?.backendDraft?.generation?.model_id || undefined
+
+  const clinicalText = c ? cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || '' : ''
 
   const worklistNav = useMemo(() => {
     const caseKey = c?.backendCaseId || c?.id || id
@@ -639,94 +654,138 @@ export default function RadiologistWorkspace() {
 
   return (
     <>
-      <PageHeader
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {c.patient.name}
-            <span className="text-base font-normal text-slate-500">{c.no}</span>
-          </span>
-        }
-        subtitle={contextBits.join(' · ')}
-        crumbs={[
-          { label: t('review.queue'), to: '/kuyruk' },
-          { label: c.no, to: `/vakalar/${c.id}` },
-          { label: t('review.workspace.crumbWorkspace') },
-        ]}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <PriorityBadge priority={c.priority} />
-            {c.reviewDueAt ? (
-              <span
-                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
-                title={t('review.workspace.slaTitle', { hours: slaHoursForPriority(c.priority) })}
-              >
-                <Clock className="h-3 w-3" aria-hidden />
-                {formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))}
-              </span>
-            ) : null}
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ChevronLeft className="h-3.5 w-3.5" />}
+      <div className="mb-2">
+        <Breadcrumbs
+          items={[
+            { label: t('review.queue'), to: '/kuyruk' },
+            { label: c.no, to: `/vakalar/${c.id}` },
+            { label: t('review.workspace.crumbWorkspace') },
+          ]}
+        />
+      </div>
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-50 via-white to-sky-50 p-5 shadow-[0_6px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-teal-100 sm:p-6">
+        <div className="pointer-events-none absolute -right-6 -top-6 opacity-[0.12]" aria-hidden>
+          <HoloOrgan region={c.anatomicalRegion} size={190} />
+        </div>
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <span
+              aria-hidden
+              className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-3xl bg-white shadow-[0_8px_20px_-10px_rgba(15,23,42,0.35)] ring-1 ring-slate-200/80"
+            >
+              <SpeciesIcon3D species={c.patient.species} size={64} />
+            </span>
+            <div className="min-w-0">
+              <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-display text-3xl font-bold tracking-tight text-[#102a43]">{c.patient.name}</span>
+                <span className="font-mono text-sm text-slate-400">{c.no}</span>
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {c.priority !== 'Normal' ? <PriorityBadge priority={c.priority} /> : null}
+                {c.reviewDueAt ? (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${slaBadgeClass(slaTone(c.reviewDueAt))}`}
+                    title={t('review.workspace.slaTitle', { hours: slaHoursForPriority(c.priority) })}
+                  >
+                    <Clock className="h-3.5 w-3.5" aria-hidden />
+                    {formatSlaRemaining(c.reviewDueAt, Date.now(), slaLabelsFromT(t))}
+                  </span>
+                ) : null}
+                {c.modality ? (
+                  <span className="rounded-full bg-teal-600 px-2.5 py-1 text-xs font-bold tracking-wide text-white">
+                    {modalityLabel(t, c.modality)}
+                  </span>
+                ) : null}
+                {c.anatomicalRegion ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
+                    <HoloOrgan region={c.anatomicalRegion} size={16} />
+                    {regionLabel(t, c.anatomicalRegion)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-vm bg-white shadow-sm ring-1 ring-inset ring-slate-300/90">
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center px-2.5 text-navy-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={!worklistNav.prev}
               onClick={() => void goAssigned(worklistNav.prev)}
+              title={t('review.workspace.prevCase')}
+              aria-label={t('review.workspace.prevCase')}
             >
-              {t('review.workspace.prevCase')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </button>
+            <span className="w-px bg-slate-200" aria-hidden />
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center px-2.5 text-navy-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={!worklistNav.next}
               onClick={() => void goAssigned(worklistNav.next)}
+              title={t('review.workspace.nextCase')}
+              aria-label={t('review.workspace.nextCase')}
             >
-              {t('review.workspace.nextCase')} <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ImageIcon className="h-3.5 w-3.5" />}
-              onClick={() => setShowDicom((v) => !v)}
-              aria-pressed={showDicom}
-            >
-              {showDicom ? t('review.workspace.hideDicom') : t('review.workspace.showDicom')}
-            </Button>
-            <Button variant="secondary" size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={() => void onSaveDraft()} disabled={saving || immutable}>
-              {saving ? t('review.workspace.savingDraft') : t('review.workspace.saveDraftShortcut')}
-            </Button>
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
           </div>
-        }
-      />
-      <div className="mb-5 overflow-hidden rounded-[1.25rem] bg-gradient-to-r from-indigo-950 via-navy-950 to-teal-950 px-5 py-4 text-white shadow-soft">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-300/90">
-          {t('review.workspace.crumbWorkspace')}
-        </p>
-        <p className="mt-1 font-display text-lg font-semibold tracking-tight">
-          {c.patient.name}
-          <span className="ml-2 text-sm font-normal text-slate-300">{c.no}</span>
-        </p>
-        <p className="mt-1 text-sm text-slate-300">{contextBits.join(' · ')}</p>
-      </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<ImageIcon className="h-3.5 w-3.5" />}
+            onClick={() => setShowDicom((v) => !v)}
+            aria-pressed={showDicom}
+          >
+            {showDicom ? t('review.workspace.hideDicom') : t('review.workspace.showDicom')}
+          </Button>
+          <Button size="sm" icon={<Save className="h-3.5 w-3.5" />} onClick={() => void onSaveDraft()} disabled={saving || immutable}>
+            {saving ? t('review.workspace.savingDraft') : t('review.workspace.saveDraftShortcut')}
+          </Button>
+        </div>
+        </div>
 
-      <Card className="mb-4 p-3 text-sm text-slate-700">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('review.workspace.caseContext')}</p>
-        <p className="mt-1">
-          {cleanClinicalHistory(c.clinical.history) || c.clinical.complaint || t('review.workspace.noClinicalHistory')}
+        <dl className="relative mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {heroFacts.map((f) => (
+            <div key={f.label} className="rounded-2xl bg-white/80 px-3.5 py-2.5 ring-1 ring-slate-200/70 backdrop-blur-sm">
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{f.label}</dt>
+              <dd className="mt-0.5 truncate text-sm font-semibold text-slate-800" title={f.value}>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="relative mt-3 flex items-start gap-2 rounded-2xl bg-white/80 px-3.5 py-2.5 text-sm text-slate-700 ring-1 ring-slate-200/70">
+          <FileSearch className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" aria-hidden />
+          <span className="min-w-0">
+            <span className="mr-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t('review.workspace.caseContext')}</span>
+            {clinicalText ? clinicalText : <span className="text-slate-400">{t('review.workspace.noClinicalHistory')}</span>}
+            {c.handoffNotes ? <span className="mt-1 block text-xs text-teal-800">Handoff: {c.handoffNotes}</span> : null}
+          </span>
         </p>
-        {c.handoffNotes ? <p className="mt-2 text-xs text-teal-800">Handoff: {c.handoffNotes}</p> : null}
+      </section>
+
+      <div className="mb-4 mt-5 space-y-2">
         {c.radiologistQuestions ? (
-          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">
-            <p className="font-semibold">{t('newCase.radiologistQuestions')}</p>
+          <div className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+            <p className="text-xs font-semibold">{t('newCase.radiologistQuestions')}</p>
             <p className="mt-0.5 whitespace-pre-line">{c.radiologistQuestions}</p>
           </div>
         ) : null}
-      </Card>
-
-      {(c.backendCaseId || isBackendCaseId(c.id)) && (
-        <div className="mb-4">
-          {/* Issue #108: radiologists read prior studies; linking is the referring vet's job. */}
-          <PriorStudiesPanel caseId={canonicalizeCaseId(c.backendCaseId || c.id)} canLink={false} />
-        </div>
-      )}
+        {(c.backendCaseId || isBackendCaseId(c.id)) && (
+          <details className="group rounded-xl bg-white ring-1 ring-slate-200">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-navy-900 marker:hidden hover:bg-slate-50">
+              <span className="flex items-center gap-2">
+                <History className="h-4 w-4 text-slate-400" aria-hidden />
+                {t('patients.priorTitle')}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-slate-100 p-3">
+              {/* Issue #108: radiologists read prior studies; linking is the referring vet's job. */}
+              <PriorStudiesPanel caseId={canonicalizeCaseId(c.backendCaseId || c.id)} canLink={false} />
+            </div>
+          </details>
+        )}
+      </div>
 
       <div className={`grid gap-4 ${showDicom ? 'xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]' : ''}`}>
         {showDicom && (
@@ -736,6 +795,16 @@ export default function RadiologistWorkspace() {
                 {error}
               </p>
             )}
+            {!loadingFrames && frames.length === 0 ? (
+              <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-2xl bg-gradient-to-b from-slate-900 to-[#102a43] px-6 text-center xl:min-h-[560px]">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-slate-300 ring-1 ring-white/15">
+                  <ImageOff className="h-7 w-7" aria-hidden />
+                </span>
+                <p className="font-display text-base font-semibold text-white">{t('review.workspace.noImagesTitle')}</p>
+                <p className="max-w-xs text-sm text-slate-400">{t('review.workspace.noImagesText')}</p>
+              </div>
+            ) : (
+            <>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
@@ -809,33 +878,22 @@ export default function RadiologistWorkspace() {
                 updateCase(c.id, { backendFindings: sf })
               }}
             />
-            <p className="text-[11px] text-slate-500">
-              {t('review.workspace.shortcutsHelp')}
-            </p>
+            <details className="group text-[11px] text-slate-500">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 py-1 font-semibold text-slate-600 marker:hidden hover:bg-slate-100">
+                <Keyboard className="h-3.5 w-3.5" aria-hidden />
+                {t('review.workspace.shortcutsTitle')}
+                <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" aria-hidden />
+              </summary>
+              <p className="mt-1 px-1.5 leading-relaxed">{t('review.workspace.shortcutsHelp')}</p>
+            </details>
+            </>
+            )}
           </div>
         )}
 
         <div className={`space-y-3 ${showDicom ? '' : 'mx-auto w-full max-w-[920px]'}`}>
-          <ProvenanceBanner
-            kind={provenanceKindFromSource(
-              c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind,
-              {
-                analysisMode: (
-                  c.backendFindings?.source_kind ||
-                  c.backendDraft?.generation?.source_kind ||
-                  ''
-                )
-                  .toString()
-                  .toLowerCase(),
-              },
-            )}
-            detail={
-              c.backendFindings?.source_model_id ||
-              c.backendDraft?.generation?.model_id ||
-              undefined
-            }
-            compact
-          />
+          <SectionTitle step={1} title={t('ai.findings')} />
+          {provKind !== 'real' ? <ProvenanceBanner kind={provKind} detail={provModel} compact /> : null}
           {c.backendDraft?.generation?.applied_lesson_ids?.length ? (
             <p className="flex flex-wrap items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900">
               <GraduationCap className="h-3.5 w-3.5" aria-hidden />
@@ -846,6 +904,17 @@ export default function RadiologistWorkspace() {
             </p>
           ) : null}
           <AIFindingsPanel
+            headerExtra={
+              provKind === 'real' ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 ring-1 ring-inset ring-sky-200"
+                  title={`${t('ai.provRealText')}${provModel ? ` · ${provModel}` : ''}`}
+                >
+                  <Info className="h-3 w-3" aria-hidden />
+                  {provModel || t('ai.provRealLabel')}
+                </span>
+              ) : null
+            }
             findings={c.backendFindings}
             analysisMode={
               (c.backendFindings?.source_kind || c.backendDraft?.generation?.source_kind || '')
@@ -883,6 +952,7 @@ export default function RadiologistWorkspace() {
             }}
           />
 
+          <SectionTitle step={2} title={t('review.workspace.sectionReport')} />
           <ReportDocumentEditor
             caseData={c}
             value={text}
@@ -902,11 +972,11 @@ export default function RadiologistWorkspace() {
             />
           )}
 
-          <Card className="p-4">
+          <SectionTitle step={3} title={t('review.workspace.sectionDecision')} />
+          <Card className="sticky bottom-3 z-20 p-4 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.35)] ring-1 ring-teal-100 backdrop-blur supports-[backdrop-filter]:bg-white/90">
             <div className="flex flex-wrap gap-2">
               <Button
-                size="sm"
-                icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                icon={<CheckCircle2 className="h-4 w-4" />}
                 disabled={approveBlocked}
                 onClick={() => setModal('approve')}
                 title={
@@ -919,26 +989,23 @@ export default function RadiologistWorkspace() {
               </Button>
               {worklistNav.next ? (
                 <Button
-                  size="sm"
                   variant="secondary"
-                  icon={<ChevronRight className="h-3.5 w-3.5" />}
+                  icon={<ChevronRight className="h-4 w-4" />}
                   onClick={() => void goAssigned(worklistNav.next)}
                 >
                   {t('review.workspace.nextCaseCta')}
                 </Button>
               ) : null}
               <Button
-                size="sm"
                 variant="secondary"
-                icon={<Send className="h-3.5 w-3.5" />}
+                icon={<Send className="h-4 w-4" />}
                 onClick={() => setModal('revizyon')}
               >
                 {immutable ? t('review.workspace.reviseBtn') : t('review.workspace.revisionBtn')}
               </Button>
               <Button
-                size="sm"
                 variant="danger"
-                icon={<XCircle className="h-3.5 w-3.5" />}
+                icon={<XCircle className="h-4 w-4" />}
                 disabled={immutable}
                 onClick={() => setModal('reddedildi')}
               >
@@ -1286,5 +1353,15 @@ export default function RadiologistWorkspace() {
         </div>
       </Modal>
     </>
+  )
+}
+
+function SectionTitle({ step, title }: { step: number; title: string }) {
+  return (
+    <h2 className="flex items-center gap-2 pt-2 text-sm font-semibold text-navy-900">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-[11px] font-bold text-white">{step}</span>
+      {title}
+      <span className="h-px flex-1 bg-slate-200" aria-hidden />
+    </h2>
   )
 }
