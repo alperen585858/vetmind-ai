@@ -1309,4 +1309,4 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 ---
 
-*Son güncelleme: 2026-11-13 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5) · DICOM sınıflandırıcı (Türkçe kurallar + LLM) · örnek vakalar · gerçek kullanıcı sistemi (#31) · 404 sayfası (#28)*
+*Son güncelleme: 2026-11-28 · Backend `0.2.0` · LLM katmanı (prompt v5) · PostgreSQL tek veritabanı (#102) · pgvector RAG (#117) · hasta kaydı (#108) · 2FA (#107) · denetim kaydı ekranı (#106) · sahip özeti (#113) · ruff + ESLint (#131) · büyük dosyalar bölündü (#134)*
