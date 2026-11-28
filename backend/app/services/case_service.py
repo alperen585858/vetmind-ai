@@ -8,85 +8,44 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
-from app.auth.rbac import CAP_ADMIN, CAP_CASE_WRITE
-from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
-from app.orchestration.progress import apply_pipeline_progress
 from app.schemas.case import (
     AiChatAsk,
     AiChatResponse,
     AiChatTurn,
     CaseActivityEvent,
-    CaseAssignmentUpdate,
     CaseCreate,
-    CaseMessage,
     CaseMessageCreate,
     CaseMessageView,
     CaseOwnerUpdate,
     CaseRecord,
-    CaseSummary,
-    ClinicDashboardStats,
     ReportDraftUpdate,
     ReviewFeedback,
 )
 from app.settings import Settings
-from app.schemas.documents import CaseDocumentContext
 from app.schemas.workflow import (
-    AttachmentRef,
     CaseDocumentAttach,
     CaseNoteCreate,
-    ClinicalNoteEntry,
-    InfoRequest,
     InfoRequestCreate,
     InfoRequestReply,
 )
 from app.llm.comparison import build_comparison, comparison_warnings
-from app.llm.interfaces import LLMProviderError
 from app.services.activity import append_activity
-from app.review_sla import (
-    OPEN_REVIEW_STATUSES,
-    WARN_WITHIN_HOURS,
-    apply_review_sla,
-    clear_review_sla,
-    remaining_seconds,
-    sla_hours_for,
-)
 from app.schemas.enums import (
     CaseLifecycleStatus,
-    ExpertReviewStatus,
-    JobStatus,
-    PipelineOutcome,
-    ReportStatus,
-    ReviewAction,
-    SourceKind,
 )
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
 from app.schemas.report import (
     DraftReport,
-    GenerationMetadata,
-    ReportSection,
     ReportVersionSnapshot,
     ReportVersionSummary,
 )
-from app.auth.mailer import OutgoingMail
 from app.feedback.store import FeedbackStore
-from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.owner_contact import clean_owner_name
-from app.services.report_versioning import (
-    apply_reject_or_revision,
-    assert_mutable_for_edit,
-    attach_pipeline_draft,
-    freeze_approved,
-    get_version,
-    list_version_summaries,
-    snapshot_from_draft,
-    upsert_version_snapshot,
-)
-from app.services.case_ids import canonicalize_case_id
 from app.services.repository import CaseRepository
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
@@ -95,11 +54,16 @@ from app.services.host_bound import HostBound
 from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
 
 
+from app.services.case_evidence import CaseEvidenceMixin
+from app.services.case_lifecycle import CaseLifecycleMixin
+from app.services.case_listing import CaseListingMixin
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class CaseService:
+class CaseService(CaseListingMixin, CaseLifecycleMixin, CaseEvidenceMixin):
     """Case records, assignment, and lifecycle.
 
     Analysis, reporting, and collaboration live on dedicated services.
@@ -436,186 +400,6 @@ class CaseService:
         self._repo.save_case(case)
         return case.model_input
 
-    def _unread_for(self, case: CaseRecord, principal: AuthPrincipal | None) -> int:
-        if principal is None or principal.via == "disabled":
-            return 0
-        subject = principal.subject
-        return sum(1 for m in case.messages if subject not in m.read_by and m.author_id != subject)
-
-    def _reviewer_name(self, subject: str | None, cache: dict[str, str | None] | None = None) -> str | None:
-        """Display name of the assigned expert (#77); cached per listing call."""
-        if not subject:
-            return None
-        if cache is not None and subject in cache:
-            return cache[subject]
-        name = self._note_author_name(subject)
-        if cache is not None:
-            cache[subject] = name
-        return name
-
-    def _to_summary(
-        self,
-        c: CaseRecord,
-        *,
-        principal: AuthPrincipal | None = None,
-        name_cache: dict[str, str | None] | None = None,
-    ) -> CaseSummary:
-        return CaseSummary(
-            case_id=c.case_id,
-            patient_name=c.patient_name,
-            species=c.species,
-            breed=c.breed,
-            patient_age_years=c.patient_age_years,
-            modality=c.modality,
-            anatomical_region=c.anatomical_region,
-            status=c.status,
-            priority=getattr(c, "priority", None) or "normal",
-            assigned_reviewer_id=c.assigned_reviewer_id,
-            assigned_reviewer_name=self._reviewer_name(c.assigned_reviewer_id, name_cache),
-            awaiting_review_since=getattr(c, "awaiting_review_since", None),
-            review_due_at=getattr(c, "review_due_at", None),
-            scenario=c.scenario,
-            created_at=c.created_at,
-            latest_job_id=c.latest_job_id,
-            classification_confirmed=c.classification_confirmed,
-            study_instance_uid=c.study.study_instance_uid
-            or (c.dicom_study.study_instance_uid if c.dicom_study else None),
-            series_count=c.study.series_count
-            if c.study.series_count is not None
-            else (c.dicom_study.series_count if c.dicom_study else None),
-            instance_count=c.study.instance_count
-            if c.study.instance_count is not None
-            else (c.dicom_study.instance_count if c.dicom_study else None),
-            owner_subject=c.owner_subject,
-            clinic_id=c.clinic_id,
-            referring_clinic=c.referring_clinic,
-            complaint=c.clinical_history_structured.complaint if c.clinical_history_structured else None,
-            unread_messages=self._unread_for(c, principal),
-            report_available_at=getattr(c, "report_available_at", None),
-            report_delivered_at=getattr(c, "report_delivered_at", None),
-            report_viewed_at=getattr(c, "report_viewed_at", None),
-            pet_id=getattr(c, "pet_id", None),
-            patient_id=c.patient_id,
-            pet_owner_subject=getattr(c, "pet_owner_subject", None),
-            owner_contact_name=getattr(c, "owner_contact_name", None),
-            owner_contact_email=getattr(c, "owner_contact_email", None),
-            owner_email_consent=bool(getattr(c, "owner_email_consent", False)),
-            owner_email_delivery_status=getattr(c, "owner_email_delivery_status", None),
-            vet_email_delivery_status=getattr(c, "vet_email_delivery_status", None),
-            submission_id=getattr(c, "submission_id", None),
-            vet_verified=bool(getattr(c, "vet_verified", True)),
-            current_report_version=getattr(c, "current_report_version", None)
-            or (c.draft_report.version if c.draft_report is not None else None),
-            report_version_count=len(getattr(c, "report_versions", None) or [])
-            or (1 if c.draft_report is not None else 0),
-        )
-
-    def list_cases(self, *, principal: AuthPrincipal | None = None) -> list[CaseSummary]:
-        summaries: list[CaseSummary] = []
-        names: dict[str, str | None] = {}
-        for c in self._repo.list_cases():
-            if principal is not None and not can_access_owned(
-                principal, c, isolation=self._tenant_isolation
-            ):
-                continue
-            # Pet owners only see finalized (approved) cases linked to them.
-            if (
-                principal is not None
-                and principal.role == "owner"
-                and principal.via == "jwt"
-                and c.status != CaseLifecycleStatus.APPROVED
-            ):
-                continue
-            if principal is not None and principal.subject.strip().lower() in c.hidden_for:
-                continue
-            summaries.append(self._to_summary(c, principal=principal, name_cache=names))
-        return summaries
-
-    def list_worklist(
-        self,
-        *,
-        principal: AuthPrincipal | None = None,
-        status: str | None = None,
-        modality: str | None = None,
-        priority: str | None = None,
-        assigned_to: str | None = None,
-        q: str | None = None,
-    ) -> list[CaseSummary]:
-        """Radiologist worklist: tenant-filtered summaries with optional filters."""
-        self.backfill_and_emit_sla_warnings()
-        rows = self.list_cases(principal=principal)
-        status_l = (status or "").strip().lower()
-        modality_l = (modality or "").strip().upper()
-        priority_l = (priority or "").strip().lower()
-        assigned = (assigned_to or "").strip()
-        query = (q or "").strip().lower()
-
-        def _match(s: CaseSummary) -> bool:
-            if status_l and s.status.value != status_l:
-                return False
-            # Cancelled drafts never belong on a worklist unless asked for explicitly.
-            if not status_l and s.status == CaseLifecycleStatus.CANCELLED:
-                return False
-            if modality_l and s.modality.value != modality_l:
-                return False
-            if priority_l and (s.priority or "normal") != priority_l:
-                return False
-            if assigned == "unassigned":
-                if s.assigned_reviewer_id:
-                    return False
-            elif assigned and (s.assigned_reviewer_id or "") != assigned:
-                return False
-            if query:
-                hay = " ".join(
-                    [
-                        s.case_id,
-                        s.patient_name,
-                        s.breed or "",
-                        s.referring_clinic or "",
-                        s.clinic_id or "",
-                    ]
-                ).lower()
-                if query not in hay:
-                    return False
-            return True
-
-        # STAT > URGENT > high (legacy) > NORMAL
-        priority_rank = {"stat": 0, "urgent": 1, "high": 2, "normal": 3}
-        matched = [s for s in rows if _match(s)]
-        matched.sort(
-            key=lambda s: (
-                priority_rank.get(s.priority or "normal", 9),
-                s.created_at,
-            )
-        )
-        return matched
-
-    def clinic_dashboard(
-        self,
-        *,
-        principal: AuthPrincipal | None = None,
-        q: str | None = None,
-        status: str | None = None,
-    ) -> ClinicDashboardStats:
-        """Clinic board counters — reuses list_cases tenancy; no duplicate assignment logic."""
-        rows = self.list_worklist(principal=principal, status=status, q=q)
-        terminal = {
-            CaseLifecycleStatus.APPROVED,
-            CaseLifecycleStatus.REJECTED,
-        }
-        active = sum(1 for s in rows if s.status not in terminal)
-        awaiting = sum(1 for s in rows if s.status == CaseLifecycleStatus.AWAITING_REVIEW)
-        urgent = sum(1 for s in rows if (s.priority or "normal") in {"urgent", "stat"})
-        completed = sum(1 for s in rows if s.status == CaseLifecycleStatus.APPROVED)
-        unread = sum(s.unread_messages for s in rows)
-        return ClinicDashboardStats(
-            active_cases=active,
-            awaiting_review=awaiting,
-            urgent_cases=urgent,
-            completed_reports=completed,
-            unread_messages=unread,
-        )
-
     def list_messages(
         self, case_id: str, *, principal: AuthPrincipal | None = None
     ) -> list[CaseMessageView]:
@@ -665,113 +449,6 @@ class CaseService:
     ) -> CaseRecord:
         return self.reports.mark_report_viewed(case_id, principal=principal)
 
-    def update_assignment(
-        self,
-        case_id: str,
-        payload: CaseAssignmentUpdate,
-        *,
-        principal: AuthPrincipal | None = None,
-    ) -> CaseRecord:
-        case = self.get_case(case_id, principal=principal)
-        prev_assignee = case.assigned_reviewer_id
-        prev_priority = case.priority
-        if payload.assigned_reviewer_id is not None:
-            text = payload.assigned_reviewer_id.strip()
-            case.assigned_reviewer_id = text or None
-        if payload.priority is not None:
-            case.priority = payload.priority
-        actor = principal.subject if principal else "system"
-        if case.assigned_reviewer_id and case.assigned_reviewer_id != prev_assignee:
-            append_activity(
-                case,
-                kind="radiologist_assigned",
-                actor_subject=actor,
-                detail=case.assigned_reviewer_id,
-            )
-        if case.status in OPEN_REVIEW_STATUSES or prev_priority != case.priority:
-            apply_review_sla(case)
-        case.updated_at = _now()
-        saved = self._repo.save_case(case)
-        self._emit_audit("case.assign", principal=principal, resource=case_id)
-        if saved.assigned_reviewer_id and saved.assigned_reviewer_id != prev_assignee:
-            urgent = saved.priority in {"urgent", "stat"}
-            hours = sla_hours_for(saved.priority)
-            due_hint = (
-                f" · yanıt süresi {hours} saat"
-                if saved.review_due_at
-                else ""
-            )
-            self._notify(
-                recipient_subject=saved.assigned_reviewer_id,
-                kind="urgent_assignment" if urgent else "radiologist_assigned",
-                title="STAT atama" if saved.priority == "stat" else ("Acil atama" if urgent else "Radyolog ataması"),
-                body=f"{saved.patient_name} · {saved.case_id}{due_hint}",
-                link_path=f"/vakalar/{saved.case_id}/calisma",
-                dedupe_key=f"radiologist_assigned:{saved.case_id}:{saved.assigned_reviewer_id}",
-                case_id=saved.case_id,
-                clinic_id=saved.clinic_id,
-            )
-        return saved
-
-    def backfill_and_emit_sla_warnings(self) -> int:
-        """Backfill missing review_due_at and notify assignees when time is low/overdue."""
-        emitted = 0
-        now = _now()
-        for case in self._repo.list_cases():
-            if case.status not in OPEN_REVIEW_STATUSES:
-                if clear_review_sla(case):
-                    case.updated_at = now
-                    self._repo.save_case(case)
-                continue
-
-            if apply_review_sla(case):
-                case.updated_at = now
-                self._repo.save_case(case)
-
-            rem = remaining_seconds(case, now=now)
-            if rem is None:
-                continue
-            recipient = case.assigned_reviewer_id
-            if not recipient:
-                continue
-            hours = sla_hours_for(case.priority)
-            link = f"/vakalar/{case.case_id}/calisma"
-            if rem <= 0:
-                overdue_h = max(1, int(abs(rem) // 3600))
-                self._notify(
-                    recipient_subject=recipient,
-                    kind="sla_overdue",
-                    title="Yanıt süresi doldu",
-                    body=(
-                        f"{case.patient_name}: {hours} saatlik uzman yanıt süresi aşıldı "
-                        f"(~{overdue_h} sa gecikme). Acil yanıt bekleniyor."
-                    ),
-                    link_path=link,
-                    dedupe_key=f"sla_overdue:{case.case_id}",
-                    case_id=case.case_id,
-                    clinic_id=case.clinic_id,
-                )
-                emitted += 1
-            elif rem <= WARN_WITHIN_HOURS * 3600:
-                left_h = max(1, int(rem // 3600))
-                left_m = max(1, int(rem // 60))
-                left_label = f"{left_h} saat" if rem >= 3600 else f"{left_m} dk"
-                self._notify(
-                    recipient_subject=recipient,
-                    kind="sla_warning",
-                    title="Yanıt süresi azalıyor",
-                    body=(
-                        f"{case.patient_name}: uzman yanıtına {left_label} kaldı "
-                        f"({hours}s SLA · {case.priority})."
-                    ),
-                    link_path=link,
-                    dedupe_key=f"sla_warning:{case.case_id}:{case.review_due_at.isoformat() if case.review_due_at else 'x'}",
-                    case_id=case.case_id,
-                    clinic_id=case.clinic_id,
-                )
-                emitted += 1
-        return emitted
-
     def init_manual_report(
         self,
         case_id: str,
@@ -789,118 +466,6 @@ class CaseService:
         principal: AuthPrincipal | None = None,
     ) -> DraftReport:
         return self.reports.save_draft_report(case_id, payload, principal=principal)
-
-    def get_case(self, case_id: str, *, principal: AuthPrincipal | None = None) -> CaseRecord:
-        case_id = canonicalize_case_id(case_id)
-        case = self._repo.get_case(case_id)
-        if case is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
-        if principal is not None:
-            assert_case_access(principal, case, isolation=self._tenant_isolation)
-            if (
-                principal.role == "owner"
-                and principal.via == "jwt"
-                and case.status != CaseLifecycleStatus.APPROVED
-            ):
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
-            self._emit_audit("case.read", principal=principal, resource=case_id)
-            # Radiologist-only fields are filtered on the response (app.auth.visibility),
-            # never here: services save what get_case returns.
-        return case
-
-    # Drafts that have not reached a radiologist yet (#78).
-    CANCELLABLE_STATUSES = frozenset(
-        {
-            CaseLifecycleStatus.CREATED,
-            CaseLifecycleStatus.AWAITING_CLASSIFICATION_CONFIRMATION,
-            CaseLifecycleStatus.FAILED,
-        }
-    )
-
-    def _load_for_change(self, case_id: str, principal: AuthPrincipal) -> CaseRecord:
-        case_id = canonicalize_case_id(case_id)
-        case = self._repo.get_case(case_id)
-        if case is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found.")
-        assert_case_access(principal, case, isolation=self._tenant_isolation)
-        return case
-
-    @classmethod
-    def is_cancellable(cls, case: CaseRecord) -> bool:
-        if case.status not in cls.CANCELLABLE_STATUSES:
-            return False
-        # A failed case a radiologist already picked up is in their hands.
-        return not case.assigned_reviewer_id and case.draft_report is None
-
-    def cancel_case(self, case_id: str, reason: str, *, principal: AuthPrincipal) -> CaseRecord:
-        """Mark a draft case as cancelled (kept, audited). Sent-to-radiologist cases are refused."""
-        case = self._load_for_change(case_id, principal)
-        if not (principal.can(CAP_CASE_WRITE) or principal.role == "admin"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=api_error("case_cancel_forbidden", "Only the clinic can cancel a case."),
-            )
-        if case.status == CaseLifecycleStatus.CANCELLED:
-            return case
-        if not self.is_cancellable(case):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=api_error(
-                    "case_not_cancellable",
-                    "Only draft cases that have not been sent to a radiologist can be cancelled.",
-                ),
-            )
-        clean = " ".join(reason.split())
-        with self._lock:
-            latest = self._repo.get_case(case.case_id) or case
-            latest.status = CaseLifecycleStatus.CANCELLED
-            latest.cancelled_at = _now()
-            latest.cancelled_by = principal.subject
-            latest.cancel_reason = clean
-            latest.updated_at = latest.cancelled_at
-            append_activity(latest, kind="case_cancelled", actor_subject=principal.subject, detail=clean)
-            saved = self._repo.save_case(latest)
-        self._emit_audit("case.cancel", principal=principal, resource=saved.case_id, detail=clean)
-        return saved
-
-    def hide_case(self, case_id: str, *, principal: AuthPrincipal) -> None:
-        """"Listemden gizle": remove the case from this user's own lists; the record is kept."""
-        case = self._load_for_change(case_id, principal)
-        subject = principal.subject.strip().lower()
-        with self._lock:
-            latest = self._repo.get_case(case.case_id) or case
-            if subject not in latest.hidden_for:
-                latest.hidden_for = [*latest.hidden_for, subject]
-                latest.updated_at = _now()
-                self._repo.save_case(latest)
-        self._emit_audit("case.hide", principal=principal, resource=case.case_id)
-
-    def delete_case(self, case_id: str, *, principal: AuthPrincipal, reason: str | None = None) -> None:
-        """Permanent delete — administrators only, with a reason (e.g. a KVKK erasure request)."""
-        case = self._load_for_change(case_id, principal)
-        if principal.role not in {"admin", "service"}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=api_error(
-                    "case_delete_admin_only",
-                    "Only an administrator can permanently delete a case. Cancel the draft instead.",
-                ),
-            )
-        clean = " ".join((reason or "").split())
-        if len(clean) < 3:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=api_error("case_delete_reason_required", "A reason is required for permanent deletion."),
-            )
-        case_id = case.case_id
-        self._repo.delete_case(case_id)
-        store = self._evidence_store
-        if store is not None and hasattr(store, "delete_case_artifacts"):
-            try:
-                store.delete_case_artifacts(case_id)  # type: ignore[union-attr]
-            except Exception:  # noqa: BLE001 — leftover files must not block the delete
-                pass
-        self._emit_audit("case.delete", principal=principal, resource=case_id, detail=clean)
 
     def _assert_analyzable(self, case: CaseRecord) -> None:
         return self.analysis._assert_analyzable(case)
@@ -941,128 +506,6 @@ class CaseService:
 
     def get_findings(self, case_id: str, *, principal: AuthPrincipal | None = None) -> StructuredFindings:
         return self.analysis.get_findings(case_id, principal=principal)
-
-    def review_case_evidence(
-        self,
-        case_id: str,
-        evidence_id: str,
-        *,
-        action: str,
-        principal: AuthPrincipal,
-        include_in_report: bool | None = None,
-        vet_note: str | None = None,
-        bbox: object | None = None,
-    ) -> StructuredFindings:
-        from app.auth.rbac import CAP_TRAINING_VERIFY
-        from app.schemas.findings import BoundingBoxEvidence
-        from app.services.evidence_review import review_evidence
-
-        if action in {"verify", "unverify"} and principal.via != "disabled":
-            if not principal.can(CAP_TRAINING_VERIFY):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Expert verification requires training:verify capability.",
-                )
-
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            self._assert_evidence_editable(case)
-            sf = review_evidence(
-                case,
-                evidence_id,
-                action=action,  # type: ignore[arg-type]
-                reviewer_id=principal.subject,
-                include_in_report=include_in_report,
-                vet_note=vet_note,
-                bbox=bbox if isinstance(bbox, BoundingBoxEvidence) else None,
-            )
-            sf = self._render_missing_overlays(case, sf)
-            append_activity(
-                case,
-                kind=f"evidence_{action}",
-                actor_subject=principal.subject,
-                detail=evidence_id,
-            )
-            case.updated_at = _now()
-            self._repo.save_case(case)
-        self._emit_audit(f"evidence.review.{action}", principal=principal, resource=f"{case_id}/{evidence_id}")
-        return sf
-
-    def add_case_manual_evidence(
-        self,
-        case_id: str,
-        *,
-        finding_id: str,
-        principal: AuthPrincipal,
-        bbox: object,
-        sop_instance_uid: str | None = None,
-        frame_index: int | None = None,
-        description: str = "Radiologist manual mark",
-        include_in_report: bool = True,
-    ) -> StructuredFindings:
-        from app.schemas.findings import BoundingBoxEvidence
-        from app.services.evidence_review import add_manual_evidence
-
-        if not isinstance(bbox, BoundingBoxEvidence):
-            raise HTTPException(status_code=400, detail="bbox required")
-        with self._lock:
-            case = self.get_case(case_id, principal=principal)
-            self._assert_evidence_editable(case)
-            sf = add_manual_evidence(
-                case,
-                finding_id=finding_id,
-                reviewer_id=principal.subject,
-                bbox=bbox,
-                sop_instance_uid=sop_instance_uid,
-                frame_index=frame_index,
-                description=description,
-                include_in_report=include_in_report,
-            )
-            sf = self._render_missing_overlays(case, sf)
-            append_activity(
-                case,
-                kind="evidence_manual_add",
-                actor_subject=principal.subject,
-                detail=finding_id,
-            )
-            case.updated_at = _now()
-            self._repo.save_case(case)
-        self._emit_audit("evidence.manual_add", principal=principal, resource=f"{case_id}/{finding_id}")
-        return sf
-
-    def _render_missing_overlays(self, case: CaseRecord, sf: StructuredFindings) -> StructuredFindings:
-        """Edited / manual marks need an overlay image, or the approved PDF silently drops them."""
-        from app.models.evidence_attach import attach_rendered_evidence
-        from app.models.evidence_store import EvidenceArtifactStore
-
-        if not isinstance(self._evidence_store, EvidenceArtifactStore):
-            return sf
-        try:
-            rendered = attach_rendered_evidence(case, sf, store=self._evidence_store)
-        except Exception as exc:  # noqa: BLE001 — rendering must not block the review action
-            sf.warnings.append(f"Evidence overlay render skipped: {type(exc).__name__}.")
-            return sf
-        case.structured_findings = rendered
-        return rendered
-
-    def append_report_figures(
-        self,
-        case_id: str,
-        evidence_ids: list[str],
-        *,
-        principal: AuthPrincipal,
-    ) -> CaseRecord:
-        return self.reports.append_report_figures(case_id, evidence_ids, principal=principal)
-
-    @staticmethod
-    def _assert_evidence_editable(case: CaseRecord) -> None:
-        """Approved reports are frozen with their evidence; changing it needs a revision first."""
-        draft = case.draft_report
-        if case.status == CaseLifecycleStatus.APPROVED or (draft is not None and draft.immutable):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Evidence of an approved report cannot change; request a revision first.",
-            )
 
     def get_report(
         self, case_id: str, *, version: int | None = None, principal: AuthPrincipal | None = None
