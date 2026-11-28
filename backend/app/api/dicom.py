@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -31,9 +32,20 @@ router = APIRouter(
 
 EVAL_RESULTS_DIR = Path(__file__).resolve().parents[2] / "eval" / "results"
 
-_MAX_FILES = 200
-_MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MiB per file (metadata + small fixtures)
-_MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MiB aggregate per upload
+def _env_int(name: str, default: int, lo: int, hi: int) -> int:
+    try:
+        return max(lo, min(hi, int(os.getenv(name, str(default)))))
+    except ValueError:
+        return default
+
+
+# #125: a real spine MR / thin-slice CT study is often several hundred MB and 500+ files.
+# Keep in step with src/shared/lib/dicomFolder.ts and nginx client_max_body_size (520m).
+# The accepted files are held in memory until they are written to quarantine.
+_MAX_FILES = _env_int("VETMIND_DICOM_MAX_FILES", 1000, 1, 5000)
+_MAX_FILE_BYTES = _env_int("VETMIND_DICOM_MAX_FILE_MB", 64, 1, 1024) * 1024 * 1024
+_MAX_TOTAL_BYTES = _env_int("VETMIND_DICOM_MAX_TOTAL_MB", 512, 1, 4096) * 1024 * 1024
+_MAX_HISTORY_CHARS = 10_000
 _MAX_VIEW_FIXTURES = 24
 DemoFixtureKind = Literal["brain_mri", "cervical_mri", "thoracolumbar_mri", "brain_ct", "thorax_xr"]
 
@@ -68,9 +80,9 @@ async def upload_dicom(
     files: list[UploadFile] = File(..., description="One or more DICOM files for a single study"),
     patient_name: str = Form(..., min_length=1, max_length=120),
     species: Species = Form(...),
-    breed: str | None = Form(default=None),
-    clinical_history: str | None = Form(default=None),
-    referring_clinic: str | None = Form(default=None),
+    breed: str | None = Form(default=None, max_length=120),
+    clinical_history: str | None = Form(default=None, max_length=_MAX_HISTORY_CHARS),
+    referring_clinic: str | None = Form(default=None, max_length=200),
     service: DicomService = Depends(get_dicom_service),
     principal: AuthPrincipal = Depends(require_auth),
 ) -> DicomUploadResponse:

@@ -1075,6 +1075,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Tarayıcıdan API'yi çağırabilecek adresler (virgülle). Docker/nginx aynı adresten sunduğu için gerekmez; frontend ayrı domaindeyse onu yazın. Protected modda `*` kabul edilmez |
 | `VETMIND_TRUST_PROXY_HEADERS` | `0` (Docker compose: `1`) | İstemci IP'si için `X-Forwarded-For`'un son halkası (nginx'in eklediği). Yalnızca güvenilir proxy arkasında açın; kapalıyken nginx arkasındaki tüm kullanıcılar tek IP sayılır |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
+| `VETMIND_DICOM_MAX_FILES` / `VETMIND_DICOM_MAX_FILE_MB` / `VETMIND_DICOM_MAX_TOTAL_MB` | `1000` / `64` / `512` | Bir DICOM yüklemesinin sınırları (#125). Büyütürseniz nginx `client_max_body_size` ve `src/shared/lib/dicomFolder.ts` sabitlerini de eşitleyin; dosyalar karantinaya yazılana kadar bellekte tutulur |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 
 ---
