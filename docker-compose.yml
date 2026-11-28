@@ -60,6 +60,10 @@ services:
       VETMIND_CHROMA_URL: ${VETMIND_CHROMA_URL:-http://chroma:8000}
       VETMIND_AUTH_ENABLED: ${VETMIND_AUTH_ENABLED:-0}
       VETMIND_DEPLOYMENT_MODE: ${VETMIND_DEPLOYMENT_MODE:-demo}
+      # Every request comes through the web (nginx) container; without this all users share
+      # nginx's IP and 20 wrong passwords lock everyone out (#120). Safe: the backend port is
+      # not published, and the backend takes the last X-Forwarded-For hop (the one nginx adds).
+      VETMIND_TRUST_PROXY_HEADERS: ${VETMIND_TRUST_PROXY_HEADERS:-1}
       VETMIND_JWT_SECRET: ${VETMIND_JWT_SECRET:-vetmind-demo-secret-change-me}
       # Reset links in emails / the server log point at the web container.
       VETMIND_PUBLIC_BASE_URL: ${VETMIND_PUBLIC_BASE_URL:-http://localhost:8080}
