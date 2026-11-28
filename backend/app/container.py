@@ -329,6 +329,7 @@ class AppContainer:
             backend=self.settings.job_backend,
             delay_ms=self.settings.async_analyze_delay_ms,
             redis_url=self.settings.redis_url,
+            queue_name=self.settings.rq_queue,
         )
         self.notification_store = build_notification_store(self.settings)
         self.notifications = NotificationService(self.notification_store)

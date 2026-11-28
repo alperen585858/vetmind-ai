@@ -135,6 +135,9 @@ class Settings:
     trust_proxy_headers: bool = False
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
+    # RQ queue the API enqueues analyze jobs on; workers listen on the same env var.
+    # "vetmind-gpu" sends every analyze job to app.workers.rq_gpu_worker.
+    rq_queue: str = "vetmind"
     # Phase 5 — security / privacy / performance
     deployment_mode: str = "demo"  # demo | protected
     tenant_isolation: bool = False
@@ -477,6 +480,7 @@ def load_settings() -> Settings:
     if job_backend not in {"thread", "rq"}:
         job_backend = "thread"
     redis_url = os.getenv("VETMIND_REDIS_URL") or None
+    rq_queue = (os.getenv("VETMIND_RQ_QUEUE") or "").strip() or "vetmind"
     # Isolation defaults on when auth is enabled unless explicitly overridden.
     if os.getenv("VETMIND_TENANT_ISOLATION") is None:
         tenant_isolation = auth_enabled or deployment_mode == "protected"
@@ -639,6 +643,7 @@ def load_settings() -> Settings:
         trust_proxy_headers=trust_proxy_headers,
         job_backend=job_backend,
         redis_url=redis_url,
+        rq_queue=rq_queue,
         deployment_mode=deployment_mode,
         tenant_isolation=tenant_isolation,
         allow_insecure_demo=allow_insecure_demo,

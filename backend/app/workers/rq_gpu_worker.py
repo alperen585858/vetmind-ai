@@ -1,4 +1,4 @@
-"""GPU-oriented RQ worker for Vision inference jobs.
+"""GPU-oriented RQ worker for analyze jobs that run a local PyTorch model.
 
 Run on hosts with CUDA + ``requirements-vision.txt`` installed:
 
@@ -6,6 +6,11 @@ Run on hosts with CUDA + ``requirements-vision.txt`` installed:
     export VETMIND_RQ_QUEUE=vetmind-gpu
     export VETMIND_LOCAL_TORCH_DEVICE=cuda
     python -m app.workers.rq_gpu_worker
+
+The API enqueues on ``VETMIND_RQ_QUEUE`` too (``Settings.rq_queue``, default ``vetmind``),
+so start the API with ``VETMIND_JOB_BACKEND=rq VETMIND_RQ_QUEUE=vetmind-gpu`` to send
+analyze jobs here. The whole analyze job runs on this worker (vision, LLM, validation);
+there is no per-stage split that sends only the vision step to the GPU.
 
 Falls back to CPU if CUDA is unavailable (logged). Does not import torch at
 module import of the FastAPI app — only when this worker process starts.

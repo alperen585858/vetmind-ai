@@ -57,9 +57,15 @@ class RqJobBackend:
         self._queue.enqueue(run_analyze_job, case_id, job_id, job_timeout=300)
 
 
-def build_job_backend(*, backend: str, delay_ms: int, redis_url: str | None) -> JobBackend:
+def build_job_backend(
+    *,
+    backend: str,
+    delay_ms: int,
+    redis_url: str | None,
+    queue_name: str = "vetmind",
+) -> JobBackend:
     if backend == "rq":
         if not redis_url:
             raise RuntimeError("VETMIND_JOB_BACKEND=rq requires VETMIND_REDIS_URL.")
-        return RqJobBackend(redis_url)
+        return RqJobBackend(redis_url, queue_name=queue_name or "vetmind")
     return ThreadJobBackend(delay_ms=delay_ms)

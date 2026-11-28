@@ -1,5 +1,12 @@
 """Optional score calibration artifacts (temperature scaling).
 
+NOT YET CONNECTED: no entrypoint or pipeline step calls this module, and every local
+model reports ``calibrated=false``. Wiring it up means three things that do not exist yet:
+a held-out, expert-labelled veterinary validation set to fit the temperature on; a fit
+script under ``ml/`` that writes the artifact; and entrypoints that expose raw logits
+(the TorchXRayVision model returns already-normalised scores, not logits). Applying a
+temperature fitted without that data would only make uncalibrated scores look calibrated.
+
 Calibration never invents scores. When no artifact is registered, callers must
 leave ``calibrated=false`` and treat scores as raw model outputs.
 """
