@@ -6,31 +6,12 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
-  type ReactNode,
   type WheelEvent,
 } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
-  Columns2,
-  Contrast,
-  FlipHorizontal2,
-  FlipVertical2,
   ImageOff,
-  Maximize2,
-  Minimize2,
-  Move,
-  Pause,
-  PenLine,
-  Play,
-  RotateCcw,
-  RotateCw,
-  HeartPulse,
-  Ruler,
-  Square,
-  Undo2,
-  Triangle,
-  ZoomIn,
 } from 'lucide-react'
 import {
   autoWindow,
@@ -40,11 +21,10 @@ import {
   type DicomFramePreview,
 } from '../lib/dicomPreview'
 import { useLocale } from '../shell/LocaleContext'
-import { modalityLabel } from '../lib/displayClean'
 import { VhsGuideModal } from './VhsGuideModal'
 import { indexFor, positionOf, sameView, type ViewSyncState } from './viewerSync'
 import { shouldShowVhsGuide } from './vhsGuidePref'
-import { computeVhs, VHS_POINT_COUNT, VHS_STEP_KEYS, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../lib/vhs'
+import { computeVhs, VHS_POINT_COUNT, type Point as VhsPoint, type VhsResult, type VhsSpecies } from '../lib/vhs'
 import {
   applyHandleDrag,
   assertAnnotateViewAllowed,
@@ -56,113 +36,15 @@ import {
   type HitHandle,
   type NativeBBox,
 } from './viewerCoords'
+import { PRESET_DEFS, drawEvidenceBoxes, formatDistance, type AnnotateCommitPayload, type Tool } from './viewer/viewerParts'
+import { SeriesStrip } from './viewer/SeriesStrip'
+import { ViewerToolbar } from './viewer/ViewerToolbar'
+import { VhsStatusBar } from './viewer/VhsStatusBar'
+import { MeasurementLayer, type AnglePoints, type DraftAnnotate, type LineSegment } from './viewer/MeasurementLayer'
+import { ViewerFooter } from './viewer/ViewerFooter'
+import { ComparePanel, FrameInfoOverlay } from './viewer/ViewerOverlays'
 
-type Tool = 'wwwl' | 'pan' | 'zoom' | 'measure' | 'angle' | 'roi' | 'annotate' | 'vhs'
-
-export type AnnotateCommitPayload = {
-  mode: 'create' | 'edit'
-  bbox: NativeBBox
-  evidenceId?: string
-  sopInstanceUid?: string | null
-  frameIndex?: number | null
-}
-
-const PRESET_DEFS: { id: string; labelKey: string; wc: number; ww: number }[] = [
-  { id: 'auto', labelKey: 'dicom.viewer.presetAuto', wc: 0, ww: 0 },
-  { id: 'soft', labelKey: 'dicom.viewer.presetSoft', wc: 40, ww: 400 },
-  { id: 'brain', labelKey: 'dicom.viewer.presetBrain', wc: 40, ww: 80 },
-  { id: 'bone', labelKey: 'dicom.viewer.presetBone', wc: 300, ww: 1500 },
-  { id: 'lung', labelKey: 'dicom.viewer.presetLung', wc: -600, ww: 1500 },
-  { id: 'abdomen', labelKey: 'dicom.viewer.presetAbdomen', wc: 40, ww: 350 },
-]
-
-function ToolButton({
-  active,
-  title,
-  onClick,
-  children,
-}: {
-  active?: boolean
-  title: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition ${
-        active
-          ? 'bg-[#0D827B] text-white shadow-sm'
-          : 'text-slate-300 hover:bg-white/5 hover:text-white'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function formatDistance(
-  dx: number,
-  dy: number,
-  spacing?: [number, number],
-): { text: string; calibrated: boolean; mm: number | null } {
-  const pxDist = Math.hypot(dx, dy)
-  if (spacing) {
-    const [rowMm, colMm] = spacing
-    const mm = Math.hypot(dx * colMm, dy * rowMm)
-    return { text: `${mm.toFixed(1)} mm`, calibrated: true, mm }
-  }
-  return { text: `${pxDist.toFixed(1)} px (kalibre değil)`, calibrated: false, mm: null }
-}
-
-const VHS_LABELS = ['1', '2', '3', '4', 'T4', 'T8']
-
-/** Long axis (1→2), short axis (3→4) and the T4→T8 spine scale with one tick per vertebra. */
-function VhsOverlay({ points, stroke }: { points: VhsPoint[]; stroke: number }) {
-  const [a, b, c, d, t4, t8] = points
-  const line = (p: VhsPoint | undefined, q: VhsPoint | undefined, color: string) =>
-    p && q ? <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={color} strokeWidth={stroke} /> : null
-  const ticks =
-    t4 && t8
-      ? [1, 2, 3].map((k) => (
-          <circle
-            key={k}
-            cx={t4.x + ((t8.x - t4.x) * k) / 4}
-            cy={t4.y + ((t8.y - t4.y) * k) / 4}
-            r={stroke * 1.6}
-            fill="#38bdf8"
-          />
-        ))
-      : null
-  return (
-    <g>
-      {line(a, b, '#fb7185')}
-      {line(c, d, '#fda4af')}
-      {line(t4, t8, '#38bdf8')}
-      {ticks}
-      {points.map((p, i) => (
-        <g key={i}>
-          <circle
-            data-vhs-point={VHS_LABELS[i]}
-            cx={p.x}
-            cy={p.y}
-            r={stroke * 2.4}
-            fill={i >= 4 ? '#38bdf8' : '#fb7185'}
-            stroke="#0b1727"
-            strokeWidth={stroke / 2}
-          />
-          <text x={p.x + stroke * 3} y={p.y - stroke * 3} fill="#fff" fontSize={stroke * 9} fontFamily="monospace">
-            {VHS_LABELS[i]}
-          </text>
-        </g>
-      ))}
-    </g>
-  )
-}
+export type { AnnotateCommitPayload } from './viewer/viewerParts'
 
 export function DicomViewer({
   frames,
@@ -258,13 +140,11 @@ export function DicomViewer({
   const [compareIndex, setCompareIndex] = useState(0)
   const [cine, setCine] = useState(false)
   const [cineFps, setCineFps] = useState(8)
-  const [measurePts, setMeasurePts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [measurePts, setMeasurePts] = useState<LineSegment | null>(null)
   const [measureLabel, setMeasureLabel] = useState<string | null>(null)
-  const [anglePts, setAnglePts] = useState<null | { a: { x: number; y: number }; b: { x: number; y: number }; c?: { x: number; y: number } }>(
-    null,
-  )
+  const [anglePts, setAnglePts] = useState<AnglePoints | null>(null)
   const [angleLabel, setAngleLabel] = useState<string | null>(null)
-  const [roiPts, setRoiPts] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
+  const [roiPts, setRoiPts] = useState<LineSegment | null>(null)
   const [roiLabel, setRoiLabel] = useState<string | null>(null)
   const [vhsPts, setVhsPts] = useState<VhsPoint[]>([])
   const [vhsGuideOpen, setVhsGuideOpen] = useState(false)
@@ -276,11 +156,7 @@ export function DicomViewer({
   const dragRef = useRef<{ x: number; y: number; wc: number; ww: number; panX: number; panY: number; zoom: number } | null>(null)
   const measureStartRef = useRef<{ x: number; y: number } | null>(null)
   const roiStartRef = useRef<{ x: number; y: number } | null>(null)
-  const [draftAnnotate, setDraftAnnotate] = useState<null | {
-    mode: 'create' | 'edit'
-    evidenceId?: string
-    box: NativeBBox
-  }>(null)
+  const [draftAnnotate, setDraftAnnotate] = useState<DraftAnnotate | null>(null)
   const [annotateBusy, setAnnotateBusy] = useState(false)
   const [annotateError, setAnnotateError] = useState<string | null>(null)
   const annotateDragRef = useRef<null | {
@@ -400,25 +276,7 @@ export function DicomViewer({
             ]
           : []
 
-    for (const item of drawList) {
-      const color = item.style === 'vet' ? '#1d4ed8' : '#dc2626'
-      const selected = Boolean(item.selected)
-      ctx.save()
-      ctx.strokeStyle = color
-      ctx.lineWidth = selected ? 3 : 2
-      if (!selected || item.style === 'ai') ctx.setLineDash(selected ? [] : [6, 4])
-      else ctx.setLineDash([])
-      const x = item.bbox.x_min
-      const y = item.bbox.y_min
-      const w = Math.max(1, item.bbox.x_max - item.bbox.x_min)
-      const h = Math.max(1, item.bbox.y_max - item.bbox.y_min)
-      ctx.strokeRect(x, y, w, h)
-      ctx.setLineDash([])
-      ctx.fillStyle = color
-      ctx.font = selected ? 'bold 12px sans-serif' : '12px sans-serif'
-      ctx.fillText(item.label, x + 2, Math.max(12, y - 4))
-      ctx.restore()
-    }
+    drawEvidenceBoxes(ctx, drawList)
   }, [frame, wc, ww, invert, aiOverlayBbox, aiOverlayStyle, aiOverlayLabel, overlays])
 
   useEffect(() => {
@@ -835,208 +693,50 @@ export function DicomViewer({
       aria-label="DICOM görüntüleyici"
     >
       {seriesGroups.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
-          {seriesGroups.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              title={s.label}
-              onClick={() => setSeriesKey(s.key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
-                s.key === activeSeries?.key
-                  ? 'bg-[#0D827B] text-white'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              {s.thumbUrl ? (
-                <img src={s.thumbUrl} alt="" className="h-8 w-8 rounded object-cover" />
-              ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded bg-black text-[9px] text-slate-500">
-                  {s.frames.length}
-                </span>
-              )}
-              <span className="max-w-[100px] truncate">
-                {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
-                {s.label}
-              </span>
-              <span className="text-slate-400">({s.frames.length})</span>
-            </button>
-          ))}
-        </div>
+        <SeriesStrip groups={seriesGroups} activeKey={activeSeries?.key} onSelect={setSeriesKey} />
       )}
 
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 bg-[#0b1727] px-2 py-1.5">
-        <span className="mr-2 hidden text-[10px] font-semibold uppercase tracking-wider text-[#0D827B] sm:inline">
-          Viewer
-        </span>
-        <ToolButton active={tool === 'wwwl'} title="Window / Level (W)" onClick={() => setTool('wwwl')}>
-          <Contrast className="h-3.5 w-3.5" /> W/L
-        </ToolButton>
-        <ToolButton active={tool === 'pan'} title="Pan (P)" onClick={() => setTool('pan')}>
-          <Move className="h-3.5 w-3.5" /> Pan
-        </ToolButton>
-        <ToolButton active={tool === 'zoom'} title="Zoom (Z)" onClick={() => setTool('zoom')}>
-          <ZoomIn className="h-3.5 w-3.5" /> Zoom
-        </ToolButton>
-        <ToolButton active={tool === 'measure'} title="Mesafe (M)" onClick={() => setTool('measure')}>
-          <Ruler className="h-3.5 w-3.5" /> Mesafe
-        </ToolButton>
-        <ToolButton active={tool === 'angle'} title="Açı (A)" onClick={() => setTool('angle')}>
-          <Triangle className="h-3.5 w-3.5" /> Açı
-        </ToolButton>
-        <ToolButton active={tool === 'roi'} title="ROI (O)" onClick={() => setTool('roi')}>
-          <Square className="h-3.5 w-3.5" /> ROI
-        </ToolButton>
-        {annotateEnabled ? (
-          <ToolButton
-            active={tool === 'annotate'}
-            title="Anotasyon kutusu (B)"
-            onClick={() => setTool('annotate')}
-          >
-            <PenLine className="h-3.5 w-3.5" /> BBox
-          </ToolButton>
-        ) : null}
-        {vhsEnabled ? (
-          <ToolButton active={tool === 'vhs'} title={`${t('vhs.toolTitle')} (H)`} onClick={selectVhsTool}>
-            <HeartPulse className="h-3.5 w-3.5" /> VHS
-          </ToolButton>
-        ) : null}
-        <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
-        <ToolButton active={invert} title="Invert (I)" onClick={() => setInvert((v) => !v)}>
-          Invert
-        </ToolButton>
-        <ToolButton title="90° döndür" onClick={() => setRotation((r) => (r + 90) % 360)}>
-          <RotateCw className="h-3.5 w-3.5" />
-        </ToolButton>
-        <ToolButton active={flipH} title="Yatay çevir" onClick={() => setFlipH((v) => !v)}>
-          <FlipHorizontal2 className="h-3.5 w-3.5" />
-        </ToolButton>
-        <ToolButton active={flipV} title="Dikey çevir" onClick={() => setFlipV((v) => !v)}>
-          <FlipVertical2 className="h-3.5 w-3.5" />
-        </ToolButton>
-        <ToolButton title="Reset (R)" onClick={resetView}>
-          <RotateCcw className="h-3.5 w-3.5" /> Reset
-        </ToolButton>
-        <ToolButton
-          active={cine}
-          title="Cine (Space)"
-          onClick={() => setCine((v) => !v)}
-        >
-          {cine ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} Cine
-        </ToolButton>
-        {cine && (
-          <label className="flex items-center gap-1 text-[10px] text-slate-400">
-            fps
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={cineFps}
-              onChange={(e) => setCineFps(Math.max(1, Math.min(30, Number(e.target.value) || 8)))}
-              className="w-10 rounded border border-white/10 bg-black/40 px-1 py-0.5 text-white"
-            />
-          </label>
-        )}
-        <ToolButton
-          active={compare}
-          title="Karşılaştır (C)"
-          onClick={() => {
-            setCompare((v) => !v)
-            if (!compare && seriesGroups.length > 1) {
-              const other = seriesGroups.find((s) => s.key !== activeSeries?.key)
-              setCompareSeriesKey(other?.key || null)
-            }
-          }}
-        >
-          <Columns2 className="h-3.5 w-3.5" /> Compare
-        </ToolButton>
-        <ToolButton title="Tam ekran (F)" onClick={() => void toggleFullscreen()}>
-          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-        </ToolButton>
-        <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" aria-hidden />
-        {PRESET_DEFS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            title={t(p.labelKey)}
-            onClick={() => applyPreset(p.id)}
-            className="rounded-md px-2 py-1 text-[11px] text-slate-400 hover:bg-white/5 hover:text-white"
-          >
-            {t(p.labelKey)}
-          </button>
-        ))}
-        <span className="ml-auto max-w-[50%] truncate font-mono text-[10px] tabular-nums text-slate-400">
-          W:{Math.round(ww)} L:{Math.round(wc)} · {Math.round(zoom * 100)}% · {safeIndex + 1}/{viewable.length}
-          {statusBits ? ` · ${statusBits}` : ''}
-          {!frame.pixelSpacingMm ? ' · spacing yok' : ''}
-        </span>
-      </div>
+      <ViewerToolbar
+        tool={tool}
+        onTool={setTool}
+        annotateEnabled={annotateEnabled}
+        vhsEnabled={vhsEnabled}
+        onSelectVhs={selectVhsTool}
+        invert={invert}
+        onToggleInvert={() => setInvert((v) => !v)}
+        onRotate={() => setRotation((r) => (r + 90) % 360)}
+        flipH={flipH}
+        onToggleFlipH={() => setFlipH((v) => !v)}
+        flipV={flipV}
+        onToggleFlipV={() => setFlipV((v) => !v)}
+        onReset={resetView}
+        cine={cine}
+        onToggleCine={() => setCine((v) => !v)}
+        cineFps={cineFps}
+        onCineFps={setCineFps}
+        compare={compare}
+        onToggleCompare={() => {
+          setCompare((v) => !v)
+          if (!compare && seriesGroups.length > 1) {
+            const other = seriesGroups.find((s) => s.key !== activeSeries?.key)
+            setCompareSeriesKey(other?.key || null)
+          }
+        }}
+        fullscreen={fullscreen}
+        onToggleFullscreen={() => void toggleFullscreen()}
+        onPreset={applyPreset}
+        status={`W:${Math.round(ww)} L:${Math.round(wc)} · ${Math.round(zoom * 100)}% · ${safeIndex + 1}/${viewable.length}${statusBits ? ` · ${statusBits}` : ''}${!frame.pixelSpacingMm ? ' · spacing yok' : ''}`}
+      />
 
       {vhsEnabled && (tool === 'vhs' || vhsPts.length > 0) && (
-        <div
-          className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#0b1727] px-3 py-1.5 text-[11px] text-slate-200"
-          role="status"
-          aria-live="polite"
-        >
-          <HeartPulse className="h-3.5 w-3.5 text-rose-300" aria-hidden />
-          {vhsResult ? (
-            <span>
-              <strong className="text-white">VHS {vhsResult.vhs.toFixed(1)} v</strong>
-              {' · '}
-              {t(`vhs.category.${vhsResult.category}`)}
-              {vhsResult.reference
-                ? ` (${t('vhs.reference', { min: vhsResult.reference.min, max: vhsResult.reference.max })})`
-                : ''}
-              {` · ${t('vhs.axes', { long: vhsResult.longV.toFixed(1), short: vhsResult.shortV.toFixed(1) })}`}
-              {vhsResult.notPerpendicular ? (
-                <span className="ml-1 text-amber-300">· {t('vhs.notPerpendicular', { deg: vhsResult.axisAngleDeg })}</span>
-              ) : null}
-            </span>
-          ) : (
-            <span>
-              <span className="font-mono text-rose-200">
-                {Math.min(vhsPts.length + 1, VHS_POINT_COUNT)}/{VHS_POINT_COUNT}
-              </span>{' '}
-              {t(`vhs.step.${VHS_STEP_KEYS[Math.min(vhsPts.length, VHS_POINT_COUNT - 1)]}`)}
-            </span>
-          )}
-          <span className="ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              className="flex h-5 w-5 items-center justify-center rounded-full border border-white/20 font-bold text-slate-200 hover:bg-white/10"
-              title={t('vhs.guide.help')}
-              aria-label={t('vhs.guide.help')}
-              onClick={() => setVhsGuideOpen(true)}
-            >
-              ?
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
-              disabled={!vhsPts.length}
-              onClick={() => setVhsPts((p) => p.slice(0, -1))}
-            >
-              <Undo2 className="h-3 w-3" aria-hidden /> {t('vhs.undo')}
-            </button>
-            <button
-              type="button"
-              className="rounded px-1.5 py-0.5 text-slate-300 hover:bg-white/10 disabled:opacity-40"
-              disabled={!vhsPts.length}
-              onClick={() => setVhsPts([])}
-            >
-              {t('vhs.clear')}
-            </button>
-            {vhsResult && onVhsCommit ? (
-              <button
-                type="button"
-                className="rounded bg-[#0D827B] px-2 py-0.5 font-semibold text-white hover:bg-[#0b6f69]"
-                onClick={() => onVhsCommit(vhsResult)}
-              >
-                {t('vhs.addToReport')}
-              </button>
-            ) : null}
-          </span>
-        </div>
+        <VhsStatusBar
+          result={vhsResult}
+          pointCount={vhsPts.length}
+          onHelp={() => setVhsGuideOpen(true)}
+          onUndo={() => setVhsPts((p) => p.slice(0, -1))}
+          onClear={() => setVhsPts([])}
+          onCommit={onVhsCommit}
+        />
       )}
 
       <div
@@ -1055,134 +755,34 @@ export function DicomViewer({
           <div className="relative inline-block max-w-full leading-[0]">
           <canvas ref={canvasRef} className="block max-h-[min(58vh,600px)] max-w-full" />
           {frame?.cols && frame.rows && (
-            <svg
-              className="pointer-events-none absolute inset-0 h-full w-full"
-              viewBox={`0 0 ${frame.cols} ${frame.rows}`}
-              preserveAspectRatio="none"
-            >
-              {measurePts && (
-                <line
-                  x1={measurePts.x0}
-                  y1={measurePts.y0}
-                  x2={measurePts.x1}
-                  y2={measurePts.y1}
-                  stroke="#5eead4"
-                  strokeWidth={Math.max(1, frame.cols / 400)}
-                />
-              )}
-              {anglePts && (
-                <>
-                  <line
-                    x1={anglePts.a.x}
-                    y1={anglePts.a.y}
-                    x2={anglePts.b.x}
-                    y2={anglePts.b.y}
-                    stroke="#fbbf24"
-                    strokeWidth={Math.max(1, frame.cols / 400)}
-                  />
-                  {anglePts.c && (
-                    <line
-                      x1={anglePts.b.x}
-                      y1={anglePts.b.y}
-                      x2={anglePts.c.x}
-                      y2={anglePts.c.y}
-                      stroke="#fbbf24"
-                      strokeWidth={Math.max(1, frame.cols / 400)}
-                    />
-                  )}
-                </>
-              )}
-              {roiPts && (
-                <rect
-                  x={Math.min(roiPts.x0, roiPts.x1)}
-                  y={Math.min(roiPts.y0, roiPts.y1)}
-                  width={Math.abs(roiPts.x1 - roiPts.x0)}
-                  height={Math.abs(roiPts.y1 - roiPts.y0)}
-                  fill="rgba(94,234,212,0.12)"
-                  stroke="#5eead4"
-                  strokeWidth={Math.max(1, frame.cols / 400)}
-                />
-              )}
-              {vhsPts.length > 0 && (
-                <VhsOverlay points={vhsPts} stroke={Math.max(1.5, frame.cols / 350)} />
-              )}
-              {draftAnnotate && (
-                <rect
-                  x={draftAnnotate.box.x_min}
-                  y={draftAnnotate.box.y_min}
-                  width={Math.max(1, draftAnnotate.box.x_max - draftAnnotate.box.x_min)}
-                  height={Math.max(1, draftAnnotate.box.y_max - draftAnnotate.box.y_min)}
-                  fill="rgba(29,78,216,0.15)"
-                  stroke="#1d4ed8"
-                  strokeWidth={Math.max(2, frame.cols / 300)}
-                  strokeDasharray={draftAnnotate.mode === 'create' ? '8 4' : undefined}
-                />
-              )}
-            </svg>
+            <MeasurementLayer
+              cols={frame.cols}
+              rows={frame.rows}
+              measure={measurePts}
+              angle={anglePts}
+              roi={roiPts}
+              vhsPoints={vhsPts}
+              draft={draftAnnotate}
+            />
           )}
           </div>
         </div>
         {compare && (
-          <div className="flex w-1/2 flex-col items-center justify-center border-l border-white/10">
-            {seriesGroups.length > 1 && (
-              <select
-                className="mb-1 max-w-[90%] rounded border border-white/10 bg-[#0b1727] px-2 py-0.5 text-[10px] text-slate-200"
-                value={compareSeriesKey || ''}
-                onChange={(e) => {
-                  setCompareSeriesKey(e.target.value || null)
-                  setCompareIndex(0)
-                }}
-                aria-label="Karşılaştırma serisi"
-              >
-                <option value="">Aynı seri (dilim)</option>
-                {seriesGroups.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.modality ? `${modalityLabel(t, s.modality)} · ` : ''}
-                    {s.label} ({s.frames.length})
-                  </option>
-                ))}
-              </select>
-            )}
-            <canvas ref={compareCanvasRef} className="max-h-[min(58vh,600px)] max-w-full" />
-            {comparePool.length > 1 && (
-              <input
-                type="range"
-                min={0}
-                max={comparePool.length - 1}
-                value={Math.min(compareIndex, comparePool.length - 1)}
-                onChange={(e) => setCompareIndex(Number(e.target.value))}
-                className="mt-2 w-4/5 accent-[#0D827B]"
-                aria-label="Karşılaştırma dilimi"
-              />
-            )}
-          </div>
+          <ComparePanel
+            ref={compareCanvasRef}
+            groups={seriesGroups}
+            compareSeriesKey={compareSeriesKey}
+            onCompareSeries={(key) => {
+              setCompareSeriesKey(key)
+              setCompareIndex(0)
+            }}
+            poolSize={comparePool.length}
+            compareIndex={compareIndex}
+            onCompareIndex={setCompareIndex}
+          />
         )}
 
-        <div className="pointer-events-none absolute left-3 top-3 font-mono text-[10px] leading-relaxed text-teal-200/90">
-          {frame.modality && <p>{frame.modality}</p>}
-          {frame.seriesDescription && <p className="max-w-[220px] truncate">{frame.seriesDescription}</p>}
-          {frame.cols != null && frame.rows != null && (
-            <p>
-              {frame.cols}×{frame.rows}
-            </p>
-          )}
-          <p>
-            Im: {safeIndex + 1}/{viewable.length}
-          </p>
-          {frame.instanceNumber != null && <p>Inst#: {frame.instanceNumber}</p>}
-          {frame.imagePositionPatient && (
-            <p className="text-slate-400">
-              IPP z={frame.imagePositionPatient[2].toFixed(1)}
-            </p>
-          )}
-        </div>
-        <div className="pointer-events-none absolute right-3 top-3 text-right font-mono text-[10px] leading-relaxed text-slate-300/90">
-          <p>
-            WL {Math.round(wc)} / {Math.round(ww)}
-          </p>
-          <p>{tool.toUpperCase()}</p>
-          <p className="text-slate-500">Scroll dilim · Ctrl+scroll zoom · Space cine</p>
-        </div>
+        <FrameInfoOverlay frame={frame} index={safeIndex} total={viewable.length} wc={wc} ww={ww} tool={tool} />
         {(draftAnnotate || annotateError) && annotateEnabled ? (
           <div className="absolute bottom-3 right-3 z-10 flex max-w-[min(100%,280px)] flex-col gap-1 rounded-md border border-white/15 bg-[#0b1727]/95 p-2 text-[11px] text-slate-100 shadow-lg">
             {annotateError ? <p className="text-amber-300">{annotateError}</p> : null}
@@ -1242,101 +842,20 @@ export function DicomViewer({
         )}
       </div>
 
-      <div className="space-y-2 border-t border-white/10 bg-[#0b1727] px-3 py-2">
-        {viewable.length > 1 && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
-              onClick={() => goSlice(-1)}
-              disabled={safeIndex <= 0}
-              aria-label="Önceki dilim"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={viewable.length - 1}
-              value={safeIndex}
-              onChange={(e) => {
-                setCine(false)
-                setIndex(Number(e.target.value))
-              }}
-              className="h-1.5 flex-1 cursor-pointer accent-[#0D827B]"
-              aria-label="Dilim kaydırıcı"
-            />
-            <button
-              type="button"
-              className="rounded-md p-1 text-slate-300 hover:bg-white/5 hover:text-white"
-              onClick={() => goSlice(1)}
-              disabled={safeIndex >= viewable.length - 1}
-              aria-label="Sonraki dilim"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            <span className="min-w-[4.5rem] text-right font-mono text-[11px] tabular-nums text-slate-300">
-              {safeIndex + 1} / {viewable.length}
-            </span>
-          </div>
-        )}
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-[11px] text-slate-400">
-            Center
-            <input
-              type="range"
-              min={Math.round((frame.pixelMin ?? 0) - 500)}
-              max={Math.round((frame.pixelMax ?? 4000) + 500)}
-              value={Math.round(wc)}
-              onChange={(e) => setWc(Number(e.target.value))}
-              className="flex-1 accent-[#0D827B]"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-[11px] text-slate-400">
-            Width
-            <input
-              type="range"
-              min={1}
-              max={Math.max(100, Math.round(((frame.pixelMax ?? 4000) - (frame.pixelMin ?? 0)) * 2))}
-              value={Math.round(ww)}
-              onChange={(e) => setWw(Number(e.target.value))}
-              className="flex-1 accent-[#0D827B]"
-            />
-          </label>
-        </div>
-
-        {viewable.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
-            {viewable.map((f, i) => {
-              const aspect =
-                f.cols && f.rows && f.cols > 0 ? Math.max(0.55, Math.min(1.35, f.rows / f.cols)) : 1
-              return (
-                <button
-                  key={`${f.sopInstanceUid || f.fileName}-${i}`}
-                  type="button"
-                  title={f.relativePath || f.fileName}
-                  onClick={() => {
-                    setCine(false)
-                    setIndex(i)
-                  }}
-                  className={`h-14 shrink-0 overflow-hidden rounded bg-black ring-2 ${
-                    i === safeIndex ? 'ring-[#0D827B]' : 'ring-white/10 hover:ring-white/25'
-                  }`}
-                  style={{ width: `${Math.round(56 / aspect)}px` }}
-                >
-                  {f.thumbUrl ? (
-                    <img src={f.thumbUrl} alt="" className="h-full w-full object-contain" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[9px] text-slate-500">
-                      {i + 1}
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <ViewerFooter
+        viewable={viewable}
+        index={safeIndex}
+        frame={frame}
+        wc={wc}
+        ww={ww}
+        onStep={goSlice}
+        onSelect={(i) => {
+          setCine(false)
+          setIndex(i)
+        }}
+        onWc={setWc}
+        onWw={setWw}
+      />
     </div>
     {vhsEnabled ? <VhsGuideModal open={vhsGuideOpen} onClose={() => setVhsGuideOpen(false)} /> : null}
     </>
