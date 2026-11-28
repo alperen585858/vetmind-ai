@@ -75,7 +75,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      # DICOM quarantine and other files; records are in Postgres, vectors in Chroma.
+      # DICOM quarantine and other files; records and RAG vectors (pgvector) are in Postgres.
       - vetmind_data:/app/data
     restart: unless-stopped
 

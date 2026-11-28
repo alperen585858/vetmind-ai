@@ -62,7 +62,11 @@
     "report": "Report",
     "reports": "Reports",
     "messages": "Messages",
-    "home": "Home"
+    "home": "Home",
+    "crashTitle": "Something went wrong",
+    "crashBody": "This page stopped with an unexpected error. Reload the page; if it keeps happening, contact support.",
+    "crashReload": "Reload page",
+    "crashHome": "Back to home"
   },
   "roles": {
     "vet": "Veterinarian",

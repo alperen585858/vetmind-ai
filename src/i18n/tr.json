@@ -62,7 +62,11 @@
     "report": "Rapor",
     "reports": "Raporlar",
     "messages": "Mesajlar",
-    "home": "Ana Sayfa"
+    "home": "Ana Sayfa",
+    "crashTitle": "Bir şeyler ters gitti",
+    "crashBody": "Bu sayfa beklenmedik bir hatayla durdu. Sayfayı yenileyin; sorun sürerse destek ekibine yazın.",
+    "crashReload": "Sayfayı yenile",
+    "crashHome": "Ana sayfaya dön"
   },
   "roles": {
     "vet": "Veteriner Hekim",

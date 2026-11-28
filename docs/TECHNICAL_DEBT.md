@@ -1,6 +1,6 @@
 # VetMind AI — Technical Debt Register
 
-**Last verified commit:** `e85dab3`  
+**Last verified commit:** `50cf064`  
 **Ranking:** P0 (honesty / safety of claims) → P3 (requires GPU or institution).
 
 ## P0 — Correctness of demo claims
@@ -12,7 +12,7 @@
 | TD-03 | Register creates localStorage-only “accounts” | `src/features/auth/Register.tsx` | **Resolved (#31)** — sign-up uses `POST /auth/register`; browser-only accounts removed and purged from old browsers |
 | TD-04 | No hosted CI | Missing `.github/workflows` | **Mitigated** — `.github/workflows/ci.yml` |
 | TD-05 | Vitest cancelled-job polling edge case | `src/shared/api/backend.polling.test.ts` | **Verified green** (2026-11-09) |
-| TD-06 | Dead env key `VETMIND_ALLOW_MOCK_LLM` not read by settings | `.env` / docs vs `settings.py` | Document or wire; do not silently change LLM routing |
+| TD-06 | Dead env key `VETMIND_ALLOW_MOCK_LLM` not read by settings | `.env` / docs vs `settings.py` | **Resolved** — the key no longer appears in any `.env`, doc or code (checked 2026-11-28, #128) |
 
 ## P1 — Productization of existing APIs
 

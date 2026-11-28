@@ -6,6 +6,7 @@ import { useLocale } from './LocaleContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { PageLoader } from '../ui/PageLoader'
+import { ErrorBoundary } from '../ui/ErrorBoundary'
 
 const COLLAPSE_KEY = 'vetmind.sidebar.collapsed'
 
@@ -101,11 +102,14 @@ export function Layout({
           className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-7 lg:px-8 print:p-0"
         >
           {/* Keeps the sidebar and top bar on screen while a page chunk loads. */}
-          <Suspense fallback={<PageLoader />}>
-            <div className="vm-page-enter" key={pathname}>
-              <Outlet />
-            </div>
-          </Suspense>
+          {/* A crashing page shows an error card here; sidebar and top bar stay usable (#124). */}
+          <ErrorBoundary resetKey={pathname}>
+            <Suspense fallback={<PageLoader />}>
+              <div className="vm-page-enter" key={pathname}>
+                <Outlet />
+              </div>
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
       {sourcePanel}
