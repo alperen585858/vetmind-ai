@@ -14,13 +14,13 @@ from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_ADMIN, CAP_CLINIC_MANAGE, CAP_USERS_ADMIN
 from app.container import AppContainer
 from app.http_errors import api_error
-from app.security.audit import AuditOutcome
 from app.schemas.workflow import (
     ClinicStaffStats,
     ManagedUserCreate,
     ManagedUserPublic,
     ManagedUserUpdate,
 )
+from app.security.audit import AuditOutcome
 
 router = APIRouter(prefix="/api/v1", tags=["workflow"], dependencies=[Depends(require_auth)])
 

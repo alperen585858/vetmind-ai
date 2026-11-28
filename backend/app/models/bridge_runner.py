@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from app.imaging.contracts import PreprocessingContract
 from app.imaging.profiles import profile_for_modality

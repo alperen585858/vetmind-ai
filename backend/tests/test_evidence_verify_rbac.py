@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from app.auth import rbac
-from tests.test_evidence_review_api import BOX, _add, _case, _hdr
+from tests.test_evidence_review_api import _add, _case, _hdr
 
 
 def test_expert_can_verify_and_unverify(tmp_path: Path) -> None:

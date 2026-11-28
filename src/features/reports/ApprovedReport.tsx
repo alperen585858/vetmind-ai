@@ -8,12 +8,10 @@ import {
   AlertCircle,
   ArrowLeft,
   BadgeCheck,
-  CheckCircle2,
   Clock,
   Download,
   FileText,
   Loader2,
-  Phone,
   Send,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
@@ -55,7 +53,7 @@ export default function ApprovedReport() {
   const [params, setParams] = useSearchParams()
   const versionParam = params.get('version')
   const selectedVersion = versionParam ? Number(versionParam) : null
-  const { getCase, role, user, session, hydrateBackendCase, pushToast, updateCase } = useApp()
+  const { getCase, role, hydrateBackendCase, pushToast, updateCase } = useApp()
   const { t, locale } = useLocale()
   const nav = useLocalizedNavigate()
   const base = getCase(id)

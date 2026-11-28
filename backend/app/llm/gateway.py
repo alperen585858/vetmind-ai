@@ -1,4 +1,7 @@
+from app.imaging.analysis_limitations import LIMITATION_PREFIX, MISSING_PREFIX
+from app.imaging.systematic_checklist import STATUS_LABEL_TR as REVIEW_STATUS_LABEL_TR
 from app.llm.anatomy_dictionary import AnatomyDictionary
+from app.llm.clinical_notes import clinical_notes_text, history_with_notes, strip_note_stamps
 from app.llm.interfaces import (
     LLMFindingRef,
     LLMGenerationInput,
@@ -11,17 +14,19 @@ from app.llm.interfaces import (
 from app.llm.lessons import LessonContext, LessonStore
 from app.llm.neuro_exam import neuro_exam_text
 from app.llm.privacy import redact_personal_data
-from app.imaging.analysis_limitations import LIMITATION_PREFIX, MISSING_PREFIX
-from app.imaging.systematic_checklist import STATUS_LABEL_TR as REVIEW_STATUS_LABEL_TR
 from app.models.ontology import is_technique_code
 from app.rag.relevance import RagFilter, build_retrieval_query
 from app.rag.retriever import RagRetriever
 from app.schemas.case import CaseRecord
 from app.schemas.enums import (
-    AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species,
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
 )
 from app.schemas.findings import StructuredFindings
-from app.llm.clinical_notes import clinical_notes_text, history_with_notes, strip_note_stamps
 from app.schemas.report import DraftReport, ReportAnatomyTerminology
 
 

@@ -9,7 +9,7 @@ import pytest
 from app.dicom.fixtures import build_synthetic_instance
 from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.imaging.profiles import profile_for_modality
-from app.routing.capabilities import ModelCapability, INPUT_PIXELS_2D
+from app.routing.capabilities import INPUT_PIXELS_2D, ModelCapability
 from app.schemas.case import CaseRecord
 from app.schemas.dicom import DicomInstanceMeta, DicomSeriesMeta, DicomStudyMeta
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind, Species

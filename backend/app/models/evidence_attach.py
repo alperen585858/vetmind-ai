@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -22,7 +21,6 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
 
     from pydicom import dcmread
 
-    from app.storage.quarantine import QuarantineStore
 
     # Quarantine root may be on case model_input.quarantine_dir parent.
     qdir = case.model_input.quarantine_dir

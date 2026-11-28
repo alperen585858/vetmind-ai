@@ -1,6 +1,6 @@
 from app.llm.gateway import build_generation_input
-from app.llm.prompts import build_aliases, build_user_prompt
 from app.llm.privacy import redact_personal_data
+from app.llm.prompts import build_aliases, build_user_prompt
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord, StructuredClinicalHistory
 from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species

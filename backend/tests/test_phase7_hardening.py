@@ -18,8 +18,8 @@ from app.routing.capabilities import ModelCapability
 from app.schemas.enums import (
     AnatomicalRegion,
     FindingStatus,
-    ModelExecutionStatus,
     Modality,
+    ModelExecutionStatus,
     SourceKind,
     Species,
 )

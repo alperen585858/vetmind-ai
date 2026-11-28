@@ -6,7 +6,8 @@ import base64
 import json
 from io import BytesIO
 from typing import Protocol
-from urllib import error, request as urlrequest
+from urllib import error
+from urllib import request as urlrequest
 
 from app.schemas.enums import FileContentKind
 

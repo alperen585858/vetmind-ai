@@ -34,7 +34,7 @@ def test_api_upload_retains_quarantine(client: TestClient) -> None:
 
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{body['ingest_id']}/confirm",
-        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
+        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
     )
     assert confirmed.status_code == 200
     case = confirmed.json()

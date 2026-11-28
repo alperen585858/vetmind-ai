@@ -17,7 +17,6 @@ from app.schemas.case import CaseRecord
 from app.schemas.dicom import DicomInstanceMeta, DicomSeriesMeta, DicomStudyMeta
 from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, SourceKind, Species
 from app.schemas.findings import StudyInfo
-from app.schemas.model_outputs import ModelTaskOutputs
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 

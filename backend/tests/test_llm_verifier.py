@@ -1,7 +1,5 @@
 import json
 
-import httpx
-
 from app.llm.chat_providers import OpenAICompatibleProvider
 from app.llm.grounding import check_grounding
 from app.llm.verifier import build_verifier_user_prompt, collect_claims, parse_verdicts

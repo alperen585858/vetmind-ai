@@ -77,7 +77,7 @@ export function MfaCard() {
   const beginSetup = () =>
     run(async () => {
       const res = await startMfaSetup()
-      let qr: string | null = null
+      let qr: string | null
       try {
         const QR = await import('qrcode')
         qr = await QR.toDataURL(res.otpauth_uri, { margin: 1, width: 192 })

@@ -323,9 +323,9 @@ def run_synthetic_integration_walkthrough(
     Proves connectivity without real model inference or fabricated clinical scores.
     Uses stub LLM (not mock clinical findings fallback).
     """
-    from app.llm.stub_provider import DeterministicStubLLMProvider
-    from app.llm.gateway import LLMGateway
     from app.imaging.series_selection import select_series_for_modality
+    from app.llm.gateway import LLMGateway
+    from app.llm.stub_provider import DeterministicStubLLMProvider
 
     findings = run_synthetic_bridge_e2e(modality=modality, quarantine_root=quarantine_root)
     # Rebuild case package for draft + selection provenance assertions

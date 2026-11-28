@@ -14,7 +14,6 @@ from app.main import create_app
 from app.security.audit import AuditLogger, AuditQuery, new_event_id
 from app.settings import Settings, load_settings, validate_security_settings
 
-
 # ---- #127 -------------------------------------------------------------------------------
 
 def test_event_ids_grow_even_within_one_clock_tick() -> None:

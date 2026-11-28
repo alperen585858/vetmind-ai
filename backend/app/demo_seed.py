@@ -27,7 +27,6 @@ from app.schemas.case import CaseAssignmentUpdate, CasePriority, ReviewFeedback,
 from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import ReviewAction, Species
 from app.schemas.patient import PatientRecord
-from app.schemas.workflow import PetRecord
 
 if TYPE_CHECKING:
     from app.container import AppContainer

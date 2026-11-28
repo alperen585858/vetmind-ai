@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import json
 import resource
+import sys
 import time
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -45,7 +45,7 @@ def main() -> None:
 
     # Case listing proxy: count stored refs (not full API).
     t2 = time.perf_counter()
-    refs = store.list_files("dicom-bench01")
+    store.list_files("dicom-bench01")
     t_list = time.perf_counter() - t2
 
     result = {

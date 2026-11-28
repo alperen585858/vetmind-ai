@@ -25,26 +25,6 @@ from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
 from app.http_policy import vision_http_policy
-from app.imaging.display_png import (
-    dicom_bytes_to_png,
-    evenly_sample,
-    is_localizer_label,
-    maybe_image_bytes,
-    select_frame_indices,
-)
-from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
-from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.model_input_builder import require_model_input
-from app.models.normalizer import normalize_laterality
-from app.models.study_inventory import InventoryFrame, build_study_inventory
-from app.models.vlm_batch_planner import plan_visual_analysis
-from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
-from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
-from app.imaging.systematic_checklist import (
-    checklist_prompt,
-    merge_systematic_review,
-    parse_systematic_review,
-)
 from app.imaging.analysis_limitations import (
     MISSING_PREFIX,
     context_gaps,
@@ -52,6 +32,25 @@ from app.imaging.analysis_limitations import (
     sequence_limitations,
     sequence_summary_lines,
 )
+from app.imaging.display_png import (
+    dicom_bytes_to_png,
+    evenly_sample,
+    is_localizer_label,
+    maybe_image_bytes,
+    select_frame_indices,
+)
+from app.imaging.systematic_checklist import (
+    checklist_prompt,
+    merge_systematic_review,
+    parse_systematic_review,
+)
+from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
+from app.models.interfaces import ImagingAdapterError, ImagingModel
+from app.models.model_input_builder import require_model_input
+from app.models.normalizer import normalize_laterality
+from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
+from app.models.study_inventory import InventoryFrame, build_study_inventory
+from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
@@ -61,7 +60,8 @@ from app.models.vlm_grounding import (
     resolve_source_frame,
     study_inventory_metadata,
 )
-from app.schemas.analysis_coverage import AnalysisCoverage, SeriesCoverage
+from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
+from app.schemas.analysis_coverage import SeriesCoverage
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo

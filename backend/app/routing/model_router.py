@@ -11,7 +11,7 @@ from app.routing.capabilities import (
     default_capabilities,
 )
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, Modality, Species
+from app.schemas.enums import AnatomicalRegion, Modality
 from app.schemas.model_input import ModelInputFrameRef, ModelInputSeriesRef
 
 MANUAL_REVIEW_MODEL = "manual-review"

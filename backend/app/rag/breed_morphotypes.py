@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from app.rag.corpus import CorpusDoc, SEED_CORPUS
+from app.rag.corpus import SEED_CORPUS, CorpusDoc
 
 _DATA_PATH = Path(__file__).with_name("corpus") / "breed_morphotypes.json"
 _COVERAGE_NOTE = (

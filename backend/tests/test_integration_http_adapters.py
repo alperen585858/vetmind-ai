@@ -16,7 +16,6 @@ from app.models.interfaces import ImagingAdapterError
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import CaseRecord
-from app.schemas.rag import RagPassage
 from app.schemas.enums import (
     AnatomicalRegion,
     JobStatus,
@@ -26,6 +25,7 @@ from app.schemas.enums import (
     SourceKind,
     Species,
 )
+from app.schemas.rag import RagPassage
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 

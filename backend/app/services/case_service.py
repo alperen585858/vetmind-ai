@@ -8,11 +8,21 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
-from app.auth.rbac import CAP_ADMIN, CAP_CASE_WRITE
-from app.auth.tenancy import assert_case_access, bind_reviewer_id, can_access_owned
+from app.auth.rbac import CAP_CASE_WRITE
+from app.auth.tenancy import assert_case_access, can_access_owned
+from app.feedback.store import FeedbackStore
+from app.http_errors import api_error
+from app.llm.comparison import build_comparison, comparison_warnings
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
-from app.orchestration.progress import apply_pipeline_progress
+from app.review_sla import (
+    OPEN_REVIEW_STATUSES,
+    WARN_WITHIN_HOURS,
+    apply_review_sla,
+    clear_review_sla,
+    remaining_seconds,
+    sla_hours_for,
+)
 from app.schemas.case import (
     AiChatAsk,
     AiChatResponse,
@@ -20,7 +30,6 @@ from app.schemas.case import (
     CaseActivityEvent,
     CaseAssignmentUpdate,
     CaseCreate,
-    CaseMessage,
     CaseMessageCreate,
     CaseMessageView,
     CaseOwnerUpdate,
@@ -30,69 +39,34 @@ from app.schemas.case import (
     ReportDraftUpdate,
     ReviewFeedback,
 )
-from app.settings import Settings
-from app.schemas.documents import CaseDocumentContext
-from app.schemas.workflow import (
-    AttachmentRef,
-    CaseDocumentAttach,
-    CaseNoteCreate,
-    ClinicalNoteEntry,
-    InfoRequest,
-    InfoRequestCreate,
-    InfoRequestReply,
-)
-from app.llm.comparison import build_comparison, comparison_warnings
-from app.llm.interfaces import LLMProviderError
-from app.services.activity import append_activity
-from app.review_sla import (
-    OPEN_REVIEW_STATUSES,
-    WARN_WITHIN_HOURS,
-    apply_review_sla,
-    clear_review_sla,
-    remaining_seconds,
-    sla_hours_for,
-)
 from app.schemas.enums import (
     CaseLifecycleStatus,
-    ExpertReviewStatus,
-    JobStatus,
-    PipelineOutcome,
-    ReportStatus,
-    ReviewAction,
-    SourceKind,
 )
 from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.model_input import ImagingModelInput
 from app.schemas.report import (
     DraftReport,
-    GenerationMetadata,
-    ReportSection,
     ReportVersionSnapshot,
     ReportVersionSummary,
 )
-from app.auth.mailer import OutgoingMail
-from app.feedback.store import FeedbackStore
-from app.http_errors import api_error
-from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import clean_owner_name
-from app.services.report_versioning import (
-    apply_reject_or_revision,
-    assert_mutable_for_edit,
-    attach_pipeline_draft,
-    freeze_approved,
-    get_version,
-    list_version_summaries,
-    snapshot_from_draft,
-    upsert_version_snapshot,
+from app.schemas.workflow import (
+    CaseDocumentAttach,
+    CaseNoteCreate,
+    InfoRequestCreate,
+    InfoRequestReply,
 )
+from app.security.audit import AuditLogger, AuditOutcome
+from app.services.activity import append_activity
 from app.services.case_ids import canonicalize_case_id
+from app.services.host_bound import HostBound
+from app.services.owner_contact import clean_owner_name
+from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
 from app.services.repository import CaseRepository
+from app.settings import Settings
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
 from app.workers.job_backend import JobBackend, ThreadJobBackend
-from app.services.host_bound import HostBound
-from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
 
 
 def _now() -> datetime:
@@ -177,8 +151,8 @@ class CaseService:
         collaboration: object | None,
     ) -> None:
         from app.services.analysis_application import AnalysisApplication
-        from app.services.report_application import ReportApplication
         from app.services.case_collaboration import CaseCollaborationService
+        from app.services.report_application import ReportApplication
 
         self.analysis = analysis if analysis is not None else AnalysisApplication(self)
         self.reports = reports if reports is not None else ReportApplication(self)

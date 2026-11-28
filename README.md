@@ -1132,9 +1132,12 @@ export VETMIND_STORAGE=memory
 ```bash
 npm test
 npm run typecheck
+npm run lint                                         # ESLint (eslint.config.js); hata = CI kırmızı, uyarı serbest
 npm run build
 npm run backend:test
 # veya: cd backend && pytest
+cd backend && ruff check .                           # Python lint (backend/ruff.toml); güvenli düzeltmeler: ruff check --fix .
+# Windows'ta Vitest'i büyük harfli sürücü yolundan çalıştırın (C:\...); küçük c:\ ile tüm testler "suite bulunamadı" der
 
 npm run e2e                                          # demo modu (masaüstü + mobil), Windows/macOS/Linux
 E2E_PROTECTED=1 npx playwright test --project=e2e-protected   # korumalı mod (auth açık)

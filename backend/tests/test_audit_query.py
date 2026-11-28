@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
-
-import json
-from dataclasses import asdict
 
 from app.security.audit import AuditLogger, AuditQuery
 from tests.test_sql_stores import audit_sample_events

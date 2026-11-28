@@ -1,9 +1,9 @@
+from app.orchestration.orchestrator import AIOrchestrator
 from app.orchestration.progress import (
     STAGE_BASE_PCT,
     apply_pipeline_progress,
     vision_progress_pct,
 )
-from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.jobs import AnalysisJob
 
 

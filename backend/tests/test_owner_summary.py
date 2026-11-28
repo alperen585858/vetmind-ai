@@ -15,7 +15,6 @@ from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 from tests.conftest import make_payload
 
-
 # --- glossary / safety (pure) --------------------------------------------------------------
 
 

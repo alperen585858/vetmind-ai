@@ -309,8 +309,9 @@ def ambiguous_region_study_files() -> list[tuple[str, bytes]]:
 
 def missing_uid_partial_files() -> list[tuple[str, bytes]]:
     """One valid brain MR instance plus a sibling missing SeriesInstanceUID."""
-    from pydicom import dcmread
     from io import BytesIO
+
+    from pydicom import dcmread
 
     good = brain_mri_study_files(1)[0]
     bad_bytes = build_synthetic_instance(
@@ -367,8 +368,6 @@ def multiframe_mr_file(*, frames: int = 4) -> tuple[str, bytes]:
     )
     ds = dcmread(BytesIO(raw))
     ds.NumberOfFrames = frames
-    rows = int(ds.Rows)
-    cols = int(ds.Columns)
     # Expand PixelData to frames * rows * cols * 2 bytes (16-bit).
     frame = bytes(ds.PixelData)
     ds.PixelData = frame * frames

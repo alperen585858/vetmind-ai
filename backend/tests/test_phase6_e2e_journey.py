@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import time
 from pathlib import Path
 
@@ -173,7 +172,7 @@ def test_e2e_async_analyze_and_cancel(tmp_path: Path) -> None:
     ingest_id = up.json()["ingest_id"]
     case_id = client.post(
         f"/api/v1/dicom/ingestions/{ingest_id}/confirm",
-        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
+        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
     ).json()["case_id"]
 
     job = client.post(f"/api/v1/cases/{case_id}/analyze/async").json()

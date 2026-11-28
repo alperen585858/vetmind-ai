@@ -84,7 +84,7 @@ def redact_personal_data(
         out = re.sub(r"\s{2,}", " ", out).strip()
     for label, placeholder, pattern in _PATTERNS:
         if label == "owner":
-            out, n = pattern.subn(lambda m: f"{m.group(1)}{placeholder}", out)
+            out, n = pattern.subn(lambda m, ph=placeholder: f"{m.group(1)}{ph}", out)
         else:
             out, n = pattern.subn(placeholder, out)
         if n:

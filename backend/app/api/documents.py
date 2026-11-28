@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.deps import get_document_service
 from app.auth.deps import require_auth, require_capability
-from app.auth.visibility import case_for_principal
 from app.auth.principal import AuthPrincipal
 from app.auth.rbac import CAP_DOCUMENTS
+from app.auth.visibility import case_for_principal
 from app.schemas.case import CaseRecord
 from app.schemas.documents import (
     ConfirmDocumentRequest,

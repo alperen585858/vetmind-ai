@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container, get_dicom_service, require_demo_deployment
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_DICOM
+from app.auth.visibility import case_for_principal
 from app.dicom.fixtures import (
     brain_ct_study_files,
     brain_mri_study_files,

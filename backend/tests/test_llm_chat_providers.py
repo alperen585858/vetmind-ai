@@ -6,8 +6,8 @@ import pytest
 
 from app.llm.chat_providers import AnthropicProvider, OpenAICompatibleProvider
 from app.llm.factory import build_llm_provider
-from app.llm.grounding import check_grounding
 from app.llm.gateway import LLMGateway, build_generation_input
+from app.llm.grounding import check_grounding
 from app.llm.interfaces import (
     LLMConfigError,
     LLMMalformedResponseError,

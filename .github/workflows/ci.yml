@@ -22,6 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm run check:bundle
@@ -76,6 +77,8 @@ jobs:
       - name: Install backend dependencies
         # + the optional ChromaDB client, so the Chroma store tests (#103) keep running
         run: pip install -r requirements-dev.txt -r requirements-chroma.txt
+      - name: Lint (ruff, config in backend/ruff.toml)
+        run: ruff check .
       - name: Full pytest (CPU; vision extras optional/skip)
         run: python -m pytest -q --tb=line
       - name: Evaluation package tests (repo-root evaluation/)

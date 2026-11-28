@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
-import time
 from uuid import uuid4
 
 _ID_LOCK = threading.Lock()

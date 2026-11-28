@@ -1,6 +1,6 @@
 from app.llm.gateway import LLMGateway
-from app.llm.mock_provider import MockLLMProvider, SYNTHETIC_BANNER
-from app.llm.stub_provider import DeterministicStubLLMProvider, STUB_BANNER
+from app.llm.mock_provider import SYNTHETIC_BANNER, MockLLMProvider
+from app.llm.stub_provider import STUB_BANNER, DeterministicStubLLMProvider
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
