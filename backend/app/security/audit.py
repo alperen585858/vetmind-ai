@@ -13,7 +13,25 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
+import time
 from uuid import uuid4
+
+_ID_LOCK = threading.Lock()
+_last_id_ns = 0
+
+
+def new_event_id() -> str:
+    """Time-ordered audit id (#127): ``aud-<16 hex ns>-<6 hex random>``.
+
+    Lists sort by (timestamp, event_id). Timestamps often tie (Windows clock ticks ~15 ms),
+    and a random id made the order of such events random. The nanosecond part only grows
+    within a process, so ties keep the order the events were written in.
+    """
+    global _last_id_ns
+    with _ID_LOCK:
+        ns = max(time.time_ns(), _last_id_ns + 1)
+        _last_id_ns = ns
+    return f"aud-{ns:016x}-{uuid4().hex[:6]}"
 
 
 class AuditOutcome(str, Enum):
@@ -126,7 +144,7 @@ class AuditLogger:
     ) -> AuditEvent:
         outcome_s = outcome.value if isinstance(outcome, AuditOutcome) else str(outcome)
         event = AuditEvent(
-            event_id=f"aud-{uuid4().hex[:12]}",
+            event_id=new_event_id(),
             event_type=event_type,
             actor=actor[:120],
             resource=resource[:240],

@@ -86,7 +86,7 @@ async def upload_dicom(
         )
     if len(files) > _MAX_FILES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=413,  # Content Too Large (constant name differs across Starlette versions)
             detail=f"Too many files (max {_MAX_FILES}).",
         )
 
@@ -97,13 +97,13 @@ async def upload_dicom(
         data = await upload.read(_MAX_FILE_BYTES + 1)
         if len(data) > _MAX_FILE_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=413,  # Content Too Large (constant name differs across Starlette versions)
                 detail=f"File '{upload.filename}' exceeds {_MAX_FILE_BYTES} bytes.",
             )
         total_bytes += len(data)
         if total_bytes > _MAX_TOTAL_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=413,  # Content Too Large (constant name differs across Starlette versions)
                 detail=f"Total upload exceeds {_MAX_TOTAL_BYTES} bytes.",
             )
         name = upload.filename or "unnamed.dcm"

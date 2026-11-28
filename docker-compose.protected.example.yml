@@ -14,6 +14,11 @@
 # Demo-only APIs (fixture DICOM, demo card payments) return 403 in this mode.
 
 services:
+  db:
+    # No default database password in protected mode (#119); the backend URL reuses it.
+    environment:
+      POSTGRES_PASSWORD: ${VETMIND_DB_PASSWORD:?set VETMIND_DB_PASSWORD in .env}
+
   clamav:
     # Virus signatures update themselves (freshclam). First start downloads them (~300 MB).
     image: clamav/clamav:stable

@@ -1063,6 +1063,8 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_MALWARE_SCANNER` | — | `clamav` = her DICOM/belge yüklemesi ClamAV daemon'ında taranır (virüs → 422, tarayıcıya ulaşılamazsa → 503). Protected modda zorunlu; `fake_clean` yalnızca testte |
 | `VETMIND_CLAMD_HOST` / `VETMIND_CLAMD_PORT` / `VETMIND_CLAMD_SOCKET` | `127.0.0.1` / `3310` / — | ClamAV daemon adresi (TCP ya da Unix soketi) |
 | `VETMIND_ALLOW_TEST_SCANNER` | off | Protected modda her dosyayı temiz sayan test tarayıcısına izin (yalnızca CI / readiness, gerçek veri yok) |
+| `VETMIND_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Tarayıcıdan API'yi çağırabilecek adresler (virgülle). Docker/nginx aynı adresten sunduğu için gerekmez; frontend ayrı domaindeyse onu yazın. Protected modda `*` kabul edilmez |
+| `VETMIND_TRUST_PROXY_HEADERS` | `0` (Docker compose: `1`) | İstemci IP'si için `X-Forwarded-For`'un son halkası (nginx'in eklediği). Yalnızca güvenilir proxy arkasında açın; kapalıyken nginx arkasındaki tüm kullanıcılar tek IP sayılır |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 

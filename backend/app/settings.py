@@ -133,6 +133,8 @@ class Settings:
     # Use the first X-Forwarded-For hop as the client IP. Only behind a trusted proxy:
     # otherwise clients can spoof it to dodge per-IP limits.
     trust_proxy_headers: bool = False
+    # Browser origins allowed to call the API (#137). Same-origin setups (Docker + nginx) need none.
+    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
     job_backend: str = "thread"  # "thread" | "rq"
     redis_url: str | None = None
     # RQ queue the API enqueues analyze jobs on; workers listen on the same env var.
@@ -475,6 +477,12 @@ def load_settings() -> Settings:
     smtp_starttls = _env_bool("VETMIND_SMTP_STARTTLS", True)
     auth_rate_limit_enabled = _env_bool("VETMIND_AUTH_RATE_LIMIT", True)
     trust_proxy_headers = _env_bool("VETMIND_TRUST_PROXY_HEADERS", False)
+    cors_raw = os.getenv("VETMIND_CORS_ORIGINS")
+    cors_origins = (
+        tuple(o.strip().rstrip("/") for o in cors_raw.split(",") if o.strip())
+        if cors_raw is not None
+        else ("http://localhost:5173", "http://127.0.0.1:5173")
+    )
 
     job_backend = os.getenv("VETMIND_JOB_BACKEND", "thread").strip().lower()
     if job_backend not in {"thread", "rq"}:
@@ -641,6 +649,7 @@ def load_settings() -> Settings:
         smtp_starttls=smtp_starttls,
         auth_rate_limit_enabled=auth_rate_limit_enabled,
         trust_proxy_headers=trust_proxy_headers,
+        cors_origins=cors_origins,
         job_backend=job_backend,
         redis_url=redis_url,
         rq_queue=rq_queue,
@@ -694,6 +703,10 @@ def validate_security_settings(settings: Settings) -> None:
         raise RuntimeError(
             "Auth is enabled but VETMIND_JWT_SECRET is still the public demo default. "
             "Set a strong secret (e.g. `python -c 'import secrets; print(secrets.token_urlsafe(48))'`)."
+        )
+    if settings.deployment_mode == "protected" and "*" in settings.cors_origins:
+        raise RuntimeError(
+            "VETMIND_CORS_ORIGINS='*' is not allowed in protected deployment mode; list the exact origins."
         )
     if settings.deployment_mode == "protected" and settings.allow_insecure_demo:
         raise RuntimeError("VETMIND_ALLOW_INSECURE_DEMO is not allowed in protected deployment mode.")
