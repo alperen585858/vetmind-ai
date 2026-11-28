@@ -1,0 +1,20 @@
+name: npm-deps-audit
+
+# #122: known-vulnerability scan of the frontend's npm dependencies (twin of pip-audit.yml).
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+  pull_request:
+    paths: ["package.json", "package-lock.json"]
+  workflow_dispatch:
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Lockfile only: no install needed. High/critical fails the job.
+      - run: npm audit --package-lock-only --audit-level=high
