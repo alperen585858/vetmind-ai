@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -28,6 +29,8 @@ from app.schemas.workflow import (
 from app.services.activity import append_activity
 from app.services.host_bound import HostBound
 from app.settings import Settings
+
+log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -209,13 +212,13 @@ class CaseCollaborationService(HostBound):
             try:
                 candidates.append(getattr(lookup(subject), "display_name", None))
             except Exception:  # noqa: BLE001 — display only, never blocks the note
-                pass
+                log.debug("Display name lookup failed", exc_info=True)
         directory = getattr(self, "_workflow_store", None)
         if directory is not None and hasattr(directory, "get_user"):
             try:
                 candidates.append(getattr(directory.get_user(subject), "display_name", None))
             except Exception:  # noqa: BLE001 — display only
-                pass
+                log.debug("Display name lookup failed", exc_info=True)
         for name in candidates:
             if isinstance(name, str) and name.strip() and name.strip() != fallback:
                 return name.strip()[:120]

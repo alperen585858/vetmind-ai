@@ -267,7 +267,7 @@ def trim_audit_log(path: Path | None, *, keep_days: int) -> int:
             if ts is not None and ts < cutoff:
                 removed += 1
                 continue
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             kept.append(line)
             continue
         kept.append(line)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -46,6 +47,8 @@ from app.services.report_versioning import (
     snapshot_from_draft,
     upsert_version_snapshot,
 )
+
+log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -621,6 +624,7 @@ class ReportApplication(HostBound):
                     )
             except Exception:
                 # Approval must not fail solely on evidence copy; PDF may omit figures.
+                log.warning("Evidence snapshot failed for case %s", case.case_id, exc_info=True)
                 report.validation_warnings = list(report.validation_warnings) + [
                     "Evidence snapshot incomplete; PDF may omit AI evidence figures."
                 ]

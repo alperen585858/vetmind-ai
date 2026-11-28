@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,6 +16,8 @@ from app.schemas.findings import (
     EvidenceReference,
     StructuredFindings,
 )
+
+log = logging.getLogger(__name__)
 
 
 def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | None = None) -> np.ndarray | None:
@@ -58,6 +61,7 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
             frame_index=frame_index,
         )
     except Exception:
+        log.debug("Could not decode DICOM frame for evidence overlay", exc_info=True)
         return None
 
 

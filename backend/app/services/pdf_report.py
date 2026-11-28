@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import struct
 from io import BytesIO
@@ -37,6 +38,8 @@ from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Species
 from app.schemas.report import DraftReport, ReportVersionSnapshot
 
+log = logging.getLogger(__name__)
+
 _FONT_REGISTERED = False
 _FONT_NAME = "Helvetica"
 _MAX_REPORT_IMAGES = 4
@@ -65,6 +68,7 @@ def _resolve_font() -> str:
                 _FONT_REGISTERED = True
                 return _FONT_NAME
             except Exception:
+                log.debug("Could not register PDF font %s", path, exc_info=True)
                 continue
     _FONT_REGISTERED = True
     _FONT_NAME = "Helvetica"
@@ -168,7 +172,7 @@ def _species_label(case: CaseRecord) -> str:
     try:
         sp = raw if isinstance(raw, Species) else Species(str(raw).strip().lower())
         return _SPECIES_UI.get(sp, SPECIES_TR.get(sp, str(getattr(raw, "value", raw))))
-    except Exception:
+    except ValueError:
         return str(getattr(raw, "value", raw))
 
 
@@ -177,7 +181,7 @@ def _region_label(case: CaseRecord) -> str:
     try:
         reg = raw if isinstance(raw, AnatomicalRegion) else AnatomicalRegion(str(raw).strip().lower())
         return _REGION_UI.get(reg, REGION_TR.get(reg, str(getattr(raw, "value", raw))))
-    except Exception:
+    except ValueError:
         return str(getattr(raw, "value", raw))
 
 
@@ -271,6 +275,7 @@ def collect_report_image_pngs(
         try:
             refs = quarantine.list_files(str(ingest_id))
         except Exception:
+            log.warning("Could not list DICOM files for PDF report", exc_info=True)
             refs = []
         for ref in refs:
             rel = getattr(ref, "relative_path", None) or ""
@@ -291,6 +296,7 @@ def collect_report_image_pngs(
         try:
             _name, data = quarantine.read_file(rel)
         except Exception:
+            log.warning("Could not read image %s for PDF report", rel, exc_info=True)
             continue
         result = dicom_bytes_to_png(data, max_edge=_IMAGE_MAX_EDGE_PX, as_rgb=False)
         if result:
@@ -311,6 +317,7 @@ def collect_report_image_pngs(
         try:
             _name, data = quarantine.read_file(doc.quarantine_relative_path)
         except Exception:
+            log.warning("Could not read document image for PDF report", exc_info=True)
             continue
         if not _is_raster_bytes(data):
             continue
@@ -323,7 +330,7 @@ def _fmt_dt(value: Any) -> str:
         return "—"
     try:
         return value.strftime("%d.%m.%Y %H:%M")
-    except Exception:
+    except (AttributeError, ValueError):
         return str(value)
 
 

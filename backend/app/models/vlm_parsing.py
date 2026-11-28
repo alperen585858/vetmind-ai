@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 
 from pydicom import dcmread
-from pydicom.errors import InvalidDicomError
 
 from app.models.interfaces import ImagingAdapterError
 from app.models.ontology import (
@@ -22,6 +22,8 @@ from app.models.vlm_grounding import (
 )
 from app.schemas.enums import FindingStatus
 from app.schemas.findings import Finding
+
+log = logging.getLogger(__name__)
 
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
 _VLM_MAX_EDGE = 1024
@@ -146,7 +148,8 @@ def _mime_for(data: bytes) -> str:
 def _dicom_frame_count(data: bytes) -> int:
     try:
         ds = dcmread(BytesIO(data), force=True, stop_before_pixels=True)
-    except (InvalidDicomError, Exception):
+    except Exception:
+        log.debug("DICOM header unreadable; assuming one frame", exc_info=True)
         return 1
     n = int(getattr(ds, "NumberOfFrames", 1) or 1)
     return max(1, n)

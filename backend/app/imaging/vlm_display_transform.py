@@ -132,7 +132,7 @@ def native_bbox_from_vlm_png(
                 coordinate_space="pixel_2d_native",
                 transform_chain=[],
             )
-        except Exception:
+        except ValueError:
             return None
         return VerifiedNativeBBox(bbox=bbox, verified=True, reason="identity")
 
@@ -163,7 +163,7 @@ def native_bbox_from_vlm_png(
             coordinate_space="pixel_2d_native",
             transform_chain=[],
         )
-    except Exception:
+    except ValueError:
         return None
     return VerifiedNativeBBox(bbox=bbox, verified=True, reason="resized_inverted")
 
@@ -188,7 +188,7 @@ def model_input_bbox_with_chain(
             coordinate_space="model_input",
             transform_chain=steps_to_dicts(chain),
         )
-    except Exception:
+    except ValueError:
         return None
     return VerifiedNativeBBox(bbox=bbox, verified=True, reason="model_input_chained")
 

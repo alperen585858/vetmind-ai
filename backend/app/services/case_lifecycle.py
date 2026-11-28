@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -27,6 +28,8 @@ from app.schemas.enums import (
 )
 from app.services.activity import append_activity
 from app.services.case_ids import canonicalize_case_id
+
+log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -252,5 +255,5 @@ class CaseLifecycleMixin:
             try:
                 store.delete_case_artifacts(case_id)  # type: ignore[union-attr]
             except Exception:  # noqa: BLE001 — leftover files must not block the delete
-                pass
+                log.warning("Could not delete evidence artifacts for case %s", case_id, exc_info=True)
         self._emit_audit("case.delete", principal=principal, resource=case_id, detail=clean)

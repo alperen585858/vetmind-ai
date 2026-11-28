@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -13,6 +14,8 @@ from app.schemas.notifications import (
     NotificationListResponse,
 )
 from app.services.notification_store import NotificationStore
+
+log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -56,7 +59,7 @@ class NotificationService:
                 # Tell open tabs to refresh the bell; the payload carries no message text.
                 live.publish({recipient_subject}, {"type": "notification", "kind": kind})
             except Exception:  # noqa: BLE001 — best effort
-                pass
+                log.debug("Live push failed for notification", exc_info=True)
         return saved
 
     def bind_live(self, live: object) -> None:

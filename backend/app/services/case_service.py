@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,6 +56,8 @@ from app.settings import Settings
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
 from app.workers.job_backend import JobBackend, ThreadJobBackend
+
+log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -168,6 +171,7 @@ class CaseService(CaseListingMixin, CaseLifecycleMixin, CaseEvidenceMixin):
             draft.comparison = build_comparison(case, draft, prior, language=language)
             draft.validation_warnings.extend(comparison_warnings(draft))
         except Exception:  # noqa: BLE001 — comparison is optional context, never fatal
+            log.warning("Prior-study comparison failed for case %s", case.case_id, exc_info=True)
             draft.comparison = None
 
     def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
@@ -211,6 +215,7 @@ class CaseService(CaseListingMixin, CaseLifecycleMixin, CaseEvidenceMixin):
                 approved_at=case.report_available_at or case.updated_at,
             )
         except Exception:
+            log.exception("Could not record radiologist payout for case %s", case.case_id)
             # Payout ledger must not block clinical approval.
             pass
 
@@ -237,6 +242,7 @@ class CaseService(CaseListingMixin, CaseLifecycleMixin, CaseEvidenceMixin):
                     if lang in {"tr", "en"}:
                         return lang
                 except Exception:  # noqa: BLE001 — settings must never block analysis
+                    log.debug("User settings lookup failed", exc_info=True)
                     continue
         return self._default_report_language
 

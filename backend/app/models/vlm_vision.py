@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import re
 import time
 from pathlib import Path
@@ -70,6 +71,8 @@ from app.schemas.case import CaseRecord
 from app.schemas.enums import ModelExecutionStatus, SourceKind
 from app.schemas.findings import Finding, StructuredFindings, StudyInfo
 from app.storage.quarantine import QuarantineStore
+
+log = logging.getLogger(__name__)
 
 
 class OpenAiCompatibleVlmVisionModel(VlmImageCollectionMixin, VlmFindingsMapperMixin):
@@ -189,6 +192,7 @@ class OpenAiCompatibleVlmVisionModel(VlmImageCollectionMixin, VlmFindingsMapperM
                     }
                 )
             except Exception:
+                log.warning("Vision progress callback failed; stopping progress updates", exc_info=True)
                 return
 
         _emit_progress(batch_i=0, analyzed_n=0)

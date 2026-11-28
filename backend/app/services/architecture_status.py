@@ -18,6 +18,7 @@ Status values:
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
@@ -35,6 +36,8 @@ from app.schemas.enums import (
     Modality,
     SourceKind,
 )
+
+log = logging.getLogger(__name__)
 
 ACTIVE = "active"
 MOCK = "mock"
@@ -152,6 +155,7 @@ def _recent_usage(container: Any) -> dict[str, Any]:
     try:
         cases = list(container.repo.list_cases())
     except Exception:  # noqa: BLE001 — diagram must render even if storage hiccups
+        log.warning("Could not list cases for architecture status", exc_info=True)
         cases = []
     cases.sort(key=lambda c: c.updated_at, reverse=True)
     for case in cases:

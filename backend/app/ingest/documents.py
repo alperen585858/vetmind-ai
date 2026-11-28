@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from io import BytesIO
 from typing import Protocol
 from urllib import error
 from urllib import request as urlrequest
 
 from app.schemas.enums import FileContentKind
+
+log = logging.getLogger(__name__)
 
 _MAX_CHARS = 12_000
 
@@ -104,6 +107,7 @@ def _extract_pdf(data: bytes) -> tuple[str | None, bool]:
             return "[PDF contained no extractable text layer.]", False
         return _truncate(text)
     except Exception as exc:  # noqa: BLE001
+        log.warning("PDF text extraction failed", exc_info=True)
         return f"[PDF parse failed: {type(exc).__name__}. File remains in quarantine.]", False
 
 

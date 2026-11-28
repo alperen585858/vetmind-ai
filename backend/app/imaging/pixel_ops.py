@@ -7,11 +7,14 @@ window presets beyond explicit WW/WC arguments.
 
 from __future__ import annotations
 
+import logging
 from typing import Iterable, Sequence
 
 import numpy as np
 
 from app.imaging.interfaces import PrepValidationError
+
+log = logging.getLogger(__name__)
 
 TRANSFORM_EXTRACT_PIXELS = "extract_pixels"
 TRANSFORM_NORMALIZE = "normalize_01"
@@ -123,6 +126,7 @@ def resize_2d(
                 out = u8.astype(np.float32) / 255.0
             resized_planes.append(out.astype(np.float32))
     except Exception:
+        log.debug("OpenCV resize unavailable or failed; using NumPy fallback", exc_info=True)
         # Deterministic NumPy nearest-neighbor fallback (no OpenCV required for core).
         resized_planes = []
         for plane in planes:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -19,6 +21,8 @@ from app.schemas.messaging import (
 )
 from app.services.live_events import StreamIdentity, event_stream
 from app.services.messaging_facade import MessagingFacade
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"], dependencies=[Depends(require_auth)])
 # The SSE stream authenticates with a single-use ticket (EventSource cannot send headers).
@@ -43,6 +47,7 @@ def _jwt_identity(request: Request) -> tuple[str | None, str | None]:
         payload = decode_token(header.split(" ", 1)[1].strip(), auth.jwt_secret)
         subject, role, _clinic = resolve_jwt_identity(payload, auth.users)
     except Exception:  # noqa: BLE001 — invalid/expired token → no identity
+        log.debug("Live stream token rejected", exc_info=True)
         return None, None
     if role not in _ALLOWED_DEMO_ROLES:
         return None, None

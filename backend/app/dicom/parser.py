@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any, Optional
@@ -10,6 +11,8 @@ from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
 from app.schemas.enums import Modality
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -119,6 +122,7 @@ def parse_dicom_bytes(data: bytes, filename: str) -> ParsedInstance:
             error_message=f"Invalid DICOM: {exc}",
         )
     except Exception as exc:  # noqa: BLE001 — surface as malformed for ingest UX
+        log.debug("DICOM parse failed for %s", filename, exc_info=True)
         return ParsedInstance(
             filename=filename,
             malformed=True,

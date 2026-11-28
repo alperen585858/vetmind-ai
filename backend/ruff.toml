@@ -3,12 +3,16 @@ target-version = "py311"
 extend-exclude = ["data", "q", ".venv"]
 
 [lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I", "B", "BLE"]
 ignore = [
     "E501",  # long lines: no formatter yet, so line length is not enforced
     "B008",  # FastAPI dependencies are declared as Depends(...) defaults
     "B905",  # zip() without strict=: existing calls pair equal-length lists
 ]
+
+[lint.per-file-ignores]
+# Tests may probe optional services (torch, Redis) or collect any error type.
+"tests/**" = ["BLE001"]
 
 [lint.isort]
 known-first-party = ["app"]

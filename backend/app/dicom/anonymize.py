@@ -6,11 +6,13 @@ de-identification (Supplement 142). Protected deployments should require this.
 
 from __future__ import annotations
 
+import logging
 from io import BytesIO
 from typing import Iterable
 
 from pydicom import dcmread
-from pydicom.errors import InvalidDicomError
+
+log = logging.getLogger(__name__)
 
 # Tags commonly carrying direct identifiers — blank or remove.
 _IDENTITY_ATTRS: tuple[str, ...] = (
@@ -52,7 +54,8 @@ def scrub_dicom_bytes(
         return data
     try:
         ds = dcmread(BytesIO(data), force=True)
-    except (InvalidDicomError, Exception):
+    except Exception:
+        log.warning("DICOM unreadable; returning bytes without anonymization", exc_info=True)
         return data
     for name in _IDENTITY_ATTRS:
         if hasattr(ds, name):
@@ -64,10 +67,11 @@ def scrub_dicom_bytes(
                 else:
                     delattr(ds, name)
             except Exception:
+                log.debug("Could not remove DICOM attribute; blanking it", exc_info=True)
                 try:
                     setattr(ds, name, "")
                 except Exception:
-                    pass
+                    log.debug("Could not blank DICOM attribute", exc_info=True)
     if not keep_uids:
         # Optional hard remint — default keep study graph UIDs for merge integrity.
         pass
@@ -75,6 +79,7 @@ def scrub_dicom_bytes(
     try:
         ds.save_as(buf, enforce_file_format=True)
     except Exception:
+        log.warning("Could not re-encode anonymized DICOM; returning original bytes", exc_info=True)
         return data
     return buf.getvalue()
 

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -27,6 +28,8 @@ from app.schemas.messaging import (
 )
 from app.services.messaging_store import MessagingStore
 from app.services.notification_service import NotificationService
+
+log = logging.getLogger(__name__)
 
 # Subjects stored by auth-off demo sessions before messages were attributed to a person.
 LEGACY_DEMO_SUBJECTS = frozenset({"anonymous", "demo"})
@@ -80,7 +83,7 @@ class MessagingService:
         try:
             self._live.publish(targets, {"thread_id": thread.thread_id, **event})  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001 — live push is best effort; data is already saved
-            pass
+            log.debug("Live push failed for thread %s", thread.thread_id, exc_info=True)
 
     def _is_online(self, subject: str | None) -> bool:
         if self._live is None or not subject:
@@ -119,6 +122,7 @@ class MessagingService:
             try:
                 user = store.get_user(subject)  # type: ignore[attr-defined]
             except Exception:  # noqa: BLE001 — display only
+                log.debug("User lookup failed", exc_info=True)
                 user = None
             name = getattr(user, "display_name", None) if user is not None else None
             if name:

@@ -7,12 +7,15 @@ Missing weights fail closed — callers must not invent clinical findings.
 from __future__ import annotations
 
 import hashlib
+import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from app.models.errors import ModelUnavailableError
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -226,7 +229,7 @@ def readiness_weight_fields(
         out["torch_available"] = True
         out["cuda_available"] = bool(torch.cuda.is_available())
     except Exception:  # noqa: BLE001
-        pass
+        log.debug("torch not available", exc_info=True)
     try:
         import monai  # type: ignore[import-not-found]  # noqa: F401
 
@@ -238,7 +241,7 @@ def readiness_weight_fields(
         except Exception:  # noqa: BLE001
             out["monai_version"] = "unknown"
     except Exception:  # noqa: BLE001
-        pass
+        log.debug("monai not available", exc_info=True)
 
     if weights_path and Path(weights_path).is_file():
         try:

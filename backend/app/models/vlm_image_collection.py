@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,8 @@ from app.models.vlm_parsing import (
 )
 from app.schemas.case import CaseRecord
 
+log = logging.getLogger(__name__)
+
 
 class VlmImageCollectionMixin:
     """Image gathering / decoding for OpenAiCompatibleVlmVisionModel."""
@@ -40,6 +43,7 @@ class VlmImageCollectionMixin:
                 try:
                     _name, data = self._quarantine.read_file(inv.quarantine_rel)
                 except Exception:
+                    log.warning("Could not read quarantined file %s", inv.quarantine_rel, exc_info=True)
                     continue
                 file_cache[inv.quarantine_rel] = data
             if inv.is_raster:
@@ -166,6 +170,7 @@ class VlmImageCollectionMixin:
         try:
             name, data = self._quarantine.read_file(cand.rel)
         except Exception:
+            log.warning("Could not read quarantined file %s", cand.rel, exc_info=True)
             return []
         filename = cand.filename or name
         base = {

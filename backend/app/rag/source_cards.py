@@ -24,11 +24,14 @@ other region is mentioned.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 
 from app.llm.privacy import redact_personal_data
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.settings import Settings
@@ -265,6 +268,7 @@ class SourceCardTagger:
         try:
             payload = self._llm.complete_json(SYSTEM_PROMPT, user, CARD_JSON_SCHEMA, tool_name=TOOL_NAME)
         except Exception:  # noqa: BLE001 — any provider failure falls back to the rules
+            log.warning("LLM source card failed; using rule-based card", exc_info=True)
             return rules
         return merge_cards(rules, parse_llm_card(payload))
 

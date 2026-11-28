@@ -6,19 +6,21 @@ and records undecodable/unsupported paths explicitly. Does not decode pixel arra
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 from pydicom import dcmread
-from pydicom.errors import InvalidDicomError
 
 from app.imaging.display_png import is_localizer_label
 from app.imaging.mr_sequence import MrSequenceInfo, mr_sequence_from_dataset
 from app.schemas.analysis_coverage import AnalysisCoverage, SeriesCoverage, SkippedFile
 from app.schemas.case import CaseRecord
 from app.storage.quarantine import QuarantineStore
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -107,7 +109,8 @@ def _frame_count_from_bytes(name: str, data: bytes) -> tuple[int, bool] | None:
         return 1, False
     try:
         ds = dcmread(BytesIO(data), force=True, stop_before_pixels=True)
-    except (InvalidDicomError, Exception):
+    except Exception:
+        log.debug("DICOM header unreadable; counting as one frame", exc_info=True)
         if data[:132].find(b"DICM") < 0 and not lower.endswith((".dcm", ".dicom")):
             return None
         return None
@@ -126,6 +129,7 @@ def _dicom_meta_from_bytes(data: bytes) -> dict[str, Any]:
     try:
         ds = dcmread(BytesIO(data), force=True, stop_before_pixels=True)
     except Exception:
+        log.debug("DICOM header unreadable; no series metadata", exc_info=True)
         return {}
     def _int(name: str) -> int | None:
         raw = getattr(ds, name, None)
@@ -200,6 +204,7 @@ def build_study_inventory(case: CaseRecord, quarantine: QuarantineStore) -> Stud
         try:
             name, data = quarantine.read_file(rel)
         except Exception as exc:
+            log.warning("Could not read quarantined file %s", rel, exc_info=True)
             inv.skipped.append(SkippedFile(path=rel, reason=f"read_failed: {type(exc).__name__}"))
             inv.undecodable_files.add(rel)
             return
@@ -290,6 +295,7 @@ def build_study_inventory(case: CaseRecord, quarantine: QuarantineStore) -> Stud
         try:
             refs = quarantine.list_files(ingest_id)
         except Exception:
+            log.warning("Could not list quarantine files for ingest %s", ingest_id, exc_info=True)
             continue
         for ref in refs:
             rel = ref.relative_path or ""

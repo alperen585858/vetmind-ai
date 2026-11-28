@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from typing import Literal, Optional
 
@@ -22,6 +23,8 @@ from app.ml.training_export import (
     iter_export_rows,
     patient_split_rows,
 )
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/training", tags=["training"])
 
@@ -121,7 +124,7 @@ def post_training_export(
             detail=f"rows={len(rows)} policy={policy}",
         )
     except Exception:
-        pass
+        log.warning("Could not write audit event for training export", exc_info=True)
 
     return {
         "manifest": manifest,
