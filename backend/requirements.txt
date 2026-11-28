@@ -2,19 +2,19 @@
 # build today and next month install the same thing. Python 3.12 (Dockerfile and CI).
 # Bump on purpose (Dependabot opens grouped PRs weekly), run the tests, commit.
 # Test tools: requirements-dev.txt.
-fastapi==0.162.0
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
 pydantic==2.14.4
 python-dotenv==1.2.4
 httpx==0.28.1
 pydicom==3.0.2
 numpy==2.5.4
-python-multipart==0.0.32
+python-multipart==0.0.34
 pypdf==6.21.4
-psycopg[binary]==3.3.6
+psycopg[binary]==3.3.9
 # Schema migrations (#102); SQLAlchemy is only used by Alembic.
 alembic==1.20.1
 sqlalchemy==2.1.9
-reportlab==5.1.0
+reportlab==5.1.1
 Pillow==13.0.0
 cryptography==50.0.2
