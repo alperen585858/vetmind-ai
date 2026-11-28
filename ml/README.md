@@ -25,7 +25,7 @@ ml/
 - Human radiology weights are initialization only — not clinically reliable for veterinary use.
 - Do not mark `clinically_approved=true` without external validation + human sign-off.
 - Production loads weights via `VETMIND_LOCAL_TORCH_*` entrypoints under `backend/app/models/entrypoints/`.
-- **Never auto-promote** checkpoints over the Gemini production path — see [docs/MODEL_PROMOTION.md](../docs/MODEL_PROMOTION.md).
+- **Never auto-promote** checkpoints into the routed analysis path (default is mock; VLM and LocalTorch are opt-in) — see [docs/MODEL_PROMOTION.md](../docs/MODEL_PROMOTION.md).
 
 ## CPU-safe train contract
 

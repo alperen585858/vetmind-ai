@@ -172,20 +172,23 @@ Uygulama girişi: `uvicorn app.main:app --port 8000`.
 
 Gerçek modeller adapter olarak eklenir; orchestrator yeniden yazılmaz.
 
-### 4.4 Vision model registry (mock)
+### 4.4 Vision model registry
 
-| Model id | Rol |
-|----------|-----|
-| `mock-brain-mri-v1` | Beyin MR |
-| `mock-cervical-mri-v1` | Servikal MR |
-| `mock-ct-3d-v1` | Beyin CT |
-| `mock-xr-vision-v1` | Toraks XR |
-| `mock-multimodal-vlm-v1` | Doküman / multimodal stub |
-| `vlm-vision-v1` | `VETMIND_VLM_ENABLED=1`: genel amaçlı VLM (ör. Gemini) görüntüleri yorumlar; `exclusive_real` politikasında mock'ların yerini alır, veterinerde valide değildir |
-| `vet-xr-thorax-v1` (yapılandırılabilir) | `VETMIND_LOCAL_TORCH_*`: yerel PyTorch/MONAI röntgen modeli (insan verisiyle eğitilmiş demo) |
-| `remote-vision-v1` (yapılandırılabilir) | `VETMIND_VISION_ENDPOINT` set ise `HttpRemoteVisionModel` |
+Varsayılan kurulumda yalnızca mock modeller çalışır. Gerçek modeller env ile açılır ve hiçbiri veterinerde valide değildir.
 
-Provenance: findings üzerinde `source_kind` ∈ {`mock`, `real`, `mixed`}.
+| Model id | Tür | Rol |
+|----------|-----|-----|
+| `mock-brain-mri-v1`, `mock-brain-mri-alt-v1` | mock (varsayılan) | Beyin MR (alt: çatışma demosu) |
+| `mock-cervical-mri-v1` | mock (varsayılan) | Servikal MR |
+| `mock-ct-3d-v1` | mock (varsayılan) | Beyin CT |
+| `mock-xr-vision-v1` | mock (varsayılan) | Toraks XR |
+| `mock-multimodal-vlm-v1` | mock (varsayılan) | Doküman / multimodal stub |
+| `vlm-vision-v1` | gerçek, opsiyonel | `VETMIND_VLM_ENABLED=1`: genel amaçlı VLM (ör. Gemini) seçilen kareleri yorumlar; `exclusive_real` politikasında mock'ların yerini alır; veterinerde valide değildir |
+| `vet-xr-thorax-v1` (yapılandırılabilir) | gerçek, opsiyonel | `VETMIND_LOCAL_TORCH_*` + `xray_monai`: TorchXRayVision DenseNet121 (insan PA/AP göğüs filmleriyle eğitilmiş), MONAI yalnızca pad/resize. Lateral, VD/DV veya projeksiyonu etiketsiz filmlerde ve köpek/kedide bulgular `uncertain` olur, rapora "Sınırlama:" notu eklenir |
+| CT/MR yerel model (`ct_monai`, `mri_monai`) | **tiny sözleşme modeli (mock)** | Adına rağmen MONAI ağı ya da eğitilmiş model yok; yalnızca bridge sözleşmesini test eden küçük bir ağ. Yapılandırılırsa readiness, `/health` ve AI Mimarisi sayfasında mock / sentetik görünür, router analize **almaz**; başka mimari bildiren checkpoint reddedilir |
+| `remote-vision-v1` (yapılandırılabilir) | gerçek, opsiyonel | `VETMIND_VISION_ENDPOINT` set ise `HttpRemoteVisionModel` |
+
+Provenance: findings üzerinde `source_kind` ∈ {`mock`, `real`, `mixed`}. `real` klinik doğrulama anlamına gelmez. Skor kalibrasyonu (`models/calibration.py`) henüz bağlı değildir; tüm yerel modeller `calibrated=false` yazar.
 
 ### 4.5 Kalıcılık (`CaseRepository`)
 
@@ -216,7 +219,7 @@ Saklanan başlıca varlıklar: `CaseRecord`, `AnalysisJob`, `DicomIngestionRecor
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash/bge-m3 embedding + cosine; `PgVectorStore` → PostgreSQL `rag_chunks` (#117); PostgreSQL yoksa `data/rag_index.json`; `VETMIND_RAG_STORE=chroma` isteğe bağlı |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | bge-m3 embedding (Ollama; varsayılan `VETMIND_RAG_EMBEDDING=ollama`, Ollama/model yoksa hash'e düşer, `hash` ile kapatılır) + cosine; `PgVectorStore` → PostgreSQL `rag_chunks` (#117); PostgreSQL yoksa `data/rag_index.json`; `VETMIND_RAG_STORE=chroma` isteğe bağlı |
 | lexical | `lexical` | Token overlap; vektör indeks yok |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`. Draft üzerinde `rag_citations` + `rag_note`.
@@ -353,7 +356,7 @@ Kaynak: `backend/app/settings.py` ve `backend/.env.example`.
 | `VETMIND_ASYNC_DELAY_MS` | `400` (0–10000) |
 | `VETMIND_JOB_BACKEND` | `thread` \| `rq` |
 | `VETMIND_REDIS_URL` | RQ için gerekli |
-| `VETMIND_RQ_QUEUE` | `vetmind` (worker) |
+| `VETMIND_RQ_QUEUE` | `vetmind`; API bu kuyruğa iş koyar, worker bu kuyruğu dinler. `vetmind-gpu` → `python -m app.workers.rq_gpu_worker` |
 | `VETMIND_RAG` | `embedding` \| `lexical` |
 | `VETMIND_RAG_STORE` | `auto` (PostgreSQL varsa `pgvector`, yoksa `json`) \| `pgvector` \| `json` \| `chroma` (isteğe bağlı) |
 | `VETMIND_CHROMA_PATH` / `VETMIND_CHROMA_URL` | Yalnızca `RAG_STORE=chroma`: `./data/chroma` / — |
@@ -521,8 +524,8 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine (`uzman_incele
 
 ## 13. Olası sonraki adımlar
 
-1. Gerçek şirket Vision / GPU serving (`HttpRemoteVision` yerine veya üzerinde).
-2. Sentence-transformers + Qdrant / pgvector.
+1. Gerçek, veteriner verisiyle ölçülmüş Vision modeli (ör. omurga MR segmentasyonu `ml/training/spine_seg/` → backend entrypoint) ve GPU serving.
+2. ~~Anlamsal embedding + vektör veritabanı~~ → bge-m3 + pgvector yapıldı (#101, #117).
 3. OAuth / SSO IdP.
 4. K8s / managed queue ve object storage quarantine.
 5. Daha zengin ilişkisel klinik şema (Postgres JSONB’den çıkış).

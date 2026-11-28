@@ -606,18 +606,21 @@ Frontend `caseStatusMap.ts` backend durumlarını UI etiketlerine map eder.
 6. `ReportValidator.validate`  
 7. Case / job status güncelleme  
 
-### 8.2 Vision model registry (mock)
+### 8.2 Vision model registry
 
-| `model_id` | Rol |
-|------------|-----|
-| `mock-brain-mri-v1` | Beyin MR |
-| `mock-brain-mri-alt-v1` | Çatışma demosu |
-| `mock-cervical-mri-v1` | Servikal MR |
-| `mock-ct-3d-v1` | Beyin CT |
-| `mock-xr-vision-v1` | Toraks XR |
-| `mock-multimodal-vlm-v1` | Doküman / multimodal stub |
-| `manual-review` | Desteklenmeyen rota |
-| `remote-vision-v1` (yapılandırılabilir) | `VETMIND_VISION_ENDPOINT` set ise HTTP |
+| `model_id` | Tür | Rol |
+|------------|-----|-----|
+| `mock-brain-mri-v1` | mock (varsayılan) | Beyin MR |
+| `mock-brain-mri-alt-v1` | mock (varsayılan) | Çatışma demosu |
+| `mock-cervical-mri-v1` | mock (varsayılan) | Servikal MR |
+| `mock-ct-3d-v1` | mock (varsayılan) | Beyin CT |
+| `mock-xr-vision-v1` | mock (varsayılan) | Toraks XR |
+| `mock-multimodal-vlm-v1` | mock (varsayılan) | Doküman / multimodal stub |
+| `manual-review` | — | Desteklenmeyen rota |
+| `vlm-vision-v1` | gerçek, opsiyonel | `VETMIND_VLM_ENABLED=1`: genel amaçlı VLM (ör. Gemini) görüntüleri yorumlar; veterinerde valide değil |
+| `vet-xr-thorax-v1` (yapılandırılabilir) | gerçek, opsiyonel | `VETMIND_LOCAL_TORCH_*` + `xray_monai` (§4.5): insan verisiyle eğitilmiş DenseNet121; lateral, VD/DV, etiketsiz projeksiyon ve köpek/kedide bulgular `uncertain` + rapora "Sınırlama:" notu |
+| CT/MR yerel model (`ct_monai`, `mri_monai`) | tiny sözleşme modeli (mock) | Eğitilmiş model ya da MONAI ağı yok; yapılandırılırsa mock/sentetik görünür ve analize alınmaz |
+| `remote-vision-v1` (yapılandırılabilir) | gerçek, opsiyonel | `VETMIND_VISION_ENDPOINT` set ise HTTP |
 
 Mock’lar: `source_kind=MOCK`, `Finding.synthetic=True`.  
 Pixel: default-deny. Varsayılan kurulumda hiçbir capability `allows_pixel_analysis=True` değil; `VETMIND_LOCAL_TORCH_*`
@@ -700,7 +703,7 @@ oranı, hakemce desteklenen cümle, süre, çağrı sayısı; `--repeat` ile ort
 
 | Mod | Env | Mekanizma |
 |-----|-----|-----------|
-| embedding (varsayılan) | `VETMIND_RAG=embedding` | Hash n-gram (veya bge-m3) + cosine; vektörler PostgreSQL'de (pgvector), PostgreSQL yoksa `data/rag_index.json` |
+| embedding (varsayılan) | `VETMIND_RAG=embedding` | bge-m3 (Ollama, varsayılan; Ollama yoksa hash n-gram'a düşer) + cosine; vektörler PostgreSQL'de (pgvector), PostgreSQL yoksa `data/rag_index.json` |
 | lexical | `lexical` | Token overlap |
 
 Seed: `rag/corpus.py`. Admin: `POST /rag/reindex`, `POST /rag/documents`.  
@@ -1012,7 +1015,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 |----------|------------|--------|
 | `VETMIND_JOB_BACKEND` | `thread` | `thread` \| `rq` |
 | `VETMIND_REDIS_URL` | — | RQ Redis URL |
-| `VETMIND_RQ_QUEUE` | `vetmind` | Kuyruk adı |
+| `VETMIND_RQ_QUEUE` | `vetmind` | Kuyruk adı (API ve worker aynı değeri kullanır; `vetmind-gpu` → `rq_gpu_worker`) |
 
 ### RAG / Vision / LLM
 
