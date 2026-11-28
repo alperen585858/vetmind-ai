@@ -236,6 +236,13 @@ npm install
 | 1 | `npm run backend:dev:ai` | API (8000) — gerçek modelle. **Kapatmayın.** |
 | 2 | `npm run dev` | Arayüz (5173) — tarayıcı otomatik açılır |
 
+**Bağlam penceresi (#129):** Ollama varsayılan olarak 4096 token tutar ve daha uzun bir prompt'un başını **hata vermeden** atar; uzun öyküde rapor talimatları kaybolabilir. Ollama'yı daha geniş pencereyle başlatın ve backend'e aynı sayıyı söyleyin:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve          # Windows: setx OLLAMA_CONTEXT_LENGTH 16384, Ollama'yı yeniden başlatın
+export VETMIND_LLM_CONTEXT_TOKENS=16384           # sığmayan / kesilen prompt'ta backend loguna uyarı düşer
+```
+
 Uygulamayı **http://localhost:5173** adresinden kullanın. `http://127.0.0.1:8000` bir web sayfası değildir;
 tarayıcıda açınca `404 Not Found` görmeniz normaldir.
 
@@ -1036,6 +1043,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_VISION_EXECUTION_POLICY` | `exclusive_real` | `exclusive_real` \| `mixed` |
 | `VETMIND_LLM_PROVIDER` | `mock` | `mock` \| `stub` \| `http` \| `ollama` \| `openai` \| `anthropic` (+ `vllm`, `openrouter`, `groq`, `lmstudio`) |
 | `VETMIND_LLM_MODEL_ID` | — | Model adı, ör. `qwen2.5:7b` (`anthropic` boşsa varsayılan model) |
+| `VETMIND_LLM_CONTEXT_TOKENS` | Ollama: `4096`, diğerleri: kontrol yok | Modelin bağlam penceresi. Prompt + çıktı sığmayacaksa veya sunucu prompt'u kestiyse (`usage.prompt_tokens` çok düşük) uyarı loglanır. Ollama'da `OLLAMA_CONTEXT_LENGTH` ile aynı yapın |
 | `VETMIND_LLM_ENDPOINT` | sağlayıcıya göre | Temel URL (Ollama: `http://localhost:11434/v1`) |
 | `VETMIND_LLM_API_KEY` | — | OpenAI / Anthropic için |
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modelde **180** önerilir |
@@ -1295,7 +1303,7 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 | 5 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
 | 6 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
 | 7 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
-| 8 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
+| 8 | ~~Ollama bağlam penceresi~~ → sığmayan / kesilen prompt artık loglanıyor, kurulum §4.4'te (#129) | Prompt sessizce kesilmesin | — |
 
 **Olası sonraki adımlar (platform):**
 

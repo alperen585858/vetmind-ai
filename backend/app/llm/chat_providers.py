@@ -11,6 +11,7 @@ No network I/O at construction; POSTs are never retried (see ``app.http_policy``
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any
 
@@ -86,6 +87,14 @@ def _error_detail(res: httpx.Response) -> str:
     err = body.get("error") if isinstance(body, dict) else None
     msg = err.get("message") if isinstance(err, dict) else err
     return f": {str(msg)[:200]}" if msg else ""
+
+
+_log = logging.getLogger(__name__)
+
+
+def estimate_prompt_tokens(*parts: str) -> int:
+    """Rough token count: ~3 characters per token for Turkish/English clinical text."""
+    return sum(len(p or "") for p in parts) // 3 + 16
 
 
 class _ChatProviderBase:
@@ -368,8 +377,11 @@ class _ChatProviderBase:
 class OpenAICompatibleProvider(_ChatProviderBase):
     """POST {base_url}/chat/completions with JSON output enforcement."""
 
-    def __init__(self, *, json_mode: str = "schema", **kwargs: Any) -> None:
+    def __init__(self, *, json_mode: str = "schema", context_tokens: int = 0, **kwargs: Any) -> None:
         kwargs.setdefault("provider_id", "openai-compatible")
+        self._context_tokens = max(0, int(context_tokens or 0))
+        # Set after each call: None, "too_long" (estimate does not fit) or "truncated" (server cut it).
+        self.last_context_warning: str | None = None
         kwargs.setdefault("base_url", OPENAI_DEFAULT_BASE_URL)
         super().__init__(**kwargs)
         if json_mode not in JSON_MODES:
@@ -413,6 +425,15 @@ class OpenAICompatibleProvider(_ChatProviderBase):
             if model
             else (self._model_candidates or (self.model_id,))
         )
+        estimated = estimate_prompt_tokens(system, user)
+        self.last_context_warning = None
+        if self._context_tokens and estimated + self._max_tokens > self._context_tokens:
+            self.last_context_warning = "too_long"
+            _log.warning(
+                "LLM prompt ~%d tokens + %d output > context window %d: the server may drop the start "
+                "of the prompt (Ollama: raise OLLAMA_CONTEXT_LENGTH, then VETMIND_LLM_CONTEXT_TOKENS).",
+                estimated, self._max_tokens, self._context_tokens,
+            )
         last_unavailable: LLMUnavailableError | None = None
         body: dict[str, Any] | None = None
         for mid in candidates:
@@ -429,6 +450,14 @@ class OpenAICompatibleProvider(_ChatProviderBase):
         if body is None:
             raise last_unavailable or LLMUnavailableError("LLM provider unavailable.")
 
+        prompt_tokens = (body.get("usage") or {}).get("prompt_tokens") if isinstance(body, dict) else None
+        if self._context_tokens and isinstance(prompt_tokens, int) and prompt_tokens < estimated * 0.6:
+            # The server counted far fewer tokens than we sent: it cut the prompt (Ollama does this silently).
+            self.last_context_warning = "truncated"
+            _log.warning(
+                "LLM server read %d prompt tokens, ~%d were sent: the prompt was truncated "
+                "(context window %d).", prompt_tokens, estimated, self._context_tokens,
+            )
         try:
             choice = body["choices"][0]
             content = choice["message"].get("content")

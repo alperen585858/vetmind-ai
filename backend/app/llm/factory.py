@@ -98,6 +98,8 @@ def _build_chat_provider(kind: str, settings: Settings) -> LLMProvider:
         base_url=base_url,
         json_mode=settings.llm_json_mode,
         fallback_model_ids=fallbacks,
+        # Ollama keeps 4096 tokens unless OLLAMA_CONTEXT_LENGTH says otherwise (#129).
+        context_tokens=settings.llm_context_tokens or (4096 if kind in OLLAMA_KINDS else 0),
     )
 
 
