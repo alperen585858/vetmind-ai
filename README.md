@@ -517,7 +517,7 @@ Alternatif: **Yeni Vaka** ile sentetik senaryolar (`ct_brain_suspected`, `xr_tho
 | sqlite | `sqlite` | Docker'sız yerel geliştirme: aynı tablolar tek dosyada (`backend/data/vetmind.sqlite3`) |
 | memory | `memory` | Testler |
 
-Tek veritabanında (#102): vakalar, işler, DICOM/doküman kayıtları, kullanıcılar, hayvanlar ve talepler, kullanıcı ayarları, bildirimler, mesajlar, demo ödemeleri, radyolog ödemeleri, rapor bağlantıları, oturum ve şifre sıfırlama token'ları (yalnızca hash), denetim kaydı (audit), uzman geri bildirimi ve AI dersleri. Ayrı SQLite/JSONL dosyası yok. Şema `backend/migrations/` altındaki Alembic migration'larıyla kurulur; uygulama açılırken `alembic upgrade head` kendisi çalışır (elle: `cd backend && alembic upgrade head`, yeni değişiklik: `alembic revision -m "..."`). DICOM dosyaları `data/quarantine/` altında, RAG vektörleri ChromaDB'de kalır.
+Tek veritabanında (#102): vakalar, işler, DICOM/doküman kayıtları, kullanıcılar, hayvanlar ve talepler, kullanıcı ayarları, bildirimler, mesajlar, demo ödemeleri, radyolog ödemeleri, rapor bağlantıları, oturum ve şifre sıfırlama token'ları (yalnızca hash), denetim kaydı (audit), uzman geri bildirimi ve AI dersleri. Ayrı SQLite/JSONL dosyası yok. Şema `backend/migrations/` altındaki Alembic migration'larıyla kurulur; uygulama açılırken `alembic upgrade head` kendisi çalışır (elle: `cd backend && alembic upgrade head`, yeni değişiklik: `alembic revision -m "..."`). DICOM dosyaları `data/quarantine/` altında; RAG vektörleri de aynı veritabanında (`rag_chunks`, pgvector, #117).
 
 **Eski veriyi taşıma:** `python scripts/migrate_sqlite_to_postgres.py` (`backend/` içinden) `data/` altındaki eski `*.sqlite3` dosyalarını (ana dosya + `vetmind_workflow`, `vetmind_auth`, `vetmind_notifications`... yan dosyaları) ve `audit/security.jsonl`, `feedback/feedback.jsonl`, `revision_lessons.json` dosyalarını hedef veritabanına kopyalar; var olan satırlara dokunmaz, iki kez çalıştırmak güvenlidir, kaynak dosyalar değişmez (`--dry-run` ile önce sayar, `--to sqlite:///data/vetmind.sqlite3` ile SQLite'ta kalanlar için yan dosyaları tek dosyada birleştirir). Demo verisiyle denendi: 37 vaka, 51 iş, 85 DICOM kaydı, 17 talep, 7 kullanıcı, 198 oturum token'ı, 36 geri bildirim (509 satır).
 
@@ -873,7 +873,8 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 - Bir admin, başka bir admin'in şifresini, sıfırlama bağlantısını veya 2FA'sını JWT ile sıfırlayamaz; bunun için API anahtarı gerekir.
 - `*@demo.local` demo hesapları yalnızca demo modda vardır; protected modda giriş yapamaz (aynı veritabanında demo moddan kalmış olsalar bile). Testler için `VETMIND_DEMO_ACCOUNTS=1` ile bilinçli olarak açılabilir.
 - `docker compose` web (8080) ve PostgreSQL (5432) portlarını yalnızca `127.0.0.1`'de açar: demo modda giriş yoktur ve rol seçici herkesi admin yapar. Başka makinelerden erişim için protected overlay'i kullanın (`VETMIND_WEB_BIND`).
-- Deneme sayaçları süreç belleğinde: yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar.
+- Deneme sayaçları varsayılan olarak süreç belleğinde (yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar). `VETMIND_REDIS_URL` verilirse Redis'te tutulur: tüm worker'lar ortak sayar, yeniden başlatmada kaybolmaz (Redis'e ulaşılamazsa belleğe düşer; `/api/v1/health` → `rate_limit_backend`).
+- Docker'da istemci IP'si nginx'in eklediği `X-Forwarded-For` halkasından okunur (`VETMIND_TRUST_PROXY_HEADERS=1`, #120); aksi hâlde tüm kullanıcılar tek IP sayılırdı.
 - Kayıt, şifremi unuttum ve doğrulama linkini tekrar gönderme uçları kayıtlı e-postayı belli etmez (aynı cevap, iş cevaptan sonra yapılır).
 - Quarantine yerel diskte; üretim AV / şifreleme yok.
 - Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.
@@ -1111,7 +1112,7 @@ export VETMIND_STORAGE=memory
 | Katman | Konum | Not |
 |--------|-------|-----|
 | Frontend unit | `src/**/*.test.ts` | Vitest |
-| Backend | `backend/tests/` | ~238 pytest (+1 skip tipik) |
+| Backend | `backend/tests/` | ~1100 pytest (güncel sayı: `cd backend && pytest --collect-only -q \| tail -1`) |
 | Phase 6 API journeys | `test_phase6_e2e_journey.py` | DICOM→approve→versions, authz, persistence, … |
 | Browser E2E | `e2e/*.spec.ts` | Tam workflow + negatives + smoke |
 | Typecheck / build | `npm run typecheck` · `npm run build` | |
@@ -1164,7 +1165,7 @@ veteriner/
 ├── playwright.config.ts
 ├── vite.config.ts                 /api → :8000
 ├── vitest.config.ts
-├── vercel.json
+├── vercel.json                yalnızca statik arayüz önizlemesi: /api yönlendirmesi yok, backend'le çalışmaz
 ├── index.html
 ├── public/
 ├── scripts/                       build-share.mjs vb.
@@ -1308,4 +1309,4 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 
 ---
 
-*Son güncelleme: 2026-11-13 · Backend `0.2.0` · Phase 6 / 6.1 demo readiness · LLM katmanı (gerçek model, prompt v5) · DICOM sınıflandırıcı (Türkçe kurallar + LLM) · örnek vakalar · gerçek kullanıcı sistemi (#31) · 404 sayfası (#28)*
+*Son güncelleme: 2026-11-28 · Backend `0.2.0` · tek PostgreSQL veritabanı (#102) + pgvector (#117) · hasta kaydı ve önceki tetkikler (#108) · iki adımlı giriş (#107) · güvenlik / audit ekranı (#106) · sahip için sade özet (#113) · ClamAV tarama ve güvenlik başlıkları · yeniden başlatmada yarım analizlerin kapanması (#118) · veteriner paneli "Sizi bekleyenler" · react-router 7 / Vite 8 / Vitest 5*

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { AppProviders } from './app/providers'
+import { ErrorBoundary } from './shared/ui/ErrorBoundary'
 import { LocaleProvider, readStoredLocale } from './shared/shell/LocaleContext'
 import { isLocaleLoaded, loadLocale } from './i18n'
 import './index.css'
@@ -15,9 +16,11 @@ const render = () =>
     <React.StrictMode>
       <Router>
         <LocaleProvider>
-          <AppProviders>
-            <App />
-          </AppProviders>
+          <ErrorBoundary fullScreen>
+            <AppProviders>
+              <App />
+            </AppProviders>
+          </ErrorBoundary>
         </LocaleProvider>
       </Router>
     </React.StrictMode>,
