@@ -147,7 +147,7 @@ Geliştirme yaparken (hot reload) aşağıdaki yerel kurulum kullanılır.
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -157,7 +157,7 @@ uvicorn app.main:app --reload --port 8000
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1      # "running scripts is disabled" hatası: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -223,7 +223,7 @@ bilgisayardan çıkmaz.
 ollama pull qwen2.5:7b
 
 # 2) Backend bağımlılıkları (henüz kurulmadıysa)
-cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ..
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cd ..
 
 # 3) Frontend bağımlılıkları
 npm install
