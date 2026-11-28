@@ -1,29 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type InputHTMLAttributes } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
 import {
-  Bone,
-  Brain,
-  CheckCircle2,
-  FileText,
-  FolderOpen,
-  Info,
   PanelRightClose,
   PanelRightOpen,
-  Scan,
-  Sparkles,
-  UploadCloud,
-  XCircle,
 } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
-import { confidenceLabel, modalityLabel, regionLabel, studyLabel } from '../../shared/lib/displayClean'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
 import { Card } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { DicomViewer } from '../../shared/dicom/DicomViewer'
 import { SeriesExplorer, buildSeriesItems } from './SeriesExplorer'
-import { OwnerNameField } from '../../shared/ui/OwnerNameField'
 import { CLINIC } from '../../shared/demo/clinic'
 import { nowStamp, today } from '../../shared/lib/format'
 import {
@@ -33,9 +21,6 @@ import {
 } from '../../shared/api'
 import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
 import {
-  MAX_DICOM_FILES,
-  MAX_DICOM_FILE_BYTES,
-  MAX_DICOM_TOTAL_BYTES,
   MAX_VIEWER_FRAMES,
   collectFilesFromDataTransfer,
   collectFilesFromFileList,
@@ -44,7 +29,6 @@ import {
 } from '../../shared/lib/dicomFolder'
 import {
   PHASE_LABELS,
-  classificationConfirmationLabel,
   deriveSelectionPhase,
   validatePatientForm,
 } from './lib/dicomWorkflow'
@@ -61,31 +45,18 @@ import type {
   VetCase,
 } from '../../shared/types'
 import { UNEVALUATED_NEURO } from '../../shared/lib/neuroExam'
+import { ClinicalPanel } from './upload/ClinicalPanel'
+import { DemoDicomSets } from './upload/DemoDicomSets'
+import { DicomDropZone } from './upload/DicomDropZone'
 
 const EMPTY_NEURO: NeuroExam = UNEVALUATED_NEURO
 
 const DEMO_FIXTURES_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FIXTURES === '1'
 
-const DEMO_SETS: {
-  kind: DicomDemoKind
-  label: string
-  hint: string
-  tone: string
-  Icon: typeof Brain
-}[] = [
-  { kind: 'brain_mri', label: 'Brain MRI', hint: 'MR · kranial', tone: 'from-teal-50 to-cyan-50 text-teal-700', Icon: Brain },
-  { kind: 'cervical_mri', label: 'Cervical MRI', hint: 'MR · servikal', tone: 'from-sky-50 to-indigo-50 text-sky-700', Icon: Bone },
-  { kind: 'thoracolumbar_mri', label: 'Thoracolumbar MRI', hint: 'MR · torakolomber', tone: 'from-emerald-50 to-teal-50 text-emerald-700', Icon: Bone },
-  { kind: 'brain_ct', label: 'Brain CT', hint: 'BT · kranial', tone: 'from-violet-50 to-slate-50 text-violet-700', Icon: Scan },
-  { kind: 'thorax_xr', label: 'Thorax XR', hint: 'Röntgen · toraks', tone: 'from-amber-50 to-orange-50 text-amber-700', Icon: FileText },
-]
-
 export default function DicomUpload() {
   const { addCase, pushToast, user } = useApp()
   const { t } = useLocale()
   const nav = useLocalizedNavigate()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
 
   const [patientName, setPatientName] = useState('')
   const [species, setSpecies] = useState<Patient['species']>('Köpek')
@@ -97,7 +68,6 @@ export default function DicomUpload() {
   const [files, setFiles] = useState<File[]>([])
   const [frames, setFrames] = useState<DicomFramePreview[]>([])
   const [framesLoading, setFramesLoading] = useState(false)
-  const [drag, setDrag] = useState(false)
   const [preview, setPreview] = useState<DicomUploadResponse | null>(null)
   const [acceptSuggestion, setAcceptSuggestion] = useState(true)
   const [overrideModality, setOverrideModality] = useState<BackendModality>('MR')
@@ -513,386 +483,46 @@ export default function DicomUpload() {
   }
 
   const clinicalPanel = (
-    <div className="space-y-5">
-      <section className="space-y-3">
-        <label className="block text-xs font-semibold text-slate-600">
-          {t('dicomUpload.patientName')} *
-          <input
-            className="input mt-1.5"
-            value={patientName}
-            onChange={(e) => setPatientName(e.target.value)}
-            autoComplete="off"
-            placeholder={t('dicomUpload.patientNamePlaceholder')}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block text-xs font-semibold text-slate-600">
-            {t('dicomUpload.species')}
-            <select
-              className="input mt-1.5"
-              value={species}
-              onChange={(e) => setSpecies(e.target.value as Patient['species'])}
-            >
-              <option value="Köpek">{t('species.dog')}</option>
-              <option value="Kedi">{t('species.cat')}</option>
-              <option value="Diğer">{t('species.other')}</option>
-            </select>
-          </label>
-          <label className="block text-xs font-semibold text-slate-600">
-            {t('dicomUpload.breed')}
-            <input
-              className="input mt-1.5"
-              value={breed}
-              onChange={(e) => setBreed(e.target.value)}
-              placeholder={t('dicomUpload.breedPlaceholder')}
-            />
-          </label>
-        </div>
-        <label className="block text-xs font-semibold text-slate-600">
-          {t('dicomUpload.ageYears')}
-          <input
-            className="input mt-1.5"
-            type="number"
-            min={0}
-            step={0.1}
-            placeholder={t('common.dash')}
-            value={ageYears}
-            onChange={(e) => setAgeYears(e.target.value)}
-          />
-        </label>
-        <label className="block text-xs font-semibold text-slate-600">
-          {t('dicomUpload.clinicalNotes')}
-          <textarea
-            className="input mt-1.5"
-            rows={hasStudy ? 4 : 3}
-            placeholder={t('dicomUpload.clinicalNotesPlaceholder')}
-            value={history}
-            onChange={(e) => setHistory(e.target.value)}
-          />
-        </label>
-        <OwnerNameField value={ownerName} onChange={setOwnerName} disabled={busy || uploading} />
-      </section>
-
-      {hasStudy && (
-        <section className="rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            {t('dicomUpload.studyInfo')}
-          </h3>
-          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-            <div>
-              <dt className="text-slate-500">Modalite</dt>
-              <dd className="font-medium text-navy-900">{studySummary.modality ?? '—'}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Görüntü</dt>
-              <dd className="font-medium text-navy-900">{studySummary.imageCount}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Seri</dt>
-              <dd className="font-medium text-navy-900">{studySummary.seriesCount || '—'}</dd>
-            </div>
-            <div className="col-span-2">
-              <dt className="text-slate-500">Study</dt>
-              <dd className="truncate font-medium text-navy-900" title={studySummary.studyDescription ?? undefined}>
-                {studySummary.studyDescription ?? '—'}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      )}
-
-      <section>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('dicom.confirmSection')}</h3>
-        <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-3 text-xs leading-relaxed text-navy-800 transition hover:border-teal-200 hover:bg-teal-50/30">
-          <input
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-          />
-          <span>
-            AI sonucunun ön değerlendirme olduğunu ve uzman veteriner hekim onayının zorunlu olduğunu kabul ediyorum.
-          </span>
-        </label>
-      </section>
-
-      {preview?.classification && !preview.blocked && (
-        <section className="rounded-xl border border-teal-200 bg-teal-50/50 p-3.5 text-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-800">Sınıflandırma</p>
-          <p className="mt-1 text-sm font-medium text-navy-900">
-            {studyLabel(t, preview.classification.suggested_modality, preview.classification.suggested_anatomical_region)}
-            <span className="ml-1 text-xs font-normal text-slate-600">
-              · {confidenceLabel(t, preview.classification.confidence)}
-              {preview.classification.disagreement ? ' · disagreement' : ''}
-            </span>
-          </p>
-          {(preview.classification.signals?.length ?? 0) > 0 && (
-            <ul className="mt-2 space-y-1 rounded-lg bg-white/80 p-2 text-[11px] text-slate-700 ring-1 ring-inset ring-teal-100">
-              {preview.classification.signals!.map((s) => (
-                <li key={s.name}>
-                  <span className="font-semibold text-teal-900">{s.name}</span>
-                  {': '}
-                  {[s.modality, s.anatomical_region].filter(Boolean).join(' / ') || '—'}
-                  <span className="text-slate-500"> · {s.confidence}</span>
-                  {s.note ? <span className="block text-slate-500">{s.note}</span> : null}
-                </li>
-              ))}
-            </ul>
-          )}
-          <label className="mt-2 flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={acceptSuggestion} onChange={(e) => setAcceptSuggestion(e.target.checked)} />
-            Öneriyi kabul et
-          </label>
-          {!acceptSuggestion && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <select className="input" value={overrideModality} onChange={(e) => setOverrideModality(e.target.value as BackendModality)}>
-                <option value="MR">MR</option>
-                <option value="CT">CT</option>
-                <option value="XR">XR</option>
-              </select>
-              <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
-                {(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR'] as const).map((r) => (
-                  <option key={r} value={r}>
-                    {regionLabel(t, r)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {preview.classification.rationale.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[11px] text-slate-600">
-              {preview.classification.rationale.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      <section className="rounded-xl border border-slate-200 bg-white px-3.5 py-3.5 shadow-sm">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Analiz özeti</h3>
-        <ul className="mt-2.5 divide-y divide-slate-100 text-xs text-navy-900">
-          <li className="flex items-center justify-between gap-2 py-2 first:pt-0">
-            <span className="text-slate-500">Sınıflandırma</span>
-            <span className="font-semibold">
-              {classificationConfirmationLabel({
-                blocked: preview?.blocked,
-                needsConfirmation: preview?.classification?.needs_confirmation,
-                ingestAccepted: false,
-              })}
-            </span>
-          </li>
-          <li className="flex items-center justify-between gap-2 py-2">
-            <span className="text-slate-500">Doğrulama</span>
-            <span className="font-semibold">
-              {preview?.blocked ? 'Engellendi' : preview ? 'Hazır' : files.length ? 'Bekliyor' : 'Dosya yok'}
-            </span>
-          </li>
-          <li className="flex items-center justify-between gap-2 py-2">
-            <span className="text-slate-500">Seçili analiz</span>
-            <span className="max-w-[55%] truncate text-right font-semibold">
-              {preview?.classification
-                ? studyLabel(t, preview.classification.suggested_modality, preview.classification.suggested_anatomical_region)
-                : studySummary.modality ? modalityLabel(t, studySummary.modality) : 'DICOM sınıflandırma'}
-            </span>
-          </li>
-          <li className="flex items-center justify-between gap-2 py-2 last:pb-0">
-            <span className="text-slate-500">Dosya</span>
-            <span className="font-semibold">{files.length}</span>
-          </li>
-        </ul>
-        {preview?.blocked && (
-          <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-xs text-rose-800 ring-1 ring-inset ring-rose-200">
-            {preview.block_reason ?? t('dicom.uploadBlocked')}
-          </p>
-        )}
-        {preview?.issues?.some((i) => i.severity === 'warning') && !preview.blocked && (
-          <p className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-800">
-            <Info className="mt-0.5 h-3 w-3 shrink-0" />
-            {preview.issues.filter((i) => i.severity === 'warning').length} uyarı — incelemeye devam edilebilir.
-          </p>
-        )}
-      </section>
-
-      <div className="flex flex-col gap-2 pt-1">
-        {hasStudy && (
-          <Button variant="secondary" disabled={busy || files.length === 0} onClick={() => void runPreview(pendingDemo ?? undefined)}>
-            Metadata önizle
-          </Button>
-        )}
-        <Button
-          size="lg"
-          className="w-full shadow-md shadow-teal-700/15"
-          disabled={validating || Boolean(preview?.blocked) || !hasStudy || !consent}
-          onClick={() => submit()}
-          icon={<Sparkles className="h-4 w-4" />}
-        >
-          {t('dicom.sendToAnalysis')}
-        </Button>
-        {(busy || uploading) && (
-          <p className="text-center text-xs text-slate-500">{uploadProgress ?? t('dicom.processing')}</p>
-        )}
-        {(busy || uploading) && (
-          <Button variant="secondary" className="w-full" onClick={() => cancelInFlight()}>
-            Analizi / yüklemeyi durdur
-          </Button>
-        )}
-      </div>
-    </div>
+    <ClinicalPanel
+      form={{ patientName, species, breed, ageYears, history, ownerName, consent }}
+      onForm={{ setPatientName, setSpecies, setBreed, setAgeYears, setHistory, setOwnerName, setConsent }}
+      hasStudy={hasStudy}
+      studySummary={studySummary}
+      preview={preview}
+      fileCount={files.length}
+      classification={{ acceptSuggestion, setAcceptSuggestion, overrideModality, setOverrideModality, overrideRegion, setOverrideRegion }}
+      busy={busy}
+      uploading={uploading}
+      validating={validating}
+      uploadProgress={uploadProgress}
+      onPreview={() => void runPreview(pendingDemo ?? undefined)}
+      onSubmit={() => submit()}
+      onCancel={() => cancelInFlight()}
+    />
   )
 
   const uploadZone = (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDrag(true)
-      }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setDrag(false)
-        void addFromDrop(e.dataTransfer)
-      }}
-      className={`flex min-h-[280px] flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition ${
-        drag
-          ? 'border-teal-600 bg-teal-50 shadow-inner'
-          : 'border-teal-200/80 bg-gradient-to-b from-teal-50/70 via-white to-slate-50/40'
-      }`}
-    >
-      <div
-        className={`flex h-16 w-16 items-center justify-center rounded-2xl shadow-sm ring-1 ring-inset ${
-          drag ? 'bg-teal-100 text-teal-700 ring-teal-200' : 'bg-white text-teal-600 ring-teal-100'
-        }`}
-      >
-        <UploadCloud className="h-8 w-8" strokeWidth={1.75} />
-      </div>
-      <p className="mt-5 text-lg font-semibold tracking-tight text-navy-900">
-        {drag ? 'Dosyaları bırakın' : 'DICOM dosya veya klasör sürükleyin'}
-      </p>
-      <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-500">
-        .dcm / DICOM Part-10 · en fazla {MAX_DICOM_FILES} dosya · dosya başına{' '}
-        {Math.round(MAX_DICOM_FILE_BYTES / (1024 * 1024))} MiB · toplam{' '}
-        {Math.round(MAX_DICOM_TOTAL_BYTES / (1024 * 1024))} MiB
-      </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <Button
-          type="button"
-          icon={<FileText className="h-4 w-4" />}
-          onClick={(e) => {
-            e.stopPropagation()
-            fileInputRef.current?.click()
-          }}
-        >
-          Dosya seç
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          icon={<FolderOpen className="h-4 w-4" />}
-          onClick={(e) => {
-            e.stopPropagation()
-            folderInputRef.current?.click()
-          }}
-        >
-          Klasör seç
-        </Button>
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept=".dcm,.dicom,application/dicom,*/*"
-        className="hidden"
-        onChange={(e) => {
-          addFromFileList(e.target.files, 'Dosya seçimi')
-          e.target.value = ''
-        }}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        className="hidden"
-        multiple
-        onChange={(e) => {
-          addFromFileList(e.target.files, 'Klasör seçimi')
-          e.target.value = ''
-        }}
-        {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
-      />
-      {(busy || uploadProgress || validating) && (
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-          <p className="flex items-center gap-2 text-xs font-medium text-teal-700">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-teal-600" />
-            {uploadProgress ?? 'İşleniyor…'}
-          </p>
-          <button
-            type="button"
-            onClick={() => cancelInFlight()}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-rose-200 hover:text-rose-700"
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            Analizi durdur
-          </button>
-        </div>
-      )}
-      {files.length > 0 && (
-        <p className="mt-4 flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800 ring-1 ring-inset ring-teal-200">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          {files.length} dosya seçili
-          {files.length > MAX_VIEWER_FRAMES ? ` · görüntüleyici ilk ${MAX_VIEWER_FRAMES} kare` : ''}
-        </p>
-      )}
-      {lastRejectSummary && <p className="mt-3 max-w-lg text-[11px] text-amber-800">{lastRejectSummary}</p>}
-    </div>
+    <DicomDropZone
+      busy={busy}
+      validating={validating}
+      uploadProgress={uploadProgress}
+      fileCount={files.length}
+      lastRejectSummary={lastRejectSummary}
+      onDrop={(dt) => void addFromDrop(dt)}
+      onFiles={addFromFileList}
+      onCancel={() => cancelInFlight()}
+    />
   )
 
   // Sample DICOM sets are test fixtures only (issue #95): hidden unless the build sets
   // VITE_ENABLE_DEMO_FIXTURES=1 (Playwright does). Real uploads are unaffected.
   const demoSection = !DEMO_FIXTURES_ENABLED ? null : (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-soft sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold text-navy-900">Örnek veri setleri</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Hızlı deneme için hazır DICOM setleri</p>
-        </div>
-        {pendingDemo && (
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void runPreview(pendingDemo)}>
-            Metadata önizle
-          </Button>
-        )}
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {DEMO_SETS.map((d) => {
-          const selected = pendingDemo === d.kind
-          return (
-            <div
-              key={d.kind}
-              className={`overflow-hidden rounded-xl border bg-white transition ${
-                selected ? 'border-teal-400 shadow-md shadow-teal-700/10 ring-1 ring-teal-200' : 'border-slate-200 hover:border-teal-200 hover:shadow-sm'
-              }`}
-            >
-              <div className={`flex h-20 items-center justify-center bg-gradient-to-br ${d.tone}`}>
-                <d.Icon className="h-9 w-9 opacity-80" strokeWidth={1.5} />
-              </div>
-              <div className="p-3">
-                <p className="text-sm font-semibold text-navy-900">{d.label}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">{d.hint}</p>
-                <Button
-                  size="sm"
-                  variant={selected ? 'primary' : 'secondary'}
-                  className="mt-3 w-full"
-                  disabled={busy}
-                  aria-label={`${d.label} — ${selected ? 'Seçildi' : 'Kullan'}`}
-                  onClick={() => void loadDemoForViewing(d.kind)}
-                >
-                  {selected ? 'Seçildi' : 'Kullan'}
-                </Button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+    <DemoDicomSets
+      pendingDemo={pendingDemo}
+      busy={busy}
+      onPreview={(kind) => void runPreview(kind)}
+      onUse={(kind) => void loadDemoForViewing(kind)}
+    />
   )
 
   return (
