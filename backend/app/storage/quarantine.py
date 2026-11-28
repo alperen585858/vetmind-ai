@@ -1,7 +1,8 @@
 """Local quarantine object store for uploaded study/document bytes.
 
 Files land under ``backend/data/quarantine/{ingest_id}/`` before any model sees them.
-Demo-only: not a virus scanner, not production object storage, not encrypted by default.
+Not production object storage. Encrypted on disk when VETMIND_ENCRYPTION_AT_REST=aes-gcm (#126);
+sha256 and sizes always describe the plaintext.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from app.storage.encryption import BlobEncryptor, NullEncryptor, blob_encryptor_from_env
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 _SAFE_INGEST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
@@ -51,7 +54,9 @@ class QuarantineStore:
         *,
         max_file_bytes: int | None = None,
         scrub_identity: bool = False,
+        encryptor: BlobEncryptor | None = None,
     ) -> None:
+        self.encryptor = encryptor if encryptor is not None else blob_encryptor_from_env()
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.max_file_bytes = max_file_bytes
@@ -95,7 +100,7 @@ class QuarantineStore:
                 data = scrub_dicom_bytes(data)
             stored = _safe_filename(filename, index)
             target = directory / stored
-            target.write_bytes(data)
+            target.write_bytes(self.encryptor.encrypt(data))
             kind = "unknown"
             if content_kinds is not None and index < len(content_kinds):
                 kind = content_kinds[index]
@@ -119,7 +124,7 @@ class QuarantineStore:
             "clinic_id": clinic_id,
             "files": [asdict(r) for r in refs],
             "note": "Quarantine store — bytes retained for future authorized adapters. Not clinical PACS.",
-            "encryption": "none",
+            "encryption": "none" if isinstance(self.encryptor, NullEncryptor) else "aes-256-gcm",
         }
         (directory / "manifest.json").write_text(
             json.dumps(manifest, indent=2),
@@ -201,7 +206,7 @@ class QuarantineStore:
         for index, path in enumerate(sorted(directory.iterdir())):
             if not path.is_file() or path.name == "manifest.json":
                 continue
-            data = path.read_bytes()
+            data = self.encryptor.decrypt(path.read_bytes())
             refs.append(
                 QuarantineFileRef(
                     original_filename=path.name,
@@ -220,7 +225,7 @@ class QuarantineStore:
         path = self.resolve(relative_path)
         if not path.is_file():
             raise FileNotFoundError(relative_path)
-        data = path.read_bytes()
+        data = self.encryptor.decrypt(path.read_bytes())
         if expected_sha256:
             digest = hashlib.sha256(data).hexdigest()
             if digest != expected_sha256:

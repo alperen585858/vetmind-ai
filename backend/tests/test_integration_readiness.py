@@ -66,9 +66,10 @@ def test_integration_fixtures_parse() -> None:
         assert isinstance(data, dict)
 
 
-def test_encryption_unimplemented_refuses_startup(tmp_path: Path) -> None:
+def test_unsupported_encryption_mode_refuses_startup(tmp_path: Path) -> None:
+    # Only aes-gcm (with a key, #126) or none; anything else would be a false claim.
     settings = _mem_settings(tmp_path, encryption_at_rest="fernet")
-    with pytest.raises(RuntimeError, match="not implemented"):
+    with pytest.raises(RuntimeError, match="not supported"):
         validate_security_settings(settings)
 
 

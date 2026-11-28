@@ -50,7 +50,11 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
     if not path.is_file():
         return None
     try:
-        ds = dcmread(str(path), force=True)
+        from io import BytesIO
+
+        from app.storage.encryption import open_blob  # #126: quarantine files may be encrypted
+
+        ds = dcmread(BytesIO(open_blob(path.read_bytes())), force=True)
         return pick_frame(
             np.asarray(ds.pixel_array).astype(np.float32),
             samples_per_pixel=int(getattr(ds, "SamplesPerPixel", 1) or 1),

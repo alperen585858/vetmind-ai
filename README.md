@@ -96,7 +96,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + pgvector) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
 | OAuth / SSO | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz). Kayıtta e-posta doğrulaması var (#41) |
 | Celery / K8s workers | Thread veya RQ |
-| Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
+| KMS / anahtar yönetim servisi | Karantina AES-256-GCM ile şifrelenebiliyor (#126) ve ClamAV taraması var; anahtar ortam değişkeninde, KMS entegrasyonu yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
 | Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı (100 EUR) backend'de duruyor, arayüzde yok — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
 
@@ -883,7 +883,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 - Deneme sayaçları varsayılan olarak süreç belleğinde (yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar). `VETMIND_REDIS_URL` verilirse Redis'te tutulur: tüm worker'lar ortak sayar, yeniden başlatmada kaybolmaz (Redis'e ulaşılamazsa belleğe düşer; `/api/v1/health` → `rate_limit_backend`).
 - Docker'da istemci IP'si nginx'in eklediği `X-Forwarded-For` halkasından okunur (`VETMIND_TRUST_PROXY_HEADERS=1`, #120); aksi hâlde tüm kullanıcılar tek IP sayılırdı.
 - Kayıt, şifremi unuttum ve doğrulama linkini tekrar gönderme uçları kayıtlı e-postayı belli etmez (aynı cevap, iş cevaptan sonra yapılır).
-- Quarantine yerel diskte; üretim AV / şifreleme yok.
+- Quarantine yerel diskte. `VETMIND_ENCRYPTION_AT_REST=aes-gcm` + `VETMIND_BLOB_KEY` ile dosyalar AES-256-GCM şifreli yazılır (#126); eski düz dosyalar okunmaya devam eder, `python scripts/encrypt_quarantine.py` onları yerinde şifreler. Anahtar kaybolursa dosyalar açılamaz: yedekleyin. Virüs taraması ClamAV ile (`VETMIND_MALWARE_SCANNER=clamav`).
 - Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.
 - AI çıktıları tanı değildir; UI disclaimer'ları bilinçlidir.
 
@@ -1075,6 +1075,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Tarayıcıdan API'yi çağırabilecek adresler (virgülle). Docker/nginx aynı adresten sunduğu için gerekmez; frontend ayrı domaindeyse onu yazın. Protected modda `*` kabul edilmez |
 | `VETMIND_TRUST_PROXY_HEADERS` | `0` (Docker compose: `1`) | İstemci IP'si için `X-Forwarded-For`'un son halkası (nginx'in eklediği). Yalnızca güvenilir proxy arkasında açın; kapalıyken nginx arkasındaki tüm kullanıcılar tek IP sayılır |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
+| `VETMIND_ENCRYPTION_AT_REST` / `VETMIND_BLOB_KEY` | `none` / — | `aes-gcm` → karantina dosyaları AES-256-GCM ile şifreli (anahtar: 32 bayt, url-safe base64; üretmek için `python -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`). Geçersiz anahtarla uygulama açılmaz |
 | `VETMIND_DICOM_MAX_FILES` / `VETMIND_DICOM_MAX_FILE_MB` / `VETMIND_DICOM_MAX_TOTAL_MB` | `1000` / `64` / `512` | Bir DICOM yüklemesinin sınırları (#125). Büyütürseniz nginx `client_max_body_size` ve `src/shared/lib/dicomFolder.ts` sabitlerini de eşitleyin; dosyalar karantinaya yazılana kadar bellekte tutulur |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 
