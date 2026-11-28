@@ -39,6 +39,7 @@ import {
   sendTypingPing,
 } from './api'
 import { fmtDate } from '../../shared/lib/format'
+import { groupMessages, initials, localDayKey, type UiMessage } from './lib/messageGroups'
 import type {
   BackendMessageRecipient,
   BackendSupportMessage,
@@ -50,9 +51,6 @@ import type {
 // --- helpers ---------------------------------------------------------------------------
 
 type Filter = 'all' | 'unread' | 'radiologist' | 'admin' | 'clinic'
-
-/** A message as shown in the UI: server messages plus optimistic ones still sending. */
-type UiMessage = BackendSupportMessage & { localState?: 'sending' | 'failed'; localId?: string }
 
 /** Demo rows saved before messages were attributed to a person (auth-off only); the
  * backend allows deleting them only in auth-off demo mode. */
@@ -82,12 +80,6 @@ function roleLabel(role: string, t: TranslateFn): string {
   return keys[role] ? t(keys[role]) : role
 }
 
-function initials(name: string): string {
-  const parts = name.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toLocaleUpperCase('tr')
-}
-
 function avatarTone(role: string | null | undefined) {
   if (role === 'support' || role === 'admin') return 'bg-sky-100 text-sky-800'
   if (role === 'expert') return 'bg-violet-100 text-violet-800'
@@ -100,13 +92,6 @@ function clock(iso?: string | null): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-}
-
-function localDayKey(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
-  const p = (x: number) => String(x).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 function dayLabel(iso: string, locale: 'tr' | 'en', t: TranslateFn): string {
@@ -123,25 +108,6 @@ function listTime(iso: string | null | undefined, locale: 'tr' | 'en', t: Transl
   if (!iso) return ''
   if (localDayKey(iso) === localDayKey(new Date().toISOString())) return clock(iso)
   return dayLabel(iso, locale, t).replace(/\s\d{4}$/, '')
-}
-
-type Group = { day: string; runs: { author: string; role: string; items: UiMessage[] }[] }
-
-/** Group by local day, then by consecutive author (name/avatar shown once per run). */
-function groupMessages(messages: UiMessage[]): Group[] {
-  const out: Group[] = []
-  for (const m of messages) {
-    const day = localDayKey(m.created_at)
-    let g = out[out.length - 1]
-    if (!g || g.day !== day) {
-      g = { day, runs: [] }
-      out.push(g)
-    }
-    const run = g.runs[g.runs.length - 1]
-    if (run && run.author === m.author_subject) run.items.push(m)
-    else g.runs.push({ author: m.author_subject, role: m.author_role, items: [m] })
-  }
-  return out
 }
 
 // --- page ------------------------------------------------------------------------------
