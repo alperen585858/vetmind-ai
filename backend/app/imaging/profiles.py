@@ -5,7 +5,11 @@ Profiles are PreprocessingContract factories. They do not authorize or decode pi
 
 from __future__ import annotations
 
-from app.imaging.contracts import PreprocessingContract, pixel_2d_contract, pixel_3d_contract
+from app.imaging.contracts import (
+    PreprocessingContract,
+    pixel_2d_contract,
+    pixel_3d_contract,
+)
 from app.imaging.pixel_ops import (
     TRANSFORM_APPLY_SPACING,
     TRANSFORM_EXTRACT_PIXELS,
@@ -14,7 +18,6 @@ from app.imaging.pixel_ops import (
     TRANSFORM_MONOCHROME_INVERT,
     TRANSFORM_NORMALIZE,
     TRANSFORM_ORDER_SLICES,
-    TRANSFORM_PREPARE_2D,
     TRANSFORM_PREPARE_3D,
     TRANSFORM_QUALITY_CHECK,
     TRANSFORM_RESIZE_2D,

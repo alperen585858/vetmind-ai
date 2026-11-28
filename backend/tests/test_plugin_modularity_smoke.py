@@ -6,7 +6,13 @@ from app.container import AppContainer
 from app.models.interfaces import ImagingModel
 from app.routing.capabilities import ModelCapability
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, SourceKind, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.schemas.findings import StructuredFindings, StudyInfo
 
 

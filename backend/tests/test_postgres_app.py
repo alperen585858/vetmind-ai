@@ -50,7 +50,7 @@ def test_case_survives_restart_and_no_sqlite_files(tmp_path: Path) -> None:
     assert res.status_code in (200, 201), res.text
     case_id = res.json()["case_id"]
     container.audit.record(event_type="test.event", actor="t", resource="r")
-    container.lessons  # created against the database
+    assert container.lessons is not None  # created against the database
 
     client2, container2 = _app(tmp_path)
     assert client2.get(f"/api/v1/cases/{case_id}").json()["patient_name"] == "Zeytin"

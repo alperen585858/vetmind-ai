@@ -724,7 +724,11 @@ def validate_security_settings(settings: Settings) -> None:
             raise RuntimeError(
                 "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
             )
-        from app.storage.malware_scan import TEST_SCANNERS, configured_scanner_name, test_scanner_allowed
+        from app.storage.malware_scan import (
+            TEST_SCANNERS,
+            configured_scanner_name,
+            test_scanner_allowed,
+        )
 
         scanner_name = configured_scanner_name()
         if scanner_name in TEST_SCANNERS and not test_scanner_allowed():

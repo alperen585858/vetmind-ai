@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -11,18 +10,20 @@ import numpy as np
 from app.imaging.evidence_renderer import render_bbox_overlay, render_mask_overlay
 from app.models.evidence_store import EvidenceArtifactStore
 from app.schemas.case import CaseRecord
-from app.schemas.findings import EVIDENCE_DISCLAIMER, EvidenceReference, StructuredFindings
+from app.schemas.findings import (
+    EVIDENCE_DISCLAIMER,
+    EvidenceReference,
+    StructuredFindings,
+)
 
 
 def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | None = None) -> np.ndarray | None:
     """Best-effort decode of one quarantine DICOM instance for overlay base image."""
     if not sop or case.model_input is None:
         return None
-    from io import BytesIO
 
     from pydicom import dcmread
 
-    from app.storage.quarantine import QuarantineStore
 
     # Quarantine root may be on case model_input.quarantine_dir parent.
     qdir = case.model_input.quarantine_dir

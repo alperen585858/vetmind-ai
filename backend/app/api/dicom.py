@@ -2,14 +2,24 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container, get_dicom_service, require_demo_deployment
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_ADMIN, CAP_DICOM
+from app.auth.visibility import case_for_principal
 from app.dicom.fixtures import (
     brain_ct_study_files,
     brain_mri_study_files,
@@ -18,7 +28,11 @@ from app.dicom.fixtures import (
     thorax_xr_study_files,
 )
 from app.schemas.case import CaseRecord
-from app.schemas.dicom import ConfirmClassificationRequest, DicomIngestionRecord, DicomUploadResponse
+from app.schemas.dicom import (
+    ConfirmClassificationRequest,
+    DicomIngestionRecord,
+    DicomUploadResponse,
+)
 from app.schemas.enums import Species
 from app.security.audit import AuditOutcome
 from app.services.dicom_service import DicomService

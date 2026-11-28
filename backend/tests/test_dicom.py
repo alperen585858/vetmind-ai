@@ -11,8 +11,8 @@ from app.dicom.fixtures import (
 )
 from app.dicom.ingest import ingest_dicom_files
 from app.dicom.parser import parse_dicom_bytes
-from app.schemas.enums import AnatomicalRegion, DicomValidationCode, Modality, Species
 from app.schemas.dicom import ConfirmClassificationRequest
+from app.schemas.enums import AnatomicalRegion, DicomValidationCode, Modality, Species
 
 
 def _owner_confirm(**extra):

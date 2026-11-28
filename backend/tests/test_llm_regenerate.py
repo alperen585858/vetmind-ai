@@ -4,7 +4,13 @@ import httpx
 
 from app.llm.chat_providers import OpenAICompatibleProvider
 from tests.test_llm_chat_providers import _sequence_transport
-from tests.test_phase6_e2e_journey import _auth_client, _client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 NOTE = "Derin ağrı algısını değerlendir ve ayırıcı tanıya histiyositik sarkomu ekle. Sahibi Ali Demir."
 

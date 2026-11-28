@@ -6,7 +6,12 @@ from pathlib import Path
 from app.auth.principal import AuthPrincipal
 from app.auth.visibility import case_for_principal
 from app.schemas.case import CaseRecord
-from tests.test_phase6_e2e_journey import _auth_client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 
 def _seeded(tmp_path: Path):

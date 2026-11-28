@@ -6,8 +6,20 @@ from app.imaging.evidence_renderer import native_bbox_from_evidence
 from app.imaging.preprocessor import ContractImagePreprocessor
 from app.imaging.profiles import xray_2d_profile
 from app.models.task_output_mapper import attach_spatial_chain
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species
-from app.schemas.findings import BoundingBoxEvidence, EvidenceReference, Finding, StructuredFindings
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
+from app.schemas.findings import (
+    BoundingBoxEvidence,
+    EvidenceReference,
+    Finding,
+    StructuredFindings,
+)
 
 
 def _findings(bbox: BoundingBoxEvidence) -> StructuredFindings:
@@ -54,7 +66,11 @@ def test_native_and_already_chained_boxes_untouched() -> None:
 def test_fixed_checkpoint_boxes_are_synthetic_even_if_model_is_real() -> None:
     from app.models.task_output_mapper import map_task_outputs_to_findings
     from app.schemas.case import CaseRecord
-    from app.schemas.model_outputs import BoundingBox2D, DetectionOutput, ModelTaskOutputs
+    from app.schemas.model_outputs import (
+        BoundingBox2D,
+        DetectionOutput,
+        ModelTaskOutputs,
+    )
 
     case = CaseRecord(
         case_id="c1", patient_name="P", species=Species.CANINE, modality=Modality.MR,
@@ -83,10 +99,12 @@ def test_pick_frame_uses_frame_index_and_handles_colour() -> None:
     assert pick_frame(multi)[0, 0] == 1  # middle when unspecified
     assert pick_frame(multi, frame_index=7) is None  # never draw on the wrong frame
 
-    rgb = np.zeros((4, 5, 3), dtype=np.float32); rgb[..., 1] = 100
+    rgb = np.zeros((4, 5, 3), dtype=np.float32)
+    rgb[..., 1] = 100
     gray = pick_frame(rgb, samples_per_pixel=3)
     assert gray.shape == (4, 5) and abs(gray[0, 0] - 58.7) < 1e-3
 
-    rgb_multi = np.zeros((2, 4, 5, 3), dtype=np.float32); rgb_multi[1] = 10
+    rgb_multi = np.zeros((2, 4, 5, 3), dtype=np.float32)
+    rgb_multi[1] = 10
     assert pick_frame(rgb_multi, samples_per_pixel=3, frame_index=1).shape == (4, 5)
     assert pick_frame(np.ones((4, 5), dtype=np.float32)).shape == (4, 5)

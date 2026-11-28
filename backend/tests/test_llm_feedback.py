@@ -1,9 +1,14 @@
 import json
 from pathlib import Path
 
-from tests.test_phase6_e2e_journey import _auth_client, _client, _demo_upload_confirm_analyze, _hdr, _token
-
 from app.llm.feedback import similarity
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 
 def test_feedback_captures_ai_text_vs_expert_edit(tmp_path: Path) -> None:

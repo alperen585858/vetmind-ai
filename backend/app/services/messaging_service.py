@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord
@@ -27,7 +27,6 @@ from app.schemas.messaging import (
 )
 from app.services.messaging_store import MessagingStore
 from app.services.notification_service import NotificationService
-
 
 # Subjects stored by auth-off demo sessions before messages were attributed to a person.
 LEGACY_DEMO_SUBJECTS = frozenset({"anonymous", "demo"})

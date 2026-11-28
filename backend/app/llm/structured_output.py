@@ -12,16 +12,28 @@ import re
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
+from app.llm.differential_gate import filter_differentials, is_actionable
 from app.llm.http_provider import _report_provenance_from_findings
 from app.llm.interfaces import LLMGenerationInput, LLMMalformedResponseError, LLMRequest
 from app.llm.json_schema import strict_llm_schema
 from app.llm.prompts import CitationAliases
 from app.models.vlm_grounding import sanitize_report_prose
 from app.schemas.enums import ModelExecutionStatus, ReportStatus
-from app.llm.differential_gate import filter_differentials, is_actionable
-from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
+from app.schemas.report import (
+    DifferentialDiagnosis,
+    DraftReport,
+    GenerationMetadata,
+    ReportSection,
+)
 
 SECTION_KEYS = ("technique", "findings", "impression", "recommendations")
 

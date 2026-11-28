@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from app.imaging.contracts import PreprocessingContract
 from app.imaging.profiles import profile_for_modality
@@ -21,7 +20,10 @@ from app.models.errors import (
     ModelUnavailableError,
 )
 from app.models.pixel_bridge import AuthorizedPixelBridge
-from app.models.task_output_mapper import attach_spatial_chain, map_task_outputs_to_findings
+from app.models.task_output_mapper import (
+    attach_spatial_chain,
+    map_task_outputs_to_findings,
+)
 from app.routing.capabilities import ModelCapability
 from app.schemas.case import CaseRecord
 from app.schemas.findings import StructuredFindings

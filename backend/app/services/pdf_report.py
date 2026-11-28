@@ -27,7 +27,11 @@ from reportlab.platypus import (
 )
 
 from app.dicom.classifier import REGION_TR, SPECIES_TR
-from app.imaging.display_png import dicom_bytes_to_png, evenly_sample, is_localizer_label
+from app.imaging.display_png import (
+    dicom_bytes_to_png,
+    evenly_sample,
+    is_localizer_label,
+)
 from app.models.evidence_store import normalize_ref
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Species
@@ -639,9 +643,9 @@ def build_owner_summary_pdf(case: CaseRecord, summary: Any, disclaimer: str) -> 
         # A short first line followed by text is a section heading ("Ne görüldü?").
         if len(lines) > 1 and len(lines[0].strip()) <= 60:
             story.append(Paragraph(_esc(lines[0].strip()), head))
-            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines[1:])), body))
+            story.append(Paragraph(_esc(" ".join(line.strip() for line in lines[1:])), body))
         else:
-            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines)), body))
+            story.append(Paragraph(_esc(" ".join(line.strip() for line in lines)), body))
     story.append(Paragraph(_esc(disclaimer), note))
     doc.build(story)
     return buf.getvalue()

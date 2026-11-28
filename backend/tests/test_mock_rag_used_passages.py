@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from app.llm.mock_provider import MockLLMProvider
 from app.llm.interfaces import LLMFindingRef, LLMGenerationInput, LLMRequest
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species
+from app.llm.mock_provider import MockLLMProvider
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.schemas.rag import RagPassage
 
 

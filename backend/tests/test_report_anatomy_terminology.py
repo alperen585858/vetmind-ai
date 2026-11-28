@@ -312,8 +312,8 @@ def test_unresolved_reason_survives_report_storage(application, location, reason
 
 
 def test_left_and_right_survive_deduplication_and_report(application):
-    from app.models.vlm_vision import _dedupe_findings
     from app.models.normalizer import normalize_outputs
+    from app.models.vlm_vision import _dedupe_findings
 
     container = application()
     case, _ = _run(container, "brain")
@@ -362,6 +362,7 @@ def test_collision_never_selected_even_when_one_candidate_is_anatomy(tmp_path):
 
 def test_cache_reuses_reads_across_threads(dictionary_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
+
     from app.llm.anatomy_dictionary import AnatomyDictionary, _load_cached
 
     _load_cached.cache_clear()

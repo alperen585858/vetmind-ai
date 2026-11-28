@@ -365,7 +365,10 @@ class ManualReviewStub:
 
 def default_model_registry() -> dict[str, ImagingModel]:
     """Injectable adapter registry. Keys are model_id strings used by the router."""
-    from app.models.synthetic_simulator import SYNTHETIC_MODEL_ID, build_synthetic_simulator
+    from app.models.synthetic_simulator import (
+        SYNTHETIC_MODEL_ID,
+        build_synthetic_simulator,
+    )
 
     registry: dict[str, ImagingModel] = {
         MockBrainMriModel.model_id: MockBrainMriModel(),

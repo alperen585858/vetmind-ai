@@ -8,6 +8,8 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
+from app.feedback.store import FeedbackStore
+from app.llm.comparison import build_comparison, comparison_warnings
 from app.models.model_input_builder import build_imaging_model_input
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import (
@@ -23,15 +25,6 @@ from app.schemas.case import (
     ReportDraftUpdate,
     ReviewFeedback,
 )
-from app.settings import Settings
-from app.schemas.workflow import (
-    CaseDocumentAttach,
-    CaseNoteCreate,
-    InfoRequestCreate,
-    InfoRequestReply,
-)
-from app.llm.comparison import build_comparison, comparison_warnings
-from app.services.activity import append_activity
 from app.schemas.enums import (
     CaseLifecycleStatus,
 )
@@ -43,20 +36,25 @@ from app.schemas.report import (
     ReportVersionSnapshot,
     ReportVersionSummary,
 )
-from app.feedback.store import FeedbackStore
+from app.schemas.workflow import (
+    CaseDocumentAttach,
+    CaseNoteCreate,
+    InfoRequestCreate,
+    InfoRequestReply,
+)
 from app.security.audit import AuditLogger, AuditOutcome
-from app.services.owner_contact import clean_owner_name
-from app.services.repository import CaseRepository
-from app.validation.report_validator import ReportValidator
-from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
-from app.workers.job_backend import JobBackend, ThreadJobBackend
-from app.services.host_bound import HostBound
-from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
-
-
+from app.services.activity import append_activity
 from app.services.case_evidence import CaseEvidenceMixin
 from app.services.case_lifecycle import CaseLifecycleMixin
 from app.services.case_listing import CaseListingMixin
+from app.services.host_bound import HostBound
+from app.services.owner_contact import clean_owner_name
+from app.services.ports import OwnerDelivery, OwnerDeliveryPort, PayoutPort
+from app.services.repository import CaseRepository
+from app.settings import Settings
+from app.validation.report_validator import ReportValidator
+from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
+from app.workers.job_backend import JobBackend, ThreadJobBackend
 
 
 def _now() -> datetime:
@@ -141,8 +139,8 @@ class CaseService(CaseListingMixin, CaseLifecycleMixin, CaseEvidenceMixin):
         collaboration: object | None,
     ) -> None:
         from app.services.analysis_application import AnalysisApplication
-        from app.services.report_application import ReportApplication
         from app.services.case_collaboration import CaseCollaborationService
+        from app.services.report_application import ReportApplication
 
         self.analysis = analysis if analysis is not None else AnalysisApplication(self)
         self.reports = reports if reports is not None else ReportApplication(self)

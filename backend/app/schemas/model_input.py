@@ -10,7 +10,12 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.enums import AnatomicalRegion, ClassificationConfidence, Modality, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    ClassificationConfidence,
+    Modality,
+    Species,
+)
 
 # Keep 1.0.0 wire version; selection fields are additive with defaults.
 IMAGING_MODEL_INPUT_VERSION = "1.0.0"

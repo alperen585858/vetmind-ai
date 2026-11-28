@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.auth.passwords import hash_password, is_password_hash, needs_rehash, verify_password
+from app.auth.passwords import (
+    hash_password,
+    is_password_hash,
+    needs_rehash,
+    verify_password,
+)
 from app.auth.security import DEMO_USERS, demo_password_hash
 from app.container import AppContainer
 from app.main import create_app

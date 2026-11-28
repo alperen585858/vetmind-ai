@@ -5,7 +5,6 @@ from app.schemas.enums import ModelExecutionStatus, ReportStatus, SourceKind
 from app.schemas.findings import FINDINGS_SCHEMA_VERSION, StructuredFindings
 from app.schemas.report import REPORT_SCHEMA_VERSION, DraftReport
 
-
 _SECTION_TR = {
     "technique": "Teknik",
     "findings": "Bulgular",

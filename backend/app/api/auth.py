@@ -3,7 +3,15 @@ import secrets
 from functools import lru_cache
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
@@ -14,7 +22,12 @@ from app.auth.mfa_challenge import MfaChallengeError
 from app.auth.password_reset import PasswordResetError
 from app.auth.passwords import hash_password, password_policy_detail
 from app.auth.refresh_tokens import RefreshTokenError
-from app.auth.security import DEMO_USERS, DemoUserRecord, create_access_token, verify_password
+from app.auth.security import (
+    DEMO_USERS,
+    DemoUserRecord,
+    create_access_token,
+    verify_password,
+)
 from app.container import AppContainer
 from app.http_errors import api_error
 from app.security.audit import AuditOutcome

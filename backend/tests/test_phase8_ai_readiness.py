@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.dicom.fixtures import build_synthetic_instance
 from app.imaging.contracts import pixel_2d_contract, pixel_3d_contract
 from app.imaging.decoder import AuthorizedDicomDecoder
 from app.imaging.interfaces import PrepValidationError
@@ -48,7 +49,6 @@ from app.schemas.model_outputs import (
     ClassificationOutput,
     ModelTaskOutputs,
 )
-from app.dicom.fixtures import build_synthetic_instance
 from tests.conftest import make_payload
 
 

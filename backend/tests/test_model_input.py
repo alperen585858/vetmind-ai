@@ -34,7 +34,7 @@ def test_api_prepare_model_input_after_dicom(client: TestClient) -> None:
     assert upload.status_code == 201
     confirmed = client.post(
         f"/api/v1/dicom/ingestions/{upload.json()['ingest_id']}/confirm",
-        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
+        json={"accept_suggestion": True, "owner_name": "Demo Owner", "owner_email": "owner@demo.local", "owner_email_consent": True},
     )
     assert confirmed.status_code == 200
     case_id = confirmed.json()["case_id"]

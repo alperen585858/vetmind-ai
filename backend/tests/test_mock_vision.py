@@ -1,9 +1,20 @@
 import pytest
 
-from app.models.mock_vision import MockBrainMriModel, MockCervicalMriModel, MockVisionError
+from app.models.mock_vision import (
+    MockBrainMriModel,
+    MockCervicalMriModel,
+    MockVisionError,
+)
 from app.models.normalizer import normalize_outputs
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, FindingStatus, MockScenario, Modality, ModelExecutionStatus, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    MockScenario,
+    Modality,
+    ModelExecutionStatus,
+    Species,
+)
 
 
 def _case(**kwargs) -> CaseRecord:

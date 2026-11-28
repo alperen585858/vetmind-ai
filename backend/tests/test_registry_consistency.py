@@ -8,7 +8,10 @@ from app.container import AppContainer
 from app.models.mock_vision import default_model_registry
 from app.routing.capabilities import ModelCapability, default_capabilities
 from app.routing.model_router import ModelRouter
-from app.routing.registry_validation import RegistryConsistencyError, validate_registry_capabilities
+from app.routing.registry_validation import (
+    RegistryConsistencyError,
+    validate_registry_capabilities,
+)
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind, Species
 from app.services.repository import InMemoryCaseRepository

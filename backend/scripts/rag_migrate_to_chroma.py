@@ -20,7 +20,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.rag.chroma_store import DEFAULT_COLLECTION, ChromaVectorStore, make_chroma_client  # noqa: E402
+from app.rag.chroma_store import (  # noqa: E402
+    DEFAULT_COLLECTION,
+    ChromaVectorStore,
+    make_chroma_client,
+)
 from app.rag.ollama_embeddings import build_embedding_backend  # noqa: E402
 from app.rag.vector_store import read_json_index  # noqa: E402
 from app.settings import load_settings  # noqa: E402

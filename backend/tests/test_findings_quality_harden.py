@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from app.llm.interfaces import LLMFindingRef, LLMGenerationInput
 from app.llm.prompts import build_aliases, build_system_prompt, build_user_prompt
-from app.models.vlm_grounding import SentFrame, evidence_for_frame, harden_finding_fields
+from app.models.vlm_grounding import (
+    SentFrame,
+    evidence_for_frame,
+    harden_finding_fields,
+)
 from app.models.vlm_vision import _dedupe_findings, _normalize_vlm_code
 from app.schemas.enums import (
     AnatomicalRegion,

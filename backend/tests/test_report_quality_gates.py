@@ -17,7 +17,11 @@ from app.imaging.systematic_checklist import (
     merge_systematic_review,
     parse_systematic_review,
 )
-from app.llm.differential_gate import actionable_findings, filter_differentials, is_limitation_text
+from app.llm.differential_gate import (
+    actionable_findings,
+    filter_differentials,
+    is_limitation_text,
+)
 from app.llm.structured_output import DifferentialWire
 from app.schemas.enums import FindingStatus
 
@@ -195,7 +199,12 @@ def test_draft_with_only_technique_findings_has_no_differentials() -> None:
     from app.llm.interfaces import LLMFindingRef, LLMGenerationInput, LLMRequest
     from app.llm.prompts import build_aliases, build_user_prompt
     from app.llm.structured_output import build_draft_report, parse_report_payload
-    from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, Species
+    from app.schemas.enums import (
+        AnatomicalRegion,
+        Modality,
+        ModelExecutionStatus,
+        Species,
+    )
 
     gen = LLMGenerationInput(
         case_id="c1",

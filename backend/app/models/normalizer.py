@@ -5,7 +5,13 @@ from app.models.evidence_validation import validate_evidence_references
 from app.models.mock_vision import ABSENCE_WARNING, MOCK_DISCLAIMER
 from app.models.ontology import code_family, codes_oppose, is_technique_code
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
-from app.schemas.findings import ConflictReasonCode, Finding, Laterality, PotentialConflict, StructuredFindings
+from app.schemas.findings import (
+    ConflictReasonCode,
+    Finding,
+    Laterality,
+    PotentialConflict,
+    StructuredFindings,
+)
 from app.schemas.model_input import ImagingModelInput
 
 AGREEMENT_NOTE = (

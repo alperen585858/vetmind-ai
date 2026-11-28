@@ -7,7 +7,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.container import AppContainer
-from app.demo_seed import DEMO_PATIENTS, demo_case_ids, ensure_demo_seed, remove_demo_cases, seed_demo_cases
+from app.demo_seed import (
+    DEMO_PATIENTS,
+    demo_case_ids,
+    ensure_demo_seed,
+    remove_demo_cases,
+    seed_demo_cases,
+)
 from app.llm.feedback import collect_feedback
 from app.main import create_app
 from app.schemas.case import ReviewFeedback

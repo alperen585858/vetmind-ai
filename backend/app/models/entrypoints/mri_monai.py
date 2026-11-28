@@ -13,8 +13,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import numpy as np
-
 from app.models.entrypoint import InferenceRequest, InferenceResult
 from app.models.entrypoints._common import (
     checkpoint_label_names,
@@ -22,8 +20,16 @@ from app.models.entrypoints._common import (
     require_torch,
     scores_to_classification,
 )
-from app.models.errors import InferenceFailedError, InferenceTimeoutError, ModelUnavailableError
-from app.models.model_kind import TINY_CONTRACT, TINY_CONTRACT_WARNING, is_tiny_architecture
+from app.models.errors import (
+    InferenceFailedError,
+    InferenceTimeoutError,
+    ModelUnavailableError,
+)
+from app.models.model_kind import (
+    TINY_CONTRACT,
+    TINY_CONTRACT_WARNING,
+    is_tiny_architecture,
+)
 from app.models.weight_cache import CachedWeights, load_torch_checkpoint
 from app.schemas.enums import ModelExecutionStatus, SourceKind
 from app.schemas.model_outputs import ModelTaskOutputs

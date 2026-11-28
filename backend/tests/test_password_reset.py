@@ -372,9 +372,9 @@ def test_created_and_last_login_timestamps(tmp_path: Path) -> None:
 
 
 def test_login_upgrades_outdated_hash_without_signing_out(tmp_path: Path) -> None:
+    import base64
     import hashlib
     import secrets as _secrets
-    import base64
 
     client, container = _app(tmp_path)
     salt = _secrets.token_bytes(16)

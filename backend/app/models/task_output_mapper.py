@@ -6,7 +6,12 @@ from collections.abc import Sequence
 
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
-from app.schemas.findings import BoundingBoxEvidence, EvidenceReference, Finding, StructuredFindings
+from app.schemas.findings import (
+    BoundingBoxEvidence,
+    EvidenceReference,
+    Finding,
+    StructuredFindings,
+)
 from app.schemas.model_outputs import ModelTaskOutputs
 
 

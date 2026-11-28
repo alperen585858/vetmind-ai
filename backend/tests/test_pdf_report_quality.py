@@ -5,10 +5,21 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, ExpertReviewStatus, Modality, ReportStatus, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    ExpertReviewStatus,
+    Modality,
+    ReportStatus,
+    Species,
+)
 from app.schemas.findings import EVIDENCE_DISCLAIMER
 from app.schemas.rag import RagPassage
-from app.schemas.report import DraftReport, GenerationMetadata, ReportEvidenceFigure, ReportSection
+from app.schemas.report import (
+    DraftReport,
+    GenerationMetadata,
+    ReportEvidenceFigure,
+    ReportSection,
+)
 from app.services.pdf_report import (
     _approver_display,
     _citation_legend_lines,

@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
-from app.schemas.notifications import AppNotification, NotificationKind, NotificationListResponse
+from app.schemas.notifications import (
+    AppNotification,
+    NotificationKind,
+    NotificationListResponse,
+)
 from app.services.notification_store import NotificationStore
 
 

@@ -198,7 +198,7 @@ class QuarantineStore:
             return []
         # Fallback: directory scan without manifest
         refs = []
-        for index, path in enumerate(sorted(directory.iterdir())):
+        for path in sorted(directory.iterdir()):
             if not path.is_file() or path.name == "manifest.json":
                 continue
             data = path.read_bytes()

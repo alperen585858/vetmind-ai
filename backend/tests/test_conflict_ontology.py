@@ -53,7 +53,11 @@ def test_ontology_families() -> None:
 
 
 def test_codes_oppose_ventricle_pair() -> None:
-    from app.models.ontology import canonicalize_finding_code, clear_ontology_cache, codes_oppose
+    from app.models.ontology import (
+        canonicalize_finding_code,
+        clear_ontology_cache,
+        codes_oppose,
+    )
 
     clear_ontology_cache()
     assert codes_oppose("VENTRICLE-DILATION", "VENTRICLE-STRUCTURE")

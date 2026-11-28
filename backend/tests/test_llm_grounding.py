@@ -4,7 +4,12 @@ from app.llm.mock_provider import MockLLMProvider
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
-from app.schemas.report import DifferentialDiagnosis, DraftReport, GenerationMetadata, ReportSection
+from app.schemas.report import (
+    DifferentialDiagnosis,
+    DraftReport,
+    GenerationMetadata,
+    ReportSection,
+)
 from app.validation.report_validator import ReportValidator
 
 

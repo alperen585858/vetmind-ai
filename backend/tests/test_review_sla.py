@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality, Species
 from app.review_sla import (
     WARN_WITHIN_HOURS,
     apply_review_sla,
@@ -13,6 +11,8 @@ from app.review_sla import (
     remaining_seconds,
     sla_hours_for,
 )
+from app.schemas.case import CaseRecord
+from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality, Species
 
 
 def _case(**kwargs) -> CaseRecord:

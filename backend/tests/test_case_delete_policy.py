@@ -3,7 +3,12 @@
 
 from pathlib import Path
 
-from tests.test_phase6_e2e_journey import _auth_client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 
 def _ids(c, token) -> set[str]:

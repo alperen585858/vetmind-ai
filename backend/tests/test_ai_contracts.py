@@ -3,9 +3,14 @@
 from app.container import AppContainer
 from app.llm.gateway import LLMGateway
 from app.llm.mock_provider import MockLLMProvider
-from app.llm.stub_provider import DeterministicStubLLMProvider, STUB_BANNER
+from app.llm.stub_provider import STUB_BANNER, DeterministicStubLLMProvider
 from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.mock_vision import MockBrainMriAltModel, MockBrainMriModel, MockVisionError, default_model_registry
+from app.models.mock_vision import (
+    MockBrainMriAltModel,
+    MockBrainMriModel,
+    MockVisionError,
+    default_model_registry,
+)
 from app.models.normalizer import detect_potential_conflicts, normalize_outputs
 from app.orchestration.orchestrator import AIOrchestrator
 from app.routing.capabilities import ModelCapability, default_capabilities

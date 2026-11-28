@@ -23,7 +23,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.llm.factory import build_llm_provider  # noqa: E402
-from app.llm.gateway import LLMGateway, build_generation_input, build_rag_filter, build_rag_query  # noqa: E402
+from app.llm.gateway import (  # noqa: E402
+    LLMGateway,
+    build_generation_input,
+    build_rag_filter,
+    build_rag_query,
+)
 from app.llm.interfaces import LLMProviderError  # noqa: E402
 from app.llm.prompts import build_aliases, build_system_prompt, build_user_prompt  # noqa: E402
 from app.models.mock_vision import MockBrainMriModel, MockCervicalMriModel  # noqa: E402

@@ -5,7 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.imaging.contracts import PreprocessingContract, TransformProvenance, metadata_only_contract
+from app.imaging.contracts import (
+    PreprocessingContract,
+    TransformProvenance,
+    metadata_only_contract,
+)
 from app.imaging.decoder import AuthorizedDicomDecoder
 from app.imaging.interfaces import PrepValidationError
 from app.imaging.profiles import profile_for_modality

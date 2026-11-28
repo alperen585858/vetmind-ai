@@ -12,7 +12,12 @@ from app.schemas.enums import (
     SourceKind,
     Species,
 )
-from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
+from app.schemas.findings import (
+    EvidenceReference,
+    Finding,
+    StructuredFindings,
+    StudyInfo,
+)
 
 
 def _case_with_dicom() -> CaseRecord:

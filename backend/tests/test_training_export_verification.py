@@ -11,8 +11,20 @@ from app.ml.training_export import (
     set_expert_verification,
 )
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species
-from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
+from app.schemas.findings import (
+    EvidenceReference,
+    Finding,
+    StructuredFindings,
+    StudyInfo,
+)
 
 
 def _case(pid: str, *, verified: bool, accepted: bool = True) -> CaseRecord:

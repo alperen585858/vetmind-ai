@@ -22,9 +22,9 @@ from app.schemas.messaging import (
     SupportThreadDetail,
     SupportThreadSummary,
 )
-from app.settings import Settings
 from app.services.case_collaboration import CaseCollaborationService
 from app.services.messaging_service import MessagingService
+from app.settings import Settings
 
 
 class MessagingFacade:

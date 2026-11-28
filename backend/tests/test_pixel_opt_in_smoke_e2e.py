@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.imaging.profiles import ct_volume_profile, mri_volume_profile, xray_2d_profile
 from app.imaging.preprocessor import ContractImagePreprocessor
+from app.imaging.profiles import ct_volume_profile, mri_volume_profile, xray_2d_profile
 from app.models.pixel_authorization import evaluate_pixel_access
 from app.routing.capabilities import INPUT_PIXELS_2D, ModelCapability
 from app.schemas.case import CaseRecord

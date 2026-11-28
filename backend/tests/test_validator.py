@@ -2,7 +2,13 @@ from app.llm.gateway import LLMGateway
 from app.llm.mock_provider import MockLLMProvider
 from app.models.mock_vision import MockBrainMriModel
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, ReportStatus, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    MockScenario,
+    Modality,
+    ReportStatus,
+    Species,
+)
 from app.schemas.report import ReportSection
 from app.validation.report_validator import ReportValidator
 

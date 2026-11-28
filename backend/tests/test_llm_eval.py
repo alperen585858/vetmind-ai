@@ -13,7 +13,6 @@ from app.evaluation.llm_eval import (
     to_pipeline_inputs,
 )
 from app.llm.chat_providers import OpenAICompatibleProvider
-from app.llm.interfaces import LLMUnavailableError
 from app.rag.retriever import LexicalRagRetriever
 from app.schemas.enums import ModelExecutionStatus
 

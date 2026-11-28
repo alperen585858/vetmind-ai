@@ -12,7 +12,11 @@ from pydicom.errors import InvalidDicomError
 
 from app.imaging.contracts import PreprocessingContract
 from app.imaging.interfaces import PrepValidationError
-from app.imaging.pixel_ops import TRANSFORM_EXTRACT_PIXELS, apply_photometric, as_float_array
+from app.imaging.pixel_ops import (
+    TRANSFORM_EXTRACT_PIXELS,
+    apply_photometric,
+    as_float_array,
+)
 
 
 class AuthorizedDicomDecoder:

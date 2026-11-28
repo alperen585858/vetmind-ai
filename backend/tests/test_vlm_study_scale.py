@@ -13,13 +13,21 @@ import pytest
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
-from app.models.study_inventory import InventoryFrame, StudyInventory, build_study_inventory
+from app.models.study_inventory import (
+    InventoryFrame,
+    StudyInventory,
+    build_study_inventory,
+)
 from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_vision import OpenAiCompatibleVlmVisionModel, _dedupe_findings
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, Species
 from app.schemas.findings import Finding
-from app.schemas.model_input import ImagingModelInput, ModelInputFrameRef, ModelInputSeriesRef
+from app.schemas.model_input import (
+    ImagingModelInput,
+    ModelInputFrameRef,
+    ModelInputSeriesRef,
+)
 from app.storage.quarantine import QuarantineStore
 
 

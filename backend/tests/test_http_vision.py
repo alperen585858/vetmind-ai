@@ -10,7 +10,13 @@ from app.models.http_vision import HttpRemoteVisionModel
 from app.models.interfaces import ImagingAdapterError
 from app.models.model_input_builder import build_imaging_model_input
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, SourceKind, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 from tests.conftest import make_payload

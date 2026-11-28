@@ -21,20 +21,6 @@ from typing import Any, Callable
 import httpx
 
 from app.http_policy import vision_http_policy
-from app.imaging.display_png import (
-    maybe_image_bytes,
-)
-from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
-from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.model_input_builder import require_model_input
-from app.models.study_inventory import build_study_inventory
-from app.models.vlm_batch_planner import plan_visual_analysis
-from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
-from app.imaging.systematic_checklist import (
-    checklist_prompt,
-    merge_systematic_review,
-    parse_systematic_review,
-)
 from app.imaging.analysis_limitations import (
     MISSING_PREFIX,
     context_gaps,
@@ -42,22 +28,48 @@ from app.imaging.analysis_limitations import (
     sequence_limitations,
     sequence_summary_lines,
 )
+from app.imaging.display_png import (
+    maybe_image_bytes,
+)
+from app.imaging.systematic_checklist import (
+    checklist_prompt,
+    merge_systematic_review,
+    parse_systematic_review,
+)
+from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
+from app.models.interfaces import ImagingAdapterError, ImagingModel
+from app.models.model_input_builder import require_model_input
+from app.models.study_inventory import build_study_inventory
+from app.models.vlm_batch_planner import plan_visual_analysis
+from app.models.vlm_findings_mapper import VlmFindingsMapperMixin
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
     format_image_catalog,
     study_inventory_metadata,
 )
+from app.models.vlm_image_collection import VlmImageCollectionMixin
+from app.models.vlm_parsing import (  # noqa: F401  (re-exported)
+    _STATUS_UNCERTAINTY_RANK,
+    _VALID_FINDING_STATUS,
+    _VLM_MAX_EDGE,
+    _dedupe_findings,
+    _dicom_frame_count,
+    _extract_json_object,
+    _ImageCandidate,
+    _looks_like_dicom,
+    _mime_for,
+    _normalize_vlm_code,
+    _png_size,
+    _review_locus,
+)
+from app.models.vlm_prompt import _SYSTEM_PROMPT, VLM_PROMPT_VERSION  # noqa: F401  (re-exported)
+from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
 from app.schemas.analysis_coverage import SeriesCoverage
 from app.schemas.case import CaseRecord
 from app.schemas.enums import ModelExecutionStatus, SourceKind
 from app.schemas.findings import Finding, StructuredFindings, StudyInfo
 from app.storage.quarantine import QuarantineStore
-
-from app.models.vlm_parsing import _dedupe_findings, _normalize_vlm_code, _review_locus, _VALID_FINDING_STATUS, _STATUS_UNCERTAINTY_RANK, _VLM_MAX_EDGE, _extract_json_object, _mime_for, _dicom_frame_count, _looks_like_dicom, _png_size, _ImageCandidate  # noqa: F401  (re-exported)
-from app.models.vlm_prompt import VLM_PROMPT_VERSION, _SYSTEM_PROMPT  # noqa: F401  (re-exported)
-from app.models.vlm_findings_mapper import VlmFindingsMapperMixin
-from app.models.vlm_image_collection import VlmImageCollectionMixin
 
 
 class OpenAiCompatibleVlmVisionModel(VlmImageCollectionMixin, VlmFindingsMapperMixin):

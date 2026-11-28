@@ -246,7 +246,10 @@ def _parse_bbox_norm(
         return None
     if reject_near_full and _normalized_bbox_area(x0, y0, x1, y1, width, height) >= _NEAR_FULL_BBOX_AREA:
         return None
-    from app.imaging.vlm_display_transform import native_bbox_from_vlm_png, should_draw_overlay
+    from app.imaging.vlm_display_transform import (
+        native_bbox_from_vlm_png,
+        should_draw_overlay,
+    )
 
     nw = native_width if native_width is not None else width
     nh = native_height if native_height is not None else height

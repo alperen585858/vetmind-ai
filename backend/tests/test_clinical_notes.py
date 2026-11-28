@@ -8,13 +8,17 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.container import AppContainer
+from app.llm.clinical_notes import (
+    clinical_notes_text,
+    history_with_notes,
+    strip_note_stamps,
+)
 from app.llm.gateway import build_rag_query, compose_history
 from app.main import create_app
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, Species
 from app.schemas.findings import StructuredFindings
 from app.schemas.workflow import ClinicalNoteEntry
-from app.llm.clinical_notes import clinical_notes_text, history_with_notes, strip_note_stamps
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 

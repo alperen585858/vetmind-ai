@@ -14,7 +14,12 @@ from app.auth.deps import require_auth, require_capability
 from app.auth.rbac import CAP_ADMIN
 from app.container import AppContainer
 from app.llm.factory import ANTHROPIC_KINDS, OLLAMA_KINDS, OPENAI_KINDS
-from app.llm.feedback import collect_feedback, export_chat_jsonl, export_jsonl, summarize
+from app.llm.feedback import (
+    collect_feedback,
+    export_chat_jsonl,
+    export_jsonl,
+    summarize,
+)
 
 router = APIRouter(prefix="/api/v1/llm", tags=["llm"], dependencies=[Depends(require_auth)])
 

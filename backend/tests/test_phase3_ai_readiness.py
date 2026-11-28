@@ -64,7 +64,11 @@ def test_transfer_syntax_allowlist_rejects_unsupported(client: TestClient) -> No
     created = client.post("/api/v1/cases", json=make_payload().model_dump(mode="json"))
     case = CaseRecord.model_validate(created.json())
     # Attach a synthetic frame with unsupported transfer syntax.
-    from app.schemas.model_input import ImagingModelInput, ModelInputFrameRef, ModelInputSeriesRef
+    from app.schemas.model_input import (
+        ImagingModelInput,
+        ModelInputFrameRef,
+        ModelInputSeriesRef,
+    )
 
     case.model_input = ImagingModelInput(
         case_id=case.case_id,
@@ -104,7 +108,11 @@ def test_transfer_syntax_allowlist_rejects_unsupported(client: TestClient) -> No
 def test_transfer_syntax_allowlist_rejects_missing(client: TestClient) -> None:
     created = client.post("/api/v1/cases", json=make_payload().model_dump(mode="json"))
     case = CaseRecord.model_validate(created.json())
-    from app.schemas.model_input import ImagingModelInput, ModelInputFrameRef, ModelInputSeriesRef
+    from app.schemas.model_input import (
+        ImagingModelInput,
+        ModelInputFrameRef,
+        ModelInputSeriesRef,
+    )
 
     mi = ImagingModelInput(
         case_id=case.case_id,

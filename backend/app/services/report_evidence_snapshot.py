@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from app.models.evidence_store import EvidenceArtifactStore
 from app.schemas.case import CaseRecord
-from app.schemas.findings import EVIDENCE_DISCLAIMER, EvidenceReference, StructuredFindings
+from app.schemas.findings import (
+    EVIDENCE_DISCLAIMER,
+    EvidenceReference,
+    StructuredFindings,
+)
 from app.schemas.report import DraftReport, ReportEvidenceFigure
 
 

@@ -11,13 +11,21 @@ from app.imaging.series_selection import select_series_for_modality
 from app.main import create_app
 from app.models.dicom_study_merge import merge_study_into
 from app.models.model_input_builder import build_imaging_model_input
-from app.models.schema_validation import validate_bridge_model_config, validate_model_task_outputs
+from app.models.schema_validation import (
+    validate_bridge_model_config,
+    validate_model_task_outputs,
+)
 from app.models.synthetic_bridge import run_synthetic_integration_walkthrough
 from app.schemas.case import CaseRecord
 from app.schemas.dicom import DicomInstanceMeta, DicomSeriesMeta, DicomStudyMeta
-from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, SourceKind, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.schemas.findings import StudyInfo
-from app.schemas.model_outputs import ModelTaskOutputs
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
 

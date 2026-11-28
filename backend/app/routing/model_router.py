@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 
 from app.imaging.pixel_ops import parse_image_position
-from app.imaging.series_selection import case_dimensionality_ok, select_series_for_modality
+from app.imaging.series_selection import (
+    case_dimensionality_ok,
+    select_series_for_modality,
+)
 from app.routing.capabilities import (
     AVAILABILITY_NOT_CONFIGURED,
     INPUT_METADATA_ONLY,
@@ -11,7 +14,7 @@ from app.routing.capabilities import (
     default_capabilities,
 )
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, Modality, Species
+from app.schemas.enums import AnatomicalRegion, Modality
 from app.schemas.model_input import ModelInputFrameRef, ModelInputSeriesRef
 
 MANUAL_REVIEW_MODEL = "manual-review"

@@ -6,8 +6,20 @@ from pathlib import Path
 
 from app.models.evidence_store import EvidenceArtifactStore
 from app.schemas.case import CaseRecord
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species
-from app.schemas.findings import BoundingBoxEvidence, EvidenceReference, Finding, StructuredFindings
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
+from app.schemas.findings import (
+    BoundingBoxEvidence,
+    EvidenceReference,
+    Finding,
+    StructuredFindings,
+)
 from app.schemas.report import DraftReport, GenerationMetadata, ReportSection
 from app.security.retention import cleanup_vision_artifacts, open_case_ids
 from app.services.report_evidence_snapshot import freeze_evidence_into_report

@@ -23,11 +23,15 @@ from app.dicom.fixtures import (
     thoracolumbar_mri_study_files,
     thorax_xr_study_files,
 )
-from app.schemas.case import CaseAssignmentUpdate, CasePriority, ReviewFeedback, StructuredClinicalHistory
+from app.schemas.case import (
+    CaseAssignmentUpdate,
+    CasePriority,
+    ReviewFeedback,
+    StructuredClinicalHistory,
+)
 from app.schemas.dicom import ConfirmClassificationRequest
 from app.schemas.enums import ReviewAction, Species
 from app.schemas.patient import PatientRecord
-from app.schemas.workflow import PetRecord
 
 if TYPE_CHECKING:
     from app.container import AppContainer

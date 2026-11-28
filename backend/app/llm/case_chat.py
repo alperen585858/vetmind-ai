@@ -19,14 +19,13 @@ from app.llm.chat_providers import (
     OLLAMA_DEFAULT_BASE_URL,
     OPENAI_DEFAULT_BASE_URL,
 )
+from app.llm.gateway import compose_history
 from app.llm.interfaces import (
     LLMConfigError,
     LLMMalformedResponseError,
-    LLMProviderError,
     LLMTimeoutError,
     LLMUnavailableError,
 )
-from app.llm.gateway import compose_history
 from app.llm.privacy import redact_personal_data
 from app.schemas.case import AiChatTurn, CaseRecord
 from app.settings import Settings

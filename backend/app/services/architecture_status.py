@@ -23,9 +23,18 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.orchestration.progress import PIPELINE_STAGES, stage_label_tr
-from app.routing.capabilities import AVAILABILITY_NOT_CONFIGURED, AVAILABILITY_SYNTHETIC, ModelCapability
+from app.routing.capabilities import (
+    AVAILABILITY_NOT_CONFIGURED,
+    AVAILABILITY_SYNTHETIC,
+    ModelCapability,
+)
 from app.routing.execution_policy import VisionExecutionMode
-from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality, SourceKind
+from app.schemas.enums import (
+    AnatomicalRegion,
+    CaseLifecycleStatus,
+    Modality,
+    SourceKind,
+)
 
 ACTIVE = "active"
 MOCK = "mock"

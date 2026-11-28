@@ -9,10 +9,15 @@ from typing import Literal
 
 from fastapi import HTTPException, status
 
-from app.auth.passwords import hash_password, is_password_hash, needs_rehash, password_policy_detail
-from app.http_errors import api_error
+from app.auth.passwords import (
+    hash_password,
+    is_password_hash,
+    needs_rehash,
+    password_policy_detail,
+)
 from app.auth.principal import AuthPrincipal
 from app.auth.security import DEMO_USERS, DemoUserRecord, demo_password_hash
+from app.http_errors import api_error
 from app.schemas.workflow import (
     ClinicStaffStats,
     ManagedUser,
@@ -24,7 +29,6 @@ from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.notification_service import NotificationService
 from app.services.workflow_store import WorkflowStore
-
 
 
 def _now() -> datetime:

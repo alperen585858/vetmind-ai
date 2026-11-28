@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.test_phase6_e2e_journey import _auth_client, _client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 EXPERT = "expert@demo.local"
 EXPERT_HDR = {"X-VetMind-Demo-Role": "expert", "X-VetMind-Demo-Subject": EXPERT}

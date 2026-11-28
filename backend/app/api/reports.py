@@ -4,11 +4,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
-from app.auth.visibility import case_for_principal
 from app.auth.rbac import CAP_CASE_READ, CAP_REVIEW
+from app.auth.visibility import case_for_principal
 from app.container import AppContainer
 from app.http_errors import api_error
-from app.schemas.case import CaseActivityEvent, CaseRecord, ReportDraftUpdate, ReviewFeedback
+from app.schemas.case import (
+    CaseActivityEvent,
+    CaseRecord,
+    ReportDraftUpdate,
+    ReviewFeedback,
+)
 from app.schemas.enums import CaseLifecycleStatus, ReportStatus
 from app.schemas.report import DraftReport, ReportVersionSnapshot, ReportVersionSummary
 from app.services.case_service import CaseService

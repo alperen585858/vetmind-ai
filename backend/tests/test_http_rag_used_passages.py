@@ -8,7 +8,14 @@ import httpx
 
 from app.llm.http_provider import HttpLLMProvider
 from app.llm.interfaces import LLMFindingRef, LLMGenerationInput, LLMRequest
-from app.schemas.enums import AnatomicalRegion, FindingStatus, Modality, ModelExecutionStatus, SourceKind, Species
+from app.schemas.enums import (
+    AnatomicalRegion,
+    FindingStatus,
+    Modality,
+    ModelExecutionStatus,
+    SourceKind,
+    Species,
+)
 from app.schemas.rag import RagPassage
 
 

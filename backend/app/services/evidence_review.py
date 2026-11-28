@@ -6,11 +6,15 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from app.imaging.geometry import map_bbox_inverse, steps_from_dicts, verify_bbox_roundtrip
+from app.imaging.geometry import (
+    map_bbox_inverse,
+    steps_from_dicts,
+    verify_bbox_roundtrip,
+)
 from app.schemas.case import CaseRecord
 from app.schemas.findings import (
-    BoundingBoxEvidence,
     EVIDENCE_DISCLAIMER,
+    BoundingBoxEvidence,
     EvidenceReference,
     StructuredFindings,
 )

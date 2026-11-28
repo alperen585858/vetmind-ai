@@ -24,7 +24,11 @@ from typing import TYPE_CHECKING, Any, Protocol
 from app.dicom.classifier import REGION_TR, SPECIES_TR
 from app.llm.interfaces import LLMConfigError
 from app.llm.privacy import redact_personal_data
-from app.schemas.dicom import ClassificationSignal, ClassificationSuggestion, DicomStudyMeta
+from app.schemas.dicom import (
+    ClassificationSignal,
+    ClassificationSuggestion,
+    DicomStudyMeta,
+)
 from app.schemas.enums import (
     AnatomicalRegion,
     ClassificationConfidence,

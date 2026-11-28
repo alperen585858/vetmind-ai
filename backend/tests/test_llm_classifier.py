@@ -193,7 +193,11 @@ def test_openai_compatible_request_is_deterministic_and_schema_bound() -> None:
 
 
 def test_eval_harness_scores_hybrid_runs() -> None:
-    from app.evaluation.classification_eval import load_eval_set, render_markdown, run_eval
+    from app.evaluation.classification_eval import (
+        load_eval_set,
+        render_markdown,
+        run_eval,
+    )
 
     eval_set = load_eval_set(Path(__file__).resolve().parents[1] / "eval" / "classification_eval_set_tr.json")
     rules = run_eval(eval_set)

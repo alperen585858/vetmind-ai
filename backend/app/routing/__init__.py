@@ -6,7 +6,10 @@ from app.routing.model_router import (
     list_routable_capabilities,
     list_routable_model_ids,
 )
-from app.routing.registry_validation import RegistryConsistencyError, validate_registry_capabilities
+from app.routing.registry_validation import (
+    RegistryConsistencyError,
+    validate_registry_capabilities,
+)
 from app.routing.remote_config import VisionConfigError, remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
 

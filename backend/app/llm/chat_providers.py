@@ -17,9 +17,12 @@ from typing import Any
 import httpx
 
 from app.http_policy import llm_http_policy
+from app.llm.differential_gate import actionable_findings
+from app.llm.grounding import uncited_claims
 from app.llm.interfaces import (
     LLMConfigError,
     LLMErrorKind,
+    LLMGenerationInput,
     LLMMalformedResponseError,
     LLMProviderError,
     LLMRequest,
@@ -27,8 +30,6 @@ from app.llm.interfaces import (
     LLMTimeoutError,
     LLMUnavailableError,
 )
-from app.llm.grounding import uncited_claims
-from app.llm.differential_gate import actionable_findings
 from app.llm.prompts import (
     PROMPT_VERSION,
     PROMPT_VERSIONS,
@@ -42,8 +43,6 @@ from app.llm.prompts import (
     is_two_step,
     wants_differentials,
 )
-from app.llm.interfaces import LLMGenerationInput
-from app.schemas.report import DraftReport
 from app.llm.structured_output import (
     DIFFERENTIALS_JSON_SCHEMA,
     SECTION_KEYS,
@@ -62,6 +61,7 @@ from app.llm.verifier import (
     parse_verdicts,
 )
 from app.schemas.enums import ModelExecutionStatus
+from app.schemas.report import DraftReport
 
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"

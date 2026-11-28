@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import can_access_owned
 from app.schemas.case import (

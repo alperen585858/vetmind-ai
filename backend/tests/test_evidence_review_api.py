@@ -3,7 +3,12 @@
 import json
 from pathlib import Path
 
-from tests.test_phase6_e2e_journey import _auth_client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 BOX = {"x_min": 10, "y_min": 10, "x_max": 40, "y_max": 40}
 

@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.test_phase6_e2e_journey import _auth_client, _client, _demo_upload_confirm_analyze, _hdr, _token
+from tests.test_phase6_e2e_journey import (
+    _auth_client,
+    _client,
+    _demo_upload_confirm_analyze,
+    _hdr,
+    _token,
+)
 
 
 def test_reject_writes_feedback_event(tmp_path: Path) -> None:

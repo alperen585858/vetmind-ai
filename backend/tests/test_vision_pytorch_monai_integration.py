@@ -7,9 +7,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from app.imaging.interfaces import PrepValidationError
 from app.imaging.pixel_ops import apply_rescale_to_hu, normalize_01, resize_2d
 from app.imaging.preprocessor import ContractImagePreprocessor
-from app.imaging.profiles import ct_volume_profile, mri_volume_profile, xray_2d_profile
+from app.imaging.profiles import ct_volume_profile, mri_volume_profile
 from app.imaging.quality import check_array_quality
 from app.models.calibration import load_calibration_artifact
 from app.models.errors import InferenceFailedError, ModelUnavailableError
@@ -103,7 +104,7 @@ def test_xray_resize_numpy_fallback() -> None:
 
 
 def test_quality_check_rejects_empty() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(PrepValidationError):
         check_array_quality(np.array([]))
 
 
@@ -141,8 +142,8 @@ def test_xray_entrypoint_forward_tiny_checkpoint(tmp_path: Path) -> None:
     from app.imaging.contracts import TransformProvenance
     from app.models.entrypoint import InferenceRequest, PreparedTensorBundle
     from app.models.entrypoints.xray_monai import build_entrypoint, save_tiny_checkpoint
-    from app.schemas.model_input import ImagingModelInput
     from app.schemas.enums import AnatomicalRegion, Modality, Species
+    from app.schemas.model_input import ImagingModelInput
 
     ckpt = tmp_path / "xr.pt"
     save_tiny_checkpoint(str(ckpt), seed=1)
@@ -191,8 +192,8 @@ def test_mri_rejects_xr_modality(tmp_path: Path) -> None:
     from app.imaging.contracts import TransformProvenance
     from app.models.entrypoint import InferenceRequest, PreparedTensorBundle
     from app.models.entrypoints.mri_monai import build_entrypoint, save_tiny_checkpoint
-    from app.schemas.model_input import ImagingModelInput
     from app.schemas.enums import AnatomicalRegion, Modality, Species
+    from app.schemas.model_input import ImagingModelInput
 
     ckpt = tmp_path / "mri.pt"
     save_tiny_checkpoint(str(ckpt))
@@ -254,7 +255,13 @@ def test_patient_split_no_leakage() -> None:
 def test_evidence_bbox_on_mapper() -> None:
     from app.models.task_output_mapper import map_task_outputs_to_findings
     from app.schemas.case import CaseRecord
-    from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, SourceKind, Species
+    from app.schemas.enums import (
+        AnatomicalRegion,
+        Modality,
+        ModelExecutionStatus,
+        SourceKind,
+        Species,
+    )
     from app.schemas.model_outputs import (
         BoundingBox2D,
         DetectionOutput,

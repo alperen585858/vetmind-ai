@@ -8,11 +8,11 @@ from app.imaging.geometry import (
     flip_v_step,
     map_bbox_forward,
     map_bbox_inverse,
+    pan_step,
     resize_step,
     rotate_step,
     verify_bbox_roundtrip,
     zoom_step,
-    pan_step,
 )
 from app.imaging.vlm_display_transform import (
     native_bbox_from_vlm_png,
@@ -81,20 +81,6 @@ def test_unverified_when_dims_missing_no_overlay() -> None:
 
 
 def test_evidence_omits_bbox_without_native_dims() -> None:
-    frame = SentFrame(
-        index=1,
-        png=b"x",
-        sop_instance_uid="1.2.3",
-        series_instance_uid="1.2.4",
-        instance_number=1,
-        frame_index=0,
-        series_description="T2",
-        is_localizer=False,
-        width=256,
-        height=256,
-        native_width=None,
-        native_height=None,
-    )
     # Without native dims, parser falls back to treating PNG size as native (identity).
     # Force failure by zero native via explicit call path: width ok → identity path uses
     # native_width=width fallback in _parse_bbox_norm. Use item with bbox but zero height frame.

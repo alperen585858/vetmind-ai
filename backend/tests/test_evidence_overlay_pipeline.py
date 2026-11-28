@@ -7,7 +7,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from app.imaging.evidence_renderer import render_bbox_overlay, render_from_model_space_bbox
+from app.imaging.evidence_renderer import (
+    render_bbox_overlay,
+    render_from_model_space_bbox,
+)
 from app.imaging.geometry import map_bbox_forward, map_bbox_inverse, resize_step
 from app.models.evidence_attach import attach_rendered_evidence
 from app.models.evidence_store import EvidenceArtifactStore

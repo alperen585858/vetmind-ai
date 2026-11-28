@@ -15,7 +15,11 @@ from app.models.vlm_vision import OpenAiCompatibleVlmVisionModel
 from app.orchestration.progress import vision_batch_progress_pct
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Modality, Species
-from app.schemas.model_input import ImagingModelInput, ModelInputFrameRef, ModelInputSeriesRef
+from app.schemas.model_input import (
+    ImagingModelInput,
+    ModelInputFrameRef,
+    ModelInputSeriesRef,
+)
 from app.storage.quarantine import QuarantineStore
 
 

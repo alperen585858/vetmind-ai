@@ -20,7 +20,12 @@ from app.llm.case_chat import (
     _anthropic_chat,
     _openai_compatible_chat,
 )
-from app.llm.chat_providers import ANTHROPIC_DEFAULT_BASE_URL, ANTHROPIC_DEFAULT_MODEL, OLLAMA_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
+from app.llm.chat_providers import (
+    ANTHROPIC_DEFAULT_BASE_URL,
+    ANTHROPIC_DEFAULT_MODEL,
+    OLLAMA_DEFAULT_BASE_URL,
+    OPENAI_DEFAULT_BASE_URL,
+)
 from app.llm.interfaces import LLMConfigError
 from app.llm.privacy import redact_personal_data
 from app.schemas.case import CaseRecord
