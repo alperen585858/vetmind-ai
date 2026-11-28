@@ -40,7 +40,7 @@ export default function ClinicTeam() {
       .then(setStats)
       .catch(() => setStats(null))
   }
-  useEffect(load, [refreshBackendCases]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [refreshBackendCases])
 
   const rad = useMemo(() => radiologistRows(cases, t, intlLocale), [cases, t, intlLocale])
   const vets = useMemo(() => vetRows(cases, stats?.staff ?? [], intlLocale), [cases, stats, intlLocale])

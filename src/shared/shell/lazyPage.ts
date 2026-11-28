@@ -9,6 +9,7 @@ const RELOAD_FLAG = 'vetmind.chunk-reload'
  * leaving the user on a crashed page, reload once to pick up the new build; if the import
  * still fails right after that reload, let the error surface.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- same constraint as React.lazy
 export function lazyPage<T extends ComponentType<any>>(
   load: () => Promise<{ default: T }>,
 ): LazyExoticComponent<T> {

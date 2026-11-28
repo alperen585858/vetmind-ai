@@ -52,7 +52,7 @@ export function bboxCoordinateTrusted(bbox: OverlayBBox): boolean {
   return false
 }
 
-export function findingOverlayLabel(findingIndex: number, findingId: string): string {
+export function findingOverlayLabel(findingIndex: number, _findingId: string): string {
   const n = Math.max(1, findingIndex + 1)
   return `F${n}`
 }

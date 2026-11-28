@@ -1119,8 +1119,10 @@ export VETMIND_STORAGE=memory
 ```bash
 npm test
 npm run typecheck
+npm run lint                                         # ESLint (frontend)
 npm run build
 npm run backend:test
+cd backend && ruff check .                           # ruff (pip install ruff==0.17.6; kurallar backend/ruff.toml)
 # veya: cd backend && pytest
 
 npm run e2e                                          # demo modu (masaüstü + mobil), Windows/macOS/Linux
