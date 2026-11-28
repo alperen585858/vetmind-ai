@@ -1,7 +1,12 @@
-"""CT 3D VisionEntrypoint (PyTorch + optional MONAI sliding-window).
+"""CT 3D tiny contract entrypoint (PyTorch only — no MONAI network, no trained model).
+
+Despite the module name, this only builds ``TinyCTClassifier``: a pooled linear probe that
+exercises the IntegrationBridge contract in tests. Outputs are ``source_kind=MOCK`` and the
+capability is registered as a synthetic probe that is not routed into analysis
+(``app.models.model_kind``). Checkpoints declaring any other architecture are refused.
 
 Requires explicit HU window upstream (IntegrationBridge). Weights required.
-Fails closed without torch/weights — no silent mock findings.
+Fails closed without torch/weights.
 """
 
 from __future__ import annotations
@@ -19,9 +24,10 @@ from app.models.entrypoints._common import (
     scores_to_classification,
 )
 from app.models.errors import InferenceFailedError, InferenceTimeoutError, ModelUnavailableError
+from app.models.model_kind import TINY_CONTRACT, TINY_CONTRACT_WARNING, is_tiny_architecture
 from app.models.weight_cache import CachedWeights, load_torch_checkpoint
 from app.schemas.enums import ModelExecutionStatus, SourceKind
-from app.schemas.model_outputs import ModelTaskOutputs, SegmentationOutput
+from app.schemas.model_outputs import ModelTaskOutputs
 
 _DEFAULT_LABELS = [
     "INTRACRANIAL_MASS_EFFECT_SUSPECTED",
@@ -88,7 +94,6 @@ class CTMonaiEntrypoint:
         self._module: Any = None
         self._label_names = list(_DEFAULT_LABELS)
         self._clinically_approved = False
-        self._use_sliding_window = False
 
     def load(self) -> None:
         require_torch()
@@ -104,10 +109,7 @@ class CTMonaiEntrypoint:
         self._clinically_approved = bool(
             isinstance(payload, dict) and payload.get("clinically_approved") is True
         )
-        arch = ""
-        if isinstance(payload, dict):
-            arch = str(payload.get("architecture") or "")
-        self._use_sliding_window = arch.startswith("monai_")
+        _reject_non_tiny_architecture(payload, model_id=self.model_id, modality="CT")
         module = TinyCTClassifier(num_classes=len(self._label_names)).to(self.device).eval()
         state = None
         if isinstance(payload, dict):
@@ -129,21 +131,6 @@ class CTMonaiEntrypoint:
 
     def is_ready(self) -> bool:
         return self._ready
-
-    def _maybe_sliding_window_stub(self, volume: np.ndarray) -> SegmentationOutput | None:
-        """Optional MONAI sliding-window path when architecture requests it.
-
-        Without a trained seg head this returns no regions (fail-closed on masks).
-        """
-        if not self._use_sliding_window:
-            return None
-        try:
-            import monai  # type: ignore[import-not-found]  # noqa: F401
-        except Exception:
-            return SegmentationOutput(regions=[])
-        # Sliding-window seg head not bundled with tiny classifier — no invented masks.
-        _ = volume
-        return SegmentationOutput(regions=[])
 
     def infer(self, request: InferenceRequest) -> InferenceResult:
         if not self._ready or self._module is None or self._cached is None:
@@ -185,7 +172,7 @@ class CTMonaiEntrypoint:
                 scores=scores,
                 threshold=self.score_threshold,
             )
-            segmentation = self._maybe_sliding_window_stub(arr)
+            segmentation = None
         except (InferenceFailedError, ModelUnavailableError):
             raise
         except Exception as exc:  # noqa: BLE001
@@ -203,6 +190,7 @@ class CTMonaiEntrypoint:
             )
 
         warnings = [
+            TINY_CONTRACT_WARNING,
             "CT Vision output is decision-support only; not clinically validated.",
             "Veterinary CT anatomy differs from human — do not treat human-pretrained "
             "weights as clinically reliable without veterinary validation.",
@@ -249,24 +237,39 @@ class CTMonaiEntrypoint:
             model_version=self.version,
             case_id=request.case_id,
             execution_status=ModelExecutionStatus.SUCCESS,
-            source_kind=SourceKind.REAL,
+            # Tiny contract classifier: never a real Vision result.
+            source_kind=SourceKind.MOCK,
             classification=classification,
             detection=detection,
             segmentation=segmentation,
             warnings=warnings,
             processing_metadata={
                 "adapter": "ct_monai",
+                "model_kind": TINY_CONTRACT,
                 "device": self.device,
                 "weight_digest_sha256": self._cached.digest_sha256,
                 "calibrated": "false",
                 "clinically_validated": "false",
                 "brain_priority": "true",
                 "localization_emitted": "true" if detection or segmentation else "false",
-                "sliding_window": "true" if self._use_sliding_window else "false",
                 "raw_scores": ",".join(
                     f"{n}={s:.4f}" for n, s in zip(self._label_names, scores)
                 ),
             },
+        )
+
+
+def _reject_non_tiny_architecture(payload: Any, *, model_id: str, modality: str) -> None:
+    """This entrypoint only implements the tiny contract classifier — refuse anything else.
+
+    A checkpoint that declares another architecture (e.g. a MONAI network) would otherwise
+    be force-loaded into the tiny module or fail with a confusing shape error.
+    """
+    arch = str(payload.get("architecture") or "") if isinstance(payload, dict) else ""
+    if arch and not is_tiny_architecture(arch):
+        raise ModelUnavailableError(
+            f"{modality} entrypoint for {model_id!r} only runs the tiny contract classifier; "
+            f"checkpoint architecture {arch!r} is not implemented here."
         )
 
 

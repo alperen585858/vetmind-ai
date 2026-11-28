@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.models.interfaces import ImagingModel
+from app.models.model_kind import TINY_CONTRACT
 from app.models.schema_validation import validate_bridge_model_config
 from app.routing.capabilities import (
     AVAILABILITY_AVAILABLE,
@@ -40,6 +41,7 @@ class ModelRegistryEntry:
     preprocessing_contract_id: str
     input_contract_id: str
     output_schema_version: str
+    model_kind: str = ""  # local_torch only: tiny_contract | trained_network
 
     def blockers(self) -> list[str]:
         """Integration blockers for readiness UI (missing config / policy)."""
@@ -52,6 +54,8 @@ class ModelRegistryEntry:
             blockers.append("not_configured")
         if self.availability == AVAILABILITY_SYNTHETIC:
             blockers.append("synthetic_probe_only")
+        if self.model_kind == TINY_CONTRACT:
+            blockers.append("tiny_contract_model_not_trained")
         needs_pixels = bool(set(self.input_requirements) & {INPUT_PIXELS_2D, INPUT_PIXELS_3D})
         if needs_pixels and not self.allows_pixel_analysis:
             blockers.append("pixel_analysis_denied_by_capability")
@@ -99,6 +103,7 @@ class ModelRegistryEntry:
             "preprocessing_contract_id": self.preprocessing_contract_id or None,
             "input_contract_id": self.input_contract_id,
             "output_schema_version": self.output_schema_version,
+            "model_kind": self.model_kind or None,
             "blockers": bl,
             "ready_for_real_integration": len(bl) == 0 and self.source_kind == "real",
         }
@@ -169,6 +174,9 @@ class ModelRegistry:
                     preprocessing_contract_id=cap.preprocessing_contract_id,
                     input_contract_id=cap.input_contract_id,
                     output_schema_version=cap.output_schema_version,
+                    model_kind=str(getattr(adapter, "model_kind", "") or "")
+                    if cap.adapter_kind == "local_torch"
+                    else "",
                 )
             )
         # Adapters without capability rows (e.g. manual-review) still surface.

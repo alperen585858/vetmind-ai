@@ -20,6 +20,11 @@ from app.models.entrypoint import (
 from app.models.errors import ModelUnavailableError
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
+from app.models.model_kind import (
+    TINY_CONTRACT,
+    TINY_CONTRACT_WARNING,
+    entrypoint_model_kind,
+)
 from app.routing.capabilities import ModelCapability
 from app.schemas.case import CaseRecord
 from app.schemas.enums import ModelExecutionStatus, SourceKind
@@ -87,6 +92,11 @@ class LocalTorchVisionAdapter:
             self._entrypoint_instance is not None
             or (self._config.weights_path and self._config.entrypoint)
         )
+
+    @property
+    def model_kind(self) -> str:
+        """``tiny_contract`` for the CT/MR contract entrypoints, else ``trained_network``."""
+        return entrypoint_model_kind(self._config.entrypoint)
 
     @property
     def availability(self) -> str:
@@ -167,6 +177,8 @@ class LocalTorchVisionAdapter:
             device=self._config.device,
             weights_path=self._config.weights_path,
         )
+        model_kind = entrypoint_model_kind(self._config.entrypoint)
+        contract_only = model_kind == TINY_CONTRACT
         return {
             "model_id": self.model_id,
             "version": self.version,
@@ -179,8 +191,13 @@ class LocalTorchVisionAdapter:
             "window_center": self._config.window_center,
             "window_width": self._config.window_width,
             "task_capabilities": list(self._config.task_capabilities),
-            "source_kind": SourceKind.REAL.value,
-            "note": "Bridge-ready. Weights load only via configured entrypoint.",
+            "model_kind": model_kind,
+            "source_kind": (SourceKind.MOCK if contract_only else SourceKind.REAL).value,
+            "note": (
+                TINY_CONTRACT_WARNING + " Not routed into analysis."
+                if contract_only
+                else "Bridge-ready. Weights load only via configured entrypoint."
+            ),
             **extra,
         }
 

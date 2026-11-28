@@ -1,4 +1,9 @@
-"""MRI 3D VisionEntrypoint (PyTorch + optional MONAI).
+"""MRI 3D tiny contract entrypoint (PyTorch only — no MONAI network, no trained model).
+
+Despite the module name, this only builds ``TinyMRIClassifier``: a pooled linear probe that
+exercises the IntegrationBridge contract in tests. Outputs are ``source_kind=MOCK`` and the
+capability is registered as a synthetic probe that is not routed into analysis
+(``app.models.model_kind``). Checkpoints declaring any other architecture are refused.
 
 No HU assumptions — intensity normalization is owned by the MRI prep profile.
 """
@@ -18,6 +23,7 @@ from app.models.entrypoints._common import (
     scores_to_classification,
 )
 from app.models.errors import InferenceFailedError, InferenceTimeoutError, ModelUnavailableError
+from app.models.model_kind import TINY_CONTRACT, TINY_CONTRACT_WARNING, is_tiny_architecture
 from app.models.weight_cache import CachedWeights, load_torch_checkpoint
 from app.schemas.enums import ModelExecutionStatus, SourceKind
 from app.schemas.model_outputs import ModelTaskOutputs
@@ -98,6 +104,7 @@ class MRIMonaiEntrypoint:
         self._clinically_approved = bool(
             isinstance(payload, dict) and payload.get("clinically_approved") is True
         )
+        _reject_non_tiny_architecture(payload, model_id=self.model_id, modality="MRI")
         module = TinyMRIClassifier(num_classes=len(self._label_names)).to(self.device).eval()
         state = None
         if isinstance(payload, dict):
@@ -172,6 +179,7 @@ class MRIMonaiEntrypoint:
             )
 
         warnings = [
+            TINY_CONTRACT_WARNING,
             "MRI Vision output is decision-support only; not clinically validated.",
             "No HU window applied (MRI intensity profile).",
             "Brain MR/CT localization (bbox/mask) is emitted only when the checkpoint "
@@ -223,13 +231,15 @@ class MRIMonaiEntrypoint:
             model_version=self.version,
             case_id=request.case_id,
             execution_status=ModelExecutionStatus.SUCCESS,
-            source_kind=SourceKind.REAL,
+            # Tiny contract classifier: never a real Vision result.
+            source_kind=SourceKind.MOCK,
             classification=classification,
             detection=detection,
             segmentation=segmentation,
             warnings=warnings,
             processing_metadata={
                 "adapter": "mri_monai",
+                "model_kind": TINY_CONTRACT,
                 "device": self.device,
                 "weight_digest_sha256": self._cached.digest_sha256,
                 "calibrated": "false",
@@ -240,6 +250,20 @@ class MRIMonaiEntrypoint:
                     f"{n}={s:.4f}" for n, s in zip(self._label_names, scores)
                 ),
             },
+        )
+
+
+def _reject_non_tiny_architecture(payload: Any, *, model_id: str, modality: str) -> None:
+    """This entrypoint only implements the tiny contract classifier — refuse anything else.
+
+    A checkpoint that declares another architecture (e.g. a MONAI network) would otherwise
+    be force-loaded into the tiny module or fail with a confusing shape error.
+    """
+    arch = str(payload.get("architecture") or "") if isinstance(payload, dict) else ""
+    if arch and not is_tiny_architecture(arch):
+        raise ModelUnavailableError(
+            f"{modality} entrypoint for {model_id!r} only runs the tiny contract classifier; "
+            f"checkpoint architecture {arch!r} is not implemented here."
         )
 
 

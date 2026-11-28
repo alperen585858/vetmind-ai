@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.orchestration.progress import PIPELINE_STAGES, stage_label_tr
-from app.routing.capabilities import AVAILABILITY_NOT_CONFIGURED, ModelCapability
+from app.routing.capabilities import AVAILABILITY_NOT_CONFIGURED, AVAILABILITY_SYNTHETIC, ModelCapability
 from app.routing.execution_policy import VisionExecutionMode
 from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality, SourceKind
 
@@ -226,9 +226,17 @@ def _branch_nodes(container: Any, s: Any, usage: dict[str, Any]) -> list[dict[st
         chosen = models_for_modality(caps, modality, mode)
         code = ("backend/app/models/mock_vision.py", "backend/app/models/local_torch.py",
                 "backend/app/models/vlm_vision.py", "backend/app/models/http_vision.py")
+        # Tiny CT/MR contract models are registered but never routed: list them as mock.
+        probes = {
+            c.model_id: f"tiny sözleşme modeli (mock) · v{c.model_version} · analize alınmaz"
+            for c in caps
+            if c.adapter_kind == "local_torch"
+            and c.availability == AVAILABILITY_SYNTHETIC
+            and modality in c.modalities
+        }
         if not chosen:
             nodes.append(_node(node_id, "Manuel inceleme", OFF, "Bu tetkik için model yok",
-                               branch_label=branch_label, code=code))
+                               info=probes or None, branch_label=branch_label, code=code))
             continue
         kinds = {c.source_kind for c in chosen}
         names = [c.model_id for c in chosen]
@@ -237,6 +245,7 @@ def _branch_nodes(container: Any, s: Any, usage: dict[str, Any]) -> list[dict[st
             kind = "gerçek" if c.source_kind == SourceKind.REAL else "mock"
             last = usage["model_last"].get(c.model_id)
             info[c.model_id] = f"{kind} · v{c.model_version}" + (f" · son kullanım {_when(last)}" if last else "")
+        info.update(probes)
         vlm = any(c.adapter_kind == "vlm" for c in chosen)
         if vlm:
             info["VLM modeli"] = getattr(s, "vlm_chat_model_id", None) or s.llm_model_id

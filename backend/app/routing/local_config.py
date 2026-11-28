@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
+from app.models.model_kind import CONTRACT_ONLY_DESCRIPTION, is_contract_only_entrypoint
 from app.routing.capabilities import (
     AVAILABILITY_AVAILABLE,
     AVAILABILITY_NOT_CONFIGURED,
+    AVAILABILITY_SYNTHETIC,
     INPUT_PIXELS_2D,
     INPUT_PIXELS_3D,
     ModelCapability,
@@ -48,6 +51,20 @@ def local_capability_from_settings(settings: Settings) -> ModelCapability | None
     else:
         availability = AVAILABILITY_NOT_CONFIGURED
 
+    # CT/MR "monai" entrypoints only run a tiny contract classifier: never a real model.
+    # Registered as a disabled synthetic MOCK probe so readiness, /health and the
+    # architecture page show it honestly and the router never sends cases to it.
+    contract_only = is_contract_only_entrypoint(entrypoint)
+    if contract_only:
+        if source_kind == SourceKind.REAL:
+            logging.getLogger(__name__).warning(
+                "VETMIND_LOCAL_TORCH_ENTRYPOINT %s is a tiny contract model; "
+                "source_kind=real refused, registered as a mock probe and not routed.",
+                entrypoint,
+            )
+        if availability != AVAILABILITY_NOT_CONFIGURED:
+            availability = AVAILABILITY_SYNTHETIC
+
     profile = "profile.mri_volume" if needs_3d else "profile.xray_2d"
     if modalities == frozenset({Modality.XR}):
         profile = "profile.xray_2d"
@@ -60,9 +77,17 @@ def local_capability_from_settings(settings: Settings) -> ModelCapability | None
         regions=regions,
         species=species,
         priority=int(settings.local_torch_priority),
-        enabled=bool(settings.local_torch_enabled),
-        description="Local PyTorch Vision adapter (configured via env)",
-        source_kind=source_kind if source_kind != SourceKind.MOCK else SourceKind.REAL,
+        enabled=bool(settings.local_torch_enabled) and not contract_only,
+        description=(
+            CONTRACT_ONLY_DESCRIPTION
+            if contract_only
+            else "Local PyTorch Vision adapter (configured via env)"
+        ),
+        source_kind=(
+            SourceKind.MOCK
+            if contract_only
+            else (source_kind if source_kind != SourceKind.MOCK else SourceKind.REAL)
+        ),
         allows_pixel_analysis=True,
         model_version=settings.local_torch_model_version,
         input_contract_id="imaging-model-input/1.1.0",

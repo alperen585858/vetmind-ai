@@ -38,6 +38,22 @@ from app.http_errors import normalize_detail, validation_detail
 from app.demo_seed import ensure_demo_seed
 
 
+def _local_torch_health(c: AppContainer) -> dict[str, Any] | None:
+    """Configured local PyTorch model, labelled honestly (tiny contract models are mock)."""
+    model_id = (c.settings.local_torch_model_id or "").strip()
+    adapter = c.models.get(model_id) if model_id else None
+    if adapter is None:
+        return None
+    cap = next((x for x in c.router.list_capabilities() if x.model_id == model_id), None)
+    return {
+        "model_id": model_id,
+        "model_kind": getattr(adapter, "model_kind", None),
+        "source_kind": cap.source_kind.value if cap is not None else None,
+        "routed": bool(cap is not None and cap.enabled),
+        "availability": cap.availability if cap is not None else None,
+    }
+
+
 def _health_caller_is_trusted(request: Request, c: AppContainer) -> bool:
     """Full health details only with auth off (local demo) or for admin / API-key callers."""
     if not c.auth.enabled:
@@ -176,6 +192,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             pipeline_mode = "mock"
         rate_backend = getattr(c.rate_limiter, "backend", "memory")
         return {
+            "local_torch": _local_torch_health(c),
             "status": "ok",
             "mode": pipeline_mode,
             "version": __version__,
