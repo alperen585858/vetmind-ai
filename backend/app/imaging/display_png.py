@@ -6,6 +6,7 @@ Preserves native aspect ratio. Uses percentile windowing + MONOCHROME1 invert
 
 from __future__ import annotations
 
+import logging
 import struct
 import zlib
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from typing import Sequence
 import numpy as np
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
+
+_log = logging.getLogger(__name__)
 
 MAX_RENDER_PIXELS = 40_000_000
 
@@ -187,6 +190,7 @@ def dicom_bytes_to_png(
     try:
         arr = np.asarray(ds.pixel_array)
     except Exception:
+        _log.debug("dicom_bytes_to_png: ignored error", exc_info=True)
         return None
     photo = str(getattr(ds, "PhotometricInterpretation", "MONOCHROME2") or "MONOCHROME2")
     try:
@@ -214,6 +218,7 @@ def dicom_bytes_to_png(
                 png = _png_gray(u8)
             h, w = u8.shape
     except Exception:
+        _log.debug("dicom_bytes_to_png: ignored error", exc_info=True)
         return None
     return DisplayPngResult(
         png_bytes=png,

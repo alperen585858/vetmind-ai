@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -66,6 +67,8 @@ from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
 from app.storage.quarantine import QuarantineStore
+
+_log = logging.getLogger(__name__)
 
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
 _VLM_MAX_EDGE = 1024
@@ -391,6 +394,7 @@ class OpenAiCompatibleVlmVisionModel:
                     }
                 )
             except Exception:
+                _log.warning("_emit_progress: ignored error", exc_info=True)
                 return
 
         _emit_progress(batch_i=0, analyzed_n=0)
@@ -658,6 +662,7 @@ class OpenAiCompatibleVlmVisionModel:
                 try:
                     _name, data = self._quarantine.read_file(inv.quarantine_rel)
                 except Exception:
+                    _log.warning("_decode_inventory_batch: ignored error", exc_info=True)
                     continue
                 file_cache[inv.quarantine_rel] = data
             if inv.is_raster:
@@ -934,6 +939,7 @@ class OpenAiCompatibleVlmVisionModel:
         try:
             name, data = self._quarantine.read_file(cand.rel)
         except Exception:
+            _log.warning("_expand_candidate: ignored error", exc_info=True)
             return []
         filename = cand.filename or name
         base = {

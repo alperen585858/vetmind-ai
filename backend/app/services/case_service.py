@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,6 +68,8 @@ from app.settings import Settings
 from app.validation.report_validator import ReportValidator
 from app.workers.analyze_gate import AnalyzeGate, build_analyze_gate
 from app.workers.job_backend import JobBackend, ThreadJobBackend
+
+_log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -180,6 +183,7 @@ class CaseService:
             draft.comparison = build_comparison(case, draft, prior, language=language)
             draft.validation_warnings.extend(comparison_warnings(draft))
         except Exception:  # noqa: BLE001 — comparison is optional context, never fatal
+            _log.warning("_attach_comparison: ignored error", exc_info=True)
             draft.comparison = None
 
     def bind_radiologist_payouts(self, service: PayoutPort | None) -> None:
@@ -224,7 +228,7 @@ class CaseService:
             )
         except Exception:
             # Payout ledger must not block clinical approval.
-            pass
+            _log.warning("_record_radiologist_payout: ignored error", exc_info=True)
 
     def _resolve_report_language(
         self,
@@ -249,6 +253,7 @@ class CaseService:
                     if lang in {"tr", "en"}:
                         return lang
                 except Exception:  # noqa: BLE001 — settings must never block analysis
+                    _log.warning("_resolve_report_language: ignored error", exc_info=True)
                     continue
         return self._default_report_language
 
@@ -873,7 +878,7 @@ class CaseService:
             try:
                 store.delete_case_artifacts(case_id)  # type: ignore[union-attr]
             except Exception:  # noqa: BLE001 — leftover files must not block the delete
-                pass
+                _log.warning("delete_case: ignored error", exc_info=True)
         self._emit_audit("case.delete", principal=principal, resource=case_id, detail=clean)
 
     def _assert_analyzable(self, case: CaseRecord) -> None:

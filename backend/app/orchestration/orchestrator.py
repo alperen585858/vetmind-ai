@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,8 @@ from app.schemas.findings import StructuredFindings
 from app.schemas.jobs import AnalysisJob, PipelineResult
 from app.schemas.report import DraftReport
 from app.validation.report_validator import ReportValidator
+
+_log = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -112,6 +115,7 @@ class AIOrchestrator:
                     job.cancel_requested = True
                     return True
             except Exception:  # noqa: BLE001 — probe must never crash the pipeline
+                _log.warning("_cancelled: ignored error", exc_info=True)
                 return False
             return False
 
@@ -152,6 +156,7 @@ class AIOrchestrator:
             try:
                 on_progress(job)
             except Exception:  # noqa: BLE001 — progress persistence must not fail the run
+                _log.warning("_checkpoint: ignored error", exc_info=True)
                 return
 
         if _cancelled():
@@ -291,7 +296,7 @@ class AIOrchestrator:
                     try:
                         adapter.progress_callback = _vlm_progress  # type: ignore[attr-defined]
                     except Exception:  # noqa: BLE001
-                        pass
+                        _log.warning("run: ignored error", exc_info=True)
                 try:
                     outputs.append(adapter.analyze(case))
                 except ImagingAdapterError as exc:
@@ -308,7 +313,7 @@ class AIOrchestrator:
                         try:
                             adapter.progress_callback = None  # type: ignore[attr-defined]
                         except Exception:  # noqa: BLE001
-                            pass
+                            _log.warning("run: ignored error", exc_info=True)
 
             if not outputs:
                 if job.status != JobStatus.TIMED_OUT:
@@ -474,6 +479,7 @@ class AIOrchestrator:
                 messages=list(dict.fromkeys(messages)),
             )
         except Exception as exc:  # noqa: BLE001
+            _log.warning("run: ignored error", exc_info=True)
             job.status = JobStatus.FAILED
             job.outcome = PipelineOutcome.FAILED
             job.error_message = f"Orchestrator error: {type(exc).__name__}"

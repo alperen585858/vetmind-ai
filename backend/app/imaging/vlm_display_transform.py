@@ -5,6 +5,7 @@ If a transform cannot be verified by round-trip, callers must not draw overlays.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -23,6 +24,8 @@ from app.imaging.geometry import (
     zoom_step,
 )
 from app.schemas.findings import BoundingBoxEvidence
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,7 @@ def native_bbox_from_vlm_png(
                 transform_chain=[],
             )
         except Exception:
+            _log.debug("native_bbox_from_vlm_png: ignored error", exc_info=True)
             return None
         return VerifiedNativeBBox(bbox=bbox, verified=True, reason="identity")
 
@@ -164,6 +168,7 @@ def native_bbox_from_vlm_png(
             transform_chain=[],
         )
     except Exception:
+        _log.debug("native_bbox_from_vlm_png: ignored error", exc_info=True)
         return None
     return VerifiedNativeBBox(bbox=bbox, verified=True, reason="resized_inverted")
 
@@ -189,6 +194,7 @@ def model_input_bbox_with_chain(
             transform_chain=steps_to_dicts(chain),
         )
     except Exception:
+        _log.debug("model_input_bbox_with_chain: ignored error", exc_info=True)
         return None
     return VerifiedNativeBBox(bbox=bbox, verified=True, reason="model_input_chained")
 

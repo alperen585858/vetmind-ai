@@ -18,6 +18,7 @@ Safety rules (mirrors the rest of the pipeline):
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -32,6 +33,8 @@ from app.schemas.enums import (
     Modality,
     Species,
 )
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.settings import Settings
@@ -169,6 +172,7 @@ class MetadataLLMClassifier:
         try:
             result = self.classify(study)
         except Exception as exc:  # noqa: BLE001 — any provider failure must fall back to rules
+            _log.warning("refine: ignored error", exc_info=True)
             return _with_unavailable(suggestion, self.model_label, exc)
         return merge_llm_result(suggestion, result, model_label=self.model_label)
 

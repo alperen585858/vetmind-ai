@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -11,6 +12,8 @@ from app.imaging.evidence_renderer import render_bbox_overlay, render_mask_overl
 from app.models.evidence_store import EvidenceArtifactStore
 from app.schemas.case import CaseRecord
 from app.schemas.findings import EVIDENCE_DISCLAIMER, EvidenceReference, StructuredFindings
+
+_log = logging.getLogger(__name__)
 
 
 def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | None = None) -> np.ndarray | None:
@@ -59,6 +62,7 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
             frame_index=frame_index,
         )
     except Exception:
+        _log.warning("_load_slice_for_sop: ignored error", exc_info=True)
         return None
 
 

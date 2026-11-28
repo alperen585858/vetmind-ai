@@ -6,6 +6,7 @@ Immutable approved report history is preserved by default (reports_days=None).
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import Iterable
 from app.schemas.case import CaseRecord
 from app.schemas.enums import ReportStatus
 from app.storage.quarantine import QuarantineStore
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -268,6 +271,7 @@ def trim_audit_log(path: Path | None, *, keep_days: int) -> int:
                 removed += 1
                 continue
         except Exception:
+            _log.warning("trim_audit_log: ignored error", exc_info=True)
             kept.append(line)
             continue
         kept.append(line)
