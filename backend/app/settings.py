@@ -121,6 +121,8 @@ class Settings:
     report_view_token_ttl_seconds: int = 72 * 60 * 60
     # Frontend origin used to build links in emails.
     public_base_url: str = "http://localhost:5173"
+    # Browser origins allowed to call the API cross-origin (VETMIND_CORS_ORIGINS, comma-separated).
+    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
     # Outgoing mail. Without smtp_host, mails are written to the server log in demo mode.
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -464,6 +466,7 @@ def load_settings() -> Settings:
         if r in {"admin", "expert", "vet", "clinic_owner"}
     )
     public_base_url = (os.getenv("VETMIND_PUBLIC_BASE_URL") or "http://localhost:5173").strip().rstrip("/")
+    cors_origins = tuple(o.rstrip("/") for o in _csv_tuple("VETMIND_CORS_ORIGINS")) or Settings.cors_origins
     smtp_host = (os.getenv("VETMIND_SMTP_HOST") or "").strip() or None
     try:
         smtp_port = int(os.getenv("VETMIND_SMTP_PORT", "587"))
@@ -633,6 +636,7 @@ def load_settings() -> Settings:
             14 * 24 * 60 * 60,
         ),
         public_base_url=public_base_url,
+        cors_origins=cors_origins,
         smtp_host=smtp_host,
         smtp_port=smtp_port,
         smtp_username=smtp_username,
@@ -695,6 +699,9 @@ def validate_security_settings(settings: Settings) -> None:
             "Auth is enabled but VETMIND_JWT_SECRET is still the public demo default. "
             "Set a strong secret (e.g. `python -c 'import secrets; print(secrets.token_urlsafe(48))'`)."
         )
+    if settings.deployment_mode == "protected" and "*" in settings.cors_origins:
+        # Credentialed CORS with a wildcard would let any site call the API as the user.
+        raise RuntimeError("VETMIND_CORS_ORIGINS must list exact origins in protected mode, not '*'.")
     if settings.deployment_mode == "protected" and settings.allow_insecure_demo:
         raise RuntimeError("VETMIND_ALLOW_INSECURE_DEMO is not allowed in protected deployment mode.")
     if settings.deployment_mode == "protected" and insecure_secret:

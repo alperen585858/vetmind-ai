@@ -1008,6 +1008,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_QUARANTINE_ROOT` | `./data/quarantine` | Karantina kökü |
 | `VETMIND_ASYNC_DELAY_MS` | `400` | Async yapay gecikme (0–10000) |
 | `VETMIND_DEMO_SEED` | `0` | `1` → vaka yokken örnek vakaları yükle (§5 Örnek vakalar) |
+| `VETMIND_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | API'yi başka adresten çağırabilecek tarayıcı adresleri (virgülle). nginx arkasında (aynı adres) gerekmez; korumalı modda `*` reddedilir |
 
 ### Jobs
 
