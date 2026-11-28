@@ -39,7 +39,7 @@ async def upload_documents(
 ) -> DocumentUploadResponse:
     if len(files) > _MAX_FILES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Too many files (max {_MAX_FILES}).",
         )
     parsed: list[tuple[str, bytes]] = []
@@ -48,7 +48,7 @@ async def upload_documents(
         data = await upload.read(_MAX_FILE_BYTES + 1)
         if len(data) > _MAX_FILE_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"File '{upload.filename}' exceeds {_MAX_FILE_BYTES} bytes.",
             )
         parsed.append((upload.filename or "unnamed.bin", data))
