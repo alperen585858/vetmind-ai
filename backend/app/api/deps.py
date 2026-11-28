@@ -7,9 +7,7 @@ from app.services.case_service import CaseService
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
 from app.services.messaging_facade import MessagingFacade
-from app.services.pet_service import PetService
 from app.services.report_application import ReportApplication
-from app.services.submission_service import SubmissionService
 
 
 def get_container(request: Request) -> AppContainer:
@@ -40,12 +38,6 @@ def get_messaging_facade(request: Request) -> MessagingFacade:
     return get_container(request).messaging_domain
 
 
-def get_pet_service(request: Request) -> PetService:
-    return get_container(request).pets
-
-
-def get_submission_service(request: Request) -> SubmissionService:
-    return get_container(request).submissions
 
 
 def get_dicom_service(request: Request) -> DicomService:

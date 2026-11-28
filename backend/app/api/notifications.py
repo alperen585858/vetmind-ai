@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_actor, require_auth
 from app.container import AppContainer
 from app.schemas.notifications import AppNotification, NotificationListResponse
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"], dependencies=[Depends(require_auth)])
 
@@ -27,7 +31,7 @@ def list_notifications(
     try:
         container.cases.backfill_and_emit_sla_warnings()
     except Exception:  # noqa: BLE001 — never block the inbox on SLA scan
-        pass
+        _log.warning("list_notifications: ignored error", exc_info=True)
     return service.list_mine(principal=principal, unread_only=unread_only)
 
 

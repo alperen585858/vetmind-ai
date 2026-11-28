@@ -275,7 +275,7 @@ def attach_in_memory_dicom_bytes(case: CaseRecord, files: list[bytes]) -> CaseRe
     if case.model_input is None:
         raise ModelUnavailableError("model_input required before attaching in-memory DICOM.")
     # Store on case as ephemeral attribute for bridge (not persisted).
-    setattr(case, "_bridge_in_memory_dicom", list(files))
+    case._bridge_in_memory_dicom = list(files)
     return case
 
 

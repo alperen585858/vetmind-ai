@@ -8,9 +8,9 @@ from fastapi.testclient import TestClient
 
 from app.container import AppContainer
 from app.main import create_app
+from app.schemas.workflow import AttachmentRef
 from app.services.repository import InMemoryCaseRepository
 from app.settings import Settings
-from app.schemas.workflow import AttachmentRef
 
 
 def _client(tmp_path: Path) -> TestClient:

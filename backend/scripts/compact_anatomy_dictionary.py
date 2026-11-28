@@ -5,7 +5,6 @@ import json
 from functools import partial
 from pathlib import Path
 
-
 METADATA_FIELDS = ("Schema_Version", "Count", "Ambiguous_Query_Candidates")
 TERM_FIELDS = (
     "Term_ID", "English_Term", "Turkish_Term", "Definition_TR",

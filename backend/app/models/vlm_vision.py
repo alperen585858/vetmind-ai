@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -25,26 +26,6 @@ from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 
 from app.http_policy import vision_http_policy
-from app.imaging.display_png import (
-    dicom_bytes_to_png,
-    evenly_sample,
-    is_localizer_label,
-    maybe_image_bytes,
-    select_frame_indices,
-)
-from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
-from app.models.interfaces import ImagingAdapterError, ImagingModel
-from app.models.model_input_builder import require_model_input
-from app.models.normalizer import normalize_laterality
-from app.models.study_inventory import InventoryFrame, build_study_inventory
-from app.models.vlm_batch_planner import plan_visual_analysis
-from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
-from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
-from app.imaging.systematic_checklist import (
-    checklist_prompt,
-    merge_systematic_review,
-    parse_systematic_review,
-)
 from app.imaging.analysis_limitations import (
     MISSING_PREFIX,
     context_gaps,
@@ -52,6 +33,25 @@ from app.imaging.analysis_limitations import (
     sequence_limitations,
     sequence_summary_lines,
 )
+from app.imaging.display_png import (
+    dicom_bytes_to_png,
+    evenly_sample,
+    is_localizer_label,
+    maybe_image_bytes,
+    select_frame_indices,
+)
+from app.imaging.systematic_checklist import (
+    checklist_prompt,
+    merge_systematic_review,
+    parse_systematic_review,
+)
+from app.llm.chat_providers import GEMINI_DEFAULT_BASE_URL, OPENAI_DEFAULT_BASE_URL
+from app.models.interfaces import ImagingAdapterError, ImagingModel
+from app.models.model_input_builder import require_model_input
+from app.models.normalizer import normalize_laterality
+from app.models.ontology import canonicalize_finding_code, is_known_finding_code, is_technique_code
+from app.models.study_inventory import InventoryFrame, build_study_inventory
+from app.models.vlm_batch_planner import plan_visual_analysis
 from app.models.vlm_grounding import (
     SentFrame,
     catalog_metadata,
@@ -61,11 +61,14 @@ from app.models.vlm_grounding import (
     resolve_source_frame,
     study_inventory_metadata,
 )
-from app.schemas.analysis_coverage import AnalysisCoverage, SeriesCoverage
+from app.models.vlm_result_cache import VlmBatchResultCache, batch_cache_key
+from app.schemas.analysis_coverage import SeriesCoverage
 from app.schemas.case import CaseRecord
 from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
 from app.schemas.findings import EvidenceReference, Finding, StructuredFindings, StudyInfo
 from app.storage.quarantine import QuarantineStore
+
+_log = logging.getLogger(__name__)
 
 _VALID_FINDING_STATUS = {s.value for s in FindingStatus}
 _VLM_MAX_EDGE = 1024
@@ -391,6 +394,7 @@ class OpenAiCompatibleVlmVisionModel:
                     }
                 )
             except Exception:
+                _log.warning("_emit_progress: ignored error", exc_info=True)
                 return
 
         _emit_progress(batch_i=0, analyzed_n=0)
@@ -658,6 +662,7 @@ class OpenAiCompatibleVlmVisionModel:
                 try:
                     _name, data = self._quarantine.read_file(inv.quarantine_rel)
                 except Exception:
+                    _log.warning("_decode_inventory_batch: ignored error", exc_info=True)
                     continue
                 file_cache[inv.quarantine_rel] = data
             if inv.is_raster:
@@ -934,6 +939,7 @@ class OpenAiCompatibleVlmVisionModel:
         try:
             name, data = self._quarantine.read_file(cand.rel)
         except Exception:
+            _log.warning("_expand_candidate: ignored error", exc_info=True)
             return []
         filename = cand.filename or name
         base = {

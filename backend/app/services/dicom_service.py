@@ -10,6 +10,8 @@ from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import assert_case_access, can_access_owned
 from app.dicom.ingest import ingest_dicom_files
 from app.dicom.llm_classifier import MetadataLLMClassifier
+from app.feedback.store import FeedbackStore
+from app.http_errors import api_error
 from app.models.model_input_builder import build_imaging_model_input
 from app.routing.capabilities import ModelCapability, default_capabilities
 from app.schemas.case import CaseRecord
@@ -26,8 +28,6 @@ from app.schemas.enums import (
     Species,
 )
 from app.schemas.findings import StudyInfo
-from app.feedback.store import FeedbackStore
-from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.owner_contact import clean_owner_name
 from app.services.repository import CaseRepository

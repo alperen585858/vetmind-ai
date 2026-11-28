@@ -88,7 +88,7 @@ function DetailSkeleton({ loadingLabel }: { loadingLabel: string }) {
 export default function CaseDetail() {
   const { id = '' } = useParams()
   const [params, setParams] = useSearchParams()
-  const { getCase, role, user, session, hydrateBackendCase, pushToast } = useApp()
+  const { getCase, role, hydrateBackendCase, pushToast } = useApp()
   const { t, locale } = useLocale()
   const canControlAnalysis = role === 'vet' || role === 'expert'
   const tabs = useMemo(

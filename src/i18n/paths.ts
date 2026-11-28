@@ -59,7 +59,7 @@ export function localizePath(path: string, locale: Locale): string {
   if (!path || path === '/') return path.startsWith('/') ? path : `/${path}`
   const absolute = path.startsWith('/') || path.startsWith('?') || path.startsWith('#')
   const { segments, search, hash } = splitPath(path)
-  if (segments.length === 0) return `/${search}${hash}` || '/'
+  if (segments.length === 0) return `/${search}${hash}`
 
   // Normalize to TR first, then to target — works for either source locale.
   const canonical = mapSegments(segments, EN_TO_TR)

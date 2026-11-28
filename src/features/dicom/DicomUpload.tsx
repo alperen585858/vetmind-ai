@@ -771,8 +771,8 @@ export default function DicomUpload() {
       </p>
       <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-500">
         .dcm / DICOM Part-10 · en fazla {MAX_DICOM_FILES} dosya · dosya başına{' '}
-        {Math.round(MAX_DICOM_FILE_BYTES / (1024 * 1024))} MiB · toplam{' '}
-        {Math.round(MAX_DICOM_TOTAL_BYTES / (1024 * 1024))} MiB
+        {Math.round(MAX_DICOM_FILE_BYTES / (1024 * 1024))}{'\u202f'}MiB · toplam{' '}
+        {Math.round(MAX_DICOM_TOTAL_BYTES / (1024 * 1024))}{'\u202f'}MiB
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Button

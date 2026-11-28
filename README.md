@@ -96,9 +96,9 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Klinik onaylı bilgi bankası | Anlamsal arama (bge-m3 + pgvector) var; kaynaklar derlenmiş seed metinler, klinik onaylı değil |
 | OAuth / SSO | Yok — e-posta + şifre ile sunucu hesapları (tarayıcıda hesap saklanmaz). Kayıtta e-posta doğrulaması var (#41) |
 | Celery / K8s workers | Thread veya RQ |
-| Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
+| KMS / anahtar yönetim servisi | Karantina AES-256-GCM ile şifrelenebiliyor (#126) ve ClamAV taraması var; anahtar ortam değişkeninde, KMS entegrasyonu yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
-| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı (100 EUR) backend'de duruyor, arayüzde yok — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
+| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme ve başvuru servisleri kaldırıldı (#87, #132); `demo_payments` tablosu eski veriler için duruyor — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md). Radyolog ödeme defteri (Admin) çalışıyor |
 
 Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri için backend auth zorunludur.
 
@@ -147,7 +147,7 @@ Geliştirme yaparken (hot reload) aşağıdaki yerel kurulum kullanılır.
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -157,7 +157,7 @@ uvicorn app.main:app --reload --port 8000
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1      # "running scripts is disabled" hatası: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -223,7 +223,7 @@ bilgisayardan çıkmaz.
 ollama pull qwen2.5:7b
 
 # 2) Backend bağımlılıkları (henüz kurulmadıysa)
-cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ..
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cd ..
 
 # 3) Frontend bağımlılıkları
 npm install
@@ -235,6 +235,13 @@ npm install
 |----------|-------|----------|
 | 1 | `npm run backend:dev:ai` | API (8000) — gerçek modelle. **Kapatmayın.** |
 | 2 | `npm run dev` | Arayüz (5173) — tarayıcı otomatik açılır |
+
+**Bağlam penceresi (#129):** Ollama varsayılan olarak 4096 token tutar ve daha uzun bir prompt'un başını **hata vermeden** atar; uzun öyküde rapor talimatları kaybolabilir. Ollama'yı daha geniş pencereyle başlatın ve backend'e aynı sayıyı söyleyin:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve          # Windows: setx OLLAMA_CONTEXT_LENGTH 16384, Ollama'yı yeniden başlatın
+export VETMIND_LLM_CONTEXT_TOKENS=16384           # sığmayan / kesilen prompt'ta backend loguna uyarı düşer
+```
 
 Uygulamayı **http://localhost:5173** adresinden kullanın. `http://127.0.0.1:8000` bir web sayfası değildir;
 tarayıcıda açınca `404 Not Found` görmeniz normaldir.
@@ -876,7 +883,7 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 - Deneme sayaçları varsayılan olarak süreç belleğinde (yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar). `VETMIND_REDIS_URL` verilirse Redis'te tutulur: tüm worker'lar ortak sayar, yeniden başlatmada kaybolmaz (Redis'e ulaşılamazsa belleğe düşer; `/api/v1/health` → `rate_limit_backend`).
 - Docker'da istemci IP'si nginx'in eklediği `X-Forwarded-For` halkasından okunur (`VETMIND_TRUST_PROXY_HEADERS=1`, #120); aksi hâlde tüm kullanıcılar tek IP sayılırdı.
 - Kayıt, şifremi unuttum ve doğrulama linkini tekrar gönderme uçları kayıtlı e-postayı belli etmez (aynı cevap, iş cevaptan sonra yapılır).
-- Quarantine yerel diskte; üretim AV / şifreleme yok.
+- Quarantine yerel diskte. `VETMIND_ENCRYPTION_AT_REST=aes-gcm` + `VETMIND_BLOB_KEY` ile dosyalar AES-256-GCM şifreli yazılır (#126); eski düz dosyalar okunmaya devam eder, `python scripts/encrypt_quarantine.py` onları yerinde şifreler. Anahtar kaybolursa dosyalar açılamaz: yedekleyin. Virüs taraması ClamAV ile (`VETMIND_MALWARE_SCANNER=clamav`).
 - Tenant isolation auth açık + `tenant_isolation` ile anlamlıdır.
 - AI çıktıları tanı değildir; UI disclaimer'ları bilinçlidir.
 
@@ -1036,6 +1043,7 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_VISION_EXECUTION_POLICY` | `exclusive_real` | `exclusive_real` \| `mixed` |
 | `VETMIND_LLM_PROVIDER` | `mock` | `mock` \| `stub` \| `http` \| `ollama` \| `openai` \| `anthropic` (+ `vllm`, `openrouter`, `groq`, `lmstudio`) |
 | `VETMIND_LLM_MODEL_ID` | — | Model adı, ör. `qwen2.5:7b` (`anthropic` boşsa varsayılan model) |
+| `VETMIND_LLM_CONTEXT_TOKENS` | Ollama: `4096`, diğerleri: kontrol yok | Modelin bağlam penceresi. Prompt + çıktı sığmayacaksa veya sunucu prompt'u kestiyse (`usage.prompt_tokens` çok düşük) uyarı loglanır. Ollama'da `OLLAMA_CONTEXT_LENGTH` ile aynı yapın |
 | `VETMIND_LLM_ENDPOINT` | sağlayıcıya göre | Temel URL (Ollama: `http://localhost:11434/v1`) |
 | `VETMIND_LLM_API_KEY` | — | OpenAI / Anthropic için |
 | `VETMIND_LLM_TIMEOUT_S` | `30` | Gerçek modelde **180** önerilir |
@@ -1067,6 +1075,8 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Tarayıcıdan API'yi çağırabilecek adresler (virgülle). Docker/nginx aynı adresten sunduğu için gerekmez; frontend ayrı domaindeyse onu yazın. Protected modda `*` kabul edilmez |
 | `VETMIND_TRUST_PROXY_HEADERS` | `0` (Docker compose: `1`) | İstemci IP'si için `X-Forwarded-For`'un son halkası (nginx'in eklediği). Yalnızca güvenilir proxy arkasında açın; kapalıyken nginx arkasındaki tüm kullanıcılar tek IP sayılır |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
+| `VETMIND_ENCRYPTION_AT_REST` / `VETMIND_BLOB_KEY` | `none` / — | `aes-gcm` → karantina dosyaları AES-256-GCM ile şifreli (anahtar: 32 bayt, url-safe base64; üretmek için `python -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`). Geçersiz anahtarla uygulama açılmaz |
+| `VETMIND_DICOM_MAX_FILES` / `VETMIND_DICOM_MAX_FILE_MB` / `VETMIND_DICOM_MAX_TOTAL_MB` | `1000` / `64` / `512` | Bir DICOM yüklemesinin sınırları (#125). Büyütürseniz nginx `client_max_body_size` ve `src/shared/lib/dicomFolder.ts` sabitlerini de eşitleyin; dosyalar karantinaya yazılana kadar bellekte tutulur |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 
 ---
@@ -1122,9 +1132,12 @@ export VETMIND_STORAGE=memory
 ```bash
 npm test
 npm run typecheck
+npm run lint                                         # ESLint (eslint.config.js); hata = CI kırmızı, uyarı serbest
 npm run build
 npm run backend:test
 # veya: cd backend && pytest
+cd backend && ruff check .                           # Python lint (backend/ruff.toml); güvenli düzeltmeler: ruff check --fix .
+# Windows'ta Vitest'i büyük harfli sürücü yolundan çalıştırın (C:\...); küçük c:\ ile tüm testler "suite bulunamadı" der
 
 npm run e2e                                          # demo modu (masaüstü + mobil), Windows/macOS/Linux
 E2E_PROTECTED=1 npx playwright test --project=e2e-protected   # korumalı mod (auth açık)
@@ -1295,7 +1308,7 @@ Davranış çelişkisi varsa kaynak kod esas alınır (`container.py`, `orchestr
 | 5 | **Uzman düzeltmeleriyle ince ayar (LoRA)** — `feedback/export?format=chat` hazır | Yeterli onaylı rapor biriktikçe model alana uyum sağlar | Alperen |
 | 6 | **Sunucuda model** — vLLM + guidance/XGrammar ile yapılandırılmış çıktı; daha büyük model (Qwen 14B+) | Hız (dizüstünde ~1 dk/rapor) ve kalite | Beyza + Alperen |
 | 7 | **Görüntü tarafı için MedGemma 4B** — açık, çok modlu tıbbi model (göğüs röntgeni rapor üretiminde güçlü) | Gerçek Vision bulguları | Beyza |
-| 8 | Ollama bağlam penceresi (4096 token) — uzun öykü/çok pasajda `OLLAMA_CONTEXT_LENGTH` artırılmalı | Prompt sessizce kesilmesin | Beyza |
+| 8 | ~~Ollama bağlam penceresi~~ → sığmayan / kesilen prompt artık loglanıyor, kurulum §4.4'te (#129) | Prompt sessizce kesilmesin | — |
 
 **Olası sonraki adımlar (platform):**
 

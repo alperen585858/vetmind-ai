@@ -14,8 +14,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import numpy as np
-
 from app.models.entrypoint import InferenceRequest, InferenceResult
 from app.models.entrypoints._common import (
     checkpoint_label_names,

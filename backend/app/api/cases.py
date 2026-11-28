@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_case_service, get_collaboration_service, get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
+from app.auth.rbac import CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
 from app.auth.visibility import case_for_principal
-from app.auth.rbac import CAP_ADMIN, CAP_ANALYZE, CAP_CASE_READ, CAP_CASE_WRITE, CAP_DICOM, CAP_REVIEW
 from app.schemas.case import (
     AiChatAsk,
     AiChatResponse,
@@ -20,13 +20,13 @@ from app.schemas.case import (
     CaseSummary,
     ClinicDashboardStats,
 )
+from app.schemas.model_input import ImagingModelInput
 from app.schemas.workflow import (
     CaseDocumentAttach,
     CaseNoteCreate,
     InfoRequestCreate,
     InfoRequestReply,
 )
-from app.schemas.model_input import ImagingModelInput
 from app.security.audit import AuditOutcome
 from app.services.case_collaboration import CaseCollaborationService
 from app.services.case_service import CaseService

@@ -17,7 +17,6 @@ from typing import Any
 from app.auth.passwords import hash_password
 from app.auth.passwords import verify_password as _verify_password
 
-
 DEFAULT_JWT_SECRET = "vetmind-demo-secret-change-me"
 
 # HS256 demo tokens are issuer/audience-bound so stolen/forged payloads are harder to reuse.

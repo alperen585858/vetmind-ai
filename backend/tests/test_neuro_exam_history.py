@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.llm.gateway import build_rag_query, compose_history
 from app.llm.neuro_exam import neuro_exam_text
 from app.schemas.case import CaseRecord, StructuredClinicalHistory
-from app.schemas.enums import AnatomicalRegion, ModelExecutionStatus, Modality, Species
+from app.schemas.enums import AnatomicalRegion, Modality, ModelExecutionStatus, Species
 from app.schemas.findings import StructuredFindings, StudyInfo
 
 NE = "Değerlendirilmedi"

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from app.models.interfaces import ImagingAdapterError

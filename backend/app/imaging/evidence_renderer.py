@@ -18,7 +18,7 @@ from app.imaging.geometry import (
     map_bbox_inverse,
     steps_from_dicts,
 )
-from app.schemas.findings import BoundingBoxEvidence, EVIDENCE_DISCLAIMER
+from app.schemas.findings import EVIDENCE_DISCLAIMER, BoundingBoxEvidence
 
 
 @dataclass(frozen=True)

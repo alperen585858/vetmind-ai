@@ -12,6 +12,7 @@ export function safeInternalPath(path: string | null | undefined, fallback = '/'
   if (p.startsWith('//') || p.startsWith('/\\')) return fallback
   if (p.includes('\\')) return fallback
   // Control characters (tabs/newlines are stripped by URL parsers and can hide "//").
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point
   if (/[\u0000-\u001f]/.test(p)) return fallback
   return p
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import HTTPException, status
@@ -23,6 +24,8 @@ from app.schemas.radiologist_payout import (
 )
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.radiologist_payout_store import RadiologistPayoutStore
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.services.repository import CaseRepository
@@ -200,7 +203,7 @@ class RadiologistPayoutService:
                         continue
                     seen[u.email.lower()] = (u.email, u.display_name, bool(u.active))
             except Exception:
-                pass
+                _log.warning("_expert_directory: ignored error", exc_info=True)
         try:
             from app.auth.security import DEMO_USERS
 
@@ -211,7 +214,7 @@ class RadiologistPayoutService:
                 if key not in seen:
                     seen[key] = (email, email.split("@")[0], True)
         except Exception:
-            pass
+            _log.warning("_expert_directory: ignored error", exc_info=True)
         # Always include radiologists that already have payouts.
         for p in self._store.list_payouts():
             key = p.radiologist_subject.lower()

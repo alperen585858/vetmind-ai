@@ -9,9 +9,12 @@ label came from and how sure we are.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 # Larmor frequency of 1H in MHz per tesla.
 _GAMMA_1H_MHZ_PER_T = 42.577
@@ -241,6 +244,7 @@ def tags_from_dataset(ds: Any) -> dict[str, Any]:
         try:
             val = getattr(ds, kw, None)
         except Exception:  # noqa: BLE001 — malformed element must not break inventory
+            _log.debug("tags_from_dataset: ignored error", exc_info=True)
             val = None
         if val is not None and val != "":
             out[kw] = val

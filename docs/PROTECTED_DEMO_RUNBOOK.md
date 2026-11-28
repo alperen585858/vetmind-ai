@@ -1,7 +1,7 @@
 # Protected-demo runbook
 
 Local/classroom default remains **demo** (`VETMIND_AUTH_ENABLED=0`, `VETMIND_DEPLOYMENT_MODE=demo`).  
-Do not enable protected mode against real PHI — encryption/KMS and real AV are still Goal B.
+Quarantine encryption at rest (AES-256-GCM, `VETMIND_ENCRYPTION_AT_REST=aes-gcm` + `VETMIND_BLOB_KEY`, #126) and ClamAV scanning are available; the protected overlay turns both on. Still missing before real PHI: KMS-managed keys and institutional PHI policy.
 
 ## Tier A — Auth-on demo (recommended for locked classroom demos)
 

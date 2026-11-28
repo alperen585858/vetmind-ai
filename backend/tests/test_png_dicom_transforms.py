@@ -8,11 +8,11 @@ from app.imaging.geometry import (
     flip_v_step,
     map_bbox_forward,
     map_bbox_inverse,
+    pan_step,
     resize_step,
     rotate_step,
     verify_bbox_roundtrip,
     zoom_step,
-    pan_step,
 )
 from app.imaging.vlm_display_transform import (
     native_bbox_from_vlm_png,
@@ -81,7 +81,7 @@ def test_unverified_when_dims_missing_no_overlay() -> None:
 
 
 def test_evidence_omits_bbox_without_native_dims() -> None:
-    frame = SentFrame(
+    _frame = SentFrame(
         index=1,
         png=b"x",
         sop_instance_uid="1.2.3",

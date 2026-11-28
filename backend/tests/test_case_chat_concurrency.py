@@ -2,13 +2,13 @@
 
 from pathlib import Path
 
-import app.llm.case_chat as chat
-from app.schemas.case import ReviewFeedback
-from app.schemas.enums import ReviewAction
 from fastapi.testclient import TestClient
 
+import app.llm.case_chat as chat
 from app.container import AppContainer
 from app.main import create_app
+from app.schemas.case import ReviewFeedback
+from app.schemas.enums import ReviewAction
 from app.settings import Settings
 from tests.test_phase6_e2e_journey import _demo_upload_confirm_analyze
 

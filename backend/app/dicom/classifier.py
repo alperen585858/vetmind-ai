@@ -298,7 +298,6 @@ def _classify_with_rules(study: DicomStudyMeta) -> ClassificationSuggestion:
         modality_status = ClassificationStatus.MISSING_METADATA
     else:
         supported = [m for m in modalities if m in _SUPPORTED_MODALITIES]
-        unsupported = [m for m in modalities if m == Modality.OTHER]
         unique_supported = list(dict.fromkeys(supported))
         if len(unique_supported) > 1:
             mixed_supported = True

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from app.imaging.pixel_ops import parse_image_position
 from app.imaging.profiles import profile_for_modality
 from app.imaging.series_selection import select_series_for_modality
@@ -18,6 +20,8 @@ from app.schemas.model_input import (
     ModelInputSelectionSummary,
     ModelInputSeriesRef,
 )
+
+_log = logging.getLogger(__name__)
 
 
 def build_imaging_model_input(
@@ -114,7 +118,7 @@ def build_imaging_model_input(
             warnings.append(f"preprocessing_profile={contract.contract_id}")
             profile_hint = selection.profile_hint
     except Exception:  # noqa: BLE001 — other modalities have no profile
-        pass
+        _log.warning("build_imaging_model_input: ignored error", exc_info=True)
 
     # Align with ModelRouter: anatomy + input compatibility + availability filters.
     prepared = list_routable_model_ids(

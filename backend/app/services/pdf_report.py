@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import struct
 from io import BytesIO
@@ -33,6 +34,8 @@ from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, Species
 from app.schemas.report import DraftReport, ReportVersionSnapshot
 
+_log = logging.getLogger(__name__)
+
 _FONT_REGISTERED = False
 _FONT_NAME = "Helvetica"
 _MAX_REPORT_IMAGES = 4
@@ -61,6 +64,7 @@ def _resolve_font() -> str:
                 _FONT_REGISTERED = True
                 return _FONT_NAME
             except Exception:
+                _log.warning("_resolve_font: ignored error", exc_info=True)
                 continue
     _FONT_REGISTERED = True
     _FONT_NAME = "Helvetica"
@@ -165,6 +169,7 @@ def _species_label(case: CaseRecord) -> str:
         sp = raw if isinstance(raw, Species) else Species(str(raw).strip().lower())
         return _SPECIES_UI.get(sp, SPECIES_TR.get(sp, str(getattr(raw, "value", raw))))
     except Exception:
+        _log.warning("_species_label: ignored error", exc_info=True)
         return str(getattr(raw, "value", raw))
 
 
@@ -174,6 +179,7 @@ def _region_label(case: CaseRecord) -> str:
         reg = raw if isinstance(raw, AnatomicalRegion) else AnatomicalRegion(str(raw).strip().lower())
         return _REGION_UI.get(reg, REGION_TR.get(reg, str(getattr(raw, "value", raw))))
     except Exception:
+        _log.warning("_region_label: ignored error", exc_info=True)
         return str(getattr(raw, "value", raw))
 
 
@@ -267,6 +273,7 @@ def collect_report_image_pngs(
         try:
             refs = quarantine.list_files(str(ingest_id))
         except Exception:
+            _log.warning("collect_report_image_pngs: ignored error", exc_info=True)
             refs = []
         for ref in refs:
             rel = getattr(ref, "relative_path", None) or ""
@@ -287,6 +294,7 @@ def collect_report_image_pngs(
         try:
             _name, data = quarantine.read_file(rel)
         except Exception:
+            _log.warning("collect_report_image_pngs: ignored error", exc_info=True)
             continue
         result = dicom_bytes_to_png(data, max_edge=_IMAGE_MAX_EDGE_PX, as_rgb=False)
         if result:
@@ -307,6 +315,7 @@ def collect_report_image_pngs(
         try:
             _name, data = quarantine.read_file(doc.quarantine_relative_path)
         except Exception:
+            _log.warning("collect_report_image_pngs: ignored error", exc_info=True)
             continue
         if not _is_raster_bytes(data):
             continue
@@ -320,6 +329,7 @@ def _fmt_dt(value: Any) -> str:
     try:
         return value.strftime("%d.%m.%Y %H:%M")
     except Exception:
+        _log.warning("_fmt_dt: ignored error", exc_info=True)
         return str(value)
 
 
@@ -639,9 +649,9 @@ def build_owner_summary_pdf(case: CaseRecord, summary: Any, disclaimer: str) -> 
         # A short first line followed by text is a section heading ("Ne görüldü?").
         if len(lines) > 1 and len(lines[0].strip()) <= 60:
             story.append(Paragraph(_esc(lines[0].strip()), head))
-            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines[1:])), body))
+            story.append(Paragraph(_esc(" ".join(line.strip() for line in lines[1:])), body))
         else:
-            story.append(Paragraph(_esc(" ".join(l.strip() for l in lines)), body))
+            story.append(Paragraph(_esc(" ".join(line.strip() for line in lines)), body))
     story.append(Paragraph(_esc(disclaimer), note))
     doc.build(story)
     return buf.getvalue()

@@ -12,8 +12,8 @@ from app.routing.capabilities import (
     AVAILABILITY_SYNTHETIC,
     INPUT_PIXELS_2D,
     INPUT_PIXELS_3D,
-    ModelCapability,
     TASK_STRUCTURED_FINDINGS,
+    ModelCapability,
 )
 from app.routing.remote_config import VisionConfigError, _parse_enum_csv, _parse_source_kind, _parse_species
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind

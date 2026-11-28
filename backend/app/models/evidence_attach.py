@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -12,6 +12,8 @@ from app.imaging.evidence_renderer import render_bbox_overlay, render_mask_overl
 from app.models.evidence_store import EvidenceArtifactStore
 from app.schemas.case import CaseRecord
 from app.schemas.findings import EVIDENCE_DISCLAIMER, EvidenceReference, StructuredFindings
+
+_log = logging.getLogger(__name__)
 
 
 def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | None = None) -> np.ndarray | None:
@@ -22,7 +24,6 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
 
     from pydicom import dcmread
 
-    from app.storage.quarantine import QuarantineStore
 
     # Quarantine root may be on case model_input.quarantine_dir parent.
     qdir = case.model_input.quarantine_dir
@@ -50,13 +51,18 @@ def _load_slice_for_sop(case: CaseRecord, sop: str | None, frame_index: int | No
     if not path.is_file():
         return None
     try:
-        ds = dcmread(str(path), force=True)
+        from io import BytesIO
+
+        from app.storage.encryption import open_blob  # #126: quarantine files may be encrypted
+
+        ds = dcmread(BytesIO(open_blob(path.read_bytes())), force=True)
         return pick_frame(
             np.asarray(ds.pixel_array).astype(np.float32),
             samples_per_pixel=int(getattr(ds, "SamplesPerPixel", 1) or 1),
             frame_index=frame_index,
         )
     except Exception:
+        _log.warning("_load_slice_for_sop: ignored error", exc_info=True)
         return None
 
 

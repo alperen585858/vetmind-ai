@@ -8,13 +8,15 @@ from app.auth.mfa_challenge import MfaChallenges
 from app.auth.mfa_crypto import MfaSecretBox
 from app.auth.password_reset import PasswordResetService, build_password_reset_store
 from app.auth.refresh_tokens import RefreshTokenService, build_refresh_token_store
-from app.services.report_view_tokens import ReportViewTokenService, build_report_view_token_store
 from app.auth.security import DEMO_USERS, AuthSettings, DemoUserRecord
-from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
 from app.dicom.llm_classifier import build_metadata_classifier
+from app.feedback.store import FeedbackStore
+from app.imaging.metadata_prep import MetadataOnlyPreparationPipeline
+from app.ingest.documents import build_document_text_adapter
 from app.llm.anatomy_dictionary import AnatomyDictionary
 from app.llm.factory import build_llm_provider
 from app.llm.gateway import LLMGateway
+from app.llm.lessons import LessonStore
 from app.models.bridge_resources import ResourceLimits
 from app.models.evidence_store import EvidenceArtifactStore
 from app.models.http_vision import build_optional_http_vision
@@ -36,46 +38,48 @@ from app.routing.capabilities import (
     default_capabilities,
 )
 from app.routing.execution_policy import ModelExecutionPolicy, parse_vision_execution_mode
+from app.routing.local_config import local_capability_from_settings, validate_local_torch_settings
 from app.routing.model_router import ModelRouter
 from app.routing.registry_validation import validate_registry_capabilities
-from app.routing.local_config import local_capability_from_settings, validate_local_torch_settings
 from app.routing.remote_config import remote_capability_from_settings
 from app.routing.scenario_policy import ScenarioRoutingPolicy
-from app.feedback.store import FeedbackStore
-from app.llm.lessons import LessonStore
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
 from app.security.audit import AuditLogger
-from app.storage.sql import connect_from_settings
 from app.security.retention import RetentionPolicy
+from app.services.app_settings_store import build_app_settings_store
 from app.services.case_service import CaseService
-from app.services.ports import OwnerDelivery
-from app.ingest.documents import build_document_text_adapter
 from app.services.dicom_service import DicomService
 from app.services.document_service import DocumentService
-from app.services.notification_service import NotificationService
-from app.services.notification_store import build_notification_store
-from app.services.app_settings_store import build_app_settings_store
-from app.services.owner_summary_service import OwnerSummaryService
-from app.services.patient_service import PatientService
-from app.services.patient_store import build_patient_store
-from app.services.user_settings_store import build_user_settings_store
-from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
+from app.services.live_events import LiveEventBroker, StreamTicketService
 from app.services.messaging_facade import MessagingFacade
 from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
-from app.services.live_events import LiveEventBroker, StreamTicketService
-from app.services.payment_service import PaymentService
-from app.services.payment_store import build_payment_store
+from app.services.notification_service import NotificationService
+from app.services.notification_store import build_notification_store
+from app.services.owner_summary_service import OwnerSummaryService
+from app.services.patient_service import PatientService
+from app.services.patient_store import build_patient_store
+from app.services.ports import OwnerDelivery
 from app.services.radiologist_payout_service import RadiologistPayoutService
 from app.services.radiologist_payout_store import build_radiologist_payout_store
+from app.services.report_view_tokens import ReportViewTokenService, build_report_view_token_store
+from app.services.repository import CaseRepository, InMemoryCaseRepository, build_repository
+from app.services.user_settings_store import build_user_settings_store
 from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
 from app.settings import Settings, demo_accounts_enabled, load_settings, validate_security_settings
 from app.storage.encryption import encryption_status
 from app.storage.malware_scan import build_scanner
 from app.storage.quarantine import QuarantineStore
+from app.storage.sql import connect_from_settings
 from app.validation.report_validator import ReportValidator
 from app.workers.job_backend import build_job_backend
+
+
+def _dicom_api_limits():
+    import app.api.dicom as dicom_api  # late: the API module imports the container's deps
+
+    return dicom_api
 
 
 class AppContainer:
@@ -95,7 +99,8 @@ class AppContainer:
         )
         self.quarantine = QuarantineStore(
             self.settings.quarantine_root,
-            max_file_bytes=25 * 1024 * 1024,
+            # Same per-file cap as the upload API (#125; VETMIND_DICOM_MAX_FILE_MB).
+            max_file_bytes=_dicom_api_limits()._MAX_FILE_BYTES,
             scrub_identity=bool(getattr(self.settings, "dicom_identity_scrub", False)),
         )
         # #102: everything persistent lives in the one database (Postgres, or SQLite for local
@@ -416,12 +421,6 @@ class AppContainer:
             document_adapter=doc_adapter,
             malware_scanner=self.malware_scanner,
         )
-        self.payment_store = build_payment_store(self.settings)
-        self.payments = PaymentService(
-            self.payment_store,
-            audit=self.audit,
-            tenant_isolation=self.settings.tenant_isolation,
-        )
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -429,10 +428,8 @@ class AppContainer:
             notifications=self.notifications,
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
-            payments=self.payments,
             demo_accounts=self.demo_accounts,
         )
-        self.payments.bind_workflow(self.workflow)
         self.radiologist_payouts.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
         self.messaging_store = build_messaging_store(self.settings)
@@ -485,8 +482,6 @@ class AppContainer:
         self.reports = self.cases.reports
         self.collaboration = self.cases.collaboration
         self.messaging_domain = MessagingFacade(self.messaging, self.collaboration)
-        self.pets = self.workflow.pets
-        self.submissions = self.workflow.submissions
         from app.security.rate_limit import build_rate_limiter
 
         self.rate_limiter = build_rate_limiter(

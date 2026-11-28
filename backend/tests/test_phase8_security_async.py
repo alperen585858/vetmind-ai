@@ -14,7 +14,6 @@ from app.auth.security import (
     DEMO_USERS,
     JWT_AUDIENCE,
     JWT_ISSUER,
-    create_access_token,
     decode_token,
     resolve_jwt_identity,
 )

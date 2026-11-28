@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from app.ingest.documents import DefaultDocumentTextAdapter
 from app.schemas.enums import FileContentKind

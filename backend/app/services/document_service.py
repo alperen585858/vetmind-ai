@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 
 from app.auth.principal import AuthPrincipal
 from app.auth.tenancy import assert_case_access, can_access_owned
-from app.ingest.documents import DocumentTextAdapter, DefaultDocumentTextAdapter, extract_document_text
+from app.ingest.documents import DefaultDocumentTextAdapter, DocumentTextAdapter, extract_document_text
 from app.ingest.filetype import detect_file_kind
 from app.models.model_input_builder import build_imaging_model_input
 from app.routing.capabilities import ModelCapability, default_capabilities

@@ -69,8 +69,8 @@ def test_local_torch_entrypoint_without_infer_fn_fails() -> None:
         )
         entry.load()
         from app.models.entrypoint import InferenceRequest
-        from app.schemas.model_input import ImagingModelInput
         from app.schemas.enums import AnatomicalRegion, Species
+        from app.schemas.model_input import ImagingModelInput
 
         req = InferenceRequest(
             case_id="c",
@@ -129,11 +129,11 @@ def test_artifact_workspace_cleanup(tmp_path: Path) -> None:
 
 
 def test_pixel_denied_by_default_on_bridge(tmp_path: Path) -> None:
+    from app.routing.capabilities import INPUT_PIXELS_2D, ModelCapability
     from app.schemas.case import CaseRecord
     from app.schemas.enums import AnatomicalRegion, Species
-    from app.schemas.findings import StudyInfo
-    from app.routing.capabilities import ModelCapability, INPUT_PIXELS_2D
     from app.schemas.enums import SourceKind as SK
+    from app.schemas.findings import StudyInfo
 
     cap = ModelCapability(
         model_id="future-xr",
@@ -192,10 +192,10 @@ def test_synthetic_bridge_e2e(modality: Modality, tmp_path: Path) -> None:
 
 
 def test_bridge_maps_task_outputs_without_inventing_scores(tmp_path: Path) -> None:
-    from app.schemas.case import CaseRecord
-    from app.schemas.enums import AnatomicalRegion, Species, ModelExecutionStatus
-    from app.schemas.findings import StudyInfo
     from app.models.entrypoint import InferenceRequest
+    from app.schemas.case import CaseRecord
+    from app.schemas.enums import AnatomicalRegion, ModelExecutionStatus, Species
+    from app.schemas.findings import StudyInfo
     from app.schemas.model_input import ImagingModelInput
     from app.schemas.model_outputs import ClassificationLabel, ClassificationOutput
 

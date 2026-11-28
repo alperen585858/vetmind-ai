@@ -444,7 +444,7 @@ export default function NewCase() {
       triage === 'stat' ? 'STAT' : triage === 'urgent' ? 'Acil' : triage === 'high' ? 'Yüksek' : 'Normal'
 
     let built = buildAssessment(loc?.template ?? 'ivdd', patient, neuro, stamp, locale)
-    let backendCaseId = ''
+    let backendCaseId: string
     let backendJobId: string | undefined
     let backendOutcome: VetCase['backendOutcome']
     let backendFindings: VetCase['backendFindings']

@@ -5,6 +5,7 @@ import copy
 import httpx
 import pytest
 
+from app.container import AppContainer
 from app.models.http_vision import HttpRemoteVisionModel
 from app.models.interfaces import ImagingAdapterError
 from app.models.mock_vision import MockBrainMriModel, MockCervicalMriModel
@@ -12,7 +13,6 @@ from app.models.model_input_builder import build_imaging_model_input, require_mo
 from app.orchestration.orchestrator import AIOrchestrator
 from app.schemas.case import CaseRecord
 from app.schemas.enums import AnatomicalRegion, MockScenario, Modality, Species
-from app.container import AppContainer
 from app.services.repository import InMemoryCaseRepository
 
 
@@ -44,7 +44,7 @@ def test_build_imaging_model_input_does_not_mutate_case() -> None:
     assert case.model_input is None
     assert case.model_dump(mode="json") == before
     assert pkg.case_id == case.case_id
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, ValueError, AttributeError)):  # frozen model
         pkg.case_id = "mutated"  # type: ignore[misc]
 
 

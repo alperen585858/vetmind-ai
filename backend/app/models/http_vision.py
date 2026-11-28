@@ -13,8 +13,8 @@ from typing import Any, Optional
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from app.llm.clinical_notes import history_with_notes
 from app.http_policy import vision_http_policy
+from app.llm.clinical_notes import history_with_notes
 from app.models.interfaces import ImagingAdapterError, ImagingModel
 from app.models.model_input_builder import require_model_input
 from app.models.normalizer import normalize_laterality

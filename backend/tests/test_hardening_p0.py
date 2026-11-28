@@ -9,17 +9,14 @@ from app.llm.gateway import LLMGateway
 from app.llm.mock_provider import MockLLMProvider
 from app.models.mock_vision import MockBrainMriModel
 from app.models.normalizer import normalize_outputs
-from app.schemas.case import CaseRecord, ReviewFeedback
+from app.schemas.case import CaseRecord
 from app.schemas.enums import (
     AnatomicalRegion,
-    CaseLifecycleStatus,
     FindingStatus,
     MockScenario,
     Modality,
     ModelExecutionStatus,
-    PipelineOutcome,
     ReportStatus,
-    ReviewAction,
     SourceKind,
     Species,
 )
@@ -109,7 +106,7 @@ def test_validation_failed_cannot_approve(client: TestClient, tmp_path: Path) ->
 
 
 def test_validator_status_not_overwritten_by_orchestrator() -> None:
-    container = AppContainer(repo=InMemoryCaseRepository())
+    AppContainer(repo=InMemoryCaseRepository())  # wiring must not fail
     case = CaseRecord(
         case_id="case-val",
         patient_name="Pax",

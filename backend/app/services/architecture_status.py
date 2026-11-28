@@ -18,6 +18,7 @@ Status values:
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
@@ -26,6 +27,8 @@ from app.orchestration.progress import PIPELINE_STAGES, stage_label_tr
 from app.routing.capabilities import AVAILABILITY_NOT_CONFIGURED, AVAILABILITY_SYNTHETIC, ModelCapability
 from app.routing.execution_policy import VisionExecutionMode
 from app.schemas.enums import AnatomicalRegion, CaseLifecycleStatus, Modality, SourceKind
+
+_log = logging.getLogger(__name__)
 
 ACTIVE = "active"
 MOCK = "mock"
@@ -143,6 +146,7 @@ def _recent_usage(container: Any) -> dict[str, Any]:
     try:
         cases = list(container.repo.list_cases())
     except Exception:  # noqa: BLE001 — diagram must render even if storage hiccups
+        _log.warning("_recent_usage: ignored error", exc_info=True)
         cases = []
     cases.sort(key=lambda c: c.updated_at, reverse=True)
     for case in cases:

@@ -47,7 +47,9 @@ class AuthorizedDicomDecoder:
             raise PrepValidationError("Quarantine path escapes store root.") from exc
         if not path.is_file():
             raise PrepValidationError("DICOM instance file not found in quarantine.")
-        return self.decode_bytes(path.read_bytes(), contract=contract)
+        from app.storage.encryption import open_blob  # #126: quarantine files may be encrypted
+
+        return self.decode_bytes(open_blob(path.read_bytes()), contract=contract)
 
     def decode_bytes(self, data: bytes, *, contract: PreprocessingContract) -> dict:
         """Decode from bytes (tests / authorized callers). Same contract gates."""

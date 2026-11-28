@@ -3,39 +3,40 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
+from app.api.admin_audit import router as admin_audit_router
+from app.api.admin_retention import router as admin_retention_router
 from app.api.analysis import router as analysis_router
+from app.api.architecture import router as architecture_router
 from app.api.auth import router as auth_router
 from app.api.cases import router as cases_router
 from app.api.dicom import router as dicom_router
 from app.api.documents import router as documents_router
 from app.api.evidence import router as evidence_router
+from app.api.feedback import router as feedback_router
+from app.api.lessons import router as lessons_router
+from app.api.llm_feedback import router as llm_feedback_router
+from app.api.messaging import live_router
+from app.api.messaging import router as messaging_router
 from app.api.models import router as models_router
+from app.api.notifications import router as notifications_router
+from app.api.owner_summary import router as owner_summary_router
+from app.api.patients import router as patients_router
+from app.api.radiologist_payouts import router as radiologist_payouts_router
 from app.api.rag import router as rag_router
 from app.api.report_links import router as report_links_router
 from app.api.reports import router as reports_router
-from app.api.notifications import router as notifications_router
-from app.api.admin_retention import router as admin_retention_router
-from app.api.architecture import router as architecture_router
-from app.api.llm_feedback import router as llm_feedback_router
-from app.api.feedback import router as feedback_router
-from app.api.messaging import live_router, router as messaging_router
-from app.api.radiologist_payouts import router as radiologist_payouts_router
-from app.api.workflow import router as workflow_router
 from app.api.settings import router as settings_router
 from app.api.training_export import router as training_export_router
-from app.api.lessons import router as lessons_router
-from app.api.patients import router as patients_router
-from app.api.admin_audit import router as admin_audit_router
-from app.api.owner_summary import router as owner_summary_router
+from app.api.workflow import router as workflow_router
 from app.auth.security import decode_token, resolve_jwt_identity, verify_api_key
 from app.container import AppContainer
-from app.http_errors import normalize_detail, validation_detail
 from app.demo_seed import ensure_demo_seed
+from app.http_errors import normalize_detail, validation_detail
 
 
 def _local_torch_health(c: AppContainer) -> dict[str, Any] | None:

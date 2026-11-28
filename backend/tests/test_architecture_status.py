@@ -9,10 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.container import AppContainer
+from app.orchestration.progress import PIPELINE_STAGES
 from app.routing.capabilities import default_capabilities
 from app.routing.execution_policy import VisionExecutionMode
 from app.schemas.enums import AnatomicalRegion, Modality, SourceKind
-from app.orchestration.progress import PIPELINE_STAGES
 from app.services import architecture_status
 from app.services.architecture_status import KNOWN_STAGES, build_architecture, models_for_modality
 from tests.conftest import make_payload

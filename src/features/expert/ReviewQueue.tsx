@@ -5,6 +5,7 @@ import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
 import { Button } from '../../shared/ui/Button'
 import { isUrgentCase, sortWorklist, waitLabel } from './ExpertWorklistTable'
+import { matchesSearch, viewFromParams, type QueueView } from './lib/queueFilters'
 import { HoloOrgan } from '../../shared/ui/HoloOrgan'
 import { CardWave } from '../../shared/ui/CardWave'
 import { SpeciesIcon3D } from '../../shared/ui/SpeciesIcon3D'
@@ -19,7 +20,6 @@ import { summaryToVetCase } from '../../shared/lib/caseMapper'
 import { isSlaAttention, slaTone } from '../../shared/lib/reviewSla'
 import type { BackendCaseSummary, VetCase } from '../../shared/types'
 
-type QueueView = 'all' | 'urgent' | 'sla' | 'mine'
 type ModalityFilter = '' | 'MR' | 'CT' | 'XR'
 
 const MODALITIES: ModalityFilter[] = ['', 'MR', 'CT', 'XR']
@@ -124,22 +124,6 @@ function CollapsiblePanel({ id, title, children }: { id: string; title: string; 
       </div>
     </section>
   )
-}
-
-function matchesSearch(c: VetCase, needle: string) {
-  if (!needle) return true
-  return [c.patient.name, c.no, c.id, c.clinic, c.patient.breed, c.patient.species, c.modality, c.anatomicalRegion]
-    .filter(Boolean)
-    .join(' ')
-    .toLocaleLowerCase('tr')
-    .includes(needle)
-}
-
-function viewFromParams(params: URLSearchParams): QueueView {
-  if (params.get('sla') === 'az') return 'sla'
-  if (params.get('acil') === '1') return 'urgent'
-  if (params.get('bana') === '1') return 'mine'
-  return 'all'
 }
 
 function safeActorId(): string {

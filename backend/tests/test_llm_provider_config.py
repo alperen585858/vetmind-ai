@@ -11,7 +11,7 @@ from app.llm.factory import build_llm_provider
 from app.llm.http_provider import HttpLLMProvider
 from app.llm.interfaces import LLMConfigError, LLMMalformedResponseError
 from app.llm.mock_provider import MockLLMProvider
-from app.llm.stub_provider import DeterministicStubLLMProvider, STUB_BANNER
+from app.llm.stub_provider import STUB_BANNER, DeterministicStubLLMProvider
 from app.main import create_app
 from app.models.mock_vision import MockBrainMriModel
 from app.orchestration.orchestrator import AIOrchestrator

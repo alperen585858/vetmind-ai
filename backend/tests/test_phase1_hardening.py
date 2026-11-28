@@ -18,7 +18,6 @@ from app.dicom.fixtures import (
     inconsistent_study_files,
     missing_uid_partial_files,
     mixed_modality_study_files,
-    thorax_xr_study_files,
     unsupported_modality_file,
 )
 from app.dicom.ingest import has_blocking_errors, ingest_dicom_files
@@ -167,7 +166,7 @@ def test_unsupported_modality_or_region() -> None:
     assert blocked.classification is not None
     assert blocked.classification.classification_status == ClassificationStatus.UNSUPPORTED
 
-    decision = ModelRouter().route(
+    ModelRouter().route(
         _case(modality=Modality.OTHER, anatomical_region=AnatomicalRegion.OTHER)
     )
     # Multimodal stub covers OTHER+UNKNOWN; OTHER+OTHER falls to manual or multimodal.

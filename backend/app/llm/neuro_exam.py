@@ -54,7 +54,7 @@ def neuro_exam_text(exam: dict[str, Any] | None) -> str:
         if key == "gait":
             limbs = _as_list(exam.get("limbs"))
             if limbs and value != "Normal":
-                item += f" ({', '.join(l.lower() for l in limbs)})"
+                item += f" ({', '.join(limb.lower() for limb in limbs)})"
         parts.append(item)
 
     signs = _as_list(exam.get("cranialNerves"))

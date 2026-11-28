@@ -1,0 +1,15 @@
+# Lint config (#131). Run from backend/: ruff check .   (ruff check --fix . for the safe fixes)
+target-version = "py312"
+line-length = 120
+extend-exclude = ["migrations/versions", ".venv", "data"]
+
+[lint]
+select = ["E", "F", "I", "B"]
+ignore = [
+  "E501",  # long lines: many readable 120+ prompt / SQL strings; not worth wrapping
+  "B008",  # FastAPI's Depends()/File()/Form() in defaults is the intended pattern
+  "B905",  # zip() without strict=: lengths are checked where it matters
+]
+
+[lint.isort]
+known-first-party = ["app", "tests"]

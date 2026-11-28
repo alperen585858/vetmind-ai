@@ -96,6 +96,10 @@ class Settings:
     llm_temperature: float | None = 0.2
     llm_max_tokens: int = 2048
     llm_json_mode: str = "schema"  # schema | object | none (OpenAI-compatible only)
+    # Model context window in tokens (#129). Ollama silently drops the start of a longer prompt;
+    # with a value set, VetMind logs a warning when a prompt will not fit or was cut.
+    # 0 = no check. Ollama default when unset: 4096 (its server default).
+    llm_context_tokens: int = 0
     llm_prompt_version: str = "vetmind-report-v5"
     llm_verify: bool = False  # sentence-level citation verifier pass (one extra call)
     llm_verifier_model_id: str | None = None  # judge model on the same endpoint; default = writer
@@ -425,6 +429,10 @@ def load_settings() -> Settings:
     except ValueError:
         llm_max_tokens = 2048
     llm_json_mode = os.getenv("VETMIND_LLM_JSON_MODE", "schema").strip().lower() or "schema"
+    try:
+        llm_context_tokens = max(0, int(os.getenv("VETMIND_LLM_CONTEXT_TOKENS", "0") or 0))
+    except ValueError:
+        llm_context_tokens = 0
     llm_prompt_version = os.getenv("VETMIND_LLM_PROMPT_VERSION", "vetmind-report-v5").strip() or "vetmind-report-v5"
     llm_verify = _env_bool("VETMIND_LLM_VERIFY", False)
     llm_verifier_model_id = (os.getenv("VETMIND_LLM_VERIFIER_MODEL_ID") or "").strip() or None
@@ -622,6 +630,7 @@ def load_settings() -> Settings:
         llm_temperature=llm_temperature,
         llm_max_tokens=max(256, llm_max_tokens),
         llm_json_mode=llm_json_mode,
+        llm_context_tokens=llm_context_tokens,
         llm_prompt_version=llm_prompt_version,
         llm_verify=llm_verify,
         llm_verifier_model_id=llm_verifier_model_id,
@@ -719,14 +728,20 @@ def validate_security_settings(settings: Settings) -> None:
             f"Protected deployment requires VETMIND_JWT_SECRET of at least "
             f"{MIN_PROTECTED_JWT_SECRET_LENGTH} characters (HS256 key strength)."
         )
-    # Refuse fake "encryption enabled" claims — NullEncryptor is passthrough only.
+    # Encryption at rest (#126): only AES-GCM with a valid key; never a false claim.
+    from app.storage.encryption import ENABLED_MODES, OFF_MODES, decode_key
+
     enc = (settings.encryption_at_rest or "none").strip().lower()
-    if enc not in {"none", "off", "disabled", ""}:
+    if enc not in OFF_MODES | ENABLED_MODES:
         raise RuntimeError(
-            f"VETMIND_ENCRYPTION_AT_REST={enc!r} is not implemented. "
-            "Use 'none' until a real BlobEncryptor + KMS is wired. "
-            "Refusing to start with a false encryption claim."
+            f"VETMIND_ENCRYPTION_AT_REST={enc!r} is not supported. Use 'aes-gcm' (with "
+            "VETMIND_BLOB_KEY) or 'none'."
         )
+    if enc in ENABLED_MODES:
+        try:
+            decode_key(os.environ.get("VETMIND_BLOB_KEY", ""))
+        except ValueError as exc:
+            raise RuntimeError(f"VETMIND_ENCRYPTION_AT_REST={enc} needs a valid key: {exc}") from exc
     if settings.deployment_mode == "protected":
         if not settings.malware_scan_required:
             raise RuntimeError(

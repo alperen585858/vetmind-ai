@@ -1,0 +1,4 @@
+# Development and CI: runtime + test tools (#123). Not installed in the Docker image.
+-r requirements.txt
+pytest==9.1.1
+ruff==0.14.4

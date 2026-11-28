@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.deps import get_document_service
 from app.auth.deps import require_auth, require_capability
-from app.auth.visibility import case_for_principal
 from app.auth.principal import AuthPrincipal
 from app.auth.rbac import CAP_DOCUMENTS
+from app.auth.visibility import case_for_principal
 from app.schemas.case import CaseRecord
 from app.schemas.documents import (
     ConfirmDocumentRequest,
@@ -29,9 +29,9 @@ async def upload_documents(
     files: list[UploadFile] = File(..., description="PDF / JPG / PNG / text files"),
     patient_name: str = Form(..., min_length=1, max_length=120),
     species: Species = Form(...),
-    breed: str | None = Form(default=None),
-    clinical_history: str | None = Form(default=None),
-    referring_clinic: str | None = Form(default=None),
+    breed: str | None = Form(default=None, max_length=120),
+    clinical_history: str | None = Form(default=None, max_length=10_000),
+    referring_clinic: str | None = Form(default=None, max_length=200),
     modality_hint: Modality = Form(default=Modality.OTHER),
     anatomical_region_hint: AnatomicalRegion = Form(default=AnatomicalRegion.UNKNOWN),
     service: DocumentService = Depends(get_document_service),

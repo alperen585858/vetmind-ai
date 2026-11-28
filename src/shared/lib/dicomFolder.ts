@@ -7,13 +7,13 @@ const DICOM_EXT = /\.(dcm|dicom|img)$/i
 const SKIP_NAMES = /^(thumbs\.db|\.ds_store|desktop\.ini)$/i
 
 /** Max files sent to backend / kept in session (matches backend soft limit). */
-export const MAX_DICOM_FILES = 200
+export const MAX_DICOM_FILES = 1000
 
 /** Max bytes per file (matches backend `_MAX_FILE_BYTES`). */
-export const MAX_DICOM_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_DICOM_FILE_BYTES = 64 * 1024 * 1024
 
-/** Aggregate upload budget (matches backend `_MAX_TOTAL_BYTES`). */
-export const MAX_DICOM_TOTAL_BYTES = 100 * 1024 * 1024
+/** Aggregate upload budget (matches backend `_MAX_TOTAL_BYTES`). #125: a real MR/CT study fits. */
+export const MAX_DICOM_TOTAL_BYTES = 512 * 1024 * 1024
 
 export { MAX_VIEWER_FRAMES } from './dicomLimits'
 
