@@ -98,7 +98,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Celery / K8s workers | Thread veya RQ |
 | KMS / anahtar yönetim servisi | Karantina AES-256-GCM ile şifrelenebiliyor (#126) ve ClamAV taraması var; anahtar ortam değişkeninde, KMS entegrasyonu yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
-| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı (100 EUR) backend'de duruyor, arayüzde yok — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
+| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme ve başvuru servisleri kaldırıldı (#87, #132); `demo_payments` tablosu eski veriler için duruyor — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md). Radyolog ödeme defteri (Admin) çalışıyor |
 
 Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri için backend auth zorunludur.
 

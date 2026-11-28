@@ -44,8 +44,6 @@ from app.services.dicom_service import DicomService
 from app.services.notification_service import NotificationService
 from app.services.workflow_store import WorkflowStore
 
-from app.services.ports import PaymentPort
-from app.services.host_bound import HostBound
 
 
 def _now() -> datetime:
@@ -102,9 +100,6 @@ class WorkflowService:
         notifications: NotificationService | None = None,
         tenant_isolation: bool = False,
         auth_users: dict[str, DemoUserRecord] | None = None,
-        payments: PaymentPort | None = None,
-        pets: object | None = None,
-        submissions: object | None = None,
         demo_accounts: bool = True,
     ) -> None:
         # False (protected mode by default): the shared-password *@demo.local seed accounts
@@ -118,26 +113,9 @@ class WorkflowService:
         self._auth_users = (
             auth_users if auth_users is not None else (dict(DEMO_USERS) if demo_accounts else {})
         )
-        self._payments = payments
         self._user_write_lock = threading.Lock()
-        self._wire_contexts(pets=pets, submissions=submissions)
         self._seed_managed_from_demo()
         self._migrate_plaintext_passwords()
-
-    def _wire_contexts(
-        self,
-        *,
-        pets: object | None,
-        submissions: object | None,
-    ) -> None:
-        from app.services.pet_service import PetService
-        from app.services.submission_service import SubmissionService
-
-        self.pets = pets if pets is not None else PetService(self)
-        self.submissions = submissions if submissions is not None else SubmissionService(self)
-
-    def bind_payments(self, payments: PaymentPort | None) -> None:
-        self._payments = payments
 
     def _seed_managed_from_demo(self) -> None:
         if not self._demo_accounts or self._store.list_users():
@@ -203,91 +181,6 @@ class WorkflowService:
         self._auth_users.clear()
         self._auth_users.update(directory)
         return self._auth_users
-
-    # --- Pets ---
-
-    def create_pet(self, payload: PetCreate, *, principal: AuthPrincipal) -> PetRecord:
-        return self.pets.create_pet(payload, principal=principal)
-
-    def list_pets(self, *, principal: AuthPrincipal) -> list[PetRecord]:
-        return self.pets.list_pets(principal=principal)
-
-    def get_pet(self, pet_id: str, *, principal: AuthPrincipal) -> PetRecord:
-        return self.pets.get_pet(pet_id, principal=principal)
-
-    def update_pet(self, pet_id: str, payload: PetUpdate, *, principal: AuthPrincipal) -> PetRecord:
-        return self.pets.update_pet(pet_id, payload, principal=principal)
-
-    # --- Submissions ---
-
-    def create_submission(self, payload: SubmissionCreate, *, principal: AuthPrincipal) -> ImagingSubmission:
-        return self.submissions.create_submission(payload, principal=principal)
-
-    def link_payment(
-        self,
-        submission_id: str,
-        *,
-        payment_id: str,
-        payment_status: str,
-        principal: AuthPrincipal,
-    ) -> ImagingSubmission:
-        return self.submissions.link_payment(submission_id, payment_id=payment_id, payment_status=payment_status, principal=principal)
-
-    def finalize_submission(
-        self,
-        submission_id: str,
-        *,
-        principal: AuthPrincipal,
-        payment_id: str | None = None,
-    ) -> ImagingSubmission:
-        return self.submissions.finalize_submission(submission_id, principal=principal, payment_id=payment_id)
-
-    def list_submissions(
-        self,
-        *,
-        principal: AuthPrincipal,
-        status_filter: str | None = None,
-    ) -> list[ImagingSubmission]:
-        return self.submissions.list_submissions(principal=principal, status_filter=status_filter)
-
-    def get_submission(self, submission_id: str, *, principal: AuthPrincipal) -> ImagingSubmission:
-        return self.submissions.get_submission(submission_id, principal=principal)
-
-    def delete_submission(self, submission_id: str, *, principal: AuthPrincipal) -> None:
-        return self.submissions.delete_submission(submission_id, principal=principal)
-
-    def update_submission(
-        self, submission_id: str, payload: SubmissionUpdate, *, principal: AuthPrincipal
-    ) -> ImagingSubmission:
-        return self.submissions.update_submission(submission_id, payload, principal=principal)
-
-    def attach_submission(
-        self, submission_id: str, payload: SubmissionAttach, *, principal: AuthPrincipal
-    ) -> ImagingSubmission:
-        return self.submissions.attach_submission(submission_id, payload, principal=principal)
-
-    def reply_info_request(
-        self,
-        submission_id: str,
-        request_id: str,
-        payload: InfoRequestReply,
-        *,
-        principal: AuthPrincipal,
-    ) -> ImagingSubmission:
-        return self.submissions.reply_info_request(submission_id, request_id, payload, principal=principal)
-
-    def close_info_request(
-        self, submission_id: str, request_id: str, *, principal: AuthPrincipal
-    ) -> ImagingSubmission:
-        return self.submissions.close_info_request(submission_id, request_id, principal=principal)
-
-    def vet_action(
-        self, submission_id: str, payload: SubmissionVetAction, *, principal: AuthPrincipal
-    ) -> ImagingSubmission | CaseRecord:
-        return self.submissions.vet_action(submission_id, payload, principal=principal)
-
-    def pet_medical_history(self, pet_id: str, *, principal: AuthPrincipal) -> PetMedicalHistory:
-        return self.pets.pet_medical_history(pet_id, principal=principal)
 
     def _notify_one(
         self,
@@ -551,32 +444,13 @@ class WorkflowService:
             raise HTTPException(status_code=403, detail="Not allowed.")
         clinic = principal.clinic_id or "clinic-demo-a"
         cases = self._cases.list_cases(principal=principal)
-        pending = [
-            s
-            for s in self.list_submissions(principal=principal)
-            if s.status in {"pending_verification", "needs_info"}
-        ]
         staff = self.list_users(principal=principal)
         return ClinicStaffStats(
             clinic_id=clinic,
             case_count=len(cases),
             awaiting_review=sum(1 for c in cases if str(c.status.value if hasattr(c.status, "value") else c.status) == "awaiting_review"),
             approved=sum(1 for c in cases if str(c.status.value if hasattr(c.status, "value") else c.status) == "approved"),
-            pending_submissions=len(pending),
+            # Owner submissions were removed (#87, #132); kept at 0 for API compatibility.
+            pending_submissions=0,
             staff=staff,
         )
-
-    def __getattr__(self, name: str) -> object:
-        """Forward pet/submission helpers that were moved off this facade."""
-        if name.startswith("__"):
-            raise AttributeError(name)
-        for key in ("pets", "submissions"):
-            svc = self.__dict__.get(key)
-            if svc is None:
-                continue
-            for cls in type(svc).__mro__:
-                if cls is HostBound or cls is object:
-                    continue
-                if name in cls.__dict__:
-                    return getattr(svc, name)
-        raise AttributeError(f"{type(self).__name__}.{name}")

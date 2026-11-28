@@ -64,8 +64,6 @@ from app.services.messaging_facade import MessagingFacade
 from app.services.messaging_service import MessagingService
 from app.services.messaging_store import build_messaging_store
 from app.services.live_events import LiveEventBroker, StreamTicketService
-from app.services.payment_service import PaymentService
-from app.services.payment_store import build_payment_store
 from app.services.radiologist_payout_service import RadiologistPayoutService
 from app.services.radiologist_payout_store import build_radiologist_payout_store
 from app.services.workflow_service import WorkflowService
@@ -423,12 +421,6 @@ class AppContainer:
             document_adapter=doc_adapter,
             malware_scanner=self.malware_scanner,
         )
-        self.payment_store = build_payment_store(self.settings)
-        self.payments = PaymentService(
-            self.payment_store,
-            audit=self.audit,
-            tenant_isolation=self.settings.tenant_isolation,
-        )
         self.workflow = WorkflowService(
             self.workflow_store,
             self.cases,
@@ -436,10 +428,8 @@ class AppContainer:
             notifications=self.notifications,
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
-            payments=self.payments,
             demo_accounts=self.demo_accounts,
         )
-        self.payments.bind_workflow(self.workflow)
         self.radiologist_payouts.bind_workflow(self.workflow)
         self.workflow.sync_auth_directory()
         self.messaging_store = build_messaging_store(self.settings)
@@ -492,8 +482,6 @@ class AppContainer:
         self.reports = self.cases.reports
         self.collaboration = self.cases.collaboration
         self.messaging_domain = MessagingFacade(self.messaging, self.collaboration)
-        self.pets = self.workflow.pets
-        self.submissions = self.workflow.submissions
         from app.security.rate_limit import build_rate_limiter
 
         self.rate_limiter = build_rate_limiter(

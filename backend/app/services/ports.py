@@ -48,9 +48,3 @@ class OwnerDelivery:
         self.workflow_store = workflow_store
         self.smtp_configured = bool(smtp_configured)
         self.public_base_url = (public_base_url or "http://127.0.0.1:5173").rstrip("/")
-
-
-class PaymentPort(Protocol):
-    """Submission finalization only needs an approved-payment check."""
-
-    def assert_approved_for_submission(self, submission_id: str) -> object: ...
