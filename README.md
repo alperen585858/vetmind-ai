@@ -98,7 +98,7 @@ VetMind AI, veteriner klinikleri ile uzman teleradyolog arasında köprü kurmay
 | Celery / K8s workers | Thread veya RQ |
 | Encryption-at-rest / malware AV | Env bayrakları var; gerçek entegrasyon yok |
 | Klinik validasyon | Validator `clinically_validated=True` engeller |
-| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı (100 EUR) backend'de duruyor, arayüzde yok — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
+| Ödeme / faturalama | Gerçek tahsilat yok. Eski sahip portalının demo ödeme akışı kaldırıldı (#132); `demo_payments` tablosu eski veriler için duruyor — [arşiv belgesi](docs/arsiv/DEMO_PAYMENT_SUBMISSION_FLOW.md) |
 
 Frontend rol kapıları **yalnızca UX**’tir. Gerçek veya korumalı veri için backend auth zorunludur.
 
