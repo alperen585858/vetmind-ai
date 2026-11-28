@@ -1,30 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLocalizedNavigate } from '../../shared/hooks/useLocalizedNavigate'
-import { ArrowLeft, ArrowRight, Brain, FileText, FolderOpen, Lightbulb, Pencil, Sparkles, Square, Trash2, UploadCloud } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
 import { useApp } from '../../shared/shell/AppContext'
 import { useLocale } from '../../shared/shell/LocaleContext'
-import { confidenceLabel, regionLabel, studyLabel } from '../../shared/lib/displayClean'
 import { Card } from '../../shared/ui/Card'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Button } from '../../shared/ui/Button'
 import { StepIndicator } from '../../shared/ui/StepIndicator'
-import { CLINIC, EMPTY_NEURO, SAMPLE_FORM } from '../../shared/demo/clinic'
-import { NORMAL_NEURO, isNeuroExamEmpty, neuroItemText, cranialNervesText, neuroPriority, NOT_EVALUATED } from '../../shared/lib/neuroExam'
-import { buildAssessment, makeDocument } from '../../shared/demo/caseTemplates'
+import { SAMPLE_FORM } from '../../shared/demo/clinic'
+import { neuroPriority } from '../../shared/lib/neuroExam'
+import { buildAssessment } from '../../shared/demo/caseTemplates'
 import { localize } from '../../shared/lib/neuroLocalization'
-import { nowStamp, today } from '../../shared/lib/format'
+import { nowStamp } from '../../shared/lib/format'
 import { AI_PHASE_START, PIPELINE_MS } from '../../shared/lib/pipeline'
 import { toastErrorBody } from '../../shared/lib/apiErrors'
-import { OwnerNameField } from '../../shared/ui/OwnerNameField'
-import { MAX_VIEWER_FRAMES, isLikelyDicomFile } from '../../shared/lib/dicomFolder'
-import { buildDicomPreviews, type DicomFramePreview } from '../../shared/lib/dicomPreview'
-import { vhsSpeciesFrom } from '../../shared/lib/vhs'
-import { DicomViewer } from '../../shared/dicom/DicomViewer'
-import { SeriesExplorer } from '../dicom/SeriesExplorer'
+import { isLikelyDicomFile } from '../../shared/lib/dicomFolder'
 import { setAnalyzeHandoff } from '../../shared/lib/analyzeHandoff'
-import { PatientPicker } from '../patients/PatientPicker'
 import { patientFormFromRecord } from '../patients/patientLib'
-import { estimateAnalysisDurationMs } from '../../shared/lib/analysisProgress'
 import {
   PollingCancelledError,
   createAndAnalyzeCase,
@@ -39,143 +31,41 @@ import {
 } from '../../shared/api'
 import { caseStatusFromBackendOutcome } from './lib/caseStatusMap'
 import { autoAnalysisChannel, type IntakeMode } from './lib/analysisChannel'
+import {
+  BRAIN_BACKEND_FORM,
+  CERVICAL_BACKEND_FORM,
+  DEMO_FIXTURES_ENABLED,
+  EMPTY_CLINICAL,
+  EMPTY_NEURO,
+  EMPTY_PATIENT,
+  STEP_KEYS,
+  formatFileSize,
+  guessType,
+  instanceCountOf,
+  type PipelineMode,
+  type UploadFile,
+} from './newCase/constants'
+import { PatientStep } from './newCase/PatientStep'
+import { ClinicalStep } from './newCase/ClinicalStep'
+import { NeuroStep } from './newCase/NeuroStep'
+import { DocumentIntake } from './newCase/DocumentIntake'
+import { DemoQuickFill, UploadStep } from './newCase/UploadStep'
+import { DicomIntake } from './newCase/DicomIntake'
+import { SummaryStep } from './newCase/SummaryStep'
+import { useDicomViewerState } from './newCase/useDicomViewerState'
+import { buildPendingDicomCase, buildStructuredHistory, buildSubmittedCase, completionMessages, failedAssessment } from './newCase/submittedCase'
 import type {
   BackendAnatomicalRegion,
   BackendModality,
-  BackendScenario,
   ClinicalInfo,
   DicomDemoKind,
   DicomUploadResponse,
-  DocType,
   NeuroExam,
   BackendPatient,
   Patient,
   Priority,
   VetCase,
 } from '../../shared/types'
-
-// Sample-fill buttons are test fixtures (issue #95): only shown when VITE_ENABLE_DEMO_FIXTURES=1.
-const DEMO_FIXTURES_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FIXTURES === '1'
-
-const STEP_KEYS = ['cases.stepPatient', 'cases.stepClinical', 'cases.stepNeuro', 'cases.stepUpload', 'cases.stepSummary'] as const
-const DOC_TYPES: DocType[] = ['MR Raporu', 'BT Raporu', 'Laboratuvar Sonucu', 'Önceki Rapor']
-const LIMBS = ['Sol ön', 'Sağ ön', 'Sol arka', 'Sağ arka']
-const NOT_ENTERED = 'Girilmedi'
-const CN = ['Baş eğikliği', 'Nistagmus', 'Anizokori', 'Fasiyal paralizi', 'Tehdit refleksi kaybı']
-
-const EMPTY_PATIENT: Patient = { name: '', species: 'Köpek', breed: '', sex: 'Erkek', neutered: false, age: 0, weight: 0, ownerName: '', ownerPhone: '' }
-const EMPTY_CLINICAL: ClinicalInfo = { complaint: '', onset: 'Akut', course: 'Progresif', history: '', medications: '' }
-
-type PipelineMode = BackendScenario | 'dicom_metadata'
-
-const PIPELINE_OPTIONS: { id: PipelineMode; label: string }[] = [
-  { id: 'dicom_metadata', label: 'DICOM metadata' },
-  { id: 'brain_mri_suspected', label: 'Brain MRI' },
-  { id: 'cervical_mri_suspected', label: 'Cervical MRI' },
-  { id: 'ct_brain_suspected', label: 'Brain CT' },
-  { id: 'xr_thorax_suspected', label: 'Thorax XR' },
-  { id: 'document_context', label: 'Doküman / multimodal' },
-  { id: 'no_findings', label: 'Bulgu yok' },
-  { id: 'unsupported', label: 'Desteklenmeyen' },
-  { id: 'model_failure', label: 'Model hatası' },
-  { id: 'conflicting', label: 'Çelişen çıktılar' },
-]
-
-const BRAIN_BACKEND_FORM = {
-  patient: { name: 'Pax', species: 'Köpek' as const, breed: 'Golden Retriever', sex: 'Erkek' as const, neutered: true, age: 7, weight: 32, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' },
-  clinical: {
-    complaint: 'Nöbet şüphesi.',
-    onset: 'Akut' as const,
-    course: 'Progresif' as const,
-    history: 'Akut başlangıçlı nöbet öyküsü.',
-    medications: 'Yok',
-  },
-  neuro: { ...NORMAL_NEURO, cranialNervesStatus: 'Bulgu var' as const, cranialNerves: ['Nistagmus'] },
-}
-
-const CERVICAL_BACKEND_FORM = {
-  patient: { name: 'Mila', species: 'Köpek' as const, breed: 'Fransız Bulldog', sex: 'Dişi' as const, neutered: true, age: 4, weight: 11, ownerName: 'Mehmet Yılmaz', ownerPhone: '0555 000 00 01' },
-  clinical: {
-    complaint: 'Boyun ağrısı şüphesi.',
-    onset: 'Akut' as const,
-    course: 'Progresif' as const,
-    history: 'Boyun ağrısı ve hareket kısıtlılığı öyküsü.',
-    medications: 'Yok',
-  },
-  neuro: { ...NORMAL_NEURO, hyperesthesia: 'Servikal' as const },
-}
-
-interface UploadFile {
-  id: string
-  name: string
-  type: DocType
-  size: string
-  /** Browser File blob when user selected a real document (for backend document ingest). */
-  file?: File
-}
-
-function guessType(name: string): DocType {
-  const n = name.toLocaleLowerCase('tr')
-  if (n.includes('mr')) return 'MR Raporu'
-  if (n.includes('bt') || n.includes('ct') || n.includes('tomo')) return 'BT Raporu'
-  if (n.includes('lab') || n.includes('kan') || n.includes('hemogram') || n.includes('biyokimya')) return 'Laboratuvar Sonucu'
-  return 'Önceki Rapor'
-}
-
-function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="label">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function Pills<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          aria-pressed={value === o}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition ${
-            value === o
-              ? o === NOT_EVALUATED
-                ? 'bg-amber-50 text-amber-900 ring-amber-300'
-                : 'bg-navy-900 text-white ring-navy-900'
-              : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'
-          }`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function Checks({ options, value, onChange }: { options: string[]; value: string[]; onChange: (v: string[]) => void }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => {
-        const on = value.includes(o)
-        return (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onChange(on ? value.filter((x) => x !== o) : [...value, o])}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition ${
-              on ? 'bg-teal-600 text-white ring-teal-600' : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            {o}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 export default function NewCase() {
   const { addCase, pushToast, updateCase } = useApp()
@@ -196,12 +86,8 @@ export default function NewCase() {
   const [acceptSuggestion, setAcceptSuggestion] = useState(true)
   const [overrideModality, setOverrideModality] = useState<BackendModality>('MR')
   const [overrideRegion, setOverrideRegion] = useState<BackendAnatomicalRegion>('BRAIN')
-  const [drag, setDrag] = useState(false)
   const [pipeline, setPipeline] = useState<PipelineMode>('dicom_metadata')
   const [submitting, setSubmitting] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const dicomInputRef = useRef<HTMLInputElement>(null)
-  const dicomFolderRef = useRef<HTMLInputElement>(null)
   // Same acknowledgement the old "DICOM Yükle" page required before AI analysis (#79).
   const [imagingConsent, setImagingConsent] = useState(false)
   const submitAbortRef = useRef<AbortController | null>(null)
@@ -230,91 +116,56 @@ export default function NewCase() {
     }
   }
   const C = <K extends keyof ClinicalInfo>(k: K, v: ClinicalInfo[K]) => setClinical((c) => ({ ...c, [k]: v }))
-  const N = <K extends keyof NeuroExam>(k: K, v: NeuroExam[K]) => setNeuro((n) => ({ ...n, [k]: v }))
 
   const hint = localize(neuro, clinical, locale)
 
-  // In-browser viewer for the picked DICOM files (#79 moved upload here; the viewer came with it).
-  const [frames, setFrames] = useState<DicomFramePreview[]>([])
-  const [framesLoading, setFramesLoading] = useState(false)
-  const [activeSeriesKey, setActiveSeriesKey] = useState<string | null>(null)
-  const [activeSopUid, setActiveSopUid] = useState<string | null>(null)
-  const [focusSopUid, setFocusSopUid] = useState<string | null>(null)
-  const [focusRequestId, setFocusRequestId] = useState(0)
-  const viewerFiles = useMemo(() => dicomFiles.slice(0, MAX_VIEWER_FRAMES), [dicomFiles])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!viewerFiles.length) {
-      setFrames([])
-      setFramesLoading(false)
-      return
-    }
-    setFramesLoading(true)
-    void buildDicomPreviews(viewerFiles).then((next) => {
-      if (!cancelled) {
-        setFrames(next)
-        setFramesLoading(false)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [viewerFiles])
-
-  const onActiveFrameChange = useCallback((frame: DicomFramePreview) => {
-    if (frame.sopInstanceUid) setActiveSopUid(frame.sopInstanceUid)
-    if (frame.seriesInstanceUid) setActiveSeriesKey(frame.seriesInstanceUid)
-    else if (frame.seriesDescription) setActiveSeriesKey(`desc:${frame.seriesDescription}`)
-    else setActiveSeriesKey(null)
-  }, [])
-
-  const isRadiograph =
-    dicomPreview?.classification?.suggested_modality === 'XR' ||
-    frames.some((f) => ['CR', 'DX', 'XR'].includes((f.modality ?? '').toUpperCase()))
+  const viewer = useDicomViewerState(dicomFiles)
 
   const clearDicomFiles = () => {
     setDicomPreview(null)
     setDicomFiles([])
-    setActiveSeriesKey(null)
-    setActiveSopUid(null)
+    viewer.resetSelection()
   }
 
-  const fillSample = () => {
-    setPipeline('document_context')
+  /** Demo fixture: fill the form and switch to the document / scenario channel. */
+  const applyDemoForm = (
+    form: { patient: Patient; clinical: ClinicalInfo; neuro: NeuroExam },
+    mode: PipelineMode,
+    demoFiles: UploadFile[],
+    toast: { title: string; body: string },
+  ) => {
+    setPipeline(mode)
     setIntakeMode('documents')
     setDicomPreview(null)
     setDicomFiles([])
-    setPatient(SAMPLE_FORM.patient)
-    setClinical(SAMPLE_FORM.clinical)
-    setNeuro(SAMPLE_FORM.neuro)
-    setFiles(SAMPLE_FORM.files.map((f, i) => ({ ...f, id: `s${i}` })))
-    pushToast({ tone: 'info', title: 'Form örnek vaka ile dolduruldu', body: 'Fındık — Beagle, akut pelvik parezi (doküman kanalı)' })
+    setPatient(form.patient)
+    setClinical(form.clinical)
+    setNeuro(form.neuro)
+    setFiles(demoFiles)
+    pushToast({ tone: 'info', ...toast })
   }
 
-  const fillBrainBackend = () => {
-    setPipeline('brain_mri_suspected')
-    setIntakeMode('documents')
-    setDicomPreview(null)
-    setDicomFiles([])
-    setPatient(BRAIN_BACKEND_FORM.patient)
-    setClinical(BRAIN_BACKEND_FORM.clinical)
-    setNeuro(BRAIN_BACKEND_FORM.neuro)
-    setFiles([{ id: 'brain-placeholder', name: 'synthetic_brain_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
-    pushToast({ tone: 'info', title: 'Brain MRI vakası', body: 'Form örnek verilerle dolduruldu.' })
-  }
+  const fillSample = () =>
+    applyDemoForm(SAMPLE_FORM, 'document_context', SAMPLE_FORM.files.map((f, i) => ({ ...f, id: `s${i}` })), {
+      title: 'Form örnek vaka ile dolduruldu',
+      body: 'Fındık — Beagle, akut pelvik parezi (doküman kanalı)',
+    })
 
-  const fillCervicalBackend = () => {
-    setPipeline('cervical_mri_suspected')
-    setIntakeMode('documents')
-    setDicomPreview(null)
-    setDicomFiles([])
-    setPatient(CERVICAL_BACKEND_FORM.patient)
-    setClinical(CERVICAL_BACKEND_FORM.clinical)
-    setNeuro(CERVICAL_BACKEND_FORM.neuro)
-    setFiles([{ id: 'cerv-placeholder', name: 'synthetic_cervical_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }])
-    pushToast({ tone: 'info', title: 'Cervical MRI vakası', body: 'Form örnek verilerle dolduruldu.' })
-  }
+  const fillBrainBackend = () =>
+    applyDemoForm(
+      BRAIN_BACKEND_FORM,
+      'brain_mri_suspected',
+      [{ id: 'brain-placeholder', name: 'synthetic_brain_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }],
+      { title: 'Brain MRI vakası', body: 'Form örnek verilerle dolduruldu.' },
+    )
+
+  const fillCervicalBackend = () =>
+    applyDemoForm(
+      CERVICAL_BACKEND_FORM,
+      'cervical_mri_suspected',
+      [{ id: 'cerv-placeholder', name: 'synthetic_cervical_mri_metadata.json', type: 'MR Raporu', size: '1 KB' }],
+      { title: 'Cervical MRI vakası', body: 'Form örnek verilerle dolduruldu.' },
+    )
 
   const fillDicomDemo = (kind: DicomDemoKind) => {
     setPipeline('dicom_metadata')
@@ -366,7 +217,7 @@ export default function NewCase() {
       id: `${f.name}-${f.lastModified}-${Math.random()}`,
       name: f.name,
       type: guessType(f.name),
-      size: f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(f.size / 1024))} KB`,
+      size: formatFileSize(f.size),
       file: f,
     }))
     setFiles((fs) => [...fs, ...added])
@@ -479,7 +330,7 @@ export default function NewCase() {
         // running when the vet leaves the page; progress shows in the top bar.
         const pendingId = `pending-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
         const instanceCount =
-          (dicomPreview?.study?.series.reduce((n, s) => n + s.instances.length, 0) ?? dicomFiles.length) || 1
+          (instanceCountOf(dicomPreview) ?? dicomFiles.length) || 1
         setAnalyzeHandoff({
           pendingId,
           files: dicomFiles.slice(),
@@ -499,29 +350,9 @@ export default function NewCase() {
           ownerName: patient.ownerName.trim(),
           patientId,
         })
-        addCase({
-          id: pendingId,
-          no: pendingId.replace(/^pending-/, 'VM-').toUpperCase(),
-          patient,
-          clinical,
-          neuro,
-          documents: [],
-          status: 'ai_analizi',
-          module: 'Nöroloji',
-          priority,
-          createdAt: today(),
-          clinic: CLINIC,
-          vetName: 'Dr. Elif Kaya',
-          corrections: [],
-          timeline: [{ date: stamp, label: 'Analiz hazırlanıyor', by: 'Dr. Elif Kaya' }],
-          processingStartedAt: Date.now(),
-          processingMs: estimateAnalysisDurationMs(instanceCount),
-          dicomDemoKind: pendingDemoKind ?? undefined,
-          instanceCount,
-          ai: built.ai,
-          aiDraft: built.draft,
-          report: { ...built.draft },
-        })
+        addCase(
+          buildPendingDicomCase({ pendingId, patient, clinical, neuro, priority, stamp, instanceCount, demoKind: pendingDemoKind, built }),
+        )
         setSubmitting(false)
         nav(`/vakalar/${pendingId}/isleme`, { replace: true })
         return
@@ -569,31 +400,7 @@ export default function NewCase() {
           patientAgeYears: patient.age || undefined,
           ownerName,
           priority: triage,
-          clinicalHistoryStructured: {
-            complaint: clinical.complaint || undefined,
-            onset: clinical.onset || undefined,
-            course: clinical.course || undefined,
-            medications: clinical.medications || undefined,
-            relevant_history: clinical.history || undefined,
-            radiologist_questions: questions || undefined,
-            handoff_notes: `Klinik→radyolog handoff · ${patient.species} · ${patient.breed || '—'} · ${patient.sex}${patient.neutered ? ' (kısır)' : ''} · ${patient.weight || '?'} kg`,
-            sex: patient.sex || undefined,
-            weight_kg: patient.weight > 0 ? patient.weight : undefined,
-            neutered: patient.neutered,
-            neuro_exam: {
-              consciousness: neuro.consciousness,
-              gait: neuro.gait,
-              limbs: neuro.limbs,
-              posturalThoracic: neuro.posturalThoracic,
-              posturalPelvic: neuro.posturalPelvic,
-              reflexThoracic: neuro.reflexThoracic,
-              reflexPelvic: neuro.reflexPelvic,
-              cranialNervesStatus: neuro.cranialNervesStatus,
-              cranialNerves: neuro.cranialNervesStatus === 'Bulgu var' ? neuro.cranialNerves : [],
-              deepPain: neuro.deepPain,
-              hyperesthesia: neuro.hyperesthesia,
-            },
-          },
+          clinicalHistoryStructured: buildStructuredHistory(patient, clinical, neuro, questions),
           signal: controller.signal,
           cancelBackendOnAbort: true,
         })
@@ -611,25 +418,7 @@ export default function NewCase() {
           draft: sections,
         }
       } else if (result.outcome === 'failed') {
-        built = {
-          ...built,
-          ai: {
-            summary: `Analiz başarısız: ${result.job.error_message ?? 'unknown error'}.`,
-            findings: [],
-            differentials: [],
-            recommendedTests: ['Analizi daha sonra yeniden deneyin. Uzman incelemesi zorunludur.'],
-            validation: [{ kind: 'unsupported', text: 'Analiz başarısız', detail: result.job.error_message ?? 'failed' }],
-            model: 'yapay zekâ',
-            generatedAt: stamp,
-          },
-          draft: {
-            klinikOzet: 'Analiz tamamlanamadı; taslak üretilemedi.',
-            bulgular: 'Yapılandırılmış bulgu yok.',
-            degerlendirme: result.job.error_message ?? 'failed',
-            ayiriciTanilar: 'Üretilmedi.',
-            oneriler: 'Klinik kullanım için uygun değildir.',
-          },
-        }
+        built = failedAssessment(built, result.job.error_message, stamp)
       }
     } catch (err) {
       setSubmitting(false)
@@ -645,91 +434,31 @@ export default function NewCase() {
     setSubmitting(false)
 
     const id = backendCaseId
-    const no = backendCaseId.replace(/^case-/, 'VM-').toUpperCase()
-
-    const newCase: VetCase = {
-      id,
-      no,
-      patient,
-      clinical,
-      neuro,
-      documents:
-        intakeMode === 'dicom'
-          ? (dicomPreview?.study
-              ? [
-                  {
-                    ...makeDocument(
-                      `${id}-dicom`,
-                      `DICOM study ${dicomPreview.study.study_instance_uid}`,
-                      'MR Raporu',
-                      patient,
-                      clinical,
-                      built.imaging,
-                    ),
-                    size: `${dicomPreview.study.series.reduce((n, s) => n + s.instances.length, 0)} görüntü`,
-                    rawText:
-                      'Yalnızca DICOM dosya bilgileri okundu; görüntü pikselleri klinik olarak yorumlanmadı.',
-                    extracted: [
-                      { field: 'StudyInstanceUID', value: dicomPreview.study.study_instance_uid, source: 'DICOM' },
-                      {
-                        field: 'Sınıflandırma',
-                        value: dicomPreview.classification
-                          ? `${studyLabel(t, dicomPreview.classification.suggested_modality, dicomPreview.classification.suggested_anatomical_region)} (${confidenceLabel(t, dicomPreview.classification.confidence)})`
-                          : '—',
-                        source: 'DICOM sınıflandırıcı',
-                      },
-                    ],
-                  },
-                ]
-              : [])
-          : files.map((f, i) => ({ ...makeDocument(`${id}-d${i}`, f.name, f.type, patient, clinical, built.imaging), size: f.size })),
-      status: 'isleniyor',
-      module: 'Nöroloji',
-      priority,
-      createdAt: today(),
-      clinic: CLINIC,
-      vetName: 'Dr. Elif Kaya',
-      ai: built.ai,
-      aiDraft: built.draft,
-      report: { ...built.draft },
-      corrections: [],
-      timeline: [
-        { date: stamp, label: 'Vaka oluşturuldu', by: 'Dr. Elif Kaya' },
-        {
-          date: stamp,
-          label:
-            intakeMode === 'dicom'
-              ? `DICOM metadata ingest (${dicomPreview?.study?.series.reduce((n, s) => n + s.instances.length, 0) ?? dicomFiles.length} instance)`
-              : `${files.length} tetkik belgesi yüklendi`,
-          by: 'Dr. Elif Kaya',
-        },
-        { date: stamp, label: `Analiz: ${backendOutcome} (${backendCaseId})`, by: 'backend' },
-      ],
-      processingStartedAt: Date.now(),
-      backendCaseId,
-      backendJobId,
-      backendOutcome,
-      backendFindings,
-      backendDraft,
-      fromBackend: true,
-    }
-    addCase(newCase)
+    addCase(
+      buildSubmittedCase({
+        backendCaseId,
+        backendJobId,
+        backendOutcome,
+        backendFindings,
+        backendDraft,
+        patient,
+        clinical,
+        neuro,
+        priority,
+        intakeMode,
+        dicomPreview,
+        dicomFiles,
+        files,
+        built,
+        stamp,
+        t,
+      }),
+    )
     setTimeout(() => updateCase(id, { status: 'ai_analizi' }), AI_PHASE_START)
     setTimeout(() => {
       const done = nowStamp()
       const nextStatus = caseStatusFromBackendOutcome(backendOutcome)
-      const statusNote =
-        backendOutcome === 'failed'
-          ? 'Analiz başarısız. Bu uzman revizyon talebi değildir; onaylanabilir AI taslak yoktur.'
-          : backendOutcome === 'unsupported'
-            ? 'Desteklenmeyen görüntüleme kombinasyonu. Manuel radyolog incelemesi gerekir; AI draft onayı kapalıdır.'
-            : undefined
-      const timelineLabel =
-        backendOutcome === 'failed'
-          ? 'Analiz başarısız — AI draft üretilmedi'
-          : backendOutcome === 'unsupported'
-            ? 'Analiz: unsupported → manuel inceleme (AI draft yok)'
-            : `Analiz tamamlandı (${backendOutcome}) — uzman incelemesine bırakıldı`
+      const { statusNote, timelineLabel, tone, title } = completionMessages(backendOutcome)
       updateCase(id, (c) => ({
         status: nextStatus,
         processingMs: PIPELINE_MS,
@@ -740,13 +469,6 @@ export default function NewCase() {
           { date: done, label: timelineLabel, by: 'Sistem' },
         ],
       }))
-      const tone = backendOutcome === 'failed' ? 'error' : backendOutcome === 'unsupported' ? 'warning' : 'success'
-      const title =
-        backendOutcome === 'failed'
-          ? 'Analiz başarısız'
-          : backendOutcome === 'unsupported'
-            ? 'Manuel incelemeye yönlendirildi'
-            : 'AI ön değerlendirmesi hazır'
       pushToast({ tone, title, body: `${patient.name} vakası güncellendi.` })
     }, PIPELINE_MS)
     nav(`/vakalar/${id}/isleme`)
@@ -773,568 +495,82 @@ export default function NewCase() {
         <p className="mt-1 text-sm text-slate-300">{t('cases.newCaseSubtitle')}</p>
       </div>
       {DEMO_FIXTURES_ENABLED && (
-      <details className="mb-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-        <summary className="cursor-pointer font-medium text-navy-800">{t('cases.quickFill')}</summary>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" icon={<Brain className="h-3.5 w-3.5 text-teal-600" />} onClick={fillBrainBackend}>
-            Brain MRI
-          </Button>
-          <Button size="sm" variant="secondary" onClick={fillCervicalBackend}>
-            Cervical MRI
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('brain_mri')}>
-            DICOM · Brain
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('cervical_mri')}>
-            DICOM · Cervical
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('brain_ct')}>
-            DICOM · CT
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => fillDicomDemo('thorax_xr')}>
-            DICOM · XR
-          </Button>
-        </div>
-      </details>
+        <DemoQuickFill onBrain={fillBrainBackend} onCervical={fillCervicalBackend} onDicomDemo={fillDicomDemo} />
       )}
       <Card className="mb-6 p-5">
         <StepIndicator steps={steps} current={step} onSelect={setStep} />
       </Card>
 
       <Card className="p-6">
-        {step === 0 && (
-          <div className="animate-fade-up">
-            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('newCase.patientSection')}</h2>
-            <div className="mb-5">
-              <PatientPicker
-                selected={linkedPatient}
-                onSelect={pickPatient}
-                typedName={patient.name}
-                typedSpecies={patient.species}
-              />
-            </div>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <Field label={`${t('newCase.patientName')} *`}>
-                <input className="input" value={patient.name} onChange={(e) => P('name', e.target.value)} placeholder={t('newCase.patientNamePlaceholder')} />
-              </Field>
-              <Field label={`${t('newCase.species')} *`}>
-                <Pills options={['Köpek', 'Kedi', 'Diğer'] as const} value={patient.species} onChange={(v) => P('species', v)} />
-              </Field>
-              <Field label={`${t('newCase.breed')} (${t('newCase.optional')})`}>
-                <input className="input" value={patient.breed} onChange={(e) => P('breed', e.target.value)} placeholder={t('newCase.breedPlaceholder')} />
-              </Field>
-              <Field label={t('newCase.sex')}>
-                <Pills options={['Erkek', 'Dişi'] as const} value={patient.sex} onChange={(v) => P('sex', v)} />
-              </Field>
-              <Field label={t('newCase.neutered')}>
-                <Pills
-                  options={['Kısırlaştırılmış', 'Kısırlaştırılmamış'] as const}
-                  value={patient.neutered ? 'Kısırlaştırılmış' : 'Kısırlaştırılmamış'}
-                  onChange={(v) => P('neutered', v === 'Kısırlaştırılmış')}
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={t('newCase.ageYears')}>
-                  <input type="number" min={0} className="input" value={patient.age || ''} onChange={(e) => P('age', Number(e.target.value))} />
-                </Field>
-                <Field label={t('newCase.weightKg')}>
-                  <input type="number" min={0} step="0.1" className="input" value={patient.weight || ''} onChange={(e) => P('weight', Number(e.target.value))} />
-                </Field>
-              </div>
-              <div className="md:col-span-2 xl:col-span-3">
-                <OwnerNameField value={patient.ownerName} onChange={(v) => P('ownerName', v)} />
-              </div>
-            </div>
-          </div>
-        )}
+        {step === 0 && <PatientStep patient={patient} setField={P} linkedPatient={linkedPatient} onPickPatient={pickPatient} />}
 
         {step === 1 && (
-          <div className="animate-fade-up">
-            <h2 className="mb-5 text-lg font-semibold text-navy-900">{t('cases.stepClinical')}</h2>
-            <div className="grid gap-5 md:grid-cols-2">
-              <Field label={t('newCase.complaint')} className="md:col-span-2">
-                <textarea rows={3} className="input" value={clinical.complaint} onChange={(e) => C('complaint', e.target.value)} placeholder={t('newCase.complaintPlaceholder')} />
-              </Field>
-              <Field label={t('newCase.onset')}>
-                <Pills options={['Akut', 'Kronik'] as const} value={clinical.onset} onChange={(v) => C('onset', v)} />
-              </Field>
-              <Field label={t('newCase.course')}>
-                <Pills options={['Progresif', 'Stabil', 'İyileşen'] as const} value={clinical.course} onChange={(v) => C('course', v)} />
-              </Field>
-              <Field label={t('newCase.history')}>
-                <textarea rows={3} className="input" value={clinical.history} onChange={(e) => C('history', e.target.value)} />
-              </Field>
-              <Field label={t('newCase.medications')}>
-                <textarea rows={3} className="input" value={clinical.medications} onChange={(e) => C('medications', e.target.value)} />
-              </Field>
-              <Field label={t('newCase.radiologistQuestions')} className="md:col-span-2">
-                <textarea
-                  rows={3}
-                  className="input"
-                  value={radiologistQuestions}
-                  onChange={(e) => setRadiologistQuestions(e.target.value)}
-                  placeholder={t('newCase.radiologistQuestionsPlaceholder')}
-                  maxLength={4000}
-                />
-                <span className="mt-1 block text-xs text-slate-500">{t('newCase.radiologistQuestionsHint')}</span>
-              </Field>
-            </div>
-          </div>
+          <ClinicalStep
+            clinical={clinical}
+            setField={C}
+            radiologistQuestions={radiologistQuestions}
+            setRadiologistQuestions={setRadiologistQuestions}
+          />
         )}
 
-        {step === 2 && (
-          <div className="grid animate-fade-up gap-6 xl:grid-cols-3">
-            <div className="space-y-6 xl:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <h2 className="text-lg font-semibold text-navy-900">Nörolojik Muayene Formu</h2>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setNeuro(NORMAL_NEURO)}>
-                    Muayene normal
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setNeuro(EMPTY_NEURO)}>
-                    Temizle
-                  </Button>
-                </div>
-              </div>
-              <Field label="Bilinç durumu"><Pills options={['Uyanık', 'Depresif', 'Stupor', 'Koma', NOT_EVALUATED] as const} value={neuro.consciousness} onChange={(v) => N('consciousness', v)} /></Field>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Yürüyüş"><Pills options={['Normal', 'Ataksi', 'Parezi', 'Pleji', NOT_EVALUATED] as const} value={neuro.gait} onChange={(v) => N('gait', v)} /></Field>
-                <Field label="Etkilenen bacaklar"><Checks options={LIMBS} value={neuro.limbs} onChange={(v) => N('limbs', v)} /></Field>
-              </div>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Postüral reaksiyonlar — ön bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok', NOT_EVALUATED] as const} value={neuro.posturalThoracic} onChange={(v) => N('posturalThoracic', v)} /></Field>
-                <Field label="Postüral reaksiyonlar — arka bacaklar"><Pills options={['Normal', 'Azalmış', 'Yok', NOT_EVALUATED] as const} value={neuro.posturalPelvic} onChange={(v) => N('posturalPelvic', v)} /></Field>
-                <Field label="Spinal refleksler — torasik"><Pills options={['Normal', 'Azalmış', 'Artmış', NOT_EVALUATED] as const} value={neuro.reflexThoracic} onChange={(v) => N('reflexThoracic', v)} /></Field>
-                <Field label="Spinal refleksler — pelvik"><Pills options={['Normal', 'Azalmış', 'Artmış', NOT_EVALUATED] as const} value={neuro.reflexPelvic} onChange={(v) => N('reflexPelvic', v)} /></Field>
-              </div>
-              <Field label="Kraniyal sinirler">
-                <div className="space-y-2">
-                  <Pills
-                    options={['Normal', 'Bulgu var', NOT_EVALUATED] as const}
-                    value={neuro.cranialNervesStatus}
-                    onChange={(v) => setNeuro((n) => ({ ...n, cranialNervesStatus: v, cranialNerves: v === 'Bulgu var' ? n.cranialNerves : [] }))}
-                  />
-                  {neuro.cranialNervesStatus === 'Bulgu var' && (
-                    <Checks options={CN} value={neuro.cranialNerves} onChange={(v) => N('cranialNerves', v)} />
-                  )}
-                </div>
-              </Field>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Ağrı algısı (derin ağrı)"><Pills options={['Var', 'Yok', NOT_EVALUATED] as const} value={neuro.deepPain} onChange={(v) => N('deepPain', v)} /></Field>
-                <Field label="Spinal hiperestezi bölgesi"><Pills options={['Yok', 'Servikal', 'Torakolomber', 'Lumbosakral', NOT_EVALUATED] as const} value={neuro.hyperesthesia} onChange={(v) => N('hyperesthesia', v)} /></Field>
-              </div>
-            </div>
-            <div>
-              <div className="sticky top-24 rounded-xl border border-teal-200 bg-gradient-to-b from-teal-50 to-white p-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-teal-800">
-                  <Lightbulb className="h-4 w-4" /> Olası lezyon lokalizasyonu
-                </div>
-                {hint ? (
-                  <>
-                    <p className="mt-3 text-2xl font-bold text-navy-900">{hint.region}</p>
-                    <p className="mt-2 text-sm text-navy-700">{hint.text}</p>
-                  </>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-500">Muayene bulgularını işaretledikçe olası lokalizasyon burada gösterilecek.</p>
-                )}
-                {neuro.deepPain === 'Değerlendirilmedi' && (
-                  <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-inset ring-amber-200">Derin ağrı algısı değerlendirilmedi olarak işaretli. Bu bilgi prognoz için önemlidir.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {step === 2 && <NeuroStep neuro={neuro} setNeuro={setNeuro} hint={hint} />}
 
         {step === 3 && (
-          <div className="animate-fade-up">
-            <h2 className="mb-1 text-lg font-semibold text-navy-900">{t('cases.stepUpload')}</h2>
-            <p className="mb-4 text-sm text-slate-500">{t('newCase.uploadIntro')}</p>
-            <div className="mb-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setIntakeMode('documents')
-                  setPipeline((p) => (DEMO_FIXTURES_ENABLED && p !== 'dicom_metadata' ? p : autoAnalysisChannel('documents')))
+          <UploadStep
+            intakeMode={intakeMode}
+            onSelectDocuments={() => {
+              setIntakeMode('documents')
+              setPipeline((p) => (DEMO_FIXTURES_ENABLED && p !== 'dicom_metadata' ? p : autoAnalysisChannel('documents')))
+              setDicomPreview(null)
+            }}
+            onSelectDicom={() => {
+              setIntakeMode('dicom')
+              setPipeline(autoAnalysisChannel('dicom'))
+            }}
+            documents={<DocumentIntake files={files} setFiles={setFiles} onAddFiles={addFiles} />}
+            dicom={
+              <DicomIntake
+                species={patient.species}
+                dicomFiles={dicomFiles}
+                dicomPreview={dicomPreview}
+                viewer={viewer}
+                submitting={submitting}
+                imagingConsent={imagingConsent}
+                setImagingConsent={setImagingConsent}
+                onAddFiles={addDicomFiles}
+                onRemoveFile={(file) => {
                   setDicomPreview(null)
+                  setDicomFiles((fs) => fs.filter((x) => x !== file))
                 }}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${intakeMode === 'documents' ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300'}`}
-              >
-                {t('newCase.intakeDocuments')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIntakeMode('dicom')
-                  setPipeline(autoAnalysisChannel('dicom'))
-                }}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${intakeMode === 'dicom' ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300'}`}
-              >
-                {t('newCase.intakeDicom')}
-              </button>
-            </div>
-
-            {intakeMode === 'documents' ? (
-              <>
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDrag(true)
-                  }}
-                  onDragLeave={() => setDrag(false)}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    setDrag(false)
-                    addFiles(e.dataTransfer.files)
-                  }}
-                  onClick={() => inputRef.current?.click()}
-                  className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition ${
-                    drag ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-slate-50/50 hover:border-teal-400 hover:bg-teal-50/40'
-                  }`}
-                >
-                  <UploadCloud className="h-10 w-10 text-teal-600" />
-                  <p className="mt-3 font-medium text-navy-900">Dosyaları buraya sürükleyin veya seçmek için tıklayın</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    PDF, JPG, PNG, TXT · backend quarantine + metin çıkarma · tanı değil (pipeline: Doküman / multimodal)
-                  </p>
-                  <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
-                </div>
-                {files.length > 0 && (
-                  <ul className="mt-5 divide-y divide-slate-100 rounded-xl border border-slate-200">
-                    {files.map((f) => (
-                      <li key={f.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
-                        <div className="flex flex-1 items-center gap-3">
-                          <div className="rounded-lg bg-rose-50 p-2 text-rose-600"><FileText className="h-5 w-5" /></div>
-                          <div>
-                            <p className="text-sm font-medium text-navy-900">{f.name}</p>
-                            <p className="text-xs text-slate-500">{f.size}</p>
-                          </div>
-                        </div>
-                        <select className="input sm:w-52" value={f.type} onChange={(e) => setFiles((fs) => fs.map((x) => (x.id === f.id ? { ...x, type: e.target.value as DocType } : x)))}>
-                          {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
-                        </select>
-                        <button onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))} className="self-end rounded-md p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 sm:self-auto">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700">
-                  {t('newCase.dicomNote')}
-                </div>
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDrag(true)
-                  }}
-                  onDragLeave={() => setDrag(false)}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    setDrag(false)
-                    addDicomFiles(e.dataTransfer.files)
-                  }}
-                  onClick={() => dicomInputRef.current?.click()}
-                  className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition ${
-                    drag ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-slate-50/50 hover:border-teal-400 hover:bg-teal-50/40'
-                  }`}
-                >
-                  <UploadCloud className="h-10 w-10 text-teal-600" />
-                  <p className="mt-3 font-medium text-navy-900">{t('dicom.dropHint')}</p>
-                  <p className="mt-1 text-xs text-slate-500">{t('newCase.dicomLimits')}</p>
-                  <input
-                    ref={dicomInputRef}
-                    type="file"
-                    multiple
-                    accept=".dcm,application/dicom,*/*"
-                    className="hidden"
-                    onChange={(e) => addDicomFiles(e.target.files)}
-                  />
-                </div>
-                <input
-                  ref={dicomFolderRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => addDicomFiles(e.target.files)}
-                  {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement>)}
-                />
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="secondary" icon={<FolderOpen className="h-4 w-4" />} onClick={() => dicomFolderRef.current?.click()}>
-                    {t('dicom.selectFolder')}
-                  </Button>
-                  <Button variant="secondary" disabled={submitting || dicomFiles.length === 0} onClick={() => void previewDicomMetadata()}>
-                    {submitting ? t('dicom.uploading') : t('newCase.previewMetadata')}
-                  </Button>
-                  {DEMO_FIXTURES_ENABLED && (
-                    <>
-                      <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_mri')}>
-                        Brain MRI
-                      </Button>
-                      <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('cervical_mri')}>
-                        Cervical MRI
-                      </Button>
-                      <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thoracolumbar_mri')}>
-                        Thoracolumbar MRI
-                      </Button>
-                      <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('brain_ct')}>
-                        Brain CT
-                      </Button>
-                      <Button variant="secondary" disabled={submitting} onClick={() => void previewDicomMetadata('thorax_xr')}>
-                        Thorax XR
-                      </Button>
-                    </>
-                  )}
-                </div>
-                <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-3 text-sm leading-relaxed text-navy-800">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                    checked={imagingConsent}
-                    onChange={(e) => setImagingConsent(e.target.checked)}
-                  />
-                  <span>{t('newCase.consentLabel')}</span>
-                </label>
-                {dicomFiles.length > 0 && (
-                  <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,32%)]">
-                    <div className="min-w-0">
-                      {framesLoading || frames.length > 0 ? (
-                        <DicomViewer
-                          frames={frames}
-                          loading={framesLoading}
-                          onActiveFrameChange={onActiveFrameChange}
-                          focusSopUid={focusSopUid}
-                          focusRequestId={focusRequestId}
-                          vhsEnabled={isRadiograph}
-                          vhsSpecies={vhsSpeciesFrom(patient.species)}
-                        />
-                      ) : (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
-                          {t('newCase.viewerNoPixels')}
-                        </div>
-                      )}
-                    </div>
-                    <SeriesExplorer
-                      files={dicomFiles}
-                      frames={frames}
-                      study={dicomPreview?.study}
-                      activeSeriesKey={activeSeriesKey}
-                      activeSopUid={activeSopUid}
-                      onRemoveFile={(file) => {
-                        setDicomPreview(null)
-                        setDicomFiles((fs) => fs.filter((x) => x !== file))
-                      }}
-                      onClearAll={clearDicomFiles}
-                      onSelectInstance={(ref) => {
-                        setActiveSeriesKey(ref.seriesKey)
-                        if (ref.sopInstanceUid) {
-                          setActiveSopUid(ref.sopInstanceUid)
-                          setFocusSopUid(ref.sopInstanceUid)
-                          setFocusRequestId((n) => n + 1)
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-                {dicomPreview && (
-                  <div className={`mt-5 rounded-xl border p-4 text-sm ${dicomPreview.blocked ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-teal-200 bg-teal-50/60 text-navy-900'}`}>
-                    <p className="font-semibold">{dicomPreview.blocked ? 'Ingest engellendi' : 'Metadata önizlemesi hazır'}</p>
-                    <p className="mt-1 text-xs opacity-80">ingest_id: {dicomPreview.ingest_id}</p>
-                    {dicomPreview.classification && (
-                      <p className="mt-2">
-                        Öneri:{' '}
-                        <strong>
-                          {studyLabel(t, dicomPreview.classification.suggested_modality, dicomPreview.classification.suggested_anatomical_region)}
-                        </strong>{' '}
-                        · {confidenceLabel(t, dicomPreview.classification.confidence)}
-                        {dicomPreview.classification.needs_confirmation ? ' · onay gerekli' : ''}
-                      </p>
-                    )}
-                    {dicomPreview.issues.length > 0 && (
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
-                        {dicomPreview.issues.slice(0, 6).map((issue, i) => (
-                          <li key={`${issue.code}-${i}`}>
-                            [{issue.severity}] {issue.code}: {issue.message}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                onClearAll={clearDicomFiles}
+                onPreviewMetadata={(kind) => void previewDicomMetadata(kind)}
+              />
+            }
+          />
         )}
 
         {step === 4 && (
-          <div className="animate-fade-up space-y-5">
-            <h2 className="text-lg font-semibold text-navy-900">{t('cases.stepSummary')}</h2>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Summary title="Hasta Bilgileri" onEdit={() => setStep(0)} rows={[
-                ['Hasta', `${patient.name || '—'} (${patient.species})`],
-                ['Irk', patient.breed || '—'],
-                ['Cinsiyet', `${patient.sex}, ${patient.neutered ? 'kısırlaştırılmış' : 'kısırlaştırılmamış'}`],
-                ['Yaş / Kilo', `${patient.age} yaş · ${patient.weight} kg`],
-                ['Sahip', patient.ownerName.trim() || '—'],
-              ]} />
-              <Summary title="Klinik Bilgiler" onEdit={() => setStep(1)} rows={[
-                ['Şikâyet', clinical.complaint || '—'],
-                ['Radyoloğa sorular', radiologistQuestions.trim() || '—'],
-                ['Başlangıç / Seyir', `${clinical.onset} · ${clinical.course}`],
-                ['Klinik geçmiş', clinical.history || '—'],
-                ['İlaçlar', clinical.medications || '—'],
-              ]} />
-              <Summary title="Nörolojik Muayene" onEdit={() => setStep(2)} rows={
-                isNeuroExamEmpty(neuro)
-                  ? [['Muayene', 'Nörolojik muayene girilmedi']]
-                  : [
-                      ['Bilinç', neuroItemText(neuro.consciousness, NOT_ENTERED)],
-                      ['Yürüyüş', `${neuroItemText(neuro.gait, NOT_ENTERED)}${neuro.limbs.length ? ` (${neuro.limbs.join(', ')})` : ''}`],
-                      ['Postüral (ön / arka)', `${neuroItemText(neuro.posturalThoracic, NOT_ENTERED)} / ${neuroItemText(neuro.posturalPelvic, NOT_ENTERED)}`],
-                      ['Refleksler (torasik / pelvik)', `${neuroItemText(neuro.reflexThoracic, NOT_ENTERED)} / ${neuroItemText(neuro.reflexPelvic, NOT_ENTERED)}`],
-                      ['Kraniyal sinirler', cranialNervesText(neuro, NOT_ENTERED)],
-                      ['Derin ağrı', neuroItemText(neuro.deepPain, NOT_ENTERED)],
-                      ['Hiperestezi', neuroItemText(neuro.hyperesthesia, NOT_ENTERED)],
-                      ['Olası lokalizasyon', hint?.region ?? '—'],
-                    ]
-              } />
-              <Summary
-                title={intakeMode === 'dicom' ? `DICOM (${dicomFiles.length || dicomPreview?.study?.series.reduce((n, s) => n + s.instances.length, 0) || 0})` : `Tetkikler (${files.length})`}
-                onEdit={() => setStep(3)}
-                rows={
-                  intakeMode === 'dicom'
-                    ? dicomPreview?.study
-                      ? [
-                          ['Study UID', dicomPreview.study.study_instance_uid],
-                          ['Series / Instance', `${dicomPreview.study.series.length} / ${dicomPreview.study.series.reduce((n, s) => n + s.instances.length, 0)}`],
-                          [
-                            'Sınıflandırma',
-                            dicomPreview.classification
-                              ? `${dicomPreview.classification.suggested_modality} / ${dicomPreview.classification.suggested_anatomical_region} (${dicomPreview.classification.confidence})`
-                              : dicomPreview.blocked
-                                ? 'Engellendi'
-                                : 'Henüz önizlenmedi',
-                          ],
-                        ]
-                      : dicomFiles.length
-                        ? dicomFiles.map((f) => ['DICOM', f.name])
-                        : [['—', 'DICOM yüklenmedi']]
-                    : files.length
-                      ? files.map((f) => [f.type, f.name])
-                      : [['—', 'Belge yüklenmedi']]
-                }
-              />
-            </div>
-            {/* Test scenarios (model failure, conflicting outputs …) are demo/dev only (#80).
-                For vets the channel follows the upload: DICOM → DICOM path, documents → document path. */}
-            {DEMO_FIXTURES_ENABLED && (
-            <div className="rounded-xl border border-dashed border-slate-300 p-4">
-              <p className="mb-2 text-sm font-semibold text-navy-900">{t('newCase.pipelineTitle')}</p>
-              <p className="mb-3 text-xs text-slate-500">{t('newCase.pipelineHint')}</p>
-              <div className="flex flex-wrap gap-2">
-                {PIPELINE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      setPipeline(opt.id)
-                      if (opt.id === 'dicom_metadata') setIntakeMode('dicom')
-                    }}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-inset ${pipeline === opt.id ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-700 ring-slate-300 hover:bg-slate-50'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            )}
-            {pipeline === 'dicom_metadata' && (
-              <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
-                <p className="mb-2 text-sm font-semibold text-navy-900">{t('newCase.classificationTitle')}</p>
-                <p className="mb-3 text-xs text-slate-600">{t('newCase.classificationHint')}</p>
-                {!dicomPreview && (
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <Button variant="secondary" disabled={submitting || dicomFiles.length === 0} onClick={() => void previewDicomMetadata()}>
-                      {t('newCase.previewMetadata')}
-                    </Button>
-                  </div>
-                )}
-                {dicomPreview?.classification && !dicomPreview.blocked && (
-                  <>
-                    <label className="mb-3 flex items-center gap-2 text-sm text-navy-800">
-                      <input type="checkbox" checked={acceptSuggestion} onChange={(e) => setAcceptSuggestion(e.target.checked)} />
-                      {t('newCase.acceptSuggestion')} ({studyLabel(t, dicomPreview.classification.suggested_modality, dicomPreview.classification.suggested_anatomical_region)})
-                    </label>
-                    {!acceptSuggestion && (
-                      <div className="mb-3 grid gap-3 sm:grid-cols-2">
-                        <Field label={t('newCase.overrideModality')}>
-                          <select className="input" value={overrideModality} onChange={(e) => setOverrideModality(e.target.value as BackendModality)}>
-                            <option value="MR">MR</option>
-                            <option value="CT">CT</option>
-                            <option value="XR">XR</option>
-                          </select>
-                        </Field>
-                        <Field label={t('newCase.overrideRegion')}>
-                          <select className="input" value={overrideRegion} onChange={(e) => setOverrideRegion(e.target.value as BackendAnatomicalRegion)}>
-                            {(['BRAIN', 'CERVICAL', 'THORAX', 'THORACOLUMBAR'] as const).map((r) => (
-                              <option key={r} value={r}>
-                                {regionLabel(t, r)}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </div>
-                    )}
-                    <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
-                      {dicomPreview.classification.rationale.map((r) => (
-                        <li key={r}>{r}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {dicomPreview?.blocked && (
-                  <p className="text-sm text-rose-700">{dicomPreview.block_reason ?? 'Ingest engellendi; onaylanamaz.'}</p>
-                )}
-              </div>
-            )}
-            <div className="flex flex-col items-start gap-4 rounded-xl border border-navy-100 bg-navy-50/60 p-5 md:flex-row md:items-center">
-              <Brain className="h-8 w-8 shrink-0 text-teal-600" />
-              <p className="flex-1 text-sm text-navy-800">
-                Gönderdiğinizde AI ön değerlendirme çalışır ve taslak <strong>uzman veteriner hekim onayına</strong> iletilir.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="lg"
-                  onClick={() => void submit()}
-                  disabled={
-                    !patientStepReady ||
-                    submitting ||
-                    (pipeline === 'dicom_metadata' && Boolean(dicomPreview?.blocked))
-                  }
-                  icon={<Sparkles className="h-4 w-4" />}
-                >
-                  {submitting ? t('dicom.processing') : pipeline === 'dicom_metadata' ? t('cases.submitAnalyze') : t('cases.submitAiReview')}
-                </Button>
-                {!patientStepReady && (
-                  <button type="button" className="text-xs font-medium text-rose-700 hover:underline" onClick={() => setStep(0)}>
-                    {t('cases.fillRequired')}
-                  </button>
-                )}
-                {submitting && (
-                  <Button
-                    size="lg"
-                    variant="secondary"
-                    icon={<Square className="h-4 w-4" />}
-                    onClick={() => submitAbortRef.current?.abort()}
-                  >
-                    {t('cases.processing.stopAnalysis')}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+          <SummaryStep
+            patient={patient}
+            clinical={clinical}
+            radiologistQuestions={radiologistQuestions}
+            neuro={neuro}
+            hint={hint}
+            intakeMode={intakeMode}
+            setIntakeMode={setIntakeMode}
+            files={files}
+            dicomFiles={dicomFiles}
+            dicomPreview={dicomPreview}
+            pipeline={pipeline}
+            setPipeline={setPipeline}
+            classification={{ acceptSuggestion, setAcceptSuggestion, overrideModality, setOverrideModality, overrideRegion, setOverrideRegion }}
+            submitting={submitting}
+            patientStepReady={patientStepReady}
+            goToStep={setStep}
+            onPreviewMetadata={() => void previewDicomMetadata()}
+            onSubmit={() => void submit()}
+            onStop={() => submitAbortRef.current?.abort()}
+          />
         )}
 
         {step < 4 && (
@@ -1355,24 +591,5 @@ export default function NewCase() {
         )}
       </Card>
     </>
-  )
-}
-
-function Summary({ title, rows, onEdit }: { title: string; rows: string[][]; onEdit: () => void }) {
-  return (
-    <div className="rounded-xl border border-slate-200">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
-        <p className="text-sm font-semibold text-navy-900">{title}</p>
-        <button onClick={onEdit} className="flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"><Pencil className="h-3 w-3" /> Düzenle</button>
-      </div>
-      <dl className="divide-y divide-slate-50 px-4 py-1">
-        {rows.map(([k, v], i) => (
-          <div key={i} className="grid grid-cols-5 gap-3 py-2 text-sm">
-            <dt className="col-span-2 text-slate-500">{k}</dt>
-            <dd className="col-span-3 text-navy-900">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
   )
 }
