@@ -10,7 +10,7 @@ httpx==0.28.1
 pydicom==3.0.2
 numpy==2.5.4
 python-multipart==0.0.32
-pypdf==6.21.2
+pypdf==6.21.4
 psycopg[binary]==3.3.6
 # Schema migrations (#102); SQLAlchemy is only used by Alembic.
 alembic==1.20.1
