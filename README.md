@@ -865,6 +865,9 @@ Ayarların tamamı ve varsayılanları: `backend/.env.example`.
 
 - Varsayılan auth kapalı; internete açık deploy için **uygun değil**.
 - Demo seed şifresi (`demo1234`) ve varsayılan JWT secret bilinir. Protected mod varsayılan veya 32 karakterden kısa secret ile açılmaz.
+- Auth açıkken (veya protected modda) `/docs`, `/redoc`, `/openapi.json` kapalıdır; `/api/v1/health` ayrıntıları yalnızca admin / API anahtarına gösterilir.
+- nginx her yanıta CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` ve HSTS ekler (`docker/security-headers.conf`).
+- Bir admin, başka bir admin'in şifresini, sıfırlama bağlantısını veya 2FA'sını JWT ile sıfırlayamaz; bunun için API anahtarı gerekir.
 - `*@demo.local` demo hesapları yalnızca demo modda vardır; protected modda giriş yapamaz (aynı veritabanında demo moddan kalmış olsalar bile). Testler için `VETMIND_DEMO_ACCOUNTS=1` ile bilinçli olarak açılabilir.
 - `docker compose` web (8080) ve PostgreSQL (5432) portlarını yalnızca `127.0.0.1`'de açar: demo modda giriş yoktur ve rol seçici herkesi admin yapar. Başka makinelerden erişim için protected overlay'i kullanın (`VETMIND_WEB_BIND`).
 - Deneme sayaçları süreç belleğinde: yeniden başlatmada sıfırlanır, birden fazla worker'da her biri ayrı sayar.
@@ -1052,8 +1055,11 @@ Backend özeti: [backend/README.md](backend/README.md).
 | `VETMIND_JWT_TTL_SECONDS` | `43200` | Token TTL |
 | `VETMIND_DEPLOYMENT_MODE` | `demo` | `demo` \| `protected` |
 | `VETMIND_TENANT_ISOLATION` | off | Klinik izolasyonu |
-| `VETMIND_ALLOW_INSECURE_DEMO` | off | Protected’da demo secret’a izin (yalnızca bilinçli) |
+| `VETMIND_ALLOW_INSECURE_DEMO` | off | Auth kapalıyken anonim isteklere tam yetki (yalnızca yerel geliştirme); protected modda ve varsayılan JWT secret ile auth açıkken kabul edilmez |
 | `VETMIND_DEMO_ACCOUNTS` | demo: on, protected: off | `*@demo.local` hesapları (`demo1234`) giriş yapabilir mi; protected'da yalnızca test için |
+| `VETMIND_MALWARE_SCANNER` | — | `clamav` = her DICOM/belge yüklemesi ClamAV daemon'ında taranır (virüs → 422, tarayıcıya ulaşılamazsa → 503). Protected modda zorunlu; `fake_clean` yalnızca testte |
+| `VETMIND_CLAMD_HOST` / `VETMIND_CLAMD_PORT` / `VETMIND_CLAMD_SOCKET` | `127.0.0.1` / `3310` / — | ClamAV daemon adresi (TCP ya da Unix soketi) |
+| `VETMIND_ALLOW_TEST_SCANNER` | off | Protected modda her dosyayı temiz sayan test tarayıcısına izin (yalnızca CI / readiness, gerçek veri yok) |
 | `VETMIND_AUDIT_LOG_PATH` | `./data/audit/security.jsonl` | Audit JSONL |
 | `VETMIND_MAX_CONCURRENT_ANALYZE` | `8` | Eşzamanlı analiz limiti |
 

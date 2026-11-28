@@ -7,12 +7,20 @@
 # Requirements enforced at backend startup (validate_security_settings):
 #   - VETMIND_AUTH_ENABLED=1
 #   - VETMIND_JWT_SECRET ≠ demo default, length ≥ 32
-#   - VETMIND_MALWARE_SCAN_REQUIRED=1 (fail-closed until a real scanner is wired)
+#   - VETMIND_MALWARE_SCAN_REQUIRED=1 + VETMIND_MALWARE_SCANNER=clamav (ClamAV daemon below;
+#     uploads are refused with 503 while it is unreachable or still loading signatures)
 #   - VETMIND_DICOM_IDENTITY_SCRUB=1
 #
 # Demo-only APIs (fixture DICOM, demo card payments) return 403 in this mode.
 
 services:
+  clamav:
+    # Virus signatures update themselves (freshclam). First start downloads them (~300 MB).
+    image: clamav/clamav:stable
+    volumes:
+      - vetmind_clamav:/var/lib/clamav
+    restart: unless-stopped
+
   web:
     # Reachable from other machines (put TLS in front). docker-compose.yml binds 127.0.0.1.
     ports: !override
@@ -24,6 +32,9 @@ services:
       VETMIND_JWT_SECRET: ${VETMIND_JWT_SECRET:?set a strong secret ≥32 chars}
       VETMIND_ALLOW_INSECURE_DEMO: "0"
       VETMIND_MALWARE_SCAN_REQUIRED: "1"
+      VETMIND_MALWARE_SCANNER: clamav
+      VETMIND_CLAMD_HOST: clamav
+      VETMIND_CLAMD_PORT: "3310"
       VETMIND_DICOM_IDENTITY_SCRUB: "1"
       VETMIND_TENANT_ISOLATION: "1"
       # Self-registration defaults off in protected; enable only with a real clinic id.
@@ -42,3 +53,6 @@ services:
       VETMIND_LLM_API_KEY: ${VETMIND_LLM_API_KEY:-}
       VETMIND_LLM_MODEL_ID: ${VETMIND_LLM_MODEL_ID:-}
       VETMIND_VLM_ENABLED: ${VETMIND_VLM_ENABLED:-0}
+
+volumes:
+  vetmind_clamav:

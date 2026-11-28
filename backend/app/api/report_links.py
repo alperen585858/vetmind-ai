@@ -1,15 +1,15 @@
 """Public report view links (no login).
 
 #84: opening the page does not use up the link. The page first checks the link
-(``GET /report-link``, no report content), and the report itself is only returned when
-the reader presses "Raporu görüntüle" (``GET /report-view``). E-mail link scanners load
+(``POST /report-link``, no report content), and the report itself is only returned when
+the reader presses "Raporu görüntüle" (``POST /report-view``). E-mail link scanners load
 pages but do not press buttons. The link works until it expires (72 h by default) or
 the vet revokes it; every view is written to the audit log.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_container
@@ -66,23 +66,31 @@ def _check_token(container: AppContainer, token: str) -> ReportViewRecord:
         ) from exc
 
 
-@router.get("/report-link", response_model=PublicReportLinkStatus)
+class ReportLinkTokenRequest(BaseModel):
+    """The link token travels in the body so it never lands in access logs (query strings do)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=10, max_length=200)
+
+
+@router.post("/report-link", response_model=PublicReportLinkStatus)
 def check_report_link(
-    token: str = Query(min_length=10, max_length=200),
+    payload: ReportLinkTokenRequest,
     container: AppContainer = Depends(get_container),
 ) -> PublicReportLinkStatus:
     """Is the link still valid? Returns no report content and does not count as a view."""
-    rec = _check_token(container, token)
+    rec = _check_token(container, payload.token)
     return PublicReportLinkStatus(report_version=rec.report_version, expires_at=rec.expires_at)
 
 
-@router.get("/report-view", response_model=PublicReportView)
+@router.post("/report-view", response_model=PublicReportView)
 def view_report_by_token(
-    token: str = Query(min_length=10, max_length=200),
+    payload: ReportLinkTokenRequest,
     container: AppContainer = Depends(get_container),
 ) -> PublicReportView:
     """Return the approved report. Re-usable until expiry or revocation; every view is audited."""
-    rec = _check_token(container, token)
+    rec = _check_token(container, payload.token)
 
     case = container.repo.get_case(rec.case_id)
     if case is None or case.status != CaseLifecycleStatus.APPROVED:

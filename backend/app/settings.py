@@ -684,11 +684,14 @@ def validate_security_settings(settings: Settings) -> None:
             "Demo mode remains available with VETMIND_DEPLOYMENT_MODE=demo."
         )
     insecure_secret = settings.jwt_secret == DEFAULT_JWT_SECRET
-    if settings.auth_enabled and insecure_secret and not settings.allow_insecure_demo:
+    if settings.auth_enabled and insecure_secret:
+        # The default secret is in the public repository: anyone could sign their own tokens.
         raise RuntimeError(
-            "Auth is enabled but VETMIND_JWT_SECRET is still the demo default. "
-            "Set a strong secret, or set VETMIND_ALLOW_INSECURE_DEMO=1 for local demos only."
+            "Auth is enabled but VETMIND_JWT_SECRET is still the public demo default. "
+            "Set a strong secret (e.g. `python -c 'import secrets; print(secrets.token_urlsafe(48))'`)."
         )
+    if settings.deployment_mode == "protected" and settings.allow_insecure_demo:
+        raise RuntimeError("VETMIND_ALLOW_INSECURE_DEMO is not allowed in protected deployment mode.")
     if settings.deployment_mode == "protected" and insecure_secret:
         raise RuntimeError(
             "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
@@ -716,15 +719,19 @@ def validate_security_settings(settings: Settings) -> None:
             raise RuntimeError(
                 "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
             )
-        from app.storage.malware_scan import configured_scanner_name
+        from app.storage.malware_scan import TEST_SCANNERS, configured_scanner_name, test_scanner_allowed
 
         scanner_name = configured_scanner_name()
-        if scanner_name not in {"fake_clean", "test", "noop_insecure"}:
+        if scanner_name in TEST_SCANNERS and not test_scanner_allowed():
             raise RuntimeError(
-                "Protected deployment requires a configured malware scanner, but none is wired. "
-                "Set VETMIND_MALWARE_SCANNER=fake_clean only for local/CI readiness tests "
-                "(never for real PHI), or implement a real scanner adapter. "
-                "Refusing to start with UnavailableScanner-only protected mode."
+                f"VETMIND_MALWARE_SCANNER={scanner_name} reports every file as clean and is refused "
+                "in protected mode. Use VETMIND_MALWARE_SCANNER=clamav (ClamAV daemon), or set "
+                "VETMIND_ALLOW_TEST_SCANNER=1 for CI / readiness runs without real data."
+            )
+        if scanner_name != "clamav" and scanner_name not in TEST_SCANNERS:
+            raise RuntimeError(
+                "Protected deployment requires a malware scanner: set VETMIND_MALWARE_SCANNER=clamav "
+                "and VETMIND_CLAMD_HOST / VETMIND_CLAMD_SOCKET."
             )
         if settings.self_registration_enabled:
             clinic = (settings.self_registration_owner_clinic_id or "").strip().lower()

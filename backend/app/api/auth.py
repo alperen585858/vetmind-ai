@@ -1,4 +1,6 @@
 import math
+import secrets
+from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
@@ -10,7 +12,7 @@ from app.auth.email_verification import EmailVerificationError
 from app.auth.mailer import OutgoingMail
 from app.auth.mfa_challenge import MfaChallengeError
 from app.auth.password_reset import PasswordResetError
-from app.auth.passwords import password_policy_detail
+from app.auth.passwords import hash_password, password_policy_detail
 from app.auth.refresh_tokens import RefreshTokenError
 from app.auth.security import DEMO_USERS, DemoUserRecord, create_access_token, verify_password
 from app.container import AppContainer
@@ -163,11 +165,19 @@ class MeResponse(BaseModel):
     tenant_isolation: bool = False
 
 
+@lru_cache(maxsize=1)
+def _dummy_password_hash() -> str:
+    return hash_password(secrets.token_urlsafe(16))
+
+
 def _client_ip(request: Request, container: AppContainer) -> str:
     if container.settings.trust_proxy_headers:
-        first_hop = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        if first_hop:
-            return first_hop
+        # The trusted proxy (nginx: $proxy_add_x_forwarded_for) appends the address it saw,
+        # so the LAST hop is the real client. Earlier hops are whatever the client sent and
+        # could be rotated freely to dodge per-IP limits.
+        hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -237,6 +247,10 @@ def login(
     ]
     _enforce_limits(container, request, email, limits)
     entry = users.get(email)
+    if entry is None:
+        # Same scrypt work as a real check, so response time does not reveal which
+        # addresses have an account.
+        verify_password(payload.password, _dummy_password_hash())
     if entry is None or not verify_password(payload.password, entry.password):
         _hit(container, limits)
         container.audit.record(

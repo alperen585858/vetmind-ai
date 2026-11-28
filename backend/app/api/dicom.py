@@ -93,7 +93,8 @@ async def upload_dicom(
     parsed_files: list[tuple[str, bytes]] = []
     total_bytes = 0
     for upload in files:
-        data = await upload.read()
+        # Read at most one byte past the limit: an oversized file is never loaded whole.
+        data = await upload.read(_MAX_FILE_BYTES + 1)
         if len(data) > _MAX_FILE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

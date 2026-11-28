@@ -109,6 +109,11 @@ class AppContainer:
         )
         self.encryption = encryption_status(self.settings.encryption_at_rest)
         self.malware_scanner = build_scanner(required=self.settings.malware_scan_required)
+        ping = getattr(self.malware_scanner, "ping", None)
+        if ping is not None and not ping():
+            logging.getLogger(__name__).warning(
+                "ClamAV daemon is not reachable; uploads are refused (503) until it is."
+            )
         self.retention_policy = RetentionPolicy(
             dicom_days=self.settings.retention_dicom_days,
             temp_hours=self.settings.retention_temp_hours,
@@ -408,6 +413,7 @@ class AppContainer:
             capabilities=capabilities,
             tenant_isolation=self.settings.tenant_isolation,
             document_adapter=doc_adapter,
+            malware_scanner=self.malware_scanner,
         )
         self.payment_store = build_payment_store(self.settings)
         self.payments = PaymentService(
