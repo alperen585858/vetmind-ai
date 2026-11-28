@@ -72,6 +72,12 @@ from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
 from app.settings import Settings, demo_accounts_enabled, load_settings, validate_security_settings
 from app.storage.encryption import encryption_status
+
+
+def _dicom_api_limits():
+    import app.api.dicom as dicom_api  # late: the API module imports the container's deps
+
+    return dicom_api
 from app.storage.malware_scan import build_scanner
 from app.storage.quarantine import QuarantineStore
 from app.validation.report_validator import ReportValidator
@@ -95,7 +101,8 @@ class AppContainer:
         )
         self.quarantine = QuarantineStore(
             self.settings.quarantine_root,
-            max_file_bytes=25 * 1024 * 1024,
+            # Same per-file cap as the upload API (#125; VETMIND_DICOM_MAX_FILE_MB).
+            max_file_bytes=_dicom_api_limits()._MAX_FILE_BYTES,
             scrub_identity=bool(getattr(self.settings, "dicom_identity_scrub", False)),
         )
         # #102: everything persistent lives in the one database (Postgres, or SQLite for local
