@@ -37,6 +37,8 @@ class PreparedTensorBundle:
     # In-process array for synthetic/local probes only — never HTTP-serialized by default.
     tensor: Any = None
     pixel_spacing_mm: Optional[tuple[float, float]] = None
+    # DICOM ViewPosition of the 2D frame (XR), e.g. PA / AP / LL / VD; None when untagged.
+    view_position: Optional[str] = None
     note: str = "Prepared under PreprocessingContract + pixel authorization."
 
 

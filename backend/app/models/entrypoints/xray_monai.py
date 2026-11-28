@@ -19,9 +19,11 @@ from app.models.entrypoints._common import (
     scores_to_classification,
 )
 from app.models.errors import InferenceFailedError, InferenceTimeoutError, ModelUnavailableError
+from app.imaging.analysis_limitations import LIMITATION_PREFIX
+from app.models.model_kind import TINY_CONTRACT, TINY_CONTRACT_WARNING, is_tiny_architecture
 from app.models.weight_cache import CachedWeights, load_torch_checkpoint
-from app.schemas.enums import ModelExecutionStatus, SourceKind
-from app.schemas.model_outputs import ModelTaskOutputs
+from app.schemas.enums import FindingStatus, ModelExecutionStatus, SourceKind
+from app.schemas.model_outputs import ClassificationOutput, ModelTaskOutputs
 
 _DEFAULT_LABELS = [
     "PULMONARY_OPACITY",
@@ -114,6 +116,89 @@ def _txrv_input(x):  # noqa: ANN001 — torch tensor (1, H, W) in [0, 1]
     x = Resize((_TXRV_INPUT_SIZE, _TXRV_INPUT_SIZE), mode="area")(x)
     x = x.as_tensor() if hasattr(x, "as_tensor") else x
     return (x * 2.0 - 1.0) * _TXRV_INTENSITY
+
+
+# --- View / species gate -------------------------------------------------------------
+# Every checkpoint this entrypoint can load was trained (or stands in for a model trained)
+# on human frontal PA/AP chest films. Veterinary thorax studies are mostly lateral and
+# VD/DV, and the anatomy differs, so findings are only "uncertain" unless the projection is
+# frontal and the species is not canine/feline. Limitations use the "Sınırlama:" prefix,
+# which the LLM gateway copies into the draft report's limitations.
+
+VIEW_FRONTAL = "frontal"
+VIEW_LATERAL = "lateral"
+VIEW_VENTRODORSAL = "ventrodorsal"
+VIEW_UNTAGGED = "untagged"
+VIEW_OTHER = "other"
+
+_FRONTAL_VIEWS = frozenset({"PA", "AP"})
+_LATERAL_VIEWS = frozenset({"LL", "RL", "LAT", "LATERAL", "LLD", "RLD", "L", "R"})
+_VENTRODORSAL_VIEWS = frozenset({"VD", "DV"})
+_GATED_SPECIES = frozenset({"canine", "feline"})
+
+
+def classify_view(view_position: str | None) -> str:
+    """DICOM ViewPosition → frontal | lateral | ventrodorsal | untagged | other."""
+    raw = str(view_position or "").strip().upper()
+    if not raw:
+        return VIEW_UNTAGGED
+    if raw in _FRONTAL_VIEWS:
+        return VIEW_FRONTAL
+    if raw in _LATERAL_VIEWS:
+        return VIEW_LATERAL
+    if raw in _VENTRODORSAL_VIEWS:
+        return VIEW_VENTRODORSAL
+    return VIEW_OTHER
+
+
+def view_gate_limitations(*, view_position: str | None, species: str | None) -> list[str]:
+    """Report limitations explaining why XR findings are downgraded; empty = no gate."""
+    view = classify_view(view_position)
+    tag = str(view_position or "").strip().upper()
+    out: list[str] = []
+    if view == VIEW_LATERAL:
+        out.append(
+            f"{LIMITATION_PREFIX} röntgen lateral projeksiyonda (ViewPosition={tag}); görüntü "
+            "modeli insan PA/AP göğüs filmleriyle eğitildi, bu projeksiyonda güvenilirliği "
+            "bilinmiyor. Model bulguları 'belirsiz' olarak işaretlendi."
+        )
+    elif view == VIEW_VENTRODORSAL:
+        out.append(
+            f"{LIMITATION_PREFIX} röntgen {tag} projeksiyonda; görüntü modeli insan PA/AP göğüs "
+            "filmleriyle eğitildi, VD/DV projeksiyonda güvenilirliği bilinmiyor. Model bulguları "
+            "'belirsiz' olarak işaretlendi."
+        )
+    elif view == VIEW_UNTAGGED:
+        out.append(
+            f"{LIMITATION_PREFIX} röntgende projeksiyon bilgisi (ViewPosition) yok; görüntü modeli "
+            "yalnızca insan PA/AP göğüs filmleriyle eğitildi. Model bulguları 'belirsiz' olarak "
+            "işaretlendi."
+        )
+    elif view == VIEW_OTHER:
+        out.append(
+            f"{LIMITATION_PREFIX} röntgen projeksiyonu tanınmadı (ViewPosition={tag}); görüntü "
+            "modeli insan PA/AP göğüs filmleriyle eğitildi. Model bulguları 'belirsiz' olarak "
+            "işaretlendi."
+        )
+    if str(species or "").strip().lower() in _GATED_SPECIES:
+        out.append(
+            f"{LIMITATION_PREFIX} görüntü modeli insan göğüs röntgenleriyle eğitildi; köpek/kedi "
+            "anatomisinde doğrulanmadı. Model bulguları 'belirsiz' olarak işaretlendi."
+        )
+    return out
+
+
+def apply_view_gate(
+    classification: ClassificationOutput, limitations: list[str]
+) -> ClassificationOutput:
+    """Downgrade every kept label to UNCERTAIN when any gate limitation applies."""
+    if not limitations or not classification.labels:
+        return classification
+    labels = [
+        lab.model_copy(update={"finding_status": FindingStatus.UNCERTAIN})
+        for lab in classification.labels
+    ]
+    return classification.model_copy(update={"labels": labels})
 
 
 class XRayMonaiEntrypoint:
@@ -286,6 +371,16 @@ class XRayMonaiEntrypoint:
                 "Weights were trained on human chest radiographs (TorchXRayVision); "
                 "performance on animal radiographs is unknown."
             )
+        tiny = is_tiny_architecture(self._architecture)
+        if tiny:
+            warnings.append(TINY_CONTRACT_WARNING)
+
+        view_position = getattr(request.prepared, "view_position", None) or (
+            request.metadata.get("view_position") if request.metadata else None
+        )
+        gate = view_gate_limitations(view_position=view_position, species=request.species)
+        classification = apply_view_gate(classification, gate)
+        warnings.extend(gate)
 
         meta = {
             "adapter": "xray_monai",
@@ -295,7 +390,12 @@ class XRayMonaiEntrypoint:
             "clinically_validated": "false",
             "raw_scores": ",".join(f"{n}={s:.4f}" for n, s in zip(self._label_names, scores)),
             "architecture": self._architecture,
+            "view_position": str(view_position or ""),
+            "view_class": classify_view(view_position),
+            "view_gate_applied": "true" if gate else "false",
         }
+        if tiny:
+            meta["model_kind"] = TINY_CONTRACT
         status = ModelExecutionStatus.SUCCESS
         if not classification.labels:
             # No label crossed threshold — success with empty findings (not mock).

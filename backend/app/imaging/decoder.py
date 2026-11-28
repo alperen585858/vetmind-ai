@@ -98,6 +98,8 @@ class AuthorizedDicomDecoder:
             "image_orientation_patient": _multi_str(getattr(ds, "ImageOrientationPatient", None)),
             "image_position_patient": _multi_str(getattr(ds, "ImagePositionPatient", None)),
             "instance_number": _optional_int(getattr(ds, "InstanceNumber", None)),
+            # Projection (PA / AP / LL / VD …); XR entrypoints gate human-trained models on it.
+            "view_position": _optional_str(getattr(ds, "ViewPosition", None)),
             "sop_instance_uid": _optional_str(getattr(ds, "SOPInstanceUID", None)),
             "series_instance_uid": _optional_str(getattr(ds, "SeriesInstanceUID", None)),
             "transfer_syntax_uid": ts,

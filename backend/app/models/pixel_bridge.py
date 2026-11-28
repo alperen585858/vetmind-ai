@@ -142,6 +142,7 @@ class AuthorizedPixelBridge:
                     "pixel_spacing": decoded[0].get("pixel_spacing"),
                     "sop_instance_uid": decoded[0].get("sop_instance_uid"),
                     "sop_instance_uids": [decoded[0].get("sop_instance_uid")],
+                    "view_position": decoded[0].get("view_position"),
                     "rescale_slope": decoded[0].get("rescale_slope", 1.0),
                     "rescale_intercept": decoded[0].get("rescale_intercept", 0.0),
                 }
@@ -194,6 +195,7 @@ class AuthorizedPixelBridge:
             pixel_spacing_mm=prepared.get("pixel_spacing_mm")
             if isinstance(prepared.get("pixel_spacing_mm"), tuple)
             else None,
+            view_position=volume.get("view_position") or None,
         )
 
 
