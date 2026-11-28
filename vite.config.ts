@@ -3,30 +3,36 @@ import react from '@vitejs/plugin-react'
 
 /**
  * Library chunks (issue #25). Pages are split with React.lazy (src/lib/lazyPage.ts); these
- * groups keep rarely-changing libraries in long-cached files and stop Rollup from scattering
- * icons into dozens of tiny chunks.
+ * groups keep rarely-changing libraries in long-cached files and stop the bundler from
+ * scattering icons into dozens of tiny chunks.
+ *
+ * Vite 8 bundles with Rolldown: a group also pulls in its modules' dependencies, so the
+ * groups run in priority order. React is captured first; otherwise the charts group (recharts
+ * imports React) would take React with it and charts would load on every page.
  */
-function libraryChunk(id: string): string | undefined {
-  if (!id.includes('/node_modules/')) return undefined
-  if (/\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run\/router)\//.test(id)) {
-    return 'react-vendor'
-  }
-  if (id.includes('/node_modules/lucide-react/')) return 'icons'
+const libraryGroups = [
+  {
+    name: 'react-vendor',
+    test: /\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|cookie|set-cookie-parser)\//,
+    priority: 40,
+  },
+  { name: 'icons', test: /\/node_modules\/lucide-react\//, priority: 30 },
   // recharts and its d3 helpers: only the dashboard / model performance pages need them.
-  if (/\/node_modules\/(recharts|recharts-scale|react-smooth|victory-vendor|d3-[^/]+|internmap|decimal\.js-light)\//.test(id)) {
-    return 'charts'
-  }
-  if (id.includes('/node_modules/dicom-parser/')) return 'dicom'
-  return undefined
-}
+  {
+    name: 'charts',
+    test: /\/node_modules\/(recharts|recharts-scale|react-smooth|victory-vendor|d3-[^/]+|internmap|decimal\.js-light)\//,
+    priority: 20,
+  },
+  { name: 'dicom', test: /\/node_modules\/dicom-parser\//, priority: 10 },
+]
 
 export default defineConfig({
   plugins: [react()],
   build: {
     // No chunkSizeWarningLimit override: the default 500 KB warning is meaningful again.
     // First-load size is enforced by scripts/check-bundle.mjs (npm run check:bundle).
-    rollupOptions: {
-      output: { manualChunks: libraryChunk },
+    rolldownOptions: {
+      output: { codeSplitting: { groups: libraryGroups } },
     },
   },
   server: {

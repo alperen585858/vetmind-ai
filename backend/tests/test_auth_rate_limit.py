@@ -130,10 +130,11 @@ def test_forwarded_for_is_ignored_unless_trusted(tmp_path: Path) -> None:
 
 def test_forwarded_for_is_used_behind_a_trusted_proxy(tmp_path: Path) -> None:
     client, _ = _app(tmp_path, trust_proxy_headers=True)
+    # nginx appends the address it saw: the last hop is the client, earlier hops are spoofable.
     for i in range(LOGIN_PER_IP.attempts):
-        _login(client, f"user{i}@spray.test", "wrong", ip="203.0.113.7, 10.0.0.1")
+        _login(client, f"user{i}@spray.test", "wrong", ip=f"10.0.0.{i}, 203.0.113.7")
     assert _login(client, "vet@demo.local", "demo1234", ip="203.0.113.7").status_code == 429
-    assert _login(client, "vet@demo.local", "demo1234", ip="198.51.100.2").status_code == 200
+    assert _login(client, "vet@demo.local", "demo1234", ip="203.0.113.7, 198.51.100.2").status_code == 200
 
 
 def test_rate_limit_can_be_disabled(tmp_path: Path) -> None:

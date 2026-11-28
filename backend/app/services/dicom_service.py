@@ -31,7 +31,8 @@ from app.http_errors import api_error
 from app.security.audit import AuditLogger, AuditOutcome
 from app.services.owner_contact import clean_owner_name
 from app.services.repository import CaseRepository
-from app.storage.malware_scan import MalwareScanner, assert_upload_clean
+from app.services.upload_scan import scan_uploads_or_raise
+from app.storage.malware_scan import MalwareScanner
 from app.storage.quarantine import QuarantineStore
 
 # Regions the mock automated pipeline can route today.
@@ -88,15 +89,7 @@ class DicomService:
         referring_clinic: str | None = None,
         principal: AuthPrincipal | None = None,
     ) -> DicomUploadResponse:
-        if self._malware_scanner is not None:
-            for name, data in files:
-                try:
-                    assert_upload_clean(self._malware_scanner, data, filename=name)
-                except PermissionError as exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail=str(exc),
-                    ) from exc
+        scan_uploads_or_raise(self._malware_scanner, files)
         ingest_id = f"dicom-{uuid4().hex[:12]}"
         owner = principal.subject if principal and principal.via != "disabled" else None
         clinic = principal.clinic_id if principal and principal.via != "disabled" else None

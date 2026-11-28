@@ -13,6 +13,7 @@ from app.api.deps import get_container
 from app.auth.deps import AuthPrincipal, require_auth, require_capability
 from app.auth.rbac import CAP_ADMIN, CAP_CLINIC_MANAGE, CAP_USERS_ADMIN
 from app.container import AppContainer
+from app.http_errors import api_error
 from app.security.audit import AuditOutcome
 from app.schemas.workflow import (
     ClinicStaffStats,
@@ -57,13 +58,33 @@ def create_user(
     return service.create_user(payload, principal=principal)
 
 
+def _forbid_takeover_of_other_admin(principal: AuthPrincipal, target: str, container: AppContainer) -> None:
+    """An admin signed in with a JWT may not take over another admin's sign-in (password,
+    reset link, 2FA reset): one stolen admin session must not unlock every admin account.
+    Operators can still do it with the API key."""
+    if principal.via != "jwt" or target == principal.subject:
+        return
+    entry = (container.auth.users or {}).get(target)
+    if entry is not None and entry.role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=api_error(
+                "admin_credentials_protected",
+                "Another administrator's sign-in can only be reset by that administrator or with the API key.",
+            ),
+        )
+
+
 @router.patch("/admin/users/{email}", response_model=ManagedUserPublic)
 def update_user(
     email: str,
     payload: ManagedUserUpdate,
     principal: AuthPrincipal = Depends(require_capability(CAP_ADMIN)),
     service=Depends(_workflow),
+    container: AppContainer = Depends(get_container),
 ) -> ManagedUserPublic:
+    if payload.model_dump(exclude_unset=True).get("password"):
+        _forbid_takeover_of_other_admin(principal, email.strip().lower(), container)
     return service.update_user(email, payload, principal=principal)
 
 
@@ -133,6 +154,7 @@ def reset_user_mfa(
     if principal.role not in {"admin", "demo", "service"} and principal.via != "disabled":
         raise HTTPException(status_code=403, detail="Admin only.")
     target = email.strip().lower()
+    _forbid_takeover_of_other_admin(principal, target, container)
     user = container.mfa.admin_reset(target)
     container.refresh_tokens.revoke_all_for(target)
     container.audit.record(
@@ -170,6 +192,7 @@ def create_password_reset_link(
     if not container.auth.users or target not in container.auth.users:
         # Unknown or inactive: activate the account first.
         raise HTTPException(status_code=404, detail="No active account with this email.")
+    _forbid_takeover_of_other_admin(principal, target, container)
     raw = container.password_resets.issue(target)
     container.audit.record(
         event_type="admin.password_reset_link",

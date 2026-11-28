@@ -31,6 +31,8 @@ from app.schemas.enums import (
 )
 from app.schemas.findings import StudyInfo
 from app.services.repository import CaseRepository
+from app.services.upload_scan import scan_uploads_or_raise
+from app.storage.malware_scan import MalwareScanner
 from app.storage.quarantine import QuarantineStore
 
 
@@ -43,8 +45,10 @@ class DocumentService:
         capabilities: list[ModelCapability] | None = None,
         tenant_isolation: bool = False,
         document_adapter: DocumentTextAdapter | None = None,
+        malware_scanner: MalwareScanner | None = None,
     ) -> None:
         self._repo = repo
+        self._malware_scanner = malware_scanner
         self._quarantine = quarantine
         self._capabilities = (
             list(capabilities) if capabilities is not None else list(default_capabilities())
@@ -65,6 +69,7 @@ class DocumentService:
         anatomical_region_hint: AnatomicalRegion = AnatomicalRegion.UNKNOWN,
         principal: AuthPrincipal | None = None,
     ) -> DocumentUploadResponse:
+        scan_uploads_or_raise(self._malware_scanner, files)
         owner = principal.subject if principal and principal.via != "disabled" else None
         clinic = principal.clinic_id if principal and principal.via != "disabled" else None
 

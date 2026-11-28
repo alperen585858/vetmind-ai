@@ -1,6 +1,6 @@
 # VetMind web UI: Vite build served by nginx, which also proxies /api to the backend.
 # Built by docker-compose.yml (issue #29).
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -11,5 +11,6 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 80

@@ -7,8 +7,14 @@ import { presentApiError } from '../../shared/lib/apiErrors'
 import { BackendUnavailableError, checkPublicReportLink, fetchPublicReportView, type PublicReportView } from '../../shared/api'
 import { Button } from '../../shared/ui/Button'
 
+/** Token from `#token=…` (never sent to the server) or, for older links, `?token=…`. */
+function linkToken(params: URLSearchParams): string {
+  const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token')
+  return fromHash || params.get('token') || ''
+}
+
 /**
- * Public report view opened from a report link (`/rapor-baglanti?token=…`).
+ * Public report view opened from a report link (`/rapor-baglanti#token=…`).
  * #84: loading the page only checks the link; the report is fetched when the reader
  * presses "Raporu görüntüle" (link scanners do not press buttons). The link can be
  * reopened until it expires or is revoked. The token is stripped from the address bar.
@@ -16,7 +22,7 @@ import { Button } from '../../shared/ui/Button'
 export default function ReportLink() {
   const { t } = useLocale()
   const [params] = useSearchParams()
-  const [token] = useState(() => params.get('token') || '')
+  const [token] = useState(() => linkToken(params))
   const [view, setView] = useState<PublicReportView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,7 +47,7 @@ export default function ReportLink() {
     meta.name = 'referrer'
     meta.content = 'no-referrer'
     document.head.appendChild(meta)
-    if (window.location.search.includes('token=')) {
+    if (window.location.search.includes('token=') || window.location.hash.includes('token=')) {
       window.history.replaceState(window.history.state, '', window.location.pathname)
     }
     return () => meta.remove()

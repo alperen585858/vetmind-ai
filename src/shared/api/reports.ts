@@ -18,12 +18,13 @@ export type PublicReportView = {
 
 /** Check a report link without loading the report (does not count as a view). */
 export async function checkPublicReportLink(token: string): Promise<{ valid: boolean; report_version: number; expires_at: number }> {
-  return request(`/public/report-link?${new URLSearchParams({ token })}`)
+  // POST body, not the query string: the token must not end up in proxy / server access logs.
+  return request('/public/report-link', { method: 'POST', body: JSON.stringify({ token }) })
 }
 
 /** Load the approved report behind a link. Re-usable until expiry / revoke; audited. */
 export async function fetchPublicReportView(token: string): Promise<PublicReportView> {
-  return request(`/public/report-view?${new URLSearchParams({ token })}`)
+  return request('/public/report-view', { method: 'POST', body: JSON.stringify({ token }) })
 }
 
 export async function markReportDelivered(caseId: string): Promise<BackendCaseRecord> {

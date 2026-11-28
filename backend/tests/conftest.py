@@ -6,6 +6,9 @@ os.environ.setdefault("VETMIND_STORAGE", "memory")
 # Never read backend/.env in tests: a local .env (e.g. VETMIND_VLM_ENABLED=1 with a real LLM)
 # would otherwise leak into every test via load_settings() and make CI-green tests fail locally.
 os.environ.setdefault("VETMIND_SKIP_DOTENV", "1")
+# Protected-mode tests run with the always-clean scanner; outside tests protected mode
+# refuses it (ClamAV required).
+os.environ.setdefault("VETMIND_ALLOW_TEST_SCANNER", "1")
 
 from pathlib import Path
 

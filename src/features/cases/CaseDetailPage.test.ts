@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { StaticRouter } from 'react-router-dom/server'
+import { StaticRouter } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import { createTranslator } from '../../i18n'
 import { summaryToVetCase } from '../../shared/lib/caseMapper'

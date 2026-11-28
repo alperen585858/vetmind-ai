@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from app.auth.email_verification import EmailVerificationService, build_email_verification_store
@@ -69,7 +70,7 @@ from app.services.radiologist_payout_service import RadiologistPayoutService
 from app.services.radiologist_payout_store import build_radiologist_payout_store
 from app.services.workflow_service import WorkflowService
 from app.services.workflow_store import build_workflow_store
-from app.settings import Settings, load_settings, validate_security_settings
+from app.settings import Settings, demo_accounts_enabled, load_settings, validate_security_settings
 from app.storage.encryption import encryption_status
 from app.storage.malware_scan import build_scanner
 from app.storage.quarantine import QuarantineStore
@@ -108,6 +109,11 @@ class AppContainer:
         )
         self.encryption = encryption_status(self.settings.encryption_at_rest)
         self.malware_scanner = build_scanner(required=self.settings.malware_scan_required)
+        ping = getattr(self.malware_scanner, "ping", None)
+        if ping is not None and not ping():
+            logging.getLogger(__name__).warning(
+                "ClamAV daemon is not reachable; uploads are refused (503) until it is."
+            )
         self.retention_policy = RetentionPolicy(
             dicom_days=self.settings.retention_dicom_days,
             temp_hours=self.settings.retention_temp_hours,
@@ -328,7 +334,16 @@ class AppContainer:
         self.notifications = NotificationService(self.notification_store)
         self.user_settings = build_user_settings_store(self.settings)
         # Mutable login directory (admin can add/update users via WorkflowService).
-        self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS)
+        # The shared-password *@demo.local seed accounts only exist when demo accounts are on
+        # (demo mode by default); protected mode starts without them.
+        self.demo_accounts = demo_accounts_enabled(self.settings)
+        if self.demo_accounts and self.settings.deployment_mode != "demo":
+            logging.getLogger(__name__).warning(
+                "VETMIND_DEMO_ACCOUNTS=1 in %s mode: *@demo.local accounts with the public demo "
+                "password can sign in. Never use this with real data.",
+                self.settings.deployment_mode,
+            )
+        self._auth_users: dict[str, DemoUserRecord] = dict(DEMO_USERS) if self.demo_accounts else {}
         self.workflow_store = build_workflow_store(self.settings)
         self.report_view_tokens = ReportViewTokenService(
             build_report_view_token_store(self.settings),
@@ -398,6 +413,7 @@ class AppContainer:
             capabilities=capabilities,
             tenant_isolation=self.settings.tenant_isolation,
             document_adapter=doc_adapter,
+            malware_scanner=self.malware_scanner,
         )
         self.payment_store = build_payment_store(self.settings)
         self.payments = PaymentService(
@@ -413,6 +429,7 @@ class AppContainer:
             tenant_isolation=self.settings.tenant_isolation,
             auth_users=self._auth_users,
             payments=self.payments,
+            demo_accounts=self.demo_accounts,
         )
         self.payments.bind_workflow(self.workflow)
         self.radiologist_payouts.bind_workflow(self.workflow)

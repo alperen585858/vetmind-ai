@@ -134,7 +134,7 @@ def test_public_report_view_and_revoke_endpoint(tmp_path: Path) -> None:
     raw = container.report_view_tokens.issue(case_id=case_id, report_version=1)
 
     # #84: checking the link returns no report content and does not count as a view.
-    status_res = client.get(f"/api/v1/public/report-link?token={raw}")
+    status_res = client.post("/api/v1/public/report-link", json={"token": raw})
     assert status_res.status_code == 200, status_res.text
     assert status_res.json()["report_version"] == 1
     assert "findings" not in status_res.json()
@@ -143,7 +143,7 @@ def test_public_report_view_and_revoke_endpoint(tmp_path: Path) -> None:
 
     # The report can be opened again (refresh / second click) until expiry or revoke.
     for _ in range(3):
-        ok = client.get(f"/api/v1/public/report-view?token={raw}")
+        ok = client.post("/api/v1/public/report-view", json={"token": raw})
         assert ok.status_code == 200, ok.text
         assert ok.json()["patient_name"] == "Pax"
     assert len(views()) == 3
@@ -151,10 +151,10 @@ def test_public_report_view_and_revoke_endpoint(tmp_path: Path) -> None:
     raw2 = container.report_view_tokens.issue(case_id=case_id, report_version=1)
     revoked = client.post(f"/api/v1/cases/{case_id}/report-view-links/revoke", headers=_hdr(vet))
     assert revoked.status_code == 200, revoked.text
-    gone = client.get(f"/api/v1/public/report-view?token={raw2}")
+    gone = client.post("/api/v1/public/report-view", json={"token": raw2})
     assert gone.status_code == 410
     assert gone.json()["detail"]["code"] == "report_link_revoked"
-    assert client.get(f"/api/v1/public/report-link?token={raw2}").status_code == 410
+    assert client.post("/api/v1/public/report-link", json={"token": raw2}).status_code == 410
 
 
 def test_expired_link_is_refused(tmp_path: Path) -> None:
@@ -163,7 +163,7 @@ def test_expired_link_is_refused(tmp_path: Path) -> None:
     raw = container.report_view_tokens.issue(case_id="case-x", report_version=1)
     rec = container.report_view_tokens._store.get(_hash(raw))  # noqa: SLF001
     container.report_view_tokens._store.save(ReportViewRecord(**{**rec.__dict__, "expires_at": 0.0}))  # noqa: SLF001
-    res = client.get(f"/api/v1/public/report-view?token={raw}")
+    res = client.post("/api/v1/public/report-view", json={"token": raw})
     assert res.status_code == 410
     assert res.json()["detail"]["code"] == "report_link_expired"
-    assert client.get(f"/api/v1/public/report-link?token={raw}").status_code == 410
+    assert client.post("/api/v1/public/report-link", json={"token": raw}).status_code == 410

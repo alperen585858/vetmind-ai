@@ -5,6 +5,8 @@
 #   docker compose down -v           → stop and delete all data
 #   docker compose up -d db          → only PostgreSQL on localhost:5432, for `npm run backend:dev`
 #
+# Both published ports listen on 127.0.0.1 only (demo mode has no sign-in).
+#
 # Data (#102, #117): every record and the RAG vectors (pgvector) are in PostgreSQL (`db`),
 # DICOM files in the vetmind_data volume. No SQLite files, no separate vector service.
 # Optional ChromaDB store (#103): docker compose --profile chroma up --build with
@@ -19,8 +21,10 @@ services:
       POSTGRES_USER: vetmind
       POSTGRES_PASSWORD: ${VETMIND_DB_PASSWORD:-vetmind}
       POSTGRES_DB: vetmind
+    # Loopback only (localhost tools / `npm run backend:dev`). The backend reaches it over the
+    # compose network. Never publish it on all interfaces: the default password is public.
     ports:
-      - "${VETMIND_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${VETMIND_DB_PORT:-5432}:5432"
     volumes:
       - vetmind_pg:/var/lib/postgresql/data
     healthcheck:
@@ -73,8 +77,10 @@ services:
 
   web:
     build: .
+    # Loopback by default: in demo mode auth is off and the UI's role switcher makes every
+    # visitor an admin. Set VETMIND_WEB_BIND=0.0.0.0 only for a protected deployment.
     ports:
-      - "${VETMIND_WEB_PORT:-8080}:80"
+      - "${VETMIND_WEB_BIND:-127.0.0.1}:${VETMIND_WEB_PORT:-8080}:80"
     depends_on:
       backend:
         condition: service_healthy

@@ -25,6 +25,10 @@ ml/**/__pycache__/
 *.pth
 *.onnx
 backend/.env
+# docker compose reads VETMIND_* overrides (JWT secret, API keys) from a root .env
+.env
+.env.*
+!.env.example
 # Training runs (logs, checkpoints, results) stay local / on the GPU server
 ml/runs/**
 !ml/runs/.gitkeep

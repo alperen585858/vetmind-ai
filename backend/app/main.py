@@ -32,13 +32,38 @@ from app.api.lessons import router as lessons_router
 from app.api.patients import router as patients_router
 from app.api.admin_audit import router as admin_audit_router
 from app.api.owner_summary import router as owner_summary_router
+from app.auth.security import decode_token, resolve_jwt_identity, verify_api_key
 from app.container import AppContainer
 from app.http_errors import normalize_detail, validation_detail
 from app.demo_seed import ensure_demo_seed
 
 
+def _health_caller_is_trusted(request: Request, c: AppContainer) -> bool:
+    """Full health details only with auth off (local demo) or for admin / API-key callers."""
+    if not c.auth.enabled:
+        return True
+    if verify_api_key(request.headers.get("X-API-Key"), c.auth.api_key):
+        return True
+    scheme, _, token = (request.headers.get("Authorization") or "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return False
+    try:
+        payload = decode_token(token.strip(), c.auth.jwt_secret)
+        _subject, role, _clinic = resolve_jwt_identity(payload, c.auth.users)
+    except ValueError:
+        return False
+    return role == "admin" and not payload.get("mfa_setup")
+
+
 def create_app(container: AppContainer | None = None) -> FastAPI:
+    fresh_process = container is None
+    container = container or AppContainer()
+    # Auth on / protected: no public API map (/docs, /redoc, /openapi.json).
+    public_docs = not container.settings.auth_enabled and container.settings.deployment_mode == "demo"
     app = FastAPI(
+        docs_url="/docs" if public_docs else None,
+        redoc_url="/redoc" if public_docs else None,
+        openapi_url="/openapi.json" if public_docs else None,
         title="VetMind AI Backend",
         description=(
             "Veterinary teleradiology senior design backend. "
@@ -49,8 +74,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         ),
         version=__version__,
     )
-    app.state.container = container or AppContainer()
-    if container is None:
+    app.state.container = container
+    if fresh_process:
         # Fresh process: analyses the previous one was running are gone (#118).
         app.state.container.analysis.recover_interrupted_jobs()
 
@@ -70,6 +95,20 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             headers=getattr(exc, "headers", None),
         )
     ensure_demo_seed(app.state.container)
+
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):
+        # Same baseline as docker/security-headers.conf, for when the API is reached directly.
+        response = await call_next(request)
+        headers = response.headers
+        headers.setdefault("X-Content-Type-Options", "nosniff")
+        headers.setdefault("X-Frame-Options", "DENY")
+        headers.setdefault("Referrer-Policy", "no-referrer")
+        # API answers carry patient data and tokens: never keep them in shared or browser caches.
+        if request.url.path.startswith("/api/"):
+            headers.setdefault("Cache-Control", "no-store")
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -107,8 +146,16 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(owner_summary_router)
 
     @app.get("/api/v1/health")
-    def health() -> dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
         c: AppContainer = app.state.container
+        if not _health_caller_is_trusted(request, c):
+            # Liveness only: configuration details (providers, storage, policies) are for admins.
+            return {
+                "status": "ok",
+                "auth_enabled": c.auth.enabled,
+                "deployment_mode": c.auth.deployment_mode,
+                "details": "admin_only",
+            }
         # Protected / auth-enabled: do not leak absolute filesystem paths.
         expose_paths = c.auth.deployment_mode == "demo" and not c.auth.enabled
         sqlite_path = ""

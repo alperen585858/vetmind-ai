@@ -139,6 +139,9 @@ class Settings:
     deployment_mode: str = "demo"  # demo | protected
     tenant_isolation: bool = False
     allow_insecure_demo: bool = False
+    # Built-in *@demo.local seed accounts (shared password). None = only in demo mode.
+    # Protected mode keeps them off unless set explicitly (tests / local readiness runs).
+    demo_accounts: bool | None = None
     malware_scan_required: bool = False
     dicom_identity_scrub: bool = False
     encryption_at_rest: str = "none"
@@ -480,6 +483,7 @@ def load_settings() -> Settings:
     else:
         tenant_isolation = _env_bool("VETMIND_TENANT_ISOLATION", False)
     allow_insecure_demo = _env_bool("VETMIND_ALLOW_INSECURE_DEMO", False)
+    demo_accounts = _env_bool("VETMIND_DEMO_ACCOUNTS", default=(deployment_mode == "demo"))
     malware_scan_required = _env_bool(
         "VETMIND_MALWARE_SCAN_REQUIRED",
         default=(deployment_mode == "protected"),
@@ -638,6 +642,7 @@ def load_settings() -> Settings:
         deployment_mode=deployment_mode,
         tenant_isolation=tenant_isolation,
         allow_insecure_demo=allow_insecure_demo,
+        demo_accounts=demo_accounts,
         malware_scan_required=malware_scan_required,
         dicom_identity_scrub=dicom_identity_scrub,
         encryption_at_rest=encryption_at_rest,
@@ -664,6 +669,13 @@ def load_settings() -> Settings:
 MIN_PROTECTED_JWT_SECRET_LENGTH = 32
 
 
+def demo_accounts_enabled(settings: Settings) -> bool:
+    """Whether the shared-password ``*@demo.local`` seed accounts may sign in."""
+    if settings.demo_accounts is None:
+        return settings.deployment_mode == "demo"
+    return bool(settings.demo_accounts)
+
+
 def validate_security_settings(settings: Settings) -> None:
     """Fail closed for protected / auth-enabled deployments with insecure defaults."""
     if settings.deployment_mode == "protected" and not settings.auth_enabled:
@@ -672,11 +684,14 @@ def validate_security_settings(settings: Settings) -> None:
             "Demo mode remains available with VETMIND_DEPLOYMENT_MODE=demo."
         )
     insecure_secret = settings.jwt_secret == DEFAULT_JWT_SECRET
-    if settings.auth_enabled and insecure_secret and not settings.allow_insecure_demo:
+    if settings.auth_enabled and insecure_secret:
+        # The default secret is in the public repository: anyone could sign their own tokens.
         raise RuntimeError(
-            "Auth is enabled but VETMIND_JWT_SECRET is still the demo default. "
-            "Set a strong secret, or set VETMIND_ALLOW_INSECURE_DEMO=1 for local demos only."
+            "Auth is enabled but VETMIND_JWT_SECRET is still the public demo default. "
+            "Set a strong secret (e.g. `python -c 'import secrets; print(secrets.token_urlsafe(48))'`)."
         )
+    if settings.deployment_mode == "protected" and settings.allow_insecure_demo:
+        raise RuntimeError("VETMIND_ALLOW_INSECURE_DEMO is not allowed in protected deployment mode.")
     if settings.deployment_mode == "protected" and insecure_secret:
         raise RuntimeError(
             "Protected deployment forbids the demo JWT secret. Set VETMIND_JWT_SECRET."
@@ -704,15 +719,19 @@ def validate_security_settings(settings: Settings) -> None:
             raise RuntimeError(
                 "Protected deployment requires VETMIND_DICOM_IDENTITY_SCRUB=1."
             )
-        from app.storage.malware_scan import configured_scanner_name
+        from app.storage.malware_scan import TEST_SCANNERS, configured_scanner_name, test_scanner_allowed
 
         scanner_name = configured_scanner_name()
-        if scanner_name not in {"fake_clean", "test", "noop_insecure"}:
+        if scanner_name in TEST_SCANNERS and not test_scanner_allowed():
             raise RuntimeError(
-                "Protected deployment requires a configured malware scanner, but none is wired. "
-                "Set VETMIND_MALWARE_SCANNER=fake_clean only for local/CI readiness tests "
-                "(never for real PHI), or implement a real scanner adapter. "
-                "Refusing to start with UnavailableScanner-only protected mode."
+                f"VETMIND_MALWARE_SCANNER={scanner_name} reports every file as clean and is refused "
+                "in protected mode. Use VETMIND_MALWARE_SCANNER=clamav (ClamAV daemon), or set "
+                "VETMIND_ALLOW_TEST_SCANNER=1 for CI / readiness runs without real data."
+            )
+        if scanner_name != "clamav" and scanner_name not in TEST_SCANNERS:
+            raise RuntimeError(
+                "Protected deployment requires a malware scanner: set VETMIND_MALWARE_SCANNER=clamav "
+                "and VETMIND_CLAMD_HOST / VETMIND_CLAMD_SOCKET."
             )
         if settings.self_registration_enabled:
             clinic = (settings.self_registration_owner_clinic_id or "").strip().lower()
